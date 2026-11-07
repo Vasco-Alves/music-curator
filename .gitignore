@@ -1,0 +1,24 @@
+# personal config and data: never commit
+curator.toml
+_curation/
+cache/
+work/
+*.csv
+*.log
+
+# audio / images / downloads
+*.mp3
+*.wav
+*.flac
+*.m4a
+*.opus
+*.webm
+*.jpg
+*.png
+
+# python
+__pycache__/
+*.egg-info/
+.venv/
+build/
+dist/

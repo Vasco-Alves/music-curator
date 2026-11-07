@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "music-curator"
+version = "0.1.0"
+description = "Curate a local music library: verify songs against Discogs and other sources, settle versions by length and audio fingerprints, write clean tags and covers."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []          # standard library only; ffmpeg (with chromaprint) must be on PATH
+
+[project.optional-dependencies]
+download = ["yt-dlp"]      # only for `curator better` and `curator videos`
+
+[project.scripts]
+curator = "music_curator.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

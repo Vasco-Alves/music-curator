@@ -1,0 +1,40 @@
+[
+ {
+  "key": "1",
+  "src": "/music/inbox/Woody McBride - Electris (Techno 1995).mp3",
+  "artist": "Woody McBride",
+  "title": "Electris",
+  "album": "",
+  "year": "1995",
+  "genre": "Techno",
+  "discogs": "https://www.discogs.com/master/283936",
+  "cover": "/music/_curation/work/covers/1.jpg",
+  "notes": "length matches A1 (5:14) exactly; 3-track single, so no album"
+ },
+ {
+  "key": "2",
+  "src": "/music/inbox/Rainbow Tribe - Cupit (Acid 1994).mp3",
+  "audio": "/music/_curation/work/better/VIDEO_ID.mp3",
+  "artist": "Rainbow Tribe",
+  "title": "Cupit",
+  "album": "Micky E.P.",
+  "year": "1994",
+  "genre": "Hard Trance",
+  "discogs": "https://www.discogs.com/master/24426",
+  "cover": "/music/_curation/work/covers/2.jpg",
+  "notes": "better copy used: the original rip played ~5% fast and faded out early (same recording once speed-corrected)"
+ },
+ {
+  "key": "3",
+  "src": "/music/inbox/Re-Volt (N64) OST - Recharge.mp3",
+  "artist": "Re-Volt OST",
+  "title": "Recharge",
+  "album": "Re-Volt",
+  "year": "1999",
+  "genre": "Video Game Music",
+  "folder": "Game OST/Re-Volt",
+  "discogs": "https://en.wikipedia.org/wiki/Re-Volt",
+  "cover": "/music/_curation/work/covers/3.jpg",
+  "notes": "game song; per-track composer not confirmed, so named '<Game> OST - <Track>'"
+ }
+]

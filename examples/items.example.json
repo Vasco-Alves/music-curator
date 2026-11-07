@@ -1,0 +1,40 @@
+[
+ {
+  "key": "1",
+  "src": "/music/inbox/Woody McBride - Electris (Techno 1995).mp3",
+  "dir": "inbox",
+  "file": "Woody McBride - Electris (Techno 1995).mp3",
+  "secs": 314.0,
+  "kbps": 324,
+  "cat": "candidate",
+  "tag_artist": "some uploader channel",
+  "tag_title": "Woody McBride - Electris (Techno 1995)",
+  "tag_album": "",
+  "tag_date": "",
+  "tag_genre": "",
+  "folder_genre": "inbox",
+  "artist": "Woody McBride",
+  "title": "Electris",
+  "search_artist": "Woody McBride",
+  "search_title": "Electris",
+  "mix": null,
+  "year_hint": 1995,
+  "genre_hint": "Techno",
+  "extra": [],
+  "uploader": "some uploader channel"
+ },
+ {
+  "key": "2",
+  "src": "/music/inbox/Sound Synthesis -- B2 Untitled (Planet 17).mp3",
+  "file": "Sound Synthesis -- B2 Untitled (Planet 17).mp3",
+  "secs": 444.0,
+  "cat": "candidate",
+  "artist": "Sound Synthesis",
+  "title": "Untitled",
+  "search_artist": "Sound Synthesis",
+  "search_title": "Untitled",
+  "pos_hint": "B2",
+  "mix": null,
+  "year_hint": null
+ }
+]
