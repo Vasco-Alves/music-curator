@@ -105,8 +105,21 @@ a free Discogs personal access token in `DISCOGS_TOKEN`. Optional: a Python with
 - **Special pressings.** Promos, test pressings and mispresses can have different tracklists and images;
   take album and cover from the regular release. "If any pressing says EP" is a fair album rule.
 - **Styles are per release.** An album listing Hip Hop and Trance doesn't make every track Hip Hop.
+- **Bare titles.** A file with no artist ("Show Me.mp3", a trance track) matched a 1981 soul single by title alone.
+  `resolve` now sends artist-less files to review; never write one from a title-only match.
+- **Compilation names posing as artists.** Three "Goa Syndrome - ..." files were tracks from Cygnetic Records'
+  *Goa Syndrome* compilation series (Anodynez, Imperial Project). When an "artist" has releases but none with the
+  track, search release titles for the name: it may be a compilation or label.
+- **A master's year can be later than its first pressing** (a 1995 12" under a master dated 1996). Take the earliest
+  pressing's year, never the master's alone.
+- **Lengths can point the wrong way.** A "2010 Refix" listed 3 s from the file turned out not to be it; the
+  fingerprint matched the original on a compilation. When two versions exist, settle it with `videos`/`same`.
 - **Remix names that don't exist.** A filename's mix name may not be on any record; if lengths and fingerprints
   don't settle it, hold it back.
+- **Scraps at the edges of old rips.** Some files have a partial frame between the tag and the first real frame,
+  or end in a cut-off frame followed by an ID3v1 tag. `write` drops the leading scrap (decoders skip it) and
+  keeps the trailing one. The audio check accepts a difference only in the last packet, and only when the
+  audio really ends in such a scrap. Anything else is flagged.
 
 ## Formats
 

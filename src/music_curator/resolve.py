@@ -71,10 +71,14 @@ def credit(arts):
         n = d.clean_name(a.get("anv") or a.get("name"))
         if n and n not in names:
             names.append(n)
-    out = config.rule("artist_joiner").join(names)
+    return unify_joiners(config.rule("artist_joiner").join(names))
+
+
+def unify_joiners(artist):
+    """'A And B', 'A + B' and 'A vs. B' (one Discogs name for a duo) use the configured joiner too."""
     if config.rule("and_to_joiner"):
-        out = re.sub(r"\s+And\s+", config.rule("artist_joiner"), out)
-    return out
+        artist = re.sub(r"\s+(?:And|\+|(?i:vs\.?|versus))\s+", config.rule("artist_joiner"), artist or "")
+    return artist
 
 
 def paren(title):
@@ -158,6 +162,19 @@ def pick_genre(group_results, rel, artist, history, preferred=None):
     top = [s for s in options if votes[s] == votes[options[0]]]
     if len(top) == 1:
         return top[0], options, False, "most pressings agree" if len(options) > 1 else "only style"
+    if config.rule("prefer_existing_genre"):  # a tie goes to the style closest to your genre: its parent, else its one tied sibling
+        for p in preferred or []:
+            kids = [s for s in top if s in PARENTS.get(p, ())]  # your genre is a parent (Trance): its one tied child
+            if len(kids) == 1:
+                return kids[0], options, False, f"tie settled by your genre ({kids[0]} is a kind of {p})"
+            parent = next((par for par, kids in PARENTS.items() if p in kids), None)
+            if not parent:
+                continue
+            if parent in top:
+                return parent, options, False, f"tie settled by your genre ({parent} is the parent of {p})"
+            sibs = [s for s in top if s in PARENTS[parent]]
+            if len(sibs) == 1:
+                return sibs[0], options, False, f"tie settled by your genre ({sibs[0]} is in the same family as {p})"
     return top[0], options, True, "toss-up"
 
 
@@ -344,6 +361,9 @@ def resolve(it, history, library_keys):
     elif out["status"] != "review" and loose in library_keys and mix is None and not paren(title):
         out["status"] = "dup"
         out["reasons"].append("probably already in library: " + library_keys[loose])
+    if not sa and out["status"] in ("notfound", "ready"):  # a bare title matches anything with that name
+        out["status"] = "review"
+        out["reasons"].append(f"no artist in the file name or tags: the title-only match ({artist} - {title}) needs checking")
     if out["status"] == "notfound":
         out["status"] = "ready"
     if out["status"] == "ready" and genre:

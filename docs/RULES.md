@@ -20,7 +20,7 @@ Anything else is held back with the reason.
 ## Tags (ID3v2.3)
 | Field | Rule |
 |---|---|
-| Artist | As printed on the record (Discogs name variation), without Discogs' `(2)` numbers or `*`. Several artists joined with one joiner *(config: `artist_joiner`, default ` & `)*, replacing feat./vs./x; "A And B" between two names too *(config: `and_to_joiner`)*. A group's own name is never changed. |
+| Artist | As printed on the record (Discogs name variation), without Discogs' `(2)` numbers or `*`. Several artists joined with one joiner *(config: `artist_joiner`, default ` & `)*, replacing feat./vs./x; "A And B", "A + B" and "A vs. B" between two names too, even when Discogs files the pair under one name *(config: `and_to_joiner`)*. |
 | Title | Exactly as listed, mix name included; untitled vinyl sides become `Untitled (A1)`. |
 | Album | Release title for EPs and albums; empty for singles *(config: `album_for_singles`)*. The Discogs format label decides (Single / Maxi-Single → single; EP / Album / LP / Compilation → album); without one, 1–3 tracks or all mixes of one song = single. "Untitled" releases and titles that just list the tracks → empty. |
 | Year | Earliest pressing of that exact track (never a reissue, compilation or upload year). |
@@ -34,8 +34,10 @@ Anything else is held back with the reason.
    beat House; Gabber / Happy Hardcore / Speedcore beat Hardcore).
 3. The file's existing genre (tag or folder) wins when Discogs lists it *(config: `prefer_existing_genre`)*.
 4. The same genre as the person's other tracks by that artist, if listed.
-5. Otherwise the most-voted style; a tie is a **toss-up**: the first-listed style is used and the song is flagged
-   for the person to settle by ear.
+5. Otherwise the most-voted style. A tie goes to the style closest to the file's existing genre: its one tied
+   child (Hard Trance for a Trance file), its parent (Trance for a Hard Trance file), else the single tied style
+   from the same family (Psy-Trance for a Goa Trance file tied between Psy-Trance and Hardcore). Any other tie is a **toss-up**: the first-listed style is used and
+   the song is flagged for the person to settle by ear.
 
 ## Folders
 `{genre}` inside the library *(config: `folder`, may be nested like `{genre}/{year}`)*. Plan entries can override
