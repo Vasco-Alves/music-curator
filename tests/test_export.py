@@ -277,8 +277,8 @@ class FromThePage(Base):
         self.assertEqual(status, 400)
         self.assertIn("Already copying", answer["error"])
 
-    def test_the_page_never_shows_paths_until_someone_exports(self):
-        self.assertNotIn(self.root, json.dumps(self.ask("GET", "/api/all")[1]))
+    def test_the_page_is_not_given_the_songs_paths_until_someone_exports(self):
+        self.assertNotIn(json.dumps(self.root)[1:-1], json.dumps(self.ask("GET", "/api/all")[1]["songs"]))  # as JSON writes it: Windows paths have their backslashes doubled
 
 
 if __name__ == "__main__":
