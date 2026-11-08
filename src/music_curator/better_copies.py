@@ -2,8 +2,9 @@
 """Find a better copy (complete, right speed, better quality) for each item and compare it with yours.
 
 Usage: curator better <items.json> <out.json>
-items.json: [{"key","src","artist","title","release","master","target_secs"|null,"reason"}]
+items.json: [{"key","src","artist","title","release"|null,"master"|null,"target_secs"|null,"reason","tries"}]
 Candidates: YouTube videos linked on the Discogs release / its pressings first, then a YouTube search.
+"tries" (default 3) is how many candidates get compared.
 A candidate is accepted only if its length matches the record (or your copy, when Discogs has no
 length), it is the same recording as your copy (samerec), and - for low-quality cases - it keeps
 clearly more high-frequency detail. Audio is fetched only to compare it and deleted straight after:
@@ -51,10 +52,10 @@ def main(argv=None):
         target = it.get("target_secs") or my_len
         tol = 6
         cands, seen = [], set()
-        rids = [it["release"]]
+        rids = [it["release"]] if it.get("release") else []  # a song Discogs doesn't have goes by the YouTube search alone
         if it.get("master"):
             vers = (d.get(f"/masters/{it['master']}/versions", per_page=50) or {}).get("versions", [])
-            rids += [v["id"] for v in vers if v["id"] != it["release"]][:6]
+            rids += [v["id"] for v in vers if v["id"] != it.get("release")][:6]
         for rid in rids:
             for v in (d.get(f"/releases/{rid}") or {}).get("videos") or []:
                 i = vid_id(v.get("uri"))
@@ -73,7 +74,7 @@ def main(argv=None):
         my_hf = samerec.hf_db(it["src"])
         tried, accepted = [], None
         with samerec.scratch(qdir) as folder:
-            for c in cands[:3]:
+            for c in cands[:it.get("tries") or 3]:
                 info = samerec.fetch_audio(c["id"], folder)
                 if info.get("error") or not os.path.exists(info.get("file", "")):
                     tried.append({**c, "error": info.get("error", "download failed")[:120]})

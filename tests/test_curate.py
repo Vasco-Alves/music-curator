@@ -293,6 +293,28 @@ class Running(WithDiscogs):
         self.assertEqual(check["record"]["title"], "The Record")
         self.assertTrue(song["looked"])
 
+    def listed(self, name, why):
+        self.paths["review_list"] = os.path.join(self.app, "Review list.md")
+        with open(self.paths["review_list"], "w", encoding="utf-8") as f:
+            f.write(f"- **{name}**: {why}\n")
+
+    def test_what_someone_found_out_stays_on_the_card(self):
+        self.file("A - Song")
+        self.fake.add("A", "The Record", [("A1", "Song", "0:40")])
+        self.run_it()
+        self.listed("A - Song", "a fingerprint says it's another track")
+        check = next(c for c in self.page_song("A - Song.mp3")["checks"] if c["kind"] == "waiting")
+        self.assertEqual(check["why"], "a fingerprint says it's another track")
+        self.assertEqual(check["options"][0]["pos"], "A1")  # the versions Curate found are still there to pick from
+
+    def test_but_what_curate_says_about_your_own_answer_comes_first(self):
+        self.file("A - Song")
+        self.listed("A - Song", "a fingerprint says it's another track")
+        self.answer_for("A - Song", "identify", note="Real - Name")
+        self.run_it()
+        check = next(c for c in self.page_song("A - Song.mp3")["checks"] if c["kind"] == "waiting")
+        self.assertIn('You said "Real - Name"', check["why"])
+
     def test_a_song_nobody_has_looked_at_is_marked_so(self):
         self.file("A - Song")
         self.assertFalse(self.page_song("A - Song.mp3")["looked"])
@@ -1057,9 +1079,11 @@ class NothingFetchedIsKept(Base):
         with open(self.out, encoding="utf-8") as f:
             return json.load(f)[0]
 
-    def run_better(self, same=(True, {"ber": 0.1, "how": "fingerprints match"}), fails=None):
-        with mock.patch.object(better_copies, "yt", return_value=[]), mock.patch.object(better_copies.d, "get", return_value=self.RELEASE), mock.patch.object(samerec, "duration", return_value=314.0), \
-                mock.patch.object(samerec, "hf_db", side_effect=[-60.0, -40.0]), mock.patch.object(samerec, "same_recording", return_value=same, side_effect=fails), mock.patch.object(better_copies.subprocess, "run") as self.run:
+    def run_better(self, same=(True, {"ber": 0.1, "how": "fingerprints match"}), fails=None, item=None, found=(), hf=(-60.0, -40.0)):
+        with open(self.items, "w", encoding="utf-8") as f:
+            json.dump([item or self.ITEM], f)
+        with mock.patch.object(better_copies, "yt", return_value=list(found)), mock.patch.object(better_copies.d, "get", return_value=self.RELEASE) as self.get, mock.patch.object(samerec, "duration", return_value=314.0), \
+                mock.patch.object(samerec, "hf_db", side_effect=list(hf)), mock.patch.object(samerec, "same_recording", return_value=same, side_effect=fails), mock.patch.object(better_copies.subprocess, "run") as self.run:
             better_copies.main([self.items, self.out, os.path.join(self.work, "better"), os.path.join(self.root, "cache")])
         return self.result()
 
@@ -1086,6 +1110,18 @@ class NothingFetchedIsKept(Base):
         self.assertNotIn("mp3", result["accepted"])
         self.run.assert_not_called()  # no converting it to keep
         self.assertEqual(self.left(), [])
+
+    def test_a_song_discogs_does_not_have_goes_by_the_search_alone(self):
+        video = dict(id="bcdefghijkl", title="Woody McBride - Electris", duration=314, channel="Someone", views=5)
+        result = self.run_better(item=dict(self.ITEM, release=None), found=[video])
+        self.get.assert_not_called()
+        self.assertEqual(result["accepted"]["url"], "https://www.youtube.com/watch?v=bcdefghijkl")
+
+    def test_tries_says_how_many_candidates_get_compared(self):
+        videos_found = [dict(id=f"video{n:06d}", title="Woody McBride - Electris", duration=314, channel="Someone", views=n) for n in range(8)]
+        no_better = [-60.0] + [-59.0] * 9
+        self.assertEqual(len(self.run_better(found=videos_found, hf=no_better)["tried"]), 3)
+        self.assertEqual(len(self.run_better(item=dict(self.ITEM, tries=6), found=videos_found, hf=no_better)["tried"]), 6)
 
     def test_a_copy_that_is_not_the_same_recording_is_turned_down_and_deleted_too(self):
         self.assertIsNone(self.run_better(same=(False, {"how": "no match"}))["accepted"])

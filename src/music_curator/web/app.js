@@ -31,6 +31,7 @@ const ICONS = {
   vol: "M4 9.5v5h3.5L13 19V5L7.5 9.5zM16.5 9a4 4 0 0 1 0 6M19 6.5a8 8 0 0 1 0 11", tick: "M4.5 12.5 10 18 20 7", flag: "M5 21V4M5 4h12l-2 4 2 4H5",
   warn: "M12 4 2.5 20h19zM12 10v4.5M12 17.5h.01", sliders: "M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4", shuffle: "M16 4h5v5M4 20 21 4M21 15v5h-5M15 15l6 5M4 4l5 5",
   play: "M8 5v14l11-7z", pause: "M7 5h3.5v14H7zM13.5 5H17v14h-3.5z", prev: "M19 6v12l-9-6zM6 6h2.2v12H6z", next: "M5 6v12l9-6zM15.8 6H18v12h-2.2z",
+  disc: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z", tag: "M4 4h7.5l8.500 8.500-7.500 7.500L4 11.500zM8 8h.01", export: "M12 15V4M8 8l4-4 4 4M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5",
 };
 const FILLED = new Set(["play", "pause", "prev", "next"]);
 function icon(name, size = 18, cls) {
@@ -108,6 +109,7 @@ async function load() {
   $("#genres").replaceChildren(...tally(S.lib.map((s) => s.genre)).map(([g]) => el("option", { value: g })));
   badge();
   if (S.meta.curate && S.meta.curate.running) watchCurate(); // the page was reloaded during a run
+  if (S.meta.export && S.meta.export.running) watchExport();
 }
 
 function badge() {
@@ -228,14 +230,14 @@ function ranks(rows, href) {
 }
 
 /* ---------- covers and shared bits ---------- */
-function coverEl(s, play) {
+function coverEl(s, play, label) {
   const c = el("div", { class: `cover${s.cover ? "" : " vinyl"}` });
   if (s.cover) {
     const img = el("img", { src: coverUrl(s), alt: "", loading: "lazy", decoding: "async" });
     img.addEventListener("error", () => { img.remove(); c.classList.add("vinyl"); });
     c.append(img);
   }
-  if (play) c.append(el("button", { class: "over", type: "button", title: "Play", "aria-label": `Play ${songName(s)}`, onclick: (e) => { e.stopPropagation(); play(); } }, icon("play", 20)));
+  if (play) c.append(el("button", { class: "over", type: "button", title: "Play", "aria-label": label || `Play ${songName(s)}`, onclick: (e) => { e.stopPropagation(); play(); } }, icon("play", 20)));
   return c;
 }
 function trustTag(s) {
@@ -353,6 +355,7 @@ function matcher(f) {
     if (f.genre && s.genre !== f.genre) return false;
     if (f.trust && s.trust !== f.trust) return false;
     if (f.label && s.label !== f.label) return false;
+    if (f.album && fold(s.album).trim() !== fold(f.album).trim()) return false;
     if (f.country && s.country !== f.country) return false;
     if (f.artist && !(s.artist || "").split(" & ").map((a) => a.trim()).includes(f.artist)) return false;
     if (f.decade === "none" && s.year) return false;
@@ -379,10 +382,11 @@ function comparator({ key, dir }) {
   };
 }
 function pageSongs(params) {
-  const f = {}; for (const k of ["q", "genre", "decade", "trust", "artist", "label", "country", "from", "to"]) f[k] = params.get(k) || "";
+  const f = {}; for (const k of ["q", "genre", "decade", "trust", "album", "artist", "label", "country", "from", "to"]) f[k] = params.get(k) || "";
   f.area = params.get("area") || "library";
   const inScope = () => (f.area === "all" ? S.songs : S.songs.filter((s) => s.area === f.area));
   const results = el("div"), countLine = el("p", { class: "count-line" }), chips = el("div", { class: "actions" });
+  const exporter = exportControls(() => [f.album, f.label, f.artist, f.genre, f.q.trim()].find(Boolean) || S.meta.library || "Library");
 
   const sync = () => { const qs = q2({ ...f, area: f.area === "library" ? "" : f.area }); history.replaceState(null, "", `#/songs${qs ? `?${qs}` : ""}`); };
   function update() {
@@ -392,7 +396,8 @@ function pageSongs(params) {
     const list = S.songs.filter(matcher(f)).sort(comparator(S.sort));
     S.list = list.map((s) => s.id);
     countLine.textContent = `${plural(list.length, "song")} · ${longTime(sum(list.map((s) => s.secs)))}`;
-    chips.replaceChildren(...[["artist", "Artist"], ["label", "Label"], ["country", "Country"]].filter(([k]) => f[k]).map(([k, w]) => chipOff(`${w}: ${f[k]}`, () => { f[k] = ""; update(); })),
+    exporter.counted();
+    chips.replaceChildren(...[["album", "Album"], ["artist", "Artist"], ["label", "Label"], ["country", "Country"]].filter(([k]) => f[k]).map(([k, w]) => chipOff(`${w}: ${f[k]}`, () => { f[k] = ""; update(); })),
       ...(f.from ? [chipOff(f.from === f.to ? `Year: ${f.from}` : `Years: ${f.from}–${f.to}`, () => { f.from = f.to = ""; update(); })] : []));
     if (!list.length) return results.replaceChildren(el("p", { class: "empty" }, "Nothing matches these filters."));
     S.songView === "grid" ? renderTiles(results, list) : renderTable(results, list, update);
@@ -417,7 +422,7 @@ function pageSongs(params) {
       pick("Decade", "decade", [["", "All years"], ...decades.map(([d, c]) => [d, `${d}s (${c})`]), ["none", "No year"]]),
       pick("How sure", "trust", [["", "How sure: any"], ...Object.entries(TRUST).map(([k, t]) => [k, t.label])]),
       toggle),
-    chips, countLine, results));
+    chips, el("div", { class: "list-head" }, countLine, exporter.button), exporter.panel, results));
   update();
 }
 function renderTable(box, list, update) {
@@ -444,6 +449,206 @@ function renderTiles(box, list) {
     coverEl(s, () => playFrom(s.id)), el("span", { class: "t-main", title: s.title }, s.title), el("span", { class: "t-sub", title: s.artist }, s.artist)), holder);
 }
 
+/* ---------- export: a playlist file, a spreadsheet, or copies in a folder ---------- */
+let exportTimer = null, exportPaint = null;
+function saveFile(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = el("a", { href: url, download: name });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+function exportWords(r) {
+  return [r.copied ? `Copied ${plural(r.copied, "song")} to ${r.target}.` : `No new songs to copy to ${r.target}.`,
+    r.already ? `${plural(r.already, "song was", "songs were")} already there.` : "", r.stopped ? "Stopped before the end." : ""].filter(Boolean).join(" ");
+}
+function exportControls(nameOf) { // works on whatever the Songs page is listing right now
+  const heading = el("h2", {}), status = el("div"), folderBox = el("div", { class: "export-folder" });
+  const keep = el("input", { type: "checkbox", checked: true });
+  const fileButton = (label, format, ext, type) => el("button", { class: "btn small", type: "button", onclick: async (e) => {
+    const b = e.currentTarget;
+    b.disabled = true;
+    const r = await post("/api/export/list", { ids: S.list, format });
+    b.disabled = false;
+    if (r.error) return toast(r.error);
+    const name = `${nameOf().replace(/[\\/:*?"<>|]+/g, "-").trim() || "Library"}.${ext}`;
+    saveFile(name, r.text, type);
+    toast(`Saved ${name} to your browser's downloads.`);
+  } }, label);
+  const copy = el("button", { class: "btn primary small", type: "button", disabled: true, onclick: async () => {
+    copy.disabled = true;
+    const r = await post("/api/export/copy", { ids: S.list, folder: field.value(), keep: keep.checked });
+    if (r.error) { toast(r.error); counted(); return; }
+    store("curator-export-folder", field.value());
+    S.meta.export = { running: true, stopping: false, done: 0, total: S.list.length, name: "", failed: "", result: null };
+    paint();
+    watchExport();
+  } });
+  const form = el("div", {}, heading,
+    el("div", { class: "export-part" },
+      el("div", { class: "note" }, "Save a list of these songs. It goes to your browser's downloads."),
+      el("div", { class: "actions" }, fileButton("M3U playlist", "m3u", "m3u8", "audio/x-mpegurl"), fileButton("Spreadsheet (CSV)", "csv", "csv", "text/csv;charset=utf-8"))),
+    el("div", { class: "export-part" },
+      el("div", { class: "note" }, "Or copy the songs to a folder or USB drive. Your library stays as it is, and anything already in that folder is left alone."),
+      folderBox,
+      el("div", { class: "export-go" }, el("label", {}, keep, "Keep the genre folders"), copy)));
+  const panel = el("div", { class: "card export-panel", id: "export-panel", hidden: true }, status, form);
+  let field = null, building = false, wasRunning = false;
+  const button = el("button", { class: "btn small", type: "button", "aria-expanded": "false", "aria-controls": "export-panel", onclick: () => { panel.hidden = !panel.hidden; paint(); } }, icon("export", 14), "Export");
+  function counted() {
+    const n = S.list.length;
+    heading.textContent = `Export ${plural(n, "song")}`;
+    copy.textContent = `Copy ${plural(n, "song")}`;
+    copy.disabled = !n || !field || !field.ok;
+  }
+  async function buildField() {
+    if (field || building) return;
+    building = true;
+    let picker = false;
+    try { const r = await fetch("/api/settings", { cache: "no-store" }); if (r.ok) picker = !!(await r.json()).picker; } catch { picker = false; }
+    field = folderField({ kind: "export", label: "Folder to copy to", picker, value: store("curator-export-folder") || "", changed: counted });
+    folderBox.replaceChildren(field.node);
+    if (field.value()) field.check();
+    counted();
+  }
+  function paint() {
+    const c = S.meta.export || {};
+    if (wasRunning && !c.running && field) field.check(); // the folder may exist by now
+    wasRunning = !!c.running;
+    if (c.running) panel.hidden = false;
+    form.hidden = !!c.running;
+    button.setAttribute("aria-expanded", String(!panel.hidden));
+    status.replaceChildren();
+    if (c.running) {
+      const bar = el("div");
+      bar.style.width = `${c.total ? (c.done / c.total) * 100 : 0}%`;
+      status.append(el("div", { class: "curate-head" },
+        el("div", { class: "grow" }, el("h2", {}, `Copying ${fmt(Math.min(c.done + 1, c.total))} of ${fmt(c.total)}`), el("div", { class: "note curate-now" }, c.name || "Starting…")),
+        el("button", { class: "btn small", type: "button", disabled: !!c.stopping, onclick: (e) => { e.currentTarget.disabled = true; e.currentTarget.textContent = "Stopping…"; post("/api/export/stop", {}); } }, c.stopping ? "Stopping…" : "Stop")),
+      el("div", { class: "meter" }, bar));
+      return;
+    }
+    if (!panel.hidden) buildField();
+    if (c.failed || c.result) {
+      const r = c.result || { problems: [], more: 0 };
+      status.append(el("div", { class: "export-said" },
+        c.result ? el("p", { class: "note" }, exportWords(r)) : null,
+        c.failed ? el("p", { class: "note" }, c.failed) : null,
+        r.problems.length ? el("ul", { class: "note" }, r.problems.map((p) => el("li", {}, p)), r.more ? el("li", {}, `and ${fmt(r.more)} more`) : null) : null));
+    }
+  }
+  exportPaint = paint;
+  paint();
+  return { button, panel, counted };
+}
+function watchExport() {
+  if (exportTimer) return;
+  const tick = async () => {
+    let c = null;
+    try { const r = await fetch("/api/export", { cache: "no-store" }); if (r.ok) c = await r.json(); } catch { c = null; }
+    if (!c) { exportTimer = null; return; } // the app has gone away: the next load picks it up again
+    S.meta.export = c;
+    if (exportPaint) exportPaint();
+    if (c.running) { exportTimer = setTimeout(tick, 500); return; }
+    exportTimer = null;
+    toast(c.failed || (c.result ? exportWords(c.result) : "Copy finished."));
+  };
+  exportTimer = setTimeout(tick, 300);
+}
+
+/* ---------- albums and labels: the library, shelf by shelf ---------- */
+function shelfCover(item, mosaic) {
+  const play = () => playQueue(item.songs.map((s) => s.id), 0, item.name), label = `Play ${item.name}`;
+  const faces = [], seen = new Set();
+  for (const s of item.songs) if (s.cover && !seen.has(s.link || s.id)) { seen.add(s.link || s.id); faces.push(s); }
+  if (!mosaic || faces.length < 4) return coverEl(faces[0] || item.songs[0], play, label);
+  const c = el("div", { class: "cover four-up" }, faces.slice(0, 4).map((s) => el("img", { src: coverUrl(s), alt: "", loading: "lazy", decoding: "async" })));
+  c.append(el("button", { class: "over", type: "button", title: "Play", "aria-label": label, onclick: (e) => { e.stopPropagation(); play(); } }, icon("play", 20)));
+  return c;
+}
+const shelfTile = (item, mosaic) => el("div", { class: "tile has-play", onclick: () => { location.hash = item.href; } },
+  shelfCover(item, mosaic),
+  el("a", { class: "t-main", href: item.href, title: item.name, onclick: (e) => e.stopPropagation() }, item.name),
+  item.lines.map((line) => el("span", { class: "t-sub", title: line }, line)));
+const byTitle = (a, b) => fold(a.title).localeCompare(fold(b.title));
+const yearsOf = (songs) => songs.map((s) => +s.year).filter(Boolean);
+const artistsOf = (s) => (s.artist || "").split(" & ").map((a) => a.trim()).filter(Boolean);
+function albumItems() {
+  const byName = new Map();
+  for (const s of S.lib) if (s.album) {
+    const k = fold(s.album).trim();
+    if (!byName.has(k)) byName.set(k, []);
+    byName.get(k).push(s);
+  }
+  const items = [];
+  for (const group of byName.values()) { // the same title can be two different records: songs belong together if they share a record or an artist
+    const parts = [];
+    for (const s of group) {
+      const names = artistsOf(s);
+      let part = parts.find((p) => (s.link && p.links.has(s.link)) || names.some((a) => p.artists.has(a)));
+      if (!part) parts.push(part = { songs: [], links: new Set(), artists: new Set() });
+      part.songs.push(s);
+      if (s.link) part.links.add(s.link);
+      names.forEach((a) => part.artists.add(a));
+    }
+    for (const { songs } of parts) {
+      const who = [...new Set(songs.map((s) => s.artist).filter(Boolean))], years = yearsOf(songs), year = years.length ? Math.min(...years) : 0, name = songs[0].album;
+      items.push({ name, songs: songs.sort(byTitle), year, lines: [who.length === 1 ? who[0] : who.length ? "Various artists" : "", `${year ? `${year} · ` : ""}${plural(songs.length, "song")}`].filter(Boolean),
+        href: `#/songs?${q2({ album: name, artist: parts.length > 1 ? artistsOf(songs[0])[0] : "" })}`, hay: fold(`${name} ${who.join(" ")} ${songs.map((s) => s.label).join(" ")}`) });
+    }
+  }
+  return items;
+}
+function labelItems() {
+  const byName = new Map();
+  for (const s of S.lib) if (s.label) {
+    if (!byName.has(s.label)) byName.set(s.label, []);
+    byName.get(s.label).push(s);
+  }
+  return [...byName].map(([name, songs]) => {
+    const years = yearsOf(songs), low = years.length ? Math.min(...years) : 0, high = years.length ? Math.max(...years) : 0, genre = (tally(songs.map((s) => s.genre))[0] || [""])[0];
+    return { name, songs: songs.sort(byTitle), year: high, lines: [plural(songs.length, "song"), [low === high ? low : `${low}–${high}`, genre].filter(Boolean).join(" · ")].filter(Boolean),
+      href: `#/songs?${q2({ label: name })}`, hay: fold(`${name} ${songs.map((s) => `${s.artist} ${s.genre}`).join(" ")}`) };
+  });
+}
+function pageShelf(params, o) {
+  const f = { q: params.get("q") || "", sort: params.get("sort") || "most", many: params.get("many") === "1" }, all = o.items();
+  const results = el("div"), countLine = el("p", { class: "count-line" });
+  const names = (a, b) => fold(a.name).localeCompare(fold(b.name));
+  const sorters = { most: (a, b) => b.songs.length - a.songs.length || names(a, b), name: names, year: (a, b) => b.year - a.year || names(a, b) };
+  function update() {
+    const qs = q2({ q: f.q, sort: f.sort === "most" ? "" : f.sort, many: f.many ? "1" : "" });
+    history.replaceState(null, "", `#/${o.page}${qs ? `?${qs}` : ""}`);
+    S.observers.forEach((x) => x.disconnect()); S.observers = [];
+    const words = fold(f.q).split(/\s+/).filter(Boolean);
+    const list = all.filter((x) => (!f.many || x.songs.length > 1) && words.every((w) => x.hay.includes(w))).sort(sorters[f.sort] || sorters.most);
+    countLine.textContent = o.count(list.length);
+    if (!list.length) return results.replaceChildren(el("p", { class: "empty" }, all.length ? "Nothing matches that." : o.none));
+    const grid = el("div", { class: "grid" }), holder = el("div");
+    results.replaceChildren(grid, holder);
+    lazy(grid, list, (x) => shelfTile(x, o.mosaic), holder);
+  }
+  const search = el("input", { type: "search", placeholder: o.placeholder, value: f.q, "aria-label": "Search", id: "song-search", oninput: (e) => { f.q = e.target.value; update(); } });
+  const order = el("select", { "aria-label": "Sort", onchange: (e) => { f.sort = e.target.value; update(); } }, [["most", "Most songs"], ["name", "A to Z"], ["year", "Newest first"]].map(([v, t]) => el("option", { value: v, selected: f.sort === v }, t)));
+  view.replaceChildren(el("div", {},
+    el("div", { class: "page-head" }, el("h1", {}, o.title)),
+    el("div", { class: "filters" }, el("div", { class: "search" }, icon("search", 16), search), order,
+      o.many ? el("label", { class: "filter-check" }, el("input", { type: "checkbox", checked: f.many, onchange: (e) => { f.many = e.target.checked; update(); } }), o.many) : null),
+    countLine, results));
+  update();
+}
+function pageAlbums(params) {
+  const loose = S.lib.filter((s) => !s.album).length;
+  pageShelf(params, { page: "albums", title: "Albums", items: albumItems, placeholder: "Search albums and artists…", many: "Only ones with 2 or more songs", none: "No albums yet. Songs from a single have no album.",
+    count: (n) => `${plural(n, "album or EP", "albums and EPs")}${loose ? ` · ${plural(loose, "single")} not shown` : ""}` });
+}
+function pageLabels(params) {
+  const loose = S.lib.filter((s) => !s.label).length;
+  pageShelf(params, { page: "labels", title: "Labels", items: labelItems, mosaic: true, placeholder: "Search labels, artists and genres…", none: "No labels yet. They come from the Discogs records of your songs.",
+    count: (n) => `${plural(n, "label")}${loose ? ` · ${plural(loose, "song")} with no label on file` : ""}` });
+}
+
 /* ---------- decisions ---------- */
 async function decide(song, kind, action, extra = {}) {
   let r;
@@ -462,11 +667,11 @@ async function decide(song, kind, action, extra = {}) {
 }
 function decidedText(d) {
   return { keep: d.kind === "playlist" ? "Doesn't fit" : d.kind === "waiting" ? "Left for now" : d.kind === "spotify" ? "Not the same" : "Keep it as it is", genre: `Change the genre to ${d.genre}`, identify: `You said: ${d.note}`, drop: d.note === "On Spotify" ? "It's on Spotify, so your file isn't needed" : "Not worth keeping", stream: `On Spotify, in ${lines(d.note).join(", ")}`, pick: `It's ${(d.note || "").split("|").slice(1).join("|")}. Press Curate to add it.`,
-    recheck: `Look at it again${d.note ? `: ${d.note}` : ""}`, better: d.kind === "better" ? "Use this copy instead" : "Find a better copy", cover: "Find a cover", add: `Add it to ${lines(d.note).join(", ")}`, added: `Added to ${lines(d.note).join(", ")}` }[d.action] || d.action;
+    recheck: `Look at it again${d.note ? `: ${d.note}` : ""}`, better: d.kind === "better" ? "Use the found version" : "Find a better copy", cover: "Find a cover", add: `Add it to ${lines(d.note).join(", ")}`, added: `Added to ${lines(d.note).join(", ")}` }[d.action] || d.action;
 }
 const alreadyIn = (c) => (c.also && c.also.length ? el("div", { class: "item-also" }, `Already in ${c.also.join(", ")}`) : null);
 const spotifyLine = (c) => (c.kind === "spotify" && c.link ? el("div", { class: "item-also" }, el("a", { href: c.link, target: "_blank", rel: "noreferrer noopener" }, "Open it on Spotify"), " to compare") : null);
-const betterLine = (c) => (c.kind === "better" && c.link ? el("div", { class: "item-also" }, el("a", { href: c.link, target: "_blank", rel: "noreferrer noopener" }, "Open it to compare"), c.checked ? " (checked: it's the same recording as yours)" : " (a guess: nobody has compared it with your file)") : null);
+const betterLine = (c) => (c.kind === "better" && c.link ? el("div", { class: "item-also better-open" }, el("a", { class: "btn small", href: c.link, target: "_blank", rel: "noreferrer noopener" }, icon("link", 14), "Open it to compare"), el("span", {}, c.checked ? "Checked: it's the same recording as yours" : "A guess: nobody has compared it with your file")) : null);
 function playlistForm(names, chosen, already, label, save, cancel) {
   const search = el("input", { type: "search", placeholder: "Find a playlist", "aria-label": "Find a playlist" }), list = el("div", { class: "pick-list" });
   const paintList = () => list.replaceChildren(...names.filter((n) => fold(n).includes(fold(search.value))).map((n) => (already.has(n)
@@ -515,7 +720,7 @@ function controls(song, check, after) {
       row.append(chip("Fine as it is", act("keep")), chip("Find a better copy", act("better")));
       break;
     case "better":
-      row.append(chip("Fine as it is", act("keep")), chip("Use this one", act("better", { note: check.link })));
+      row.append(chip("Fine as it is", act("keep")), chip("Use found version", act("better", { note: check.link })));
       break;
     case "cover":
       row.append(chip("Leave it empty", act("keep")), chip("Find a cover", act("cover")));
@@ -1073,7 +1278,7 @@ function paintPanel() {
       isNow ? null : el("button", { class: "btn primary small", type: "button", onclick: () => (S.list.includes(s.id) ? playFrom(s.id) : playQueue([s.id], 0, "")) }, icon("play", 14), "Play"),
       s.link ? el("a", { class: "btn small", href: s.link, target: "_blank", rel: "noreferrer noopener" }, icon("link", 14), linkName) : null,
       shop ? el("a", { class: "btn small", href: shop.href, target: "_blank", rel: "noreferrer noopener" }, icon(shop.icon, 14), shop.label) : null),
-    el("dl", { class: "facts-list" }, facts.map(([k, v]) => [el("dt", {}, k), el("dd", {}, v)])),
+    el("dl", { class: "facts-list" }, facts.map(([k, v]) => [el("dt", {}, k), el("dd", {}, k === "Album" || k === "Label" ? el("a", { class: "fact-link", href: `#/songs?${q2({ [k.toLowerCase()]: v })}` }, v) : v)])),
     s.area === "library" ? [el("h3", {}, "How sure"), el("div", { class: "box" }, trustTag(s), el("div", { class: "note" }, t.long), s.notes ? el("div", { class: "item-why" }, s.notes) : null)] : null,
     s.was && s.was !== s.file ? [el("h3", {}, "Your file was called"), el("div", { class: "box" }, s.was)] : null,
     checks.length ? [el("h3", {}, "To check"), checks.map((c) => el("div", { class: "box" }, el("strong", {}, KINDS[c.kind].label), el("div", { class: "item-why" }, c.why), alreadyIn(c), recordLine(c), spotifyLine(c), betterLine(c),
@@ -1165,7 +1370,7 @@ if ("mediaSession" in navigator) {
 }
 
 /* ---------- frame ---------- */
-const NAV = [["home", "Overview", "home", "#/"], ["songs", "Songs", "music", "#/songs"], ["check", "To check", "ears", "#/check"], ["add", "Playlists", "listadd", "#/add"], ["progress", "Progress", "bars", "#/progress"]];
+const NAV = [["home", "Overview", "home", "#/"], ["songs", "Songs", "music", "#/songs"], ["albums", "Albums", "disc", "#/albums"], ["labels", "Labels", "tag", "#/labels"], ["check", "To check", "ears", "#/check"], ["add", "Playlists", "listadd", "#/add"], ["progress", "Progress", "bars", "#/progress"]];
 $("#rail-links").replaceChildren(...NAV.map(([k, label, ic, href]) => el("a", { class: "nav", href, dataset: { page: k } }, icon(ic, 18), label, k === "check" || k === "add" ? el("span", { class: "count", id: `${k}-count` }) : null)));
 $("#vol-icon").append(icon("vol", 16));
 $("#prev").append(icon("prev", 20));
@@ -1201,7 +1406,7 @@ function route() {
   $("#settings-link").classList.toggle("active", page === "settings");
   document.querySelectorAll(".nav").forEach((n) => { const on = n.dataset.page === page; n.classList.toggle("active", on); on ? n.setAttribute("aria-current", "page") : n.removeAttribute("aria-current"); });
   moveNav();
-  const pages = { home: pageHome, songs: pageSongs, check: pageCheck, add: pageAdd, progress: pageProgress, settings: pageSettings };
+  const pages = { home: pageHome, songs: pageSongs, albums: pageAlbums, labels: pageLabels, check: pageCheck, add: pageAdd, progress: pageProgress, settings: pageSettings };
   (pages[page] || pageHome)(params);
   view.scrollTop = 0;
   markPlaying();

@@ -125,7 +125,8 @@ do: reading odd names, comparing audio fingerprints with the record, checking ot
 ![To check: songs waiting for your ears, with the versions found](docs/img/check.jpg)
 
 - **Overview**: a wall of your covers, your peak years, top genres, artists, labels and countries.
-- **Songs**: search and filter everything, play it, see how each song was verified and what the file used to be called, and jump to its Discogs page to check it or buy the record.
+- **Songs**: search and filter everything, play it, see how each song was verified and what the file used to be called, and jump to its Discogs page to check it or buy the record. **Export** takes whatever you've filtered: an M3U playlist, a spreadsheet, or copies in a folder or on a USB drive, for your phone, car or another player.
+- **Albums** and **Labels**: browse your library by cover, play a whole record, and click through to its songs.
 - **To check**: the questions only ears can answer (genre toss-ups, songs that couldn't be verified), with the audio right there.
 - **Progress**: what's waiting in the inbox, how sure each song is, library growth, latest changes.
 
@@ -134,7 +135,7 @@ do: reading odd names, comparing audio fingerprints with the record, checking ot
 The first time it asks where your library and downloads live, and you can change them later under Folders. Picking a
 folder never moves any music. The app keeps its log, answers and cache in a `_curation` folder next to the library, and its
 settings in your user profile. Browsing only ever reads your music, and your answers go to `decisions.json` next to the log. The
-one thing on the page that adds to your library is the Curate button, and the only outside service it talks to is Discogs.
+one thing on the page that adds to your library is the Curate button, and the only outside service it talks to is Discogs. Export never changes your library, and copying only ever adds files to the folder you pick.
 
 `curator apply --dry-run` shows what your answers would do, and `curator apply` carries out the ones that need no research: genre
 changes, which also move the song to the new genre's folder. Songs you marked not worth keeping only move if you add `--set-aside`.

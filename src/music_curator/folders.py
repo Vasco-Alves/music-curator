@@ -22,7 +22,7 @@ path = filedialog.askdirectory(parent=root, title=sys.argv[1], initialdir=sys.ar
 sys.stdout.write(path or '')
 """
 TITLES = dict(library="Choose your library folder", inbox="Choose a folder where you put downloaded songs",
-              review="Choose the folder of songs waiting for a decision")
+              review="Choose the folder of songs waiting for a decision", export="Choose where to copy the songs")
 NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0  # no console window behind the folder window
 COUNT_LIMIT_S = 1.5
 MAX_INBOX = 20
@@ -124,11 +124,38 @@ def _result(path, tone, message, ok, create=False):
     return dict(path=path, tone=tone, message=message, ok=ok, create=create)
 
 
+def nearest_existing(path):
+    """The closest folder up the tree that's really there, or None if not even the drive is."""
+    while not os.path.exists(path):
+        parent = os.path.dirname(path)
+        if parent == path:
+            return None
+        path = parent
+    return path
+
+
+def _check_export(p):
+    """Can songs be copied here? Never into a folder the app itself reads as music."""
+    for where, name in ((config.path("library"), "your library"), (config.path("review"), "your Review folder")):
+        if where and _same(p, os.path.normpath(where)):
+            return _result(p, "bad", f"That's {name}.", False)
+        if where and _inside(p, os.path.normpath(where)):
+            return _result(p, "bad", f"That's inside {name}, so the copies would count as songs there.", False)
+    if any(_same(p, os.path.normpath(x)) for x in config.path("inbox") or []):  # its subfolders are fine: the app doesn't look in them
+        return _result(p, "bad", "That's one of your downloads folders, so the copies would count as new downloads.", False)
+    if not nearest_existing(p):
+        return _result(p, "bad", "Can't find that drive. If it's a USB drive, plug it in.", False)
+    if not os.path.exists(p):
+        return _result(p, "warn", "This folder doesn't exist yet. It'll be created.", True, create=True)
+    return _result(p, "good", "Songs will be copied here. Anything already in this folder stays.", True)
+
+
 def check(kind, value, library_value=""):
     """Is this folder usable for this role? Says why in plain words, for the line under the field."""
     p = clean(value)
     if not p:
-        return _result(p, "none", "Choose a folder to continue." if kind == "library" else "", kind != "library")
+        needed = kind in ("library", "export")
+        return _result(p, "none", "Choose a folder to continue." if needed else "", not needed)
     try:
         p.encode("utf-8")
     except UnicodeEncodeError:
@@ -139,6 +166,8 @@ def check(kind, value, library_value=""):
         return _result(p, "bad", "That's a file, not a folder.", False)
     if os.path.exists(p) and not _readable(p):
         return _result(p, "bad", "The app isn't allowed to read that folder.", False)
+    if kind == "export":
+        return _check_export(p)
     if kind == "library":
         current = config.path("library")
         is_current = bool(current) and _same(p, os.path.normpath(current))

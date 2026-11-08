@@ -33,6 +33,7 @@ WORDS = dict(keep="keep as it is", genre="change the genre", identify="identify 
 LOW_KBPS = 128  # below this a song is worth a better copy
 DISCARD_S = 2  # how long a refused request's leftover body gets read before the connection closes
 BODY_TIMEOUT_S = 15  # how long to wait for a request body that was promised
+EXPORT_BODY_MAX = 1 << 20  # room for about 70,000 songs
 ENTRY = re.compile(r"^\s*[-*]\s+\*\*(.+?)\*\*(?:\s*\([^)]*\))?\s*:\s*(.+?)\s*$")
 
 
@@ -434,7 +435,8 @@ class Collection:
                 song.update(label=found["label"], country=found["country"])
         stem = os.path.splitext(song["file"])[0]
         held = self.curated.get(key) if area == "inbox" and not song["done"] else None
-        reason = held["why"] if held else self._reason(stem, song["artist"], song["title"]) if area != "library" else ""
+        listed = self._reason(stem, song["artist"], song["title"]) if area != "library" else ""
+        reason = held["why"] if held and (held.get("said") or not listed) else listed  # what someone found out says more than Curate's names and lengths, unless Curate is answering what you told it
         flag = self.decisions.get(f"flag:{key}")
         song["checks"] = checks_for(song, row, reason, (flag or {}).get("note") or ("Flagged by you" if flag else ""))
         song["looked"] = bool(held) and not held.get("retry")  # one held back by a network blip is worth another go
@@ -632,11 +634,15 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     collection = self.server.collection
             if not collection:
                 return self._json(dict(setup=folders.state()))
-            from . import curate  # here because it needs this module loaded first
+            from . import curate, export  # here because curate needs this module loaded first
             snap = collection.snapshot()
             snap["meta"]["curate"] = curate.status(self.server)
+            snap["meta"]["export"] = export.status(self.server)
             return self._json(snap)
         collection = self.server.collection
+        if route == "/api/export":
+            from . import export
+            return self._json(export.status(self.server))
         if route == "/api/settings":
             return self._json(folders.state())
         if route == "/api/curate":
@@ -690,7 +696,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self._host_ok():
             return self._reply(403, b"Forbidden")
         route = self._route()
-        if route not in ("/api/decision", "/api/settings", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/curate", "/api/curate/stop"):
+        if route not in ("/api/decision", "/api/settings", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/curate", "/api/curate/stop", "/api/export/list", "/api/export/copy", "/api/export/stop"):
             return self._reply(404, b"Not found")
         origin = self.headers.get("Origin")
         try:
@@ -702,7 +708,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._reply(403, b"Forbidden")
         if "application/json" not in self.headers.get("Content-Type", ""):
             return self._reply(415, b"JSON only")
-        if size < 0 or size > 65536:
+        if size < 0 or size > (EXPORT_BODY_MAX if route.startswith("/api/export") else 65536):  # an export names every song in the list
             return self._reply(413, b"Too large")
         self.connection.settimeout(BODY_TIMEOUT_S)
         raw = self.rfile.read(size)
@@ -736,6 +742,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             from . import curate
             answer = curate.start(self.server) if route == "/api/curate" else curate.stop(self.server)
             return self._json(answer, 400 if answer.get("error") else 200)
+        if route.startswith("/api/export"):
+            from . import export
+            answer = export.handle(self.server, route, body)
+            return self._json(answer, 400 if answer.get("error") else 200)
         if route in ("/api/spotify/check", "/api/spotify/move", "/api/spotify/stream"):
             names = body.get("playlists")
             if route.endswith("stream") and (not isinstance(names, list) or not 0 < len(names) <= 50 or not all(isinstance(n, str) and n for n in names)):
@@ -761,6 +771,8 @@ class Server(http.server.ThreadingHTTPServer):
     spotify_client = None  # keeps the sign-in for as long as the app runs
     curate_lock = threading.Lock()  # one run at a time
     curate_state, curate_stop = None, None
+    export_lock = threading.Lock()  # one copy at a time
+    export_state, export_stop = None, None
 
 
 def app_paths():
