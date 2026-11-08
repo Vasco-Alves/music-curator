@@ -83,6 +83,7 @@ const KINDS = {
   flag: { label: "Flagged by you", hint: "You marked this one." },
   problem: { label: "Something looked off", hint: "The last write needs a look." },
   quality: { label: "Low quality", hint: "A better copy might exist." },
+  better: { label: "Maybe a better copy", hint: "Found online. Yours stays unless you say otherwise." },
   unverified: { label: "Unverified, kept on purpose", hint: "Only if you change your mind." },
   cover: { label: "No cover", hint: "Empty until a verified one turns up." },
   spotify: { label: "Might be on Spotify", hint: "Listen and compare before saying it's the same." },
@@ -461,10 +462,11 @@ async function decide(song, kind, action, extra = {}) {
 }
 function decidedText(d) {
   return { keep: d.kind === "playlist" ? "Doesn't fit" : d.kind === "waiting" ? "Left for now" : d.kind === "spotify" ? "Not the same" : "Keep it as it is", genre: `Change the genre to ${d.genre}`, identify: `You said: ${d.note}`, drop: d.note === "On Spotify" ? "It's on Spotify, so your file isn't needed" : "Not worth keeping", stream: `On Spotify, in ${lines(d.note).join(", ")}`, pick: `It's ${(d.note || "").split("|").slice(1).join("|")}. Press Curate to add it.`,
-    recheck: `Look at it again${d.note ? `: ${d.note}` : ""}`, better: "Find a better copy", cover: "Find a cover", add: `Add it to ${lines(d.note).join(", ")}`, added: `Added to ${lines(d.note).join(", ")}` }[d.action] || d.action;
+    recheck: `Look at it again${d.note ? `: ${d.note}` : ""}`, better: d.kind === "better" ? "Use this copy instead" : "Find a better copy", cover: "Find a cover", add: `Add it to ${lines(d.note).join(", ")}`, added: `Added to ${lines(d.note).join(", ")}` }[d.action] || d.action;
 }
 const alreadyIn = (c) => (c.also && c.also.length ? el("div", { class: "item-also" }, `Already in ${c.also.join(", ")}`) : null);
 const spotifyLine = (c) => (c.kind === "spotify" && c.link ? el("div", { class: "item-also" }, el("a", { href: c.link, target: "_blank", rel: "noreferrer noopener" }, "Open it on Spotify"), " to compare") : null);
+const betterLine = (c) => (c.kind === "better" && c.link ? el("div", { class: "item-also" }, el("a", { href: c.link, target: "_blank", rel: "noreferrer noopener" }, "Open it to compare"), c.checked ? " (checked: it's the same recording as yours)" : " (a guess: nobody has compared it with your file)") : null);
 function playlistForm(names, chosen, already, label, save, cancel) {
   const search = el("input", { type: "search", placeholder: "Find a playlist", "aria-label": "Find a playlist" }), list = el("div", { class: "pick-list" });
   const paintList = () => list.replaceChildren(...names.filter((n) => fold(n).includes(fold(search.value))).map((n) => (already.has(n)
@@ -511,6 +513,9 @@ function controls(song, check, after) {
       break;
     case "quality":
       row.append(chip("Fine as it is", act("keep")), chip("Find a better copy", act("better")));
+      break;
+    case "better":
+      row.append(chip("Fine as it is", act("keep")), chip("Use this one", act("better", { note: check.link })));
       break;
     case "cover":
       row.append(chip("Leave it empty", act("keep")), chip("Find a cover", act("cover")));
@@ -601,7 +606,7 @@ function itemCard(it, paintMeter) {
       el("div", { class: "item-body" },
         el("button", { class: "item-title", type: "button", onclick: () => openDrawer(it.s.id) }, songName(it.s) || it.s.file),
         el("div", { class: "item-kind" }, it.s.genre ? `${k.one || k.label} · filed under ${it.s.genre}${it.s.year ? `, ${it.s.year}` : ""}` : k.one || k.label),
-        el("div", { class: "item-why" }, it.c.why), alreadyIn(it.c), recordLine(it.c), spotifyLine(it.c),
+        el("div", { class: "item-why" }, it.c.why), alreadyIn(it.c), recordLine(it.c), spotifyLine(it.c), betterLine(it.c),
         controls(it.s, it.c, paint)));
     if (paintMeter) paintMeter();
     if (advance && S.listen && current() && current().id === it.s.id) step(1);
@@ -1071,7 +1076,7 @@ function paintPanel() {
     el("dl", { class: "facts-list" }, facts.map(([k, v]) => [el("dt", {}, k), el("dd", {}, v)])),
     s.area === "library" ? [el("h3", {}, "How sure"), el("div", { class: "box" }, trustTag(s), el("div", { class: "note" }, t.long), s.notes ? el("div", { class: "item-why" }, s.notes) : null)] : null,
     s.was && s.was !== s.file ? [el("h3", {}, "Your file was called"), el("div", { class: "box" }, s.was)] : null,
-    checks.length ? [el("h3", {}, "To check"), checks.map((c) => el("div", { class: "box" }, el("strong", {}, KINDS[c.kind].label), el("div", { class: "item-why" }, c.why), alreadyIn(c), recordLine(c), spotifyLine(c),
+    checks.length ? [el("h3", {}, "To check"), checks.map((c) => el("div", { class: "box" }, el("strong", {}, KINDS[c.kind].label), el("div", { class: "item-why" }, c.why), alreadyIn(c), recordLine(c), spotifyLine(c), betterLine(c),
       controls(s, c, (advance) => { if (advance && S.listen && current() && current().id === s.id) step(1); })))] : null,
     el("div", { class: "hintbar" }, flagBox)]);
   drawer.classList.toggle("fresh", paintedSong !== drawerSong); // only a new song arrives with motion, not a repaint of the same one

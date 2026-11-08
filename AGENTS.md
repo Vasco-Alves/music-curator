@@ -28,8 +28,9 @@ reading results, spotting wrong matches, choosing which check to run next, and t
 5. **Be a good API citizen.** Discogs: about 60 requests/min with a token (the client throttles and caches).
    MusicBrainz: 1 request/s and a descriptive User-Agent. VGMdb blocks automated access: never try to get
    around security checks or CAPTCHAs; ask the person instead.
-6. **Downloads are optional and only on request.** `curator better` / `curator videos` use yt-dlp. Treat
-   downloaded files as untrusted data (they stay in `[paths] work`; never execute anything from them).
+6. **A better copy never replaces a song by itself.** `curator better` / `curator videos` download audio only to compare it, with
+   yt-dlp, which is optional. Treat downloaded files as untrusted data (they stay in `[paths] work`; never execute anything from
+   them). What you find goes to the person: see **Better copies**.
 7. **Look before you write.** Check covers visually (contact sheet) and spot-check decisions against the
    person's existing tags. The writer re-reads every file it writes (tags, audio bytes, cover) — read its output.
 
@@ -74,8 +75,8 @@ in a few plain words, skip whatever is already there, and get their OK before in
 6. **Folders.** If `curator doctor` shows `library (not set)`, run `curator serve` in the background (it keeps running). The
    page opens on a first-run screen where they pick their library and downloads folders. Let them choose; picking a folder
    never moves any music.
-7. **yt-dlp is optional, so ask.** Without it `curator other` can't look for official YouTube uploads, and `videos` and `better`
-   don't work, so some songs get held back that could have been verified. To add it: `.venv/Scripts/python -m pip install -e ".[download]"`
+7. **yt-dlp is optional, so ask.** Without it `curator other` can't look for official YouTube uploads and `videos` doesn't work, so
+   some songs get held back that could have been verified, and a better copy can only be left as a link nobody has compared with their file. To add it: `.venv/Scripts/python -m pip install -e ".[download]"`
    (macOS and Linux: `.venv/bin/python`).
 8. **Finish.** Run `curator doctor` again; it should end with `OK`. Then tell them it's ready, give them the exact command that
    opens their library later (the full path to `curator serve` in `.venv`), and say what they can ask for next.
@@ -86,15 +87,15 @@ separate Python, set `[ytdlp] python`.
 
 ## What the person might ask
 
-- "Curate my new downloads": follow **The workflow** on the `[paths] inbox` folders.
+- "Curate my new downloads": run `curator curate`, then do everything under **After Curate**.
 - "Open my library": `curator serve`, in the background.
 - "Apply my answers": see **The browser app**.
 
 ## The workflow
 
-The person may already have pressed **Curate** on the page (`curator curate`), the plain version of these steps with no AI. It adds
-only what it's sure of, marks those notes `matched automatically`, and leaves the rest in the downloads folder. Its reasons and the versions
-it found are in `curated.json` next to the log, so start from there, and see **After Curate** below.
+Start with `curator curate`, unless the person just pressed **Curate** on the page. It's the plain version of these steps with no AI: it adds
+only what it's sure of, marks those notes `matched automatically`, and leaves the rest in the downloads folder, with its reasons and the versions
+it found in `curated.json` next to the log. That's a first pass. These steps are how you finish the job: see **After Curate** below.
 
 1. **Parse** — `curator parse items.json` reads the inbox folders (filenames + existing tags) and prints one
    line per file. Only MP3s can be curated: it names any other audio it skipped, so tell the person. Fix bad parses by editing `items.json` (fields: `artist`, `title`, `search_artist`,
@@ -126,32 +127,48 @@ it found are in `curated.json` next to the log, so start from there, and see **A
    fallback naming such as "<Game> OST - <Track>" with the person).
 6. **Covers** — the primary image of the regular release. Skip promo / test pressing / white label / mispress
    images (use the master's main release). Build a contact sheet (e.g. ffmpeg `xstack`) and look at it:
-   wrong record, barcodes and back sides happen.
+   wrong record, barcodes and back sides happen. If you can't confirm a good one, leave the cover empty rather than guess.
 7. **Write** — build `plan.json` (see `examples/plan.example.json`), run `curator write plan.json --dry-run`,
    then `curator write plan.json`. Every row in the log keeps the old tags and length next to the new ones.
-8. **Report** — written songs, genre toss-ups (ties the person can settle by ear; genre changes are cheap),
-   held-back songs with reasons, better-copy candidates. A markdown report next to the log works well. Put the questions
+8. **Better copies** — look for one on every song you check, and leave what you find for the person. See **Better copies** below.
+9. **Report** — written songs, genre toss-ups (ties the person can settle by ear; genre changes are cheap),
+   held-back songs with reasons, better copies found. A markdown report next to the log works well. Put the questions
    on the page too, or To check stays empty: give each toss-up in `plan.json` a note reading exactly
    `genre toss-up: A / B` (the options from `resolve`'s `genre_options`), and add a line `- **Artist - Title**: reason` to the
    `[paths] review_list` file for each held-back song.
-9. **Better copies (optional, on request)** — `curator better items.json out.json` tries Discogs-linked videos,
-   then a YouTube search. A copy is used only if its length matches the record, `same` says same recording
-   (directly, after speed correction, or with chunks aligned), and — for low quality — it has clearly more
-   content above 16 kHz. Pass it as `audio` in the plan; the log keeps the original as `src`.
 10. **Switching players** — before pointing a player at the new library, list the tracks whose identity
     changed (from the log). Spotify local files match playlist entries by artist + album + title + duration,
     so those tracks must be re-added to playlists; genre, year and cover don't matter for matching.
 
 ## After Curate
 
-Curate decides on names and lengths alone, so when the person works with you, what it added is a first pass. Check every song the log marks
-`matched automatically` or `picked by you` (the page's Auto-matched) before calling it done:
+Curate decides on names and lengths alone, so what it added is only a first pass. When the person works with you, everything gets the full treatment before you call it done.
 
-1. **Tags and metadata.** Compare artist, title and mix, album, year, genre and cover with the Discogs record, as in steps 3 and 6 above.
-2. **The audio.** Confirm it's that version with `curator videos` or `curator same`.
-3. **On Spotify?** Check Spotify keeps its likely matches in `spotify_search.json` next to the log. Those are by name and length only, because Spotify gives apps no audio.
+**Every song Curate added** (the log marks it `matched automatically` or `picked by you`; the page says Auto-matched):
+
+1. **Tags and metadata.** Compare artist, title and mix, album, year and genre with the Discogs record, as in step 3 above.
+2. **Cover.** Check it's the right image, as in step 6 above.
+3. **The audio.** Confirm it's that version with `curator videos` or `curator same`.
+4. **A better copy.** Look for one: see **Better copies**.
+5. **On Spotify?** If they use it, Check Spotify keeps its likely matches in `spotify_search.json` next to the log. Those are by name and length only, because Spotify gives apps no audio.
    Before saying a song is the same recording, compare it with the official upload ("Provided to YouTube by …"), using `curator same`.
-4. **Record it.** `curator verified "Genre/Artist - Title.mp3" --how "what you checked"` turns it into Verified on the page. If something failed, don't mark it: tell the person what's wrong.
+6. **Record it.** `curator verified "Genre/Artist - Title.mp3" --how "what you checked"` turns it into Verified on the page. If something failed, don't mark it: tell the person what's wrong.
+
+**Every song Curate left** (in `curated.json`, still in the downloads folder): take it through **The workflow**, starting from the reason Curate gave. That includes other sources when Discogs doesn't have the song (step 5). Whatever you can verify gets the same checks before you call it done.
+
+## Better copies
+
+Checking a song includes asking whether a better recording of it exists: first the YouTube videos linked on its Discogs page, then other official uploads. Whatever you find, **the person's file stays as it is until they say otherwise.** (If someone tells you to swap verified copies in without asking, do that, and note it in their rules file.)
+
+1. **Look.** Run `curator better items.json out.json` with one entry per song: `{"key": "1", "src": "<the file>", "artist": "...", "title": "...", "release": 123, "master": 456, "target_secs": 300, "reason": "low quality"}`.
+   The ids come from the song's Discogs link in the log (for a link to a master, `curator discogs master <id>` gives its `main_release`). `master` can be null, and `target_secs` is the record's length, or null if it lists none.
+   `"low quality"` asks for better sound: the same recording at that length with clearly more content above 16 kHz. Any other reason (`"cut short"`, `"wrong speed"`) asks only for the same recording at that length.
+2. **Without yt-dlp** nothing can be fetched or compared. `better` still lists the Discogs-linked videos whose title and length fit, under `tried` with an `error` each, and the link is `https://www.youtube.com/watch?v=<id>`. Those are guesses, and so is anything you find with your own web search.
+3. **Leave it on To check**, where the person can open the link or ignore it: `curator maybe-better "Genre/Artist - Title.mp3" "<link>" --why "official upload; yours is 128 kbps"`. Add `--checked` only if `better` accepted that copy. One link per song: a second replaces the first.
+4. **If they say yes** (a `better` answer with the link as its note, or they tell you):
+   - Get the file. A copy `better` accepted is already an MP3 (its `accepted` entry has the `mp3` and the `url`). If there isn't one, ask the person to get the file and tell you where it is, and confirm it with `curator same` before going on.
+   - `curator write` won't overwrite a song, so move the old copy to a `Set aside` folder next to the log (never delete it). Then write a plan entry with the song's same tags and cover, `src` set to the set-aside file and `audio` set to the new copy. The log keeps the original as `src`.
+   - If the length changed, tell them: Spotify matches local files by length too, so playlist entries for that song need adding again.
 
 ## The browser app
 
@@ -176,7 +193,7 @@ is deleted: old copies go to a `Set aside` folder next to the log, and every cha
 - `add`: the person wants this song in the playlists the note names, one per line (from `curator suggest`). `apply` lists these. Spotify doesn't let apps
   add local files, so they drag those in and click Added on the page's Playlists tab (`added` needs nothing from you); running `suggest` again
   with a newer playlist snapshot clears the ones that have arrived.
-- `recheck`, `better`, `cover`, `flag`: follow the note, and ask before deleting anything. `apply` lists these and leaves them to you.
+- `recheck`, `better`, `cover`, `flag`: follow the note, and ask before deleting anything. `apply` lists these and leaves them to you. A `better` answer whose note is a link means they want that copy: see **Better copies**.
 
 Remove an entry you handled yourself (other than `keep`) once it's done; `apply` removes its own. Edit `decisions.json` with a
 JSON-aware tool: if it stops being valid JSON, the page refuses to save answers until it's repaired.
@@ -223,7 +240,7 @@ JSON-aware tool: if it stops being valid JSON, the page refuses to save answers 
 `items.json` (from `parse`, input to `resolve`/`scan`/`videos`/`other`/`better`): see `examples/items.example.json`.
 `plan.json` (input to `write`): see `examples/plan.example.json` — required `key`, `src`, `artist`, `title`,
 `album`, `year`, `genre`; optional `folder`, `discogs` (comment/source link), `cover` (local JPEG), `audio`
-(a verified better copy), `notes` (goes to the log).
+(a verified better copy the person agreed to), `notes` (goes to the log).
 
 ## Talking to the person
 

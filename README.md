@@ -34,7 +34,7 @@ After that, just say what you want:
 
 | Say | What happens |
 |---|---|
-| "Curate my new downloads" | Every MP3 gets checked and a clean copy goes into your library. Anything that can't be verified waits for you in To check. |
+| "Curate my new downloads" | The app's Curate goes first, then your AI app double-checks everything: tags, cover, that the audio is the right version, and other sources when Discogs doesn't have a song. A clean copy goes into your library. Anything it can't verify waits for you in To check, and so does any better-sounding copy it finds, with a link: your file only changes if you say so. |
 | "Open my library" | The page opens in your browser. |
 | "Apply my answers" | What you decided in To check gets carried out. |
 
@@ -116,7 +116,7 @@ with the reason and the versions found: listen, then click the one it is, or typ
 On one real library of 518 songs, replayed from their original messy names, 55% went in by themselves and one disagreed with the
 verified answer, only in how the title was spelled. The rules were tuned on that same library, so expect a little less on yours.
 Files nobody can look up, like nightcore edits or unofficial remixes, always wait for you or an agent. An agent adds what Curate can't
-do: reading odd names, comparing audio fingerprints with the record, and checking other sources.
+do: reading odd names, comparing audio fingerprints with the record, checking other sources, and looking for better-sounding copies.
 
 ## See it in your browser
 
@@ -175,6 +175,7 @@ client_id = "your client id"
 | `other ITEMS OUT` | MusicBrainz and official YouTube uploads |
 | `ost ITEMS OUT` | game-soundtrack lookup |
 | `better ITEMS OUT` | find and verify better copies (yt-dlp) |
+| `maybe-better SONG URL --why TEXT [--checked]` | leave a link to a possibly better copy on To check, to open or ignore (for your agent) |
 | `same COPY REF`, `compare A B`, `drift COPY REF` | same-recording tests |
 | `write PLAN [--dry-run]` | write tagged copies + cover into the library, append to the log |
 | `serve [--port N] [--no-browser]` | open the library in your browser |

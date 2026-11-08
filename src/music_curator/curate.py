@@ -499,6 +499,48 @@ def stop(server):
 
 # ---------------- after a run: someone checked it properly ----------------
 
+def _library_song(songs, name):
+    """The one song a Genre/Artist - Title.mp3 or a file name means. If there isn't exactly one, says so and returns None."""
+    wanted = name.replace("\\", "/").strip("/").casefold()
+    found = [s for s in songs if s["_rel"].casefold() == wanted] or [s for s in songs if s["file"].casefold() == wanted]
+    if len(found) == 1:
+        return found[0]
+    print(f"  {name}: {'more than one song has that name, so give its folder too' if found else 'not found in your library'}")
+    return None
+
+
+def leave_better_link(name, url, why, checked):
+    """Put a link to a possibly better copy of a library song on To check. The song isn't touched: what happens next is the person's call."""
+    why = " ".join(why.split())[:300]
+    if not webapp.is_web_link(url) or not why:
+        print("Give a web link (http:// or https://) and say in a few words why it's better.")
+        return 1
+    paths = webapp.app_paths()
+    collection = webapp.Collection(paths)
+    collection.refresh()
+    song = _library_song([s for s in collection.songs.values() if s["area"] == "library"], name)
+    if not song:
+        return 1
+    path = webapp.better_links_path(paths)
+    links = {}
+    try:
+        if os.path.exists(path):
+            with open(path, encoding="utf-8-sig") as f:
+                links = json.load(f)
+        if not isinstance(links, dict):
+            raise ValueError("it isn't a list of links")
+        links[song["key"]] = dict(url=url, why=why, checked=bool(checked), secs=song["secs"], when=datetime.datetime.now().isoformat(timespec="seconds"))
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        with open(path + ".tmp", "w", encoding="utf-8") as f:
+            json.dump(links, f, ensure_ascii=False, indent=1)
+        os.replace(path + ".tmp", path)
+    except (OSError, ValueError) as ex:
+        print(f"{path} couldn't be updated, so nothing was saved: {ex}")
+        return 1
+    print(f"  {name}: left on To check, for the person to open or ignore")
+    return 0
+
+
 def mark_verified(names, how):
     """Record that these Auto-matched songs were checked properly, so the page stops calling them Auto-matched. The log keeps what was checked."""
     from . import apply
@@ -510,13 +552,11 @@ def mark_verified(names, how):
     done, problems = 0, 0
     try:
         for name in names:
-            wanted = name.replace("\\", "/").strip("/").casefold()
-            found = [s for s in songs if s["_rel"].casefold() == wanted] or [s for s in songs if s["file"].casefold() == wanted]
-            if len(found) != 1:
-                print(f"  {name}: {'more than one song has that name, so give its folder too' if found else 'not found in your library'}")
+            song = _library_song(songs, name)
+            if not song:
                 problems += 1
                 continue
-            row = collection._log_row(found[0]["_path"], found[0]["_rel"])
+            row = collection._log_row(song["_path"], song["_rel"])
             notes = [p.strip() for p in ((row or {}).get("notes") or "").split(";") if p.strip()]
             auto = [p for p in notes if p.startswith((AUTO_NOTE, PICK_NOTE))]
             if not auto:

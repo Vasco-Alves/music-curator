@@ -18,7 +18,7 @@ def _setup(args):
     discogs.CACHE_DIR = os.path.join(cache, "discogs")
     discogs.UA = config.get("discogs", "user_agent") or discogs.UA
     vgmdb.CACHE_DIR = os.path.join(cache, "vgmdb")
-    if args.cmd not in ("serve", "doctor", "decisions", "apply", "suggest", "curate", "verified"):  # these have to work even when the folders are on a drive that's gone
+    if args.cmd not in ("serve", "doctor", "decisions", "apply", "suggest", "curate", "verified", "maybe-better"):  # these have to work even when the folders are on a drive that's gone
         for key in ("cache", "work"):
             os.makedirs(config.path(key), exist_ok=True)
 
@@ -107,6 +107,11 @@ def main(argv=None):
     add("verified", "record that Auto-matched songs were checked properly (for your agent, after a Curate run)",
         (["songs"], {"nargs": "+", "help": "library files, as Genre/Artist - Title.mp3 or just the file name"}),
         (["--how"], {"required": True, "help": "what was checked, for the log"}))
+    add("maybe-better", "leave a link to a possibly better copy of a library song on To check (for your agent); the song isn't touched",
+        (["song"], {"help": "library file, as Genre/Artist - Title.mp3 or just the file name"}),
+        (["url"], {"help": "where the copy is"}),
+        (["--why"], {"required": True, "help": "what makes it better, in a few words"}),
+        (["--checked"], {"action": "store_true", "help": "its audio was compared with the song and `curator better` accepted it; without this the page calls it a guess"}))
     add("write", "copy audio into the library with clean tags + cover, and append to the log",
         (["plan"], {}), (["--dry-run"], {"action": "store_true"}))
     add("serve", "open the library in your browser: explore it, follow the progress, check songs by ear",
@@ -175,6 +180,10 @@ def main(argv=None):
         from . import curate
         _need("library"), _need("log")
         return curate.mark_verified(args.songs, args.how)
+    if args.cmd == "maybe-better":
+        from . import curate
+        _need("library"), _need("log")
+        return curate.leave_better_link(args.song, args.url, args.why, args.checked)
     if args.cmd == "write":
         from . import tagwriter
         return tagwriter.main([args.plan, _need("library"), _need("log")] + (["--dry-run"] if args.dry_run else []))

@@ -9,6 +9,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 import threading
 import time
 import unicodedata
@@ -902,6 +903,129 @@ class TokenFormat(Base):
         os.environ["DISCOGS_TOKEN"] = "not a token"
         with mock.patch.object(curate.shutil, "which", return_value="found"):
             self.assertIn("can't be right", curate.missing(webapp.app_paths()))
+
+
+class LeavingABetterLink(WithDiscogs):
+    URL = "https://www.youtube.com/watch?v=abcdefghijk"
+
+    def setUp(self):
+        super().setUp()
+        self.song("Acid", "A - Song", notes="")
+        self.links = webapp.better_links_path(self.paths)
+
+    def leave(self, *flags, name="A - Song.mp3", url=URL, why="official upload; yours is 128 kbps"):
+        out = io.StringIO()
+        with mock.patch("sys.stdout", out):
+            code = cli.main(["--config", self.cfg, "maybe-better", name, url, "--why", why, *flags])
+        return code, out.getvalue()
+
+    def card(self):
+        return next((c for c in self.page_song("A - Song.mp3")["checks"] if c["kind"] == "better"), None)
+
+    def test_the_link_waits_on_to_check_as_a_guess(self):
+        code, out = self.leave()
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.card(), dict(kind="better", why="official upload; yours is 128 kbps", link=self.URL, checked=False))
+
+    def test_only_a_copy_that_was_compared_says_so(self):
+        self.leave("--checked")
+        self.assertTrue(self.card()["checked"])
+
+    def test_the_song_and_the_log_are_not_touched(self):
+        path = os.path.join(self.lib, "Acid", "A - Song.mp3")
+        with open(path, "rb") as f:
+            before = f.read()
+        rows = len(self.log_rows())
+        self.leave()
+        with open(path, "rb") as f:
+            self.assertEqual(f.read(), before)
+        self.assertEqual(len(self.log_rows()), rows)
+
+    def test_a_second_link_replaces_the_first(self):
+        self.leave()
+        self.leave(url="https://youtu.be/bcdefghijkl", why="a better one")
+        self.assertEqual((self.card()["link"], self.card()["why"]), ("https://youtu.be/bcdefghijkl", "a better one"))
+
+    def test_only_web_links_are_taken(self):
+        for bad in ("javascript:alert(1)", "file:///C:/a.mp3", "youtu.be/abc", "https://a b"):
+            code, _ = self.leave(url=bad)
+            self.assertEqual(code, 1, bad)
+        self.assertFalse(os.path.exists(self.links))
+
+    def test_a_reason_is_needed(self):
+        self.assertEqual(self.leave(why="   ")[0], 1)
+        self.assertFalse(os.path.exists(self.links))
+
+    def test_a_song_that_is_not_there_is_reported(self):
+        code, out = self.leave(name="Nope.mp3")
+        self.assertEqual(code, 1)
+        self.assertIn("not found", out)
+
+    def test_something_edited_by_hand_into_a_bad_link_never_reaches_the_page(self):
+        self.leave()
+        with open(self.links, encoding="utf-8") as f:
+            links = json.load(f)
+        next(iter(links.values()))["url"] = "javascript:alert(1)"
+        with open(self.links, "w", encoding="utf-8") as f:
+            json.dump(links, f)
+        self.assertIsNone(self.card())
+
+    def test_a_links_file_that_cannot_be_read_is_not_saved_over(self):
+        with open(self.links, "w", encoding="utf-8") as f:
+            f.write("{ not json")
+        code, out = self.leave()
+        self.assertEqual(code, 1)
+        self.assertIn("nothing was saved", out)
+        with open(self.links, encoding="utf-8") as f:
+            self.assertEqual(f.read(), "{ not json")
+
+    def test_it_goes_away_once_the_audio_has_been_swapped(self):
+        self.leave()
+        write_mp3(os.path.join(self.lib, "Acid", "A - Song.mp3"), frames=400, title="Song", artist="A")
+        self.assertIsNone(self.card())
+
+    def test_new_tags_alone_do_not_take_it_away(self):
+        self.leave()
+        write_mp3(os.path.join(self.lib, "Acid", "A - Song.mp3"), title="Song", artist="A", genre="Techno")
+        self.assertIsNotNone(self.card())
+
+    def test_it_stands_in_for_the_low_quality_question(self):
+        with mock.patch.object(webapp, "LOW_KBPS", 100000):
+            self.assertIn("quality", [c["kind"] for c in self.page_song("A - Song.mp3")["checks"]])
+            self.leave()
+            kinds = [c["kind"] for c in self.page_song("A - Song.mp3")["checks"]]
+        self.assertIn("better", kinds)
+        self.assertNotIn("quality", kinds)
+
+    def test_saying_yes_hands_the_link_to_the_agent(self):
+        self.leave()
+        collection = webapp.Collection(self.paths)
+        collection.refresh()
+        song = next(s for s in collection.songs.values() if s["file"] == "A - Song.mp3")
+        self.assertIsNone(collection.decide(dict(id=song["id"], kind="better", action="better", note=self.URL)))
+        out = io.StringIO()
+        with mock.patch("sys.stdout", out):
+            webapp.show_decisions()
+        self.assertIn(self.URL, out.getvalue())
+
+
+class BetterCopiesWithNoDownloader(unittest.TestCase):
+    def test_the_videos_on_the_record_are_still_named_as_guesses(self):
+        from music_curator import better_copies
+        release = {"videos": [{"uri": "https://www.youtube.com/watch?v=abcdefghijk", "title": "Woody McBride - Electris", "duration": 314},
+                              {"uri": "https://www.youtube.com/watch?v=zzzzzzzzzzz", "title": "Woody McBride - Electris", "duration": 90}]}
+        with tempfile.TemporaryDirectory() as tmp:
+            items, out = os.path.join(tmp, "items.json"), os.path.join(tmp, "out.json")
+            with open(items, "w", encoding="utf-8") as f:
+                json.dump([{"key": "1", "src": "song.mp3", "artist": "Woody McBride", "title": "Electris", "release": 1, "master": None, "target_secs": None, "reason": "low quality"}], f)
+            with mock.patch.object(better_copies, "yt", return_value={"error": "No module named yt_dlp"}), mock.patch.object(better_copies.d, "get", return_value=release), \
+                    mock.patch.object(better_copies.samerec, "duration", return_value=314.0), mock.patch.object(better_copies.samerec, "hf_db", return_value=-60.0), mock.patch("sys.stdout", io.StringIO()):
+                better_copies.main([items, out, os.path.join(tmp, "q"), os.path.join(tmp, "cache")])
+            with open(out, encoding="utf-8") as f:
+                result = json.load(f)[0]
+        self.assertIsNone(result["accepted"])
+        self.assertEqual([(t["id"], t["from"]) for t in result["tried"]], [("abcdefghijk", "discogs")])  # the one whose length fits
+        self.assertIn("error", result["tried"][0])
 
 
 class MarkingVerified(WithDiscogs):

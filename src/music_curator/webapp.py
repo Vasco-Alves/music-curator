@@ -174,6 +174,7 @@ class Collection:
         self.ideas_sig, self.ideas, self.ideas_names = None, {}, []
         self.curated_sig, self.curated = None, {}
         self.hits_sig, self.hits = None, {}
+        self.better_sig, self.better = None, {}
         self._read_decisions()
 
     def _read_hits(self):
@@ -194,6 +195,25 @@ class Collection:
             return
         if isinstance(hits, dict):
             self.hits_sig, self.hits = sig, {k: v["hit"] for k, v in hits.items() if isinstance(v, dict) and isinstance(v.get("hit"), dict)}
+
+    def _read_better(self):
+        """Links an agent left to possibly better copies (`curator maybe-better`)."""
+        path = better_links_path(self.paths)
+        try:
+            st = os.stat(path)
+        except (OSError, TypeError, ValueError):
+            self.better_sig, self.better = None, {}
+            return
+        sig = (st.st_mtime_ns, st.st_size)
+        if sig == self.better_sig:
+            return
+        try:
+            with open(path, encoding="utf-8-sig") as f:
+                links = json.load(f)
+        except (OSError, ValueError):
+            return
+        if isinstance(links, dict):  # each one becomes a link on the page
+            self.better_sig, self.better = sig, {k: v for k, v in links.items() if isinstance(v, dict) and is_web_link(v.get("url")) and isinstance(v.get("why"), str)}
 
     def _read_curated(self):
         """What the last Curate run couldn't settle, and why."""
@@ -367,6 +387,7 @@ class Collection:
             self._read_ideas()
             self._read_curated()
             self._read_hits()
+            self._read_better()
             self._read_log()
             self._read_review_list()
             if self.labels is None:
@@ -426,6 +447,10 @@ class Collection:
         hit = self.hits.get(key) if area != "library" and not song["done"] else None
         if hit and re.fullmatch(r"[A-Za-z0-9]{10,40}", str(hit.get("id", ""))):
             song["checks"].append(dict(kind="spotify", why=spotify_words(hit), link=f"https://open.spotify.com/track/{hit['id']}"))
+        found = self.better.get(key)
+        if found and found.get("secs") == song["secs"]:  # other audio by now means the copy was swapped in, so the link has done its job (new tags don't change the length)
+            song["checks"] = [c for c in song["checks"] if c["kind"] != "quality"]  # with a copy to look at, "a better one might exist" says nothing new
+            song["checks"].append(dict(kind="better", why=found["why"], link=found["url"], checked=bool(found.get("checked"))))
         if key in self.ideas:
             song["checks"].append(dict(kind="playlist", why=self.ideas[key]["why"], fits=self.ideas[key]["fits"], also=self.ideas[key].get("also", [])))
         return song
@@ -755,6 +780,14 @@ def curated_path(paths):
 
 def spotify_hits_path(paths):
     return os.path.join(os.path.dirname(paths["decisions"]), "spotify_search.json")
+
+
+def better_links_path(paths):
+    return os.path.join(os.path.dirname(paths["decisions"]), "better_links.json")
+
+
+def is_web_link(text):
+    return isinstance(text, str) and bool(re.fullmatch(r"https?://[^\s\"'<>]{1,500}", text))
 
 
 def spotify_words(hit):
