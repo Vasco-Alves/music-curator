@@ -112,7 +112,8 @@ class Judging(unittest.TestCase):
         self.assertIn("not found", curate.judge({"artist": "A", "title": "Song"}, {"status": "notfound", "reasons": ["not found on Discogs"]}))
 
     def test_a_path_in_a_reason_is_cut_to_the_file_name(self):
-        why = curate.judge({"artist": "A", "title": "Song"}, {"status": "dup", "reasons": ["already in library: C:\\Music\\Acid\\A - B.mp3"]})
+        path = os.path.join(os.sep, "Music", "Acid", "A - B.mp3")
+        why = curate.judge({"artist": "A", "title": "Song"}, {"status": "dup", "reasons": [f"already in library: {path}"]})
         self.assertEqual(why, "already in your library: A - B.mp3")
 
 
