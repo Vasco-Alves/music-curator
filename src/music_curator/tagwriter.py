@@ -41,7 +41,7 @@ def safe_filename(name):
 def norm_key(s):
     s = unicodedata.normalize("NFKD", s or "")
     s = "".join(c for c in s if not unicodedata.combining(c))
-    return re.sub(r"[^a-z0-9]", "", s.lower())
+    return re.sub(r"[\W_]", "", s.lower())  # letters of any script: "A - 東京" and "A - 大阪" are different songs
 
 
 # ---------------- ID3v2.3 writing ----------------
@@ -202,27 +202,43 @@ def compare_audio(dest, audio_src, payload):
 
 # ---------------- main ----------------
 
-def main(argv=None):
-    argv = sys.argv[1:] if argv is None else list(argv)
-    plan_path, lib, log_path = argv[0:3]
-    dry = "--dry-run" in argv
-    plan = json.load(open(plan_path, encoding="utf-8"))
+class Writer:
+    """Writes plan entries into the library one at a time and logs each, so whatever stops a run, what's written is on record."""
 
-    existing = {}
-    for dp, _, fns in os.walk(lib):
-        for fn in fns:
-            if fn.lower().endswith(".mp3"):
-                existing.setdefault(norm_key(os.path.splitext(fn)[0]), os.path.join(dp, fn))
+    def __init__(self, lib, log_path, dry=False, say=print):
+        self.lib, self.dry, self.say = lib, dry, say
+        self.existing = {}
+        for dp, _, fns in os.walk(lib):
+            for fn in fns:
+                if fn.lower().endswith(".mp3"):
+                    self.existing.setdefault(norm_key(os.path.splitext(fn)[0]), os.path.join(dp, fn))
+        new_log = not dry and (not os.path.exists(log_path) or os.path.getsize(log_path) == 0)
+        unfinished = False
+        if not dry and not new_log:
+            with open(log_path, "rb") as f:
+                f.seek(-1, os.SEEK_END)
+                unfinished = f.read(1) not in (b"\n", b"\r")  # a run that was cut off mid-line
+        self.logf = open(os.devnull if dry else log_path, "a", newline="", encoding="utf-8-sig")  # a dry run leaves no trace
+        if unfinished:
+            self.logf.write("\r\n")
+        self.log = csv.DictWriter(self.logf, fieldnames=LOG_FIELDS)
+        if new_log:
+            self.log.writeheader()
 
-    new_log = not os.path.exists(log_path)
-    logf = open(log_path, "a", newline="", encoding="utf-8-sig")
-    log = csv.DictWriter(logf, fieldnames=LOG_FIELDS)
-    if new_log:
-        log.writeheader()
+    def close(self):
+        self.logf.close()
 
-    for e in plan:
+    def _logged(self, row):
+        self.log.writerow(row)
+        self.logf.flush()
+        return row
+
+    def write(self, e):
+        """Write one plan entry. Returns its log row: "status" says what happened ("ok", "check: ...", "skipped: ...", "error: ..."; "dry" in a dry run)."""
+        lib, dry, existing, say = self.lib, self.dry, self.existing, self.say
         fields = dict(artist=e["artist"], title=e["title"], album=e.get("album", ""), year=e.get("year", ""), genre=e["genre"])
-        base = safe_filename(config.rule("filename").format(**fields))
+        # a song with no known artist is named by its title alone (not " - Title")
+        base = safe_filename(config.rule("filename").format(**fields) if fields["artist"] else fields["title"])
         # folder may be nested, e.g. "Game OST\Re-Volt"; each part is made filename-safe
         folder = e.get("folder") or config.rule("folder").format(**fields)
         dest_dir = os.path.join(lib, *[safe_filename(p) for p in re.split(r"[\\/]", folder) if p])
@@ -245,17 +261,16 @@ def main(argv=None):
         dup = existing.get(norm_key(base))
         if os.path.exists(dest) or dup:
             row["status"] = "skipped: already in library (" + (dup or dest) + ")"
-            print(f"[{e['key']}] SKIP  {base}  -> already at {dup or dest}")
-            log.writerow(row)
-            continue
+            say(f"[{e['key']}] SKIP  {base}  -> already at {dup or dest}")
+            return self._logged(row)
         if src["codec"] != "mp3":
             row["status"] = f"skipped: source is {src['codec']}, not mp3"
-            print(f"[{e['key']}] SKIP  {base}: {row['status']}")
-            log.writerow(row)
-            continue
+            say(f"[{e['key']}] SKIP  {base}: {row['status']}")
+            return self._logged(row)
         if dry:
-            print(f"[{e['key']}] DRY   {dest}")
-            continue
+            say(f"[{e['key']}] DRY   {dest}")
+            row["status"] = "dry"
+            return row
 
         try:
             with open(audio_src, "rb") as f:
@@ -269,9 +284,8 @@ def main(argv=None):
             os.replace(tmp, dest)
         except Exception as ex:  # noqa: BLE001
             row["status"] = f"error: {ex}"
-            print(f"[{e['key']}] ERROR {base}: {ex}")
-            log.writerow(row)
-            continue
+            say(f"[{e['key']}] ERROR {base}: {ex}")
+            return self._logged(row)
 
         out = probe(dest)
         problems = []
@@ -290,9 +304,20 @@ def main(argv=None):
             row["notes"] = "; ".join(x for x in (row["notes"], audio_note) if x)
         row["status"] = "ok" if not problems else "check: " + "; ".join(problems)
         existing[norm_key(base)] = dest
-        log.writerow(row)
-        print(f"[{e['key']}] {row['status'].upper():<5} {os.path.relpath(dest, lib)}")
-    logf.close()
+        say(f"[{e['key']}] {row['status'].upper():<5} {os.path.relpath(dest, lib)}")
+        return self._logged(row)
+
+
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else list(argv)
+    plan_path, lib, log_path = argv[0:3]
+    plan = json.load(open(plan_path, encoding="utf-8"))
+    writer = Writer(lib, log_path, "--dry-run" in argv)
+    try:
+        for e in plan:
+            writer.write(e)
+    finally:
+        writer.close()
 
 
 if __name__ == "__main__":

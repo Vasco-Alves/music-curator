@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Curator</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/glass.css">
+</head>
+<body>
+  <div class="shell">
+    <nav class="rail" aria-label="Main">
+      <a class="brand" href="#/"><img src="/favicon.svg" alt="" width="26" height="26"><span>Curator</span></a>
+      <div class="rail-links" id="rail-links"></div>
+      <a class="rail-credit" href="https://www.discogs.com" target="_blank" rel="noreferrer noopener">Data provided by Discogs</a>
+      <div class="rail-foot">
+        <a class="icon-btn" id="settings-link" href="#/settings" title="Folders" aria-label="Folders"></a>
+        <button class="icon-btn" id="refresh" type="button" title="Read the library again" aria-label="Read the library again"></button>
+        <button class="icon-btn" id="theme" type="button" title="Light or dark" aria-label="Switch between light and dark"></button>
+      </div>
+    </nav>
+    <main id="view" tabindex="-1"><p class="loading">Reading your library…</p></main>
+  </div>
+
+  <aside class="drawer" id="drawer" aria-label="Song details"></aside>
+
+  <footer class="player" aria-label="Player">
+    <div class="np">
+      <div class="cover vinyl" id="np-cover"></div>
+      <div class="np-text">
+        <button class="np-title" id="np-title" type="button">Nothing playing</button>
+        <div class="np-artist" id="np-artist"></div>
+      </div>
+    </div>
+    <div class="transport">
+      <div class="buttons">
+        <button class="icon-btn" id="prev" type="button" aria-label="Previous song" disabled></button>
+        <button class="play-btn" id="play" type="button" aria-label="Play" disabled></button>
+        <button class="icon-btn" id="next" type="button" aria-label="Next song" disabled></button>
+      </div>
+      <div class="seek">
+        <span class="time" id="cur">0:00</span>
+        <input id="seek" type="range" min="0" max="1000" value="0" aria-label="Position in the song" disabled>
+        <span class="time" id="dur">0:00</span>
+      </div>
+    </div>
+    <div class="vol">
+      <span id="vol-icon"></span>
+      <input id="vol" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="Volume">
+      <button class="icon-btn" id="panel-toggle" type="button" aria-label="Song panel" aria-pressed="false"></button>
+    </div>
+    <audio id="audio" preload="metadata"></audio>
+  </footer>
+
+  <div class="tip" id="tip" hidden></div>
+  <div class="toast" id="toast" role="status" hidden></div>
+  <datalist id="genres"></datalist>
+  <script src="/app.js"></script>
+</body>
+</html>

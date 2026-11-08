@@ -79,16 +79,25 @@ def try_musicbrainz(it, cache):
 
 
 def yt(*args):
-    r = subprocess.run([ytdlp_python(), "-I", os.path.join(HERE, "ytdlp_helper.py"), *args], capture_output=True, text=True, encoding="utf-8")
+    try:
+        r = subprocess.run([ytdlp_python(), "-I", os.path.join(HERE, "ytdlp_helper.py"), *args], capture_output=True, text=True, encoding="utf-8")
+    except OSError as ex:
+        return {"error": str(ex)}
     try:
         return json.loads(r.stdout.strip().splitlines()[-1])
     except (ValueError, IndexError):
         return {"error": (r.stderr or "no output")[-200:]}
 
 
+_warned = [False]
+
+
 def try_topic(it):
     a, t = it["search_artist"], it["search_title"]
     found = yt("search", f"{a} {t}", "10")
+    if isinstance(found, dict) and found.get("error") and not _warned[0]:
+        _warned[0] = True
+        print("The YouTube check isn't running (is yt-dlp installed? see `curator doctor`), so \"not found\" below only means MusicBrainz.", flush=True)
     for v in found if isinstance(found, list) else []:
         if not (v.get("channel") or "").endswith(" - Topic"):
             continue

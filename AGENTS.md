@@ -16,13 +16,15 @@ reading results, spotting wrong matches, choosing which check to run next, and t
 ## Ground rules
 
 1. **Never modify originals.** Source files and the person's existing library are read-only. `curator write`
-   only creates new files under `[paths] library` and appends to the log.
+   only creates new files under `[paths] library` and appends to the log. The one exception is `curator apply`,
+   which carries out genre changes the person chose in the browser and keeps the old copy.
 2. **Never delete without explicit permission** for that specific action. When allowed, move to the
    Recycle Bin / trash, not a permanent delete, and verify the library copy exists first.
 3. **Certain or held back.** A song goes into the library only when its identity *and* its version are
    confirmed. Otherwise report it as held back with the reason ("3 mixes on the record, lengths don't decide").
-4. **Secrets stay secret.** The Discogs token lives only in the `DISCOGS_TOKEN` environment variable. Never
-   print it, put it in a URL, a file or a commit. Never put the person's paths or data into this repository.
+4. **Secrets stay secret.** The Discogs token lives in the `DISCOGS_TOKEN` environment variable or in a `.env` file next to the
+   person's settings, which only they create or edit. Never read that file, print the token, or put it in a URL, another file
+   or a commit. Never put the person's paths or data into this repository.
 5. **Be a good API citizen.** Discogs: about 60 requests/min with a token (the client throttles and caches).
    MusicBrainz: 1 request/s and a descriptive User-Agent. VGMdb blocks automated access: never try to get
    around security checks or CAPTCHAs; ask the person instead.
@@ -31,21 +33,71 @@ reading results, spotting wrong matches, choosing which check to run next, and t
 7. **Look before you write.** Check covers visually (contact sheet) and spot-check decisions against the
    person's existing tags. The writer re-reads every file it writes (tags, audio bytes, cover) — read its output.
 
-## Setup
+## First-time setup
 
-```bash
-pip install -e .            # or run without installing: python -m music_curator ...
-curator init                # writes curator.toml in the current folder; edit the paths
-curator doctor              # ffmpeg + chromaprint, DISCOGS_TOKEN, paths, yt-dlp (optional)
-```
+When the person says "set this up", or `curator` isn't installed yet, go through these in order. Say what each piece is for
+in a few plain words, skip whatever is already there, and get their OK before installing anything.
 
-Requirements: Python 3.11+, `ffmpeg`/`ffprobe` on PATH built with chromaprint (`ffmpeg -muxers | grep chromaprint`),
-a free Discogs personal access token in `DISCOGS_TOKEN`. Optional: a Python with `yt-dlp` (set `[ytdlp] python`).
+1. **Python 3.11 or newer.** Check with `python --version` (`python3` on macOS and Linux; on Windows `py -3 --version` if
+   `python` isn't found). To install: Windows `winget install --id Python.Python.3.13 -e`, macOS `brew install python`,
+   Debian/Ubuntu `sudo apt install python3 python3-venv`. If winget stops at an agreement prompt, show it to the person and,
+   with their OK, add `--accept-source-agreements --accept-package-agreements`. Something you just installed can stay
+   invisible to your shell until the whole AI app restarts (on Windows it always does). Ask the person to restart it, then
+   carry on: setup skips what's already there.
+2. **The curator.** In this repository's folder, make a virtual environment with the Python command step 1 found, and install into it:
+   ```bash
+   python -m venv .venv
+   .venv/Scripts/python -m pip install -e .   # macOS and Linux: .venv/bin/python -m pip install -e .
+   ```
+   From then on the command is `.venv/Scripts/curator` (macOS and Linux: `.venv/bin/curator`).
+3. **See what's missing.** Run `curator doctor` and work through only what it reports.
+4. **ffmpeg with chromaprint**, which the audio fingerprints need. Not every ffmpeg build has it, so trust `curator doctor`
+   rather than the package name. As in step 1, the AI app may need a restart before your shell can see it.
+   - Windows: `winget install --id Gyan.FFmpeg -e` (Gyan's full build has chromaprint, its essentials build doesn't).
+   - Debian/Ubuntu: `sudo apt install ffmpeg`.
+   - macOS: `brew install ffmpeg`, then `curator doctor`. If chromaprint is missing, the
+     [homebrew-ffmpeg tap](https://github.com/homebrew-ffmpeg/homebrew-ffmpeg) offers it as an option; check the current
+     flag with `brew options homebrew-ffmpeg/ffmpeg/ffmpeg`.
+5. **A Discogs token** (free; it's how songs get looked up). Only the person can do this, and the token must never pass
+   through you (ground rule 4).
+   - Send them to <https://www.discogs.com/settings/developers>, where a free account is enough, to click **Generate new token**.
+   - The easiest way: `curator doctor` names a folder. Have them make a text file called `.env` there, in **their own** editor,
+     with one line: `DISCOGS_TOKEN=their token`.
+   - Or as an environment variable, from **their own** terminal window, with their token in place of `PASTE_HERE`:
+     - Windows: `setx DISCOGS_TOKEN "PASTE_HERE"`
+     - macOS: `echo 'export DISCOGS_TOKEN="PASTE_HERE"' >> ~/.zshrc`
+     - Linux: `echo 'export DISCOGS_TOKEN="PASTE_HERE"' >> ~/.bashrc`
+   - `curator doctor` should now say `DISCOGS_TOKEN: set`. With the file, or on Windows, that works straight away. On macOS and
+     Linux a shell variable is only seen after a restart, so they may need to restart their AI app.
+   - If they paste the token into the chat anyway, don't repeat it or use it. Ask them to generate a new one on Discogs and
+     save that one themselves.
+6. **Folders.** If `curator doctor` shows `library (not set)`, run `curator serve` in the background (it keeps running). The
+   page opens on a first-run screen where they pick their library and downloads folders. Let them choose; picking a folder
+   never moves any music.
+7. **yt-dlp is optional, so ask.** Without it `curator other` can't look for official YouTube uploads, and `videos` and `better`
+   don't work, so some songs get held back that could have been verified. To add it: `.venv/Scripts/python -m pip install -e ".[download]"`
+   (macOS and Linux: `.venv/bin/python`).
+8. **Finish.** Run `curator doctor` again; it should end with `OK`. Then tell them it's ready, give them the exact command that
+   opens their library later (the full path to `curator serve` in `.venv`), and say what they can ask for next.
+
+By hand: `pip install -e .`, then `curator init` writes a `curator.toml` in the current folder to edit, or `curator serve`
+asks for the folders. Without installing: `python -m music_curator ...` with `src` on `PYTHONPATH`. To keep yt-dlp in a
+separate Python, set `[ytdlp] python`.
+
+## What the person might ask
+
+- "Curate my new downloads": follow **The workflow** on the `[paths] inbox` folders.
+- "Open my library": `curator serve`, in the background.
+- "Apply my answers": see **The browser app**.
 
 ## The workflow
 
+The person may already have pressed **Curate** on the page (`curator curate`), the plain version of these steps with no AI. It adds
+only what it's sure of, marks those notes `matched automatically`, and leaves the rest in the downloads folder. Its reasons and the versions
+it found are in `curated.json` next to the log, so start from there, and see **After Curate** below.
+
 1. **Parse** — `curator parse items.json` reads the inbox folders (filenames + existing tags) and prints one
-   line per file. Fix bad parses by editing `items.json` (fields: `artist`, `title`, `search_artist`,
+   line per file. Only MP3s can be curated: it names any other audio it skipped, so tell the person. Fix bad parses by editing `items.json` (fields: `artist`, `title`, `search_artist`,
    `search_title`, `mix`, `pos_hint`, `year_hint`, `cat`). Typical fixes: reversed "Title - Artist", labels or
    uploader names glued to the end, vinyl side codes ("B2 Untitled" → title `Untitled`, `pos_hint` `B2`),
    placeholder artists ("Trance - …", "Nightcore - …"). Categories: `candidate`, `mix`, `ost`, `nonmusic`,
@@ -78,7 +130,10 @@ a free Discogs personal access token in `DISCOGS_TOKEN`. Optional: a Python with
 7. **Write** — build `plan.json` (see `examples/plan.example.json`), run `curator write plan.json --dry-run`,
    then `curator write plan.json`. Every row in the log keeps the old tags and length next to the new ones.
 8. **Report** — written songs, genre toss-ups (ties the person can settle by ear; genre changes are cheap),
-   held-back songs with reasons, better-copy candidates. A markdown report next to the log works well.
+   held-back songs with reasons, better-copy candidates. A markdown report next to the log works well. Put the questions
+   on the page too, or To check stays empty: give each toss-up in `plan.json` a note reading exactly
+   `genre toss-up: A / B` (the options from `resolve`'s `genre_options`), and add a line `- **Artist - Title**: reason` to the
+   `[paths] review_list` file for each held-back song.
 9. **Better copies (optional, on request)** — `curator better items.json out.json` tries Discogs-linked videos,
    then a YouTube search. A copy is used only if its length matches the record, `same` says same recording
    (directly, after speed correction, or with chunks aligned), and — for low quality — it has clearly more
@@ -87,8 +142,50 @@ a free Discogs personal access token in `DISCOGS_TOKEN`. Optional: a Python with
     changed (from the log). Spotify local files match playlist entries by artist + album + title + duration,
     so those tracks must be re-added to playlists; genre, year and cover don't matter for matching.
 
+## After Curate
+
+Curate decides on names and lengths alone, so when the person works with you, what it added is a first pass. Check every song the log marks
+`matched automatically` or `picked by you` (the page's Auto-matched) before calling it done:
+
+1. **Tags and metadata.** Compare artist, title and mix, album, year, genre and cover with the Discogs record, as in steps 3 and 6 above.
+2. **The audio.** Confirm it's that version with `curator videos` or `curator same`.
+3. **On Spotify?** Check Spotify keeps its likely matches in `spotify_search.json` next to the log. Those are by name and length only, because Spotify gives apps no audio.
+   Before saying a song is the same recording, compare it with the official upload ("Provided to YouTube by …"), using `curator same`.
+4. **Record it.** `curator verified "Genre/Artist - Title.mp3" --how "what you checked"` turns it into Verified on the page. If something failed, don't mark it: tell the person what's wrong.
+
+## The browser app
+
+`curator serve` gives the person a local page to explore the library and answer what only ears can settle. With no config
+it opens on a first-run screen where they pick their library and downloads folders; that saves `curator.toml` to the per-user
+location (`--config` or `$CURATOR_CONFIG` override it), and every command then finds it. To change folders, use its Folders page. It reads the
+library, the log and (optional `[paths]` keys) a `review` folder and a `review_list` Markdown file with one
+`- **Artist - Title**: reason` per song. The page never changes music; answers land in `decisions.json` next to the log, keyed
+`<kind>:<area>/<relative path>`, and `curator decisions` lists them.
+
+To act on them, run `curator apply --dry-run`, show the person what it would do, and after their OK run `curator apply`. Nothing
+is deleted: old copies go to a `Set aside` folder next to the log, and every change is logged.
+
+- `genre`: `apply` does it. It changes the genre tag and nothing else, moves the song to the new genre's folder unless it's kept
+  elsewhere (a soundtrack folder, say), and retires the question. Spotify matching doesn't depend on the genre or the folder. It works on
+  MP3s in the library; anything it can't do is reported as "not done" and stays on the list.
+- `drop` (the page's "Not worth keeping"): `apply` moves these to `Set aside` only with `--set-aside`. Name the songs and ask first.
+- `keep`: nothing to do. The entry stays; it marks the question as answered.
+- `identify`: the person's note says what the song is. Research it like any other song; write it only once it's verified. `curator curate` also acts on a note written as `Artist - Title`.
+- `stream` (kind `spotify`): the person listened and added Spotify's version to playlists, from the page. Nothing to do; a `drop` noted "On Spotify" says their file isn't needed, and it only moves with `apply --set-aside`, on their OK.
+- `pick`: the person chose a version from the ones in `curated.json` (the note is its id). `curator curate` writes it; run that, or write the same version yourself.
+- `add`: the person wants this song in the playlists the note names, one per line (from `curator suggest`). `apply` lists these. Spotify doesn't let apps
+  add local files, so they drag those in and click Added on the page's Playlists tab (`added` needs nothing from you); running `suggest` again
+  with a newer playlist snapshot clears the ones that have arrived.
+- `recheck`, `better`, `cover`, `flag`: follow the note, and ask before deleting anything. `apply` lists these and leaves them to you.
+
+Remove an entry you handled yourself (other than `keep`) once it's done; `apply` removes its own. Edit `decisions.json` with a
+JSON-aware tool: if it stops being valid JSON, the page refuses to save answers until it's repaired.
+
 ## Lessons learned (real cases)
 
+- **Nightcore and speed checks.** Compare ~10-second pieces in speed steps of 0.4% or less. A whole-track comparison
+  in 2% steps misses a real match when the speed falls between two steps; a true match lines up in every piece, a cover
+  of the same song only in a few.
 - **Sped-up rips.** Many uploads play 3–8% fast (turntable pitch +8%). "Shorter than the record" can mean
   faster, not cut. `same` estimates the speed from how fast matched chunks advance and resamples.
 - **DJ-mix segments.** A file that exactly matches a track length on a *mixed* compilation is a mix cut

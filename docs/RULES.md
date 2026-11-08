@@ -21,7 +21,7 @@ Anything else is held back with the reason.
 | Field | Rule |
 |---|---|
 | Artist | As printed on the record (Discogs name variation), without Discogs' `(2)` numbers or `*`. Several artists joined with one joiner *(config: `artist_joiner`, default ` & `)*, replacing feat./vs./x; "A And B", "A + B" and "A vs. B" between two names too, even when Discogs files the pair under one name *(config: `and_to_joiner`)*. |
-| Title | Exactly as listed, mix name included; untitled vinyl sides become `Untitled (A1)`. |
+| Title | Exactly as listed, mix name included; untitled vinyl sides become `Untitled (A1)`. Titles written in two scripts ("Cyclick = サイクリック") keep the Latin-script part (also for albums). Unofficial versions with no release: "(<Name> Remix)" when the remixer is known, "(Hardstyle Mix)" or similar when not; official releases keep the record's own "Mix"/"Remix" wording. |
 | Album | Release title for EPs and albums; empty for singles *(config: `album_for_singles`)*. The Discogs format label decides (Single / Maxi-Single → single; EP / Album / LP / Compilation → album); without one, 1–3 tracks or all mixes of one song = single. "Untitled" releases and titles that just list the tracks → empty. |
 | Year | Earliest pressing of that exact track (never a reissue, compilation or upload year). |
 | Genre | One Discogs **style** (not the genre "Electronic"), spelled as Discogs does. |

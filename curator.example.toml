@@ -1,6 +1,7 @@
 # music-curator configuration. Copy to curator.toml and adjust.
 # Relative paths are relative to this file. The Discogs token is NOT stored here:
-# set the DISCOGS_TOKEN environment variable (https://www.discogs.com/settings/developers).
+# put a line DISCOGS_TOKEN=your_token in a .env file next to this one, or set the DISCOGS_TOKEN environment variable.
+# Get a free token at https://www.discogs.com/settings/developers
 
 [paths]
 library = "My Music"                 # curated copies go here, in genre folders
@@ -8,12 +9,17 @@ inbox   = ["Downloads"]              # folders with new files to curate (non-rec
 log     = "_curation/log.csv"        # every write, old tags -> new tags
 cache   = "_curation/cache"          # API responses (safe to delete)
 work    = "_curation/work"           # downloads used for fingerprint checks (safe to delete)
+# review = "Review"                  # songs waiting for a decision (shown in `curator serve`)
+# review_list = "_curation/Review list.md"   # their reasons: one "- **Artist - Title**: reason" per song
 
 [discogs]
 user_agent = "MusicCurator/0.1"      # Discogs asks for a unique, descriptive User-Agent
 
 [ytdlp]
 python = ""                          # Python with yt-dlp installed (only for better copies / video checks)
+
+[spotify]
+client_id = ""                       # optional: your Spotify app's Client ID, for the Check Spotify button (see README)
 
 [rules]
 artist_joiner = " & "

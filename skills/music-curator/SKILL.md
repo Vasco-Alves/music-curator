@@ -6,7 +6,7 @@ description: Curate a local music library with the music-curator CLI — verify 
 # Music curator
 
 Requires the `music-curator` package (`pip install -e <repo>`; command `curator`), ffmpeg with chromaprint,
-and a Discogs token in `DISCOGS_TOKEN`. Run `curator doctor` first.
+and a Discogs token (in `DISCOGS_TOKEN`, or a `.env` file the person keeps next to their settings: don't read it). Run `curator doctor` first. If it isn't set up yet, follow "First-time setup" in `AGENTS.md`.
 
 ## Ground rules
 - Never modify or delete the user's files; `curator write` only creates copies in the library folder.
@@ -26,3 +26,8 @@ and a Discogs token in `DISCOGS_TOKEN`. Run `curator doctor` first.
 8. Report: written, genre toss-ups, held back with reasons, better-copy candidates (`curator better`, only on request).
 
 The full workflow, formats and lessons are in `AGENTS.md` at the repository root; the tagging rules in `docs/RULES.md`.
+
+## Browser app
+`curator serve` opens the library in the person's browser; they answer genre toss-ups and review questions there. Its Curate button (`curator curate`) adds what it's sure of with no AI and leaves the rest, with reasons, in `curated.json`.
+`curator apply --dry-run`, then `curator apply` after their OK, carries out the answers that need no research and lists the rest
+(see "The browser app" in AGENTS.md). `curator decisions` lists every answer.

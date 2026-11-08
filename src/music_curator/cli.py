@@ -9,20 +9,24 @@ from . import config
 
 
 def _setup(args):
-    config.load(args.config)
+    try:
+        config.load(args.config)
+    except config.BadConfig as ex:
+        sys.exit(str(ex))
     from . import discogs, vgmdb
     cache = config.path("cache")
     discogs.CACHE_DIR = os.path.join(cache, "discogs")
     discogs.UA = config.get("discogs", "user_agent") or discogs.UA
     vgmdb.CACHE_DIR = os.path.join(cache, "vgmdb")
-    for key in ("cache", "work"):
-        os.makedirs(config.path(key), exist_ok=True)
+    if args.cmd not in ("serve", "doctor", "decisions", "apply", "suggest", "curate", "verified"):  # these have to work even when the folders are on a drive that's gone
+        for key in ("cache", "work"):
+            os.makedirs(config.path(key), exist_ok=True)
 
 
 def _need(key):
     p = config.path(key)
     if not p:
-        sys.exit(f"Set [paths] {key} in curator.toml (see `curator init`).")
+        sys.exit(f"Set [paths] {key} in curator.toml (see `curator init`), or run `curator serve` and pick your folders there.")
     return p
 
 
@@ -48,17 +52,22 @@ def cmd_doctor(args):
         has = "chromaprint" in muxers
         print("  chromaprint muxer:", "yes" if has else "MISSING (fingerprint checks need an ffmpeg build with chromaprint)")
         ok &= has
-    ok &= bool(ff and shutil.which("ffprobe"))
+    fp = shutil.which("ffprobe")
+    print("ffprobe:", fp or "MISSING (it comes with ffmpeg: install a full ffmpeg and put it on PATH)")
+    ok &= bool(ff and fp)
     from . import discogs
     try:
         has_token = bool(discogs.token())
     except SystemExit:
         has_token = False
-    print("DISCOGS_TOKEN:", "set" if has_token else "MISSING (create one at https://www.discogs.com/settings/developers)")
+    print("DISCOGS_TOKEN:", "set" if has_token else f"MISSING (create one at https://www.discogs.com/settings/developers, then put a line DISCOGS_TOKEN=your_token in {config.env_file()})")
     ok &= has_token
     py = config.ytdlp_python()
-    r = subprocess.run([py, "-c", "import yt_dlp; print(yt_dlp.version.__version__)"], capture_output=True, text=True)
-    print("yt-dlp:", r.stdout.strip() or f"not available in {py} (optional: only for better copies / video checks)")
+    try:
+        found = subprocess.run([py, "-c", "import yt_dlp; print(yt_dlp.version.__version__)"], capture_output=True, text=True).stdout.strip()
+    except OSError:
+        found = ""
+    print("yt-dlp:", found or f"not available in {py} (optional: for better copies, video checks and finding official YouTube uploads)")
     print("OK" if ok else "Some required pieces are missing.")
     return 0 if ok else 1
 
@@ -93,14 +102,33 @@ def main(argv=None):
         (["copy"], {}), (["reference"], {}), (["--tmp"], {"help": "scratch folder (default: [paths] work)"}))
     add("compare", "quick whole-file fingerprint comparison", (["a"], {}), (["b"], {}))
     add("drift", "chunk-by-chunk alignment, to tell 'sped up' from 'edited'", (["copy"], {}), (["reference"], {}))
+    add("curate", "curate with no AI: look up what's waiting, add the songs the evidence settles, leave the rest on To check",
+        (["--dry-run"], {"action": "store_true", "help": "show what would happen and change nothing"}))
+    add("verified", "record that Auto-matched songs were checked properly (for your agent, after a Curate run)",
+        (["songs"], {"nargs": "+", "help": "library files, as Genre/Artist - Title.mp3 or just the file name"}),
+        (["--how"], {"required": True, "help": "what was checked, for the log"}))
     add("write", "copy audio into the library with clean tags + cover, and append to the log",
         (["plan"], {}), (["--dry-run"], {"action": "store_true"}))
+    add("serve", "open the library in your browser: explore it, follow the progress, check songs by ear",
+        (["--port"], {"type": int, "default": 8765, "help": "first port to try (default 8765)"}),
+        (["--no-browser"], {"action": "store_true", "help": "don't open the browser"}))
+    add("decisions", "list what you decided in the browser (for you or your agent to apply)")
+    add("apply", "carry out your browser answers that need no research (genre changes) and list the rest for your agent",
+        (["--dry-run"], {"action": "store_true", "help": "show what would happen and change nothing"}),
+        (["--set-aside"], {"action": "store_true", "help": "also move songs marked 'not worth keeping' to the Set aside folder (nothing is deleted)"}))
+    add("suggest", "suggest playlists your songs are a confident fit for, to judge by ear on the To check page",
+        (["playlists"], {"help": 'JSON file: [{"name": ..., "tracks": [{"name": ..., "artists": [...]}]}]'}),
+        (["name"], {"nargs": "?", "help": "only songs that fit this playlist (or part of its name); default: all your playlists"}),
+        (["--count"], {"type": int, "default": 40, "help": "how many ideas (default 40)"}))
     add("discogs", "raw Discogs client: release <id> | master <id> | versions <id> | search <artist> <track> | "
                    "image <url> <file>", (["rest"], {"nargs": argparse.REMAINDER}))
     add("vgmdb", "VGMdb via the vgmdb.info mirror: search <q> | album <id> | product <id> (often unavailable)",
         (["rest"], {"nargs": argparse.REMAINDER}))
 
     args = p.parse_args(argv)
+    for stream in (sys.stdout, sys.stderr):  # a song name must never stop a command halfway, and an AI app reading through a pipe needs it intact
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace", **({} if stream.isatty() else {"encoding": "utf-8"}))
     if args.cmd == "init":
         return cmd_init(args)
     _setup(args)
@@ -140,9 +168,30 @@ def main(argv=None):
     if args.cmd == "drift":
         from . import fpdrift
         return fpdrift.main([args.copy, args.reference])
+    if args.cmd == "curate":
+        from . import curate
+        return curate.main(args.dry_run)
+    if args.cmd == "verified":
+        from . import curate
+        _need("library"), _need("log")
+        return curate.mark_verified(args.songs, args.how)
     if args.cmd == "write":
         from . import tagwriter
         return tagwriter.main([args.plan, _need("library"), _need("log")] + (["--dry-run"] if args.dry_run else []))
+    if args.cmd == "serve":
+        from . import webapp
+        return webapp.serve(args.port, not args.no_browser)
+    if args.cmd == "decisions":
+        from . import webapp
+        return webapp.show_decisions()
+    if args.cmd == "apply":
+        from . import apply as applier
+        _need("library"), _need("log")
+        return applier.main(args.dry_run, args.set_aside)
+    if args.cmd == "suggest":
+        from . import suggest
+        _need("library"), _need("log")
+        return suggest.main(args.playlists, args.name, args.count)
     if args.cmd == "discogs":
         from . import discogs
         return discogs.main(args.rest)

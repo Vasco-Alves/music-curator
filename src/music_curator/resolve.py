@@ -31,6 +31,24 @@ def norm(s):
     return re.sub(r"[^a-z0-9]", "", s.lower())
 
 
+def plain(s):
+    """Like norm, but letters of any script count: 東京 and 大阪 are not the same title."""
+    s = unicodedata.normalize("NFKD", s or "")
+    return re.sub(r"[\W_]", "", "".join(c for c in s if not unicodedata.combining(c)).lower())
+
+
+def _no_notes(s):
+    return re.sub(r"\s*[\(\[][^\)\]]*[\)\]]", "", s or "")
+
+
+def same_title(track_title, searched):
+    """Is this track the song searched for, whatever its mix? A title with no Latin letters has to match in its own script."""
+    want = d.base_title(searched)
+    if want:
+        return d.base_title(track_title) == want or want == norm(track_title)
+    return bool(plain(_no_notes(searched))) and plain(_no_notes(track_title)) == plain(_no_notes(searched))
+
+
 def tokens(s):
     s = unicodedata.normalize("NFKD", s or "")
     s = "".join(c for c in s if not unicodedata.combining(c)).lower()
@@ -75,9 +93,9 @@ def credit(arts):
 
 
 def unify_joiners(artist):
-    """'A And B', 'A + B' and 'A vs. B' (one Discogs name for a duo) use the configured joiner too."""
+    """'A And B', 'A + B', 'A vs. B', 'A feat. B' and 'A x B' (one Discogs name for a duo) use the configured joiner too."""
     if config.rule("and_to_joiner"):
-        artist = re.sub(r"\s+(?:And|\+|(?i:vs\.?|versus))\s+", config.rule("artist_joiner"), artist or "")
+        artist = re.sub(r"\s+(?:And|\+|(?i:vs\.?|versus|feat\.?|ft\.?|featuring|x))\s+", config.rule("artist_joiner"), artist or "")
     return artist
 
 
@@ -86,26 +104,38 @@ def paren(title):
     return m.group(1) if m else ""
 
 
+def _at_word_start(squashed, text):
+    """Is this in the text once spaces are gone, starting where one of its words starts? "bmix" is inside "clubmix", but "B Mix" isn't "Club Mix"."""
+    text = "".join(c for c in unicodedata.normalize("NFKD", text or "") if not unicodedata.combining(c)).lower()
+    words, at, starts = re.findall(r"[a-z0-9]+", text), 0, []
+    for word in words:
+        starts.append(at)
+        at += len(word)
+    joined = "".join(words)
+    return any(joined.startswith(squashed, start) for start in starts)
+
+
 def mix_matches(mix, discogs_title):
     """Does the version named in the filename match this Discogs track title?"""
-    p = norm(paren(discogs_title))
-    m = norm(mix)
+    text = paren(discogs_title)
+    p, m = norm(text), norm(mix)
     if not m:
         return False
     if m in ORIGINAL_WORDS and (p == "" or "original" in p):
         return True
     for w in ("remix", "mix", "version", "edit", "the"):
         m2 = m.replace(w, "")
-        if m2 and m2 in p:
+        if len(m2) >= 3 and _at_word_start(m2, text):  # one or two letters left over would match almost anything
             return True
     generic = {"remix", "mix", "edit", "version", "dub", "vocal", "instrumental", "radioedit", "rmx"}
-    return m in p or bool(p and p not in generic and p in m)
+    return _at_word_start(m, text) or bool(p and p not in generic and _at_word_start(p, mix))
 
 
 def album_for(rel):
     descs = [x for f in rel["formats"] for x in (f.get("desc") or [])]
     real = [t for t in rel["tracklist"] if (t.get("type") in (None, "track"))]
-    distinct = {d.base_title(t["title"]) for t in real}
+    # untitled sides are different tracks, not mixes of one song
+    distinct = {d.base_title(t["title"]) + (t.get("pos") or "" if norm(t["title"]) == "untitled" else "") for t in real}
     if any(x in descs for x in ("Single", "Maxi-Single")):
         album, why = "", "Discogs says single"
     elif any(x in descs for x in ("EP", "Album", "LP", "Mini-Album", "Compilation")):
@@ -121,11 +151,24 @@ def album_for(rel):
     parts = [d.base_title(p) for p in album.split(" / ")] if " / " in album else []
     if parts and all(p in distinct for p in parts):
         album, why = "", "record is just named after its tracks"
-    return album, why
+    return one_script(album), why
+
+
+def one_script(s, all_latin_too=True):
+    """Discogs writes translated titles as 'A = B' ('Cyclick = サイクリック', '危ないベースライン = Bassline Crisis'):
+    keep the Latin-script part, else the first part. With all_latin_too off, 'Love = Pain' stays whole: it may just be the title."""
+    if " = " not in (s or ""):
+        return s
+    parts = [p.strip() for p in s.split(" = ") if p.strip()]
+    latin = [p for p in parts if sum(c.isascii() and c.isalpha() for c in p) >= 0.5 * sum(c.isalpha() for c in p)]
+    if not all_latin_too and len(latin) == len(parts):
+        return s
+    return (latin or parts)[0]
 
 
 def clean_title(title, pos, artist):
     """Move '(feat. X)' into the artist, use '&' inside remix credits, number untitled sides."""
+    title = one_script(title, all_latin_too=False).strip()  # Discogs titles sometimes end in a stray space
     m = re.search(r"\s*\((?:feat\.?|ft\.?|featuring)\s+([^()]+)\)", title, re.I)
     if m:
         artist = f"{artist}{config.rule('artist_joiner')}{m.group(1).strip()}"
@@ -178,6 +221,16 @@ def pick_genre(group_results, rel, artist, history, preferred=None):
     return top[0], options, True, "toss-up"
 
 
+def option(t, rel, it):
+    """One version on the record, named the way it would be written, for someone to choose by ear."""
+    base = credit(t["artists"] or rel["artists"]) if (t["artists"] or rel["artists"]) else it.get("artist", "")
+    if norm(base) == "various":
+        base = credit(t["artists"]) if t["artists"] else it.get("artist", "")
+    title, artist = clean_title(t["title"], t.get("pos"), base)
+    length = secs(t["dur"])
+    return {"pos": t.get("pos") or "", "artist": artist, "title": title, "dur": t["dur"] or "", "gap": round(it["secs"] - length) if length and it["secs"] else None}
+
+
 def resolve(it, history, library_keys):
     out = {"key": it["key"], "src": it["src"], "file": it["file"], "secs": it["secs"], "kbps": it["kbps"],
            "status": "notfound", "reasons": [], "notes": []}
@@ -220,12 +273,11 @@ def resolve(it, history, library_keys):
         if not rel:
             continue
         c = d.cond_release(rel)
-        want = d.base_title(st)
         matches = []
         for t in c["tracklist"]:
             if t.get("type") not in (None, "track"):
                 continue
-            if d.base_title(t["title"]) != want and not (want and want == norm(t["title"])):
+            if not same_title(t["title"], st):
                 continue
             arts = t["artists"] or c["artists"]
             if sa and not artist_ok(sa, artists_text(arts)) and not artist_ok(it.get("artist", sa), artists_text(arts)):
@@ -255,16 +307,17 @@ def resolve(it, history, library_keys):
                         continue
                     c2 = d.cond_release(rel2)
                     m2 = [t for t in c2["tracklist"] if t.get("type") in (None, "track")
-                          and d.base_title(t["title"]) == d.base_title(st) and mix_matches(mix, t["title"])]
+                          and same_title(t["title"], st) and mix_matches(mix, t["title"])]
                     if m2:
                         hit = (mkey2, rs2, c2, [t for t in c2["tracklist"] if t.get("type") in (None, "track")
-                                                and d.base_title(t["title"]) == d.base_title(st)])
+                                                and same_title(t["title"], st)])
                         break
                 if hit:
                     break
         if hit:
             chosen_group = hit
     mkey, rs, rel, versions = chosen_group
+    out["options"] = [option(t, rel, it) for t in versions]
     track, how, probable, mix_conflict = None, None, None, False
     if mix:
         mm = [t for t in versions if mix_matches(mix, t["title"])]
@@ -290,8 +343,8 @@ def resolve(it, history, library_keys):
             how = "length matches" + (f" (file says '{mix}')" if mix_conflict else "")
             mix_conflict = False
     if not track:
-        plain = [t for t in versions if not paren(t["title"])]
-        probable = plain[0]["title"] if (len(plain) == 1 and not mix) else None
+        unmixed = [t for t in versions if not paren(t["title"])]
+        probable = unmixed[0]["title"] if (len(unmixed) == 1 and not mix) else None
         out["status"] = "review"
         listing = "; ".join(f"{t['pos']} {t['title']} [{t['dur'] or '?'}]" for t in versions)
         if mix_conflict:
@@ -353,8 +406,8 @@ def resolve(it, history, library_keys):
     if not imgs:
         out["notes"].append("no image on Discogs")
 
-    key = norm(f"{artist} - {title}")
-    loose = norm(re.sub(r"\([^()]*\)", "", f"{artist} - {title}"))
+    key = plain(f"{artist} - {title}")
+    loose = "~" + plain(re.sub(r"\([^()]*\)", "", f"{artist} - {title}"))
     if key in library_keys:
         out["status"] = "dup"
         out["reasons"].append("already in library: " + library_keys[key])
@@ -371,26 +424,43 @@ def resolve(it, history, library_keys):
     return out
 
 
+def load_history(log_path, settled_only=False):
+    """{artist: the genre you last gave them}, from the log. settled_only leaves out genres that are still a toss-up nobody has judged."""
+    history = {}
+    if os.path.exists(log_path):
+        newest = {}  # a song written twice counts once, as it is now: the person may have changed its genre
+        with open(log_path, encoding="utf-8-sig", errors="replace", newline="") as f:
+            for n, r in enumerate(csv.DictReader(f, restval="")):
+                if r.get("status") == "ok":
+                    newest[r.get("src") or n] = r
+        for r in newest.values():
+            if not (settled_only and "genre toss-up" in (r.get("notes") or "").lower()):
+                history.setdefault(norm(r.get("artist")), r.get("genre"))
+    return history
+
+
+def remember_in_library(library_keys, name, path):
+    library_keys.setdefault(plain(name), path)
+    library_keys.setdefault("~" + plain(re.sub(r"\([^()]*\)", "", name)), path)  # a separate key: "A - Song" isn't "A - Song (Club Mix)", only probably the same
+
+
+def load_library_keys(libs):
+    library_keys = {}
+    for lib in libs:
+        for dp, _, fns in os.walk(lib):
+            for fn in fns:
+                if fn.lower().endswith((".mp3", ".wav", ".flac", ".m4a")):
+                    remember_in_library(library_keys, os.path.splitext(fn)[0], os.path.join(dp, fn))
+    return library_keys
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else list(argv)
     items_path, out_path, log_path, cache = argv[0:4]
     libs = argv[4:]
     d.CACHE_DIR = cache
     items = json.load(open(items_path, encoding="utf-8"))
-    history = {}
-    if os.path.exists(log_path):
-        with open(log_path, encoding="utf-8-sig") as f:
-            for r in csv.DictReader(f):
-                if r["status"] == "ok":
-                    history.setdefault(norm(r["artist"]), r["genre"])
-    library_keys = {}
-    for lib in libs:
-        for dp, _, fns in os.walk(lib):
-            for fn in fns:
-                if fn.lower().endswith((".mp3", ".wav", ".flac", ".m4a")):
-                    b = os.path.splitext(fn)[0]
-                    library_keys.setdefault(norm(b), os.path.join(dp, fn))
-                    library_keys.setdefault(norm(re.sub(r"\([^()]*\)", "", b)), os.path.join(dp, fn))
+    history, library_keys = load_history(log_path), load_library_keys(libs)
     results = []
     for n, it in enumerate(items, 1):
         try:

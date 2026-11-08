@@ -12,10 +12,12 @@ import subprocess
 import sys
 import unicodedata
 
+from .library import AUDIO
+
 LOOKALIKES = {"＂": '"', "：": ":", "｜": "|", "⧸": "/", "⁄": "/", "–": "-",
               "—": "-", "’": "'", "‘": "'", "“": '"', "”": '"', "【": "[", "】": "]"}
 GENRE_WORDS = r"(?:acid|acidtrance|acid trance|acid techno|hard ?trance|trance|techno|goa(?: trance)?|psy|psytrance|classic|hardcore|house|gabber|old ?school)"
-MIX_WORDS = re.compile(r"\b(mix|remix|edit|version|dub|rework|vip|extended|instrumental|vocal|re-?edit|bootleg|remaster(?:ed)?)\b", re.I)
+MIX_WORDS = re.compile(r"\b(mix|remix|edit|version|dub|rework|vip|extended|instrumental|vocal|re-?edit|bootleg|remaster(?:ed)?|slowed|sped[- ]?up|reverb|nightcore)\b", re.I)
 OST_WORDS = re.compile(r"\b(OST|Soundtrack|Original Soundtrack|Game Music|BGM)\b", re.I)
 NONMUSIC = re.compile(r"(\breacts?\b|\breaction\b|tutorial|#shorts|podcast|interview|trailer)", re.I)
 
@@ -93,10 +95,7 @@ def parse(base, tags):
             extra.remove(x)
     search_artist = re.split(r"\s+(?:feat\.?|ft\.?|featuring|vs\.?|x)\s+|\s+&\s+", artist, flags=re.I)[0] if artist else ""
     search_title = re.sub(r"\s*[\(\[][^\)\]]*[\)\]]", "", title).strip()
-    mix = None
-    mm = re.search(r"\(([^()]*)\)", title)
-    if mm and MIX_WORDS.search(mm.group(1)):
-        mix = mm.group(1)
+    mix = next((note for note in re.findall(r"\(([^()]*)\)", title) if MIX_WORDS.search(note)), None)  # "(feat. X) (Y Remix)": the mix isn't always the first note
     return dict(artist=artist, title=title, search_artist=search_artist, search_title=search_title,
                 mix=mix, year_hint=year, genre_hint=genre, extra=extra, uploader=uploader)
 
@@ -107,21 +106,25 @@ def norm(s):
     return re.sub(r"[^a-z0-9]", "", s.lower())
 
 
-def main(argv=None):
-    argv = sys.argv[1:] if argv is None else list(argv)
-    out_path, log_path, dirs = argv[0], argv[1], argv[2:]
+def read_inbox(dirs, log_path):
+    """(items, paths of other audio that can't be curated). An item's "done" category means the log already has it."""
     done = set()
     if os.path.exists(log_path):
-        with open(log_path, encoding="utf-8-sig") as f:
-            done = {r["src"] for r in csv.DictReader(f) if r["status"] == "ok"}
-    items, n = [], 0
+        with open(log_path, encoding="utf-8-sig", errors="replace", newline="") as f:  # re-saved from Excel, say: one odd byte mustn't stop everything
+            done = {r.get("src") for r in csv.DictReader(f, restval="") if r.get("status") == "ok" or (r.get("status") or "").startswith("check")}  # "check": written, with something to look at
+    items, n, skipped = [], 0, []
     for d in dirs:
         for fn in sorted(os.listdir(d)):
             p = os.path.join(d, fn)
             if not (os.path.isfile(p) and fn.lower().endswith(".mp3")):
+                if os.path.splitext(fn)[1].lower() in AUDIO and os.path.isfile(p):
+                    skipped.append(p)
                 continue
             n += 1
-            tags, secs, kbps = probe(p)
+            try:
+                tags, secs, kbps = probe(p)
+            except ValueError:  # ffprobe made no sense of this file: it can still be listed, and the length check will hold it back
+                tags, secs, kbps = {}, 0.0, 0
             base = os.path.splitext(fn)[0]
             info = parse(base, tags)
             cat = "candidate"
@@ -140,12 +143,21 @@ def main(argv=None):
                           "tag_artist": tags.get("artist", ""), "tag_title": tags.get("title", ""),
                           "tag_album": tags.get("album", ""), "tag_date": tags.get("date", ""), "tag_genre": tags.get("genre", ""),
                           "folder_genre": os.path.basename(os.path.normpath(d)), **info})
+    return items, skipped
+
+
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else list(argv)
+    out_path, log_path, dirs = argv[0], argv[1], argv[2:]
+    items, skipped = read_inbox(dirs, log_path)
     json.dump(items, open(out_path, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     for it in items:
         y = it["year_hint"] or ""
         print(f"{it['key']:>3} {it['dir']:<4} {it['cat']:<9} {it['secs'] / 60:5.1f}m {it['kbps']:>3}k | {it['artist']} || {it['title']}"
               + (f" || y={y}" if y else "") + (f" || extra={it['extra']}" if it["extra"] else "")
               + (f" || up={it['uploader']}" if it["uploader"] else ""))
+    if skipped:
+        print(f"Skipped {len(skipped)} file{'' if len(skipped) == 1 else 's'} that aren't MP3 (only MP3s can be curated): " + ", ".join(os.path.basename(p) for p in skipped[:20]) + (", ..." if len(skipped) > 20 else ""))
 
 
 if __name__ == "__main__":

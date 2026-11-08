@@ -2,8 +2,9 @@
 """Discogs lookup helper (Python stdlib only).
 
 The token is read from DISCOGS_TOKEN (process env, else the Windows user
-environment in HKCU\\Environment). It is only ever sent as an HTTP header to
-api.discogs.com and is never printed or written to disk.
+environment in HKCU\\Environment, else a .env file next to your settings).
+It is only ever sent as an HTTP header to api.discogs.com; this app never
+prints it or writes it anywhere.
 
 Usage (through the CLI):
   curator discogs release <id>
@@ -26,10 +27,25 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+from . import config
+
 API = "https://api.discogs.com"
 UA = "MusicCurator/0.1"  # the CLI replaces this with [discogs] user_agent from the config
 _last = [0.0]
 _tok = [None]
+
+
+def _token_from_file():
+    """The DISCOGS_TOKEN line of the .env file next to your settings, if there is one. Nothing else in that file is read."""
+    try:
+        with open(config.env_file(), encoding="utf-8-sig") as f:  # Notepad can add a byte-order mark
+            for line in f:
+                m = re.match(r"\s*(?:export\s+)?DISCOGS_TOKEN\s*=\s*(.*?)\s*$", line)
+                if m:
+                    return m[1].strip("\"'“”‘’ ") or None
+    except (OSError, ValueError):
+        pass
+    return None
 
 
 def token():
@@ -43,8 +59,11 @@ def token():
                 t = winreg.QueryValueEx(k, "DISCOGS_TOKEN")[0]
         except OSError:
             t = None
+    t = (t or "").strip() or _token_from_file()
     if not t:
-        sys.exit("DISCOGS_TOKEN is not set")
+        sys.exit(f"No Discogs token found. Set DISCOGS_TOKEN, or put a line DISCOGS_TOKEN=your_token in {config.env_file()}")
+    if not re.fullmatch(r"[\x21-\x7e]+", t):  # it goes in a web header, where an error message would quote it: stop here, and never repeat it
+        sys.exit("Your DISCOGS_TOKEN has spaces or unusual characters in it, so it can't be right. Copy it again from discogs.com/settings/developers.")
     _tok[0] = t
     return t
 

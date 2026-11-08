@@ -1,5 +1,9 @@
 # personal config and data: never commit
 curator.toml
+.env
+/items*.json
+/out*.json
+/plan*.json
 _curation/
 cache/
 work/
@@ -15,6 +19,7 @@ work/
 *.webm
 *.jpg
 *.png
+!docs/img/*
 
 # python
 __pycache__/
