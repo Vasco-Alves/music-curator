@@ -18,7 +18,7 @@ import urllib.error
 from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
-from music_curator import cli, config, curate, discogs, library, parse, resolve, tagwriter, webapp  # noqa: E402
+from music_curator import better_copies, cli, config, curate, discogs, fpdrift, library, parse, resolve, samerec, tagwriter, videos, webapp  # noqa: E402
 from test_apply import Base  # noqa: E402
 from test_webapp import JPEG, write_mp3  # noqa: E402
 
@@ -1011,14 +1011,13 @@ class LeavingABetterLink(WithDiscogs):
 
 class BetterCopiesWithNoDownloader(unittest.TestCase):
     def test_the_videos_on_the_record_are_still_named_as_guesses(self):
-        from music_curator import better_copies
-        release = {"videos": [{"uri": "https://www.youtube.com/watch?v=abcdefghijk", "title": "Woody McBride - Electris", "duration": 314},
+        release ={"videos": [{"uri": "https://www.youtube.com/watch?v=abcdefghijk", "title": "Woody McBride - Electris", "duration": 314},
                               {"uri": "https://www.youtube.com/watch?v=zzzzzzzzzzz", "title": "Woody McBride - Electris", "duration": 90}]}
         with tempfile.TemporaryDirectory() as tmp:
             items, out = os.path.join(tmp, "items.json"), os.path.join(tmp, "out.json")
             with open(items, "w", encoding="utf-8") as f:
                 json.dump([{"key": "1", "src": "song.mp3", "artist": "Woody McBride", "title": "Electris", "release": 1, "master": None, "target_secs": None, "reason": "low quality"}], f)
-            with mock.patch.object(better_copies, "yt", return_value={"error": "No module named yt_dlp"}), mock.patch.object(better_copies.d, "get", return_value=release), \
+            with mock.patch.object(better_copies, "yt", return_value={"error": "No module named yt_dlp"}), mock.patch.object(samerec, "fetch_audio", return_value={"error": "No module named yt_dlp"}), mock.patch.object(better_copies.d, "get", return_value=release), \
                     mock.patch.object(better_copies.samerec, "duration", return_value=314.0), mock.patch.object(better_copies.samerec, "hf_db", return_value=-60.0), mock.patch("sys.stdout", io.StringIO()):
                 better_copies.main([items, out, os.path.join(tmp, "q"), os.path.join(tmp, "cache")])
             with open(out, encoding="utf-8") as f:
@@ -1026,6 +1025,133 @@ class BetterCopiesWithNoDownloader(unittest.TestCase):
         self.assertIsNone(result["accepted"])
         self.assertEqual([(t["id"], t["from"]) for t in result["tried"]], [("abcdefghijk", "discogs")])  # the one whose length fits
         self.assertIn("error", result["tried"][0])
+
+
+class NothingFetchedIsKept(Base):
+    RELEASE = {"videos": [{"uri": "https://www.youtube.com/watch?v=abcdefghijk", "title": "Woody McBride - Electris", "duration": 314}]}
+    ITEM = {"key": "1", "src": "song.mp3", "artist": "Woody McBride", "title": "Electris", "release": 1, "master": None, "target_secs": None, "reason": "low quality"}
+    WATCH = "https://www.youtube.com/watch?v=abcdefghijk"
+    LINK = "https://youtu.be/abcdefghijk"
+
+    def setUp(self):
+        super().setUp()
+        self.work = config.path("work")
+        self.items, self.out = os.path.join(self.root, "items.json"), os.path.join(self.root, "out.json")
+        with open(self.items, "w", encoding="utf-8") as f:
+            json.dump([self.ITEM], f)
+        self.stdout = io.StringIO()
+        for patcher in (mock.patch.object(samerec, "fetch_audio", self.fetch), mock.patch("sys.stdout", self.stdout)):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def fetch(self, video_id, folder):
+        path = os.path.join(folder, f"{video_id}.webm")
+        with open(path, "wb") as f:
+            f.write(b"audio")
+        return dict(id=video_id, file=path, abr=160, acodec="opus", duration=314)
+
+    def left(self):
+        return [os.path.join(where, name) for where, _, names in os.walk(self.work) for name in names]
+
+    def result(self):
+        with open(self.out, encoding="utf-8") as f:
+            return json.load(f)[0]
+
+    def run_better(self, same=(True, {"ber": 0.1, "how": "fingerprints match"}), fails=None):
+        with mock.patch.object(better_copies, "yt", return_value=[]), mock.patch.object(better_copies.d, "get", return_value=self.RELEASE), mock.patch.object(samerec, "duration", return_value=314.0), \
+                mock.patch.object(samerec, "hf_db", side_effect=[-60.0, -40.0]), mock.patch.object(samerec, "same_recording", return_value=same, side_effect=fails), mock.patch.object(better_copies.subprocess, "run") as self.run:
+            better_copies.main([self.items, self.out, os.path.join(self.work, "better"), os.path.join(self.root, "cache")])
+        return self.result()
+
+    def run_videos(self):
+        self.there = []
+        with mock.patch.object(videos.d, "get", return_value=self.RELEASE), mock.patch.object(videos.fpcompare, "fingerprint", side_effect=lambda path: self.there.append(os.path.exists(path)) or [1, 2, 3]), \
+                mock.patch.object(videos.fpcompare, "compare", return_value=(0.1, 0, 100)):
+            videos.main([self.items, self.out, os.path.join(self.work, "videos"), os.path.join(self.root, "cache")])
+        return self.result()
+
+    def same(self, reference):
+        self.there = []
+
+        def compare(copy, ref, tmp):
+            self.there.append(os.path.exists(ref))
+            return True, {"how": "fingerprints match"}
+
+        with mock.patch.object(samerec, "same_recording", compare):
+            return cli.main(["--config", self.cfg, "same", "copy.mp3", reference])
+
+    def test_better_gives_a_link_and_keeps_no_audio(self):
+        result = self.run_better()
+        self.assertEqual(result["accepted"]["url"], self.WATCH)
+        self.assertNotIn("mp3", result["accepted"])
+        self.run.assert_not_called()  # no converting it to keep
+        self.assertEqual(self.left(), [])
+
+    def test_a_copy_that_is_not_the_same_recording_is_turned_down_and_deleted_too(self):
+        self.assertIsNone(self.run_better(same=(False, {"how": "no match"}))["accepted"])
+        self.assertEqual(self.left(), [])
+
+    def test_the_audio_goes_even_if_the_comparison_breaks(self):
+        with self.assertRaises(RuntimeError):
+            self.run_better(fails=RuntimeError("ffmpeg fell over"))
+        self.assertEqual(self.left(), [])
+
+    def test_files_already_in_the_work_folder_are_left_alone(self):
+        old = os.path.join(self.work, "better", "bc_1", "old.mp3")
+        os.makedirs(os.path.dirname(old))
+        with open(old, "wb") as f:
+            f.write(b"from before")
+        self.run_better()
+        self.assertEqual([os.path.normcase(p) for p in self.left()], [os.path.normcase(old)])
+
+    def test_videos_compares_then_deletes(self):
+        checked = self.run_videos()["videos"][0]
+        self.assertEqual(self.there[-1], True)  # it was there to fingerprint
+        self.assertEqual(checked["url"], self.WATCH)
+        self.assertNotIn("file", checked)
+        self.assertEqual(self.left(), [])
+
+    def test_same_fetches_a_link_compares_and_deletes_it(self):
+        self.same(self.LINK)
+        self.assertEqual(self.there, [True])
+        self.assertIn('"same": true', self.stdout.getvalue())
+        self.assertEqual(self.left(), [])
+
+    def test_same_leaves_a_file_of_yours_where_it_is(self):
+        ref = os.path.join(self.root, "reference.mp3")
+        with open(ref, "wb") as f:
+            f.write(b"yours")
+        with mock.patch.object(samerec, "fetch_audio") as fetch:
+            self.same(ref)
+        fetch.assert_not_called()
+        self.assertTrue(os.path.exists(ref))
+
+    def test_drift_takes_a_link_too(self):
+        with mock.patch.object(fpdrift.fp, "fingerprint", return_value=list(range(100))):
+            cli.main(["--config", self.cfg, "drift", "copy.mp3", self.LINK])
+        self.assertIn("speed_factor", self.stdout.getvalue())
+        self.assertEqual(self.left(), [])
+
+    def test_a_fetch_that_fails_says_why_and_leaves_nothing(self):
+        with mock.patch.object(samerec, "fetch_audio", return_value={"error": "Video unavailable"}), self.assertRaises(SystemExit) as stopped:
+            self.same(self.LINK)
+        self.assertIn("Video unavailable", str(stopped.exception))
+        self.assertEqual(self.there, [])
+        self.assertEqual(self.left(), [])
+
+    def test_only_youtube_links_are_fetched(self):
+        with mock.patch.object(samerec, "fetch_audio") as fetch, self.assertRaises(SystemExit) as stopped:
+            self.same("https://example.com/song.mp3")
+        fetch.assert_not_called()
+        self.assertIn("Only YouTube links", str(stopped.exception))
+
+    def test_it_says_so_if_the_audio_could_not_be_deleted(self):
+        err = io.StringIO()
+        with mock.patch.object(samerec.shutil, "rmtree"), mock.patch("sys.stderr", err):
+            with samerec.scratch(self.work) as folder:
+                pass
+        self.assertIn("Couldn't delete", err.getvalue())
+        os.rmdir(folder)
 
 
 class MarkingVerified(WithDiscogs):

@@ -67,7 +67,7 @@ def cmd_doctor(args):
         found = subprocess.run([py, "-c", "import yt_dlp; print(yt_dlp.version.__version__)"], capture_output=True, text=True).stdout.strip()
     except OSError:
         found = ""
-    print("yt-dlp:", found or f"not available in {py} (optional: for better copies, video checks and finding official YouTube uploads)")
+    print("yt-dlp:", found or f"not available in {py} (optional: to compare your files with videos online and find official YouTube uploads)")
     print("OK" if ok else "Some required pieces are missing.")
     return 0 if ok else 1
 
@@ -91,17 +91,18 @@ def main(argv=None):
     add("resolve", "match items against Discogs and decide tags (status: ready / review / notfound / dup)",
         (["items"], {}), (["out"], {}))
     add("scan", "wide Discogs scan: every pressing and version of a song, with lengths", (["items"], {}))
-    add("videos", "fingerprint files against the YouTube videos Discogs links on the release",
+    add("videos", "fingerprint files against the YouTube videos Discogs links on the release; what it fetches is deleted straight after",
         (["items"], {}), (["out"], {}))
     add("other", "fallback sources for songs Discogs lacks: MusicBrainz, official YouTube uploads",
         (["items"], {}), (["out"], {}))
     add("ost", "game-soundtrack lookup (\"<Game> OST - <Track>\" files)", (["items"], {}), (["out"], {}))
-    add("better", "find and verify better copies (complete, right speed, better quality); needs yt-dlp",
+    add("better", "find better copies (complete, right speed, better quality) and compare them with yours; gives links and keeps no audio; needs yt-dlp",
         (["items"], {}), (["out"], {}))
+    reference = (["reference"], {"help": "a file, or a YouTube link (needs yt-dlp; fetched for the comparison, then deleted)"})
     add("same", "is COPY the same recording as REFERENCE? (handles speed changes and cuts)",
-        (["copy"], {}), (["reference"], {}), (["--tmp"], {"help": "scratch folder (default: [paths] work)"}))
+        (["copy"], {}), reference, (["--tmp"], {"help": "scratch folder (default: [paths] work)"}))
     add("compare", "quick whole-file fingerprint comparison", (["a"], {}), (["b"], {}))
-    add("drift", "chunk-by-chunk alignment, to tell 'sped up' from 'edited'", (["copy"], {}), (["reference"], {}))
+    add("drift", "chunk-by-chunk alignment, to tell 'sped up' from 'edited'", (["copy"], {}), reference)
     add("curate", "curate with no AI: look up what's waiting, add the songs the evidence settles, leave the rest on To check",
         (["--dry-run"], {"action": "store_true", "help": "show what would happen and change nothing"}))
     add("verified", "record that Auto-matched songs were checked properly (for your agent, after a Curate run)",
@@ -166,13 +167,15 @@ def main(argv=None):
         return better_copies.main([args.items, args.out, os.path.join(work, "better"), os.path.join(cache, "discogs")])
     if args.cmd == "same":
         from . import samerec
-        return samerec.main([args.copy, args.reference, args.tmp or os.path.join(work, "same")])
+        with samerec.local(args.reference, os.path.join(work, "same")) as reference:
+            return samerec.main([args.copy, reference, args.tmp or os.path.join(work, "same")])
     if args.cmd == "compare":
         from . import fpcompare
         return fpcompare.main([args.a, args.b])
     if args.cmd == "drift":
-        from . import fpdrift
-        return fpdrift.main([args.copy, args.reference])
+        from . import fpdrift, samerec
+        with samerec.local(args.reference, os.path.join(work, "drift")) as reference:
+            return fpdrift.main([args.copy, reference])
     if args.cmd == "curate":
         from . import curate
         return curate.main(args.dry_run)

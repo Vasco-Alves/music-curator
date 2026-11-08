@@ -282,7 +282,7 @@ work    = "_curation/work"           # downloads used for fingerprint checks (sa
 user_agent = "MusicCurator/0.1"      # Discogs asks for a unique, descriptive User-Agent
 
 [ytdlp]
-python = ""                          # Python with yt-dlp installed (only for better copies / video checks)
+python = ""                          # Python with yt-dlp installed (only to compare your files with videos online)
 
 [spotify]
 client_id = ""                       # optional: your Spotify app's Client ID, for the Check Spotify button (see README)

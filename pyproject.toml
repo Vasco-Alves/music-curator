@@ -12,7 +12,7 @@ requires-python = ">=3.11"
 dependencies = []          # standard library only; ffmpeg (with chromaprint) must be on PATH
 
 [project.optional-dependencies]
-download = ["yt-dlp"]      # only for `curator better` and `curator videos`
+compare = ["yt-dlp"]       # only to compare your files with videos online; nothing it fetches is kept
 
 [project.scripts]
 curator = "music_curator.cli:main"

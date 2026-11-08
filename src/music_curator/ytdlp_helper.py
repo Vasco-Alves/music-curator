@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Find / fetch YouTube copies with yt-dlp (best audio -> MP3 320).
+"""Look things up on YouTube with yt-dlp, and fetch a video's audio to compare it with a file you have.
 
 Standalone on purpose: it is run with the interpreter from [ytdlp] python in curator.toml, so an
 outdated or broken yt-dlp install never affects the rest of the tool.
   python ytdlp_helper.py ...
   search "<query>" [n]      -> JSON list of {id, title, channel, duration, views}
-  fetch <video_id> <outdir> -> downloads into outdir/<id>.mp3, prints JSON with the source audio format
+  info <video_id>           -> JSON with the title, channel, duration and description
+  audio <video_id> <outdir> -> audio for a fingerprint check, into a folder its caller deletes after comparing
 """
 import json
 import os
@@ -32,24 +33,6 @@ def search(query, n=8):
             for e in info.get("entries", []) if e]
 
 
-def fetch(video_id, outdir):
-    os.makedirs(outdir, exist_ok=True)
-    opts = {
-        "format": "bestaudio/best",
-        "noplaylist": True,
-        "postprocessors": [{"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "320"}],
-        "outtmpl": os.path.join(outdir, "%(id)s.%(ext)s"),
-        "quiet": True,
-        "logger": _Quiet(),
-    }
-    with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=True)
-    return {"id": video_id, "title": info.get("title"), "channel": info.get("channel"),
-            "duration": info.get("duration"), "acodec": info.get("acodec"), "abr": info.get("abr"),
-            "asr": info.get("asr"), "file": os.path.join(outdir, f"{video_id}.mp3"),
-            "url": f"https://www.youtube.com/watch?v={video_id}"}
-
-
 def info(video_id):
     """Metadata only (no download): title, channel, duration, description."""
     opts = {"quiet": True, "skip_download": True, "noplaylist": True, "logger": _Quiet()}
@@ -60,7 +43,7 @@ def info(video_id):
 
 
 def audio(video_id, outdir):
-    """Best audio stream as-is (no MP3 conversion) - for fingerprint checks."""
+    """Best audio stream as it is, for a fingerprint check. Not for keeping: the caller deletes the folder."""
     os.makedirs(outdir, exist_ok=True)
     opts = {"format": "bestaudio/best", "noplaylist": True, "quiet": True, "logger": _Quiet(),
             "outtmpl": os.path.join(outdir, "%(id)s.%(ext)s")}
@@ -81,8 +64,6 @@ if __name__ == "__main__":
     try:
         if cmd == "search":
             print(json.dumps(search(sys.argv[2], int(sys.argv[3]) if len(sys.argv) > 3 else 8), ensure_ascii=False))
-        elif cmd == "fetch":
-            print(json.dumps(fetch(sys.argv[2], sys.argv[3]), ensure_ascii=False))
         elif cmd == "audio":
             print(json.dumps(audio(sys.argv[2], sys.argv[3]), ensure_ascii=False))
         elif cmd == "info":

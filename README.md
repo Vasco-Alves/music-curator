@@ -71,7 +71,7 @@ The Curate button runs the plain version of these steps by itself. An AI agent r
 - `ffmpeg` and `ffprobe` on PATH, built with **chromaprint** (`ffmpeg -hide_banner -muxers` lists `chromaprint`)
 - A free Discogs personal access token (<https://www.discogs.com/settings/developers>), saved as described
   [below](#your-discogs-token)
-- Optional: [yt-dlp](https://github.com/yt-dlp/yt-dlp), for better copies, video checks and finding official YouTube uploads
+- Optional: [yt-dlp](https://github.com/yt-dlp/yt-dlp), to compare your files with videos online and find official YouTube uploads. Whatever it fetches is deleted right after the comparison
 
 It curates MP3 files. Other formats still show up and play on the page, but they're skipped when curating.
 
@@ -174,9 +174,9 @@ client_id = "your client id"
 | `videos ITEMS OUT` | fingerprint files against Discogs-linked videos |
 | `other ITEMS OUT` | MusicBrainz and official YouTube uploads |
 | `ost ITEMS OUT` | game-soundtrack lookup |
-| `better ITEMS OUT` | find and verify better copies (yt-dlp) |
+| `better ITEMS OUT` | find better copies and compare them with yours (yt-dlp); gives links and keeps no audio |
 | `maybe-better SONG URL --why TEXT [--checked]` | leave a link to a possibly better copy on To check, to open or ignore (for your agent) |
-| `same COPY REF`, `compare A B`, `drift COPY REF` | same-recording tests |
+| `same COPY REF`, `compare A B`, `drift COPY REF` | same-recording tests (`REF` can be a YouTube link, with yt-dlp) |
 | `write PLAN [--dry-run]` | write tagged copies + cover into the library, append to the log |
 | `serve [--port N] [--no-browser]` | open the library in your browser |
 | `decisions` | list what you decided in the browser |
@@ -197,8 +197,9 @@ existing genres, game/TV soundtrack folders.
 
 ## Notes and limits
 
-- Meant for files you already have. Downloading (yt-dlp) is optional and your responsibility; check the terms
-  of the sites you use and your local law.
+- Meant for files you already have. It doesn't download music for you to keep: the optional yt-dlp only fetches audio to
+  compare it with your file, and that audio is deleted straight after. Better copies it finds are left as links. Using it is your
+  responsibility; check the terms of the sites you use and your local law.
 - Discogs data: use your own token, stay within the rate limits (the client throttles and caches), and credit
   Discogs where you display its data ("Data provided by Discogs"). Cover images are for your personal tags.
 - MusicBrainz data is CC0; please keep its 1 request/second limit.

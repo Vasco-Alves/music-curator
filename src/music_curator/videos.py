@@ -3,20 +3,19 @@
 
 Usage: curator videos <items.json> <out.json>
 items.json: [{"key", "src", "release": <discogs release id>, "title": <track base title>, "extra_releases": [ids]}]
-For every linked video whose title mentions the track, the audio is downloaded (with the
-yt-dlp interpreter from the config) into <quarantine_dir>/<key>/ and fingerprinted against the local file.
+For every linked video whose title mentions the track, the audio is fetched (with the yt-dlp
+interpreter from the config), fingerprinted against the local file, and deleted straight after.
 """
 import json
 import os
 import re
-import subprocess
 import sys
 
-HERE = os.path.dirname(os.path.abspath(__file__))
 from . import discogs as d
 from . import fpcompare
+from . import samerec
 
-from .config import ytdlp_python
+
 def vid_id(uri):
     m = re.search(r"(?:v=|youtu\.be/)([A-Za-z0-9_-]{11})", uri or "")
     return m.group(1) if m else None
@@ -44,21 +43,16 @@ def main(argv=None):
                     videos.append({"id": vid, "title": v.get("title"), "duration": v.get("duration")})
         local_fp = fpcompare.fingerprint(it["src"])
         checked = []
-        for v in videos[:5]:
-            outdir = os.path.join(qdir, it["key"])
-            r = subprocess.run([ytdlp_python(), "-I", os.path.join(HERE, "ytdlp_helper.py"), "audio", v["id"], outdir],
-                               capture_output=True, text=True, encoding="utf-8")
-            try:
-                info = json.loads(r.stdout.strip().splitlines()[-1])
-            except (ValueError, IndexError):
-                info = {"error": (r.stderr or "no output")[-300:]}
-            if info.get("error") or not os.path.exists(info.get("file", "")):
-                checked.append({**v, "error": info.get("error", "download failed")})
-                continue
-            ber, off, n = fpcompare.compare(local_fp, fpcompare.fingerprint(info["file"]))
-            checked.append({**v, "file": info["file"], "abr": info.get("abr"), "acodec": info.get("acodec"),
-                            "yt_duration": info.get("duration"), "ber": round(ber, 3),
-                            "offset_s": round(off * fpcompare.ITEM_S, 1), "overlap_s": round(n * fpcompare.ITEM_S)})
+        with samerec.scratch(qdir) as folder:
+            for v in videos[:5]:
+                info = samerec.fetch_audio(v["id"], folder)
+                if info.get("error") or not os.path.exists(info.get("file", "")):
+                    checked.append({**v, "error": info.get("error", "download failed")})
+                    continue
+                ber, off, n = fpcompare.compare(local_fp, fpcompare.fingerprint(info["file"]))
+                checked.append({**v, "url": f"https://www.youtube.com/watch?v={v['id']}", "abr": info.get("abr"), "acodec": info.get("acodec"),
+                                "yt_duration": info.get("duration"), "ber": round(ber, 3),
+                                "offset_s": round(off * fpcompare.ITEM_S, 1), "overlap_s": round(n * fpcompare.ITEM_S)})
         results.append({"key": it["key"], "src": it["src"], "title": it["title"], "videos": checked,
                         "linked": len(videos)})
         best = min((c for c in checked if "ber" in c), key=lambda c: c["ber"], default=None)

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Find a better copy (complete, right speed, better quality) for each item and verify it.
+"""Find a better copy (complete, right speed, better quality) for each item and compare it with yours.
 
 Usage: curator better <items.json> <out.json>
 items.json: [{"key","src","artist","title","release","master","target_secs"|null,"reason"}]
 Candidates: YouTube videos linked on the Discogs release / its pressings first, then a YouTube search.
 A candidate is accepted only if its length matches the record (or your copy, when Discogs has no
 length), it is the same recording as your copy (samerec), and - for low-quality cases - it keeps
-clearly more high-frequency detail. Accepted copies are converted to MP3 320 (best audio -> MP3 320 via yt-dlp).
+clearly more high-frequency detail. Audio is fetched only to compare it and deleted straight after:
+what you get is a link, and what to do with it is up to you.
 """
 import json
 import os
@@ -71,26 +72,24 @@ def main(argv=None):
                                   -(c.get("views") or 0)))
         my_hf = samerec.hf_db(it["src"])
         tried, accepted = [], None
-        for c in cands[:3]:
-            info = yt("audio", c["id"], os.path.join(qdir, f"bc_{it['key']}"))
-            if info.get("error") or not os.path.exists(info.get("file", "")):
-                tried.append({**c, "error": info.get("error", "download failed")[:120]})
-                continue
-            same, det = samerec.same_recording(it["src"], info["file"], os.path.join(qdir, f"bc_{it['key']}", "tmp"))
-            hf = samerec.hf_db(info["file"])
-            entry = {**c, "abr": info.get("abr"), "len": round(samerec.duration(info["file"])), "hf_db": hf,
-                     "same": same, **det}
-            better = True
-            if it["reason"] == "low quality":
-                better = (info.get("abr") or 0) >= 110 and (hf is not None and my_hf is not None and hf >= my_hf + 5)
-                entry["quality_better"] = better
-            tried.append(entry)
-            if same and better:
-                mp3 = os.path.join(qdir, f"bc_{it['key']}", f"{c['id']}.mp3")
-                subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-i", info["file"], "-vn",
-                                "-c:a", "libmp3lame", "-b:a", "320k", mp3], check=True)
-                accepted = {**entry, "mp3": mp3, "url": f"https://www.youtube.com/watch?v={c['id']}"}
-                break
+        with samerec.scratch(qdir) as folder:
+            for c in cands[:3]:
+                info = samerec.fetch_audio(c["id"], folder)
+                if info.get("error") or not os.path.exists(info.get("file", "")):
+                    tried.append({**c, "error": info.get("error", "download failed")[:120]})
+                    continue
+                same, det = samerec.same_recording(it["src"], info["file"], os.path.join(folder, "tmp"))
+                hf = samerec.hf_db(info["file"])
+                entry = {**c, "abr": info.get("abr"), "len": round(samerec.duration(info["file"])), "hf_db": hf,
+                         "same": same, **det}
+                better = True
+                if it["reason"] == "low quality":
+                    better = (info.get("abr") or 0) >= 110 and (hf is not None and my_hf is not None and hf >= my_hf + 5)
+                    entry["quality_better"] = better
+                tried.append(entry)
+                if same and better:
+                    accepted = {**entry, "url": f"https://www.youtube.com/watch?v={c['id']}"}
+                    break
         results.append({"key": it["key"], "src": it["src"], "reason": it["reason"], "my_len": round(my_len),
                         "target": it.get("target_secs"), "my_hf_db": my_hf, "candidates": len(cands),
                         "tried": tried, "accepted": accepted})

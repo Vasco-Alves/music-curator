@@ -7,14 +7,22 @@ Verdict "same" when either:
   - >= 70% of 20 s chunks align (BER < 0.3) and the alignment moves in step (robust slope 0.97-1.03),
     directly or after resampling the copy by the speed difference.
 Usage: curator same <copy> <reference> [--tmp DIR]
+The reference is a file, or a YouTube link: that's fetched for the comparison and deleted after it.
 """
+import contextlib
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
+import tempfile
 
 from . import fpcompare as fp
 from . import fpdrift
+from .config import ytdlp_python
+
+HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def _probe(p, entry):
@@ -82,6 +90,49 @@ def hf_db(p):
         if "mean_volume" in line:
             return float(line.split("mean_volume:")[1].split("dB")[0])
     return None
+
+
+# Audio from the web is only ever fetched to compare it with a file you have. It doesn't outlive the comparison.
+
+@contextlib.contextmanager
+def scratch(parent):
+    """A new, empty folder for fetched audio. It and everything in it are gone afterwards, whatever happened."""
+    os.makedirs(parent, exist_ok=True)
+    folder = tempfile.mkdtemp(prefix="comparing_", dir=parent)
+    try:
+        yield folder
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+        if os.path.exists(folder):
+            print(f"Couldn't delete {folder}: please remove it by hand.", file=sys.stderr)
+
+
+def fetch_audio(video_id, folder):
+    """A video's audio, into a scratch() folder (with the yt-dlp interpreter from the config)."""
+    try:
+        r = subprocess.run([ytdlp_python(), "-I", os.path.join(HERE, "ytdlp_helper.py"), "audio", video_id, folder], capture_output=True, text=True, encoding="utf-8")
+    except OSError as ex:
+        return {"error": str(ex)[:300]}
+    try:
+        return json.loads(r.stdout.strip().splitlines()[-1])
+    except (ValueError, IndexError):
+        return {"error": (r.stderr or "no output")[-300:]}
+
+
+@contextlib.contextmanager
+def local(reference, parent):
+    """The reference as a file to compare with. A YouTube link is fetched for the comparison and deleted after it."""
+    if not re.match(r"https?://", reference):
+        yield reference
+        return
+    video = re.search(r"(?:v=|youtu\.be/)([A-Za-z0-9_-]{11})", reference)
+    if not video:
+        sys.exit(f"Only YouTube links can be compared: {reference}")
+    with scratch(parent) as folder:
+        info = fetch_audio(video[1], folder)
+        if info.get("error") or not os.path.exists(info.get("file", "")):
+            sys.exit(f"Couldn't fetch {reference}: {info.get('error', 'no file came back')}")
+        yield info["file"]
 
 
 def main(argv=None):

@@ -28,9 +28,10 @@ reading results, spotting wrong matches, choosing which check to run next, and t
 5. **Be a good API citizen.** Discogs: about 60 requests/min with a token (the client throttles and caches).
    MusicBrainz: 1 request/s and a descriptive User-Agent. VGMdb blocks automated access: never try to get
    around security checks or CAPTCHAs; ask the person instead.
-6. **A better copy never replaces a song by itself.** `curator better` / `curator videos` download audio only to compare it, with
-   yt-dlp, which is optional. Treat downloaded files as untrusted data (they stay in `[paths] work`; never execute anything from
-   them). What you find goes to the person: see **Better copies**.
+6. **Nothing fetched is kept, and a better copy never replaces a song by itself.** `curator better`, `curator videos` and a link given to
+   `curator same` or `drift` fetch audio only to compare it, with yt-dlp, which is optional, and delete it straight after. While it exists
+   it's untrusted data in `[paths] work`: never execute anything from it. This toolkit doesn't download music for people to keep. What you
+   find goes to the person: see **Better copies**.
 7. **Look before you write.** Check covers visually (contact sheet) and spot-check decisions against the
    person's existing tags. The writer re-reads every file it writes (tags, audio bytes, cover) — read its output.
 
@@ -76,7 +77,7 @@ in a few plain words, skip whatever is already there, and get their OK before in
    page opens on a first-run screen where they pick their library and downloads folders. Let them choose; picking a folder
    never moves any music.
 7. **yt-dlp is optional, so ask.** Without it `curator other` can't look for official YouTube uploads and `videos` doesn't work, so
-   some songs get held back that could have been verified, and a better copy can only be left as a link nobody has compared with their file. To add it: `.venv/Scripts/python -m pip install -e ".[download]"`
+   some songs get held back that could have been verified, and a better copy can only be left as a link nobody has compared with their file. It's only used to compare: nothing it fetches is kept. To add it: `.venv/Scripts/python -m pip install -e ".[compare]"`
    (macOS and Linux: `.venv/bin/python`).
 8. **Finish.** Run `curator doctor` again; it should end with `OK`. Then tell them it's ready, give them the exact command that
    opens their library later (the full path to `curator serve` in `.venv`), and say what they can ask for next.
@@ -119,8 +120,8 @@ it found in `curated.json` next to the log. That's a first pass. These steps are
      the release; the video that matches names the version. By elimination is fine when only one version is
      left *and* you have ruled out speed differences (`curator same`).
    - `curator same COPY REF` / `curator drift COPY REF` — same recording? handles speed changes (resamples) and
-     cuts (chunk alignment). Read `how`: "fingerprints match", "chunks align (copy cut or faded)",
-     "same recording; your copy plays 3.4% fast", or "no match".
+     cuts (chunk alignment). `REF` is a file or a YouTube link (`videos` lists the `url` of each one it checked). Read `how`:
+     "fingerprints match", "chunks align (copy cut or faded)", "same recording; your copy plays 3.4% fast", or "no match".
 5. **Not found** — retry `resolve` with the file's existing tags as search terms; then `curator other items.json out.json`
    (MusicBrainz, then official "Provided to YouTube by …" uploads from auto-generated "- Topic" channels —
    their ℗ year is usually the original year). Game music: `curator ost` (Discogs coverage is poor; agree a
@@ -151,7 +152,7 @@ Curate decides on names and lengths alone, so what it added is only a first pass
 3. **The audio.** Confirm it's that version with `curator videos` or `curator same`.
 4. **A better copy.** Look for one: see **Better copies**.
 5. **On Spotify?** If they use it, Check Spotify keeps its likely matches in `spotify_search.json` next to the log. Those are by name and length only, because Spotify gives apps no audio.
-   Before saying a song is the same recording, compare it with the official upload ("Provided to YouTube by …"), using `curator same`.
+   Before saying a song is the same recording, compare it with the official upload ("Provided to YouTube by …"): `curator same YOUR_FILE "<its link>"`.
 6. **Record it.** `curator verified "Genre/Artist - Title.mp3" --how "what you checked"` turns it into Verified on the page. If something failed, don't mark it: tell the person what's wrong.
 
 **Every song Curate left** (in `curated.json`, still in the downloads folder): take it through **The workflow**, starting from the reason Curate gave. That includes other sources when Discogs doesn't have the song (step 5). Whatever you can verify gets the same checks before you call it done.
@@ -164,9 +165,9 @@ Checking a song includes asking whether a better recording of it exists: first t
    The ids come from the song's Discogs link in the log (for a link to a master, `curator discogs master <id>` gives its `main_release`). `master` can be null, and `target_secs` is the record's length, or null if it lists none.
    `"low quality"` asks for better sound: the same recording at that length with clearly more content above 16 kHz. Any other reason (`"cut short"`, `"wrong speed"`) asks only for the same recording at that length.
 2. **Without yt-dlp** nothing can be fetched or compared. `better` still lists the Discogs-linked videos whose title and length fit, under `tried` with an `error` each, and the link is `https://www.youtube.com/watch?v=<id>`. Those are guesses, and so is anything you find with your own web search.
-3. **Leave it on To check**, where the person can open the link or ignore it: `curator maybe-better "Genre/Artist - Title.mp3" "<link>" --why "official upload; yours is 128 kbps"`. Add `--checked` only if `better` accepted that copy. One link per song: a second replaces the first.
+3. **Leave it on To check**, where the person can open the link or ignore it: `curator maybe-better "Genre/Artist - Title.mp3" "<link>" --why "official upload; yours is 128 kbps"`. Add `--checked` only if `better` accepted that copy (its `accepted` entry has the `url`). One link per song: a second replaces the first.
 4. **If they say yes** (a `better` answer with the link as its note, or they tell you):
-   - Get the file. A copy `better` accepted is already an MP3 (its `accepted` entry has the `mp3` and the `url`). If there isn't one, ask the person to get the file and tell you where it is, and confirm it with `curator same` before going on.
+   - Get the file. It comes from the person, because the toolkit keeps nothing it fetches: ask them to get it and tell you where it is, or use their own downloader if they've told you to. Confirm it's the same recording with `curator same` before going on.
    - `curator write` won't overwrite a song, so move the old copy to a `Set aside` folder next to the log (never delete it). Then write a plan entry with the song's same tags and cover, `src` set to the set-aside file and `audio` set to the new copy. The log keeps the original as `src`.
    - If the length changed, tell them: Spotify matches local files by length too, so playlist entries for that song need adding again.
 

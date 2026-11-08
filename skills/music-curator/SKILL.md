@@ -14,7 +14,7 @@ and a Discogs token (in `DISCOGS_TOKEN`, or a `.env` file the person keeps next 
 - A song goes in only when identity and version are certain; otherwise report it as held back, with the reason.
 - Never print or store the Discogs token. Never bypass CAPTCHAs or site security checks.
 - Look at covers (contact sheet) before writing; leave the cover empty if none can be confirmed.
-- A better copy never replaces a song until the user says so.
+- A better copy never replaces a song until the user says so. Audio fetched to compare is deleted straight after: this toolkit doesn't download music to keep.
 
 ## Steps
 First run `curator curate`, unless the user just pressed Curate on the page. It adds what it's sure of and is only a first pass: check every song it added ("After Curate" in `AGENTS.md`), and take what it left through these steps.
