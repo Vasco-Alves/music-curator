@@ -143,7 +143,7 @@ it found in `curated.json` next to the log. That's a first pass. These steps are
 
 ## After Curate
 
-Curate decides on names and lengths alone, so what it added is only a first pass. When the person works with you, everything gets the full treatment before you call it done.
+Curate decides on names and lengths, and only checks that a file plays all the way through (a broken one waits on To check, with a reason that says it's damaged), so what it added is only a first pass. When the person works with you, everything gets the full treatment before you call it done.
 
 **Every song Curate added** (the log marks it `matched automatically` or `picked by you`; the page says Auto-matched):
 

@@ -1098,7 +1098,7 @@ function watchCurate() {
 
 /* ---------- progress ---------- */
 const WHY_WAITING = [ // the reasons Curate and the lookup give, in the groups the chart shows
-  [/wasn't looked up/i, "Mixes, nightcore and the like"], [/longer|shorter/i, "Length doesn't match"], [/file says|only lists/i, "Mix name doesn't match"],
+  [/\bdamaged\b/i, "Damaged file"], [/wasn't looked up/i, "Mixes, nightcore and the like"], [/longer|shorter/i, "Length doesn't match"], [/file says|only lists/i, "Mix name doesn't match"],
   [/versions on the record/i, "Several versions"], [/but not this track/i, "Artist found, not this song"], [/not found on discogs/i, "Not on Discogs"],
   [/already in your library/i, "Already in your library"], [/only mp3/i, "Not an MP3"], [/discogs (couldn't|answered)/i, "Couldn't reach Discogs"],
 ];

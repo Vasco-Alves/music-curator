@@ -109,6 +109,7 @@ With nobody double-checking, the rules are strict. A song goes in only when:
 - its artist and title match a track on a record, and any mix named in the file is the one on the record
 - the length is within 20 seconds of the record's, when the record lists one
 - it isn't already in your library
+- it plays all the way through: a broken download still has a good name, so each song is played through first, which takes about a second
 
 Those songs are marked **Auto-matched**, so you can tell them from the ones checked more closely. Everything else waits on To check
 with the reason and the versions found: listen, then click the one it is, or type what it really is, and press Curate again.

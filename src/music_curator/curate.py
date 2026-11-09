@@ -2,8 +2,9 @@
 
 Every song waiting in your downloads folders is looked up on Discogs. A song is copied into your library, with clean tags, name and
 cover, only when the evidence settles it: its artist and name match a track on a record and, when the record lists a length, so does the
-length. With nobody double-checking, these rules are stricter than an agent's. Everything else waits on To check with the reason and the
-versions found, for you to settle by ear. Originals are never changed, and every write is logged.
+length. It also has to play all the way through: a broken download still has a good name. With nobody double-checking, these rules are
+stricter than an agent's. Everything else waits on To check with the reason and the versions found, for you to settle by ear. Originals
+are never changed, and every write is logged.
 
 With comparing audio turned on, To check also says when a file is strongly the same recording as a video on its record. That's for you to
 weigh: a video can be mislabelled, so nothing goes in because of it.
@@ -21,9 +22,12 @@ import threading
 import urllib.error
 import urllib.parse
 
-from . import config, discogs, folders, parse, resolve, tagwriter, videos, webapp
+from . import config, discogs, folders, fpcompare, parse, resolve, tagwriter, videos, webapp
 
 MAX_GAP_S = 20  # how far a file's length may be from the record's. Past it the file may be another edit (on a real library, the first wrong match came at 55 s)
+DECODE_TIMEOUT_S = 120  # a song takes about a second to play through
+MOST_LOST_S = 1  # how far what really plays may fall short of the length a file states. On 588 real songs the most was 0.07 s; two seconds of noise lose 1.8
+MOST_DECODE_ERRORS = 10  # on those songs the most was 2 (old rips have the odd one); two seconds of noise make 12 to 32
 AUTO_NOTE, PICK_NOTE = "matched automatically", "picked by you"  # in the log's notes; the page shows these songs as Auto-matched
 SAVE_EVERY = 10  # songs between saves of what's waiting, so a run that's cut off loses little
 GIVE_UP_AFTER = 3  # lookups failing in a row before the network is assumed to be down
@@ -96,6 +100,23 @@ def name_notes(title):
 
 def _span(seconds):
     return f"{seconds} seconds" if seconds < 90 else f"{seconds // 60}:{seconds % 60:02d}"
+
+
+def audio_trouble(path, secs, stopping=None):
+    """What's wrong with a file's audio, in words for the person. "" if it plays properly, None if Stop was pressed before that could be told.
+    A broken download still has its tags and states its length, so only playing it through can tell."""
+    try:
+        said = fpcompare.run_or_give_up(["ffmpeg", "-hide_banner", "-nostdin", "-v", "error", "-stats", "-i", path, "-map", "0:a:0", "-f", "null", "-"], DECODE_TIMEOUT_S, stopping, text=True, encoding="utf-8", errors="replace")[1]
+    except (fpcompare.GaveUp, OSError):
+        return None if stopping and stopping.is_set() else "This file couldn't be played all the way through, so it may be damaged. It wasn't added."
+    times = re.findall(r"time=(\d+):(\d\d):(\d\d(?:\.\d+)?)", said)
+    played = int(times[-1][0]) * 3600 + int(times[-1][1]) * 60 + float(times[-1][2]) if times else 0
+    if played < 1:
+        return "This file is damaged: none of it can be played. It needs a new copy, so it wasn't added."
+    if secs and secs - played > MOST_LOST_S:
+        return f"This file is damaged or was cut off: only {int(played) // 60}:{int(played) % 60:02d} of its {int(secs) // 60}:{int(secs) % 60:02d} can be played. It needs a new copy, so it wasn't added."
+    errors = sum(1 for line in said.splitlines() if line.strip() and "time=" not in line and not re.match(r"\[(?:png|mjpeg)\b", line))  # a broken cover picture says nothing about the sound
+    return "This file is damaged in places, so it may have glitches or noise. It needs a new copy, so it wasn't added." if errors > MOST_DECODE_ERRORS else ""
 
 
 def _credited(artist):
@@ -337,7 +358,13 @@ class Run:
         self.say(f"  waiting  {key.rsplit('/', 1)[-1]}: {entry['why']}")
 
     def add(self, key, item, tags, notes):
-        """Write the song. False if it didn't go in, and it's on the waiting list instead."""
+        """Write the song. False if it didn't go in: it's on the waiting list instead, unless Stop was pressed first."""
+        trouble = audio_trouble(item["src"], item.get("secs"), self.stopping)
+        if trouble is None:
+            return False
+        if trouble:
+            self.hold(key, trouble)
+            return False
         cover = "" if self.dry else fetch_cover(tags.get("cover_url"), self.covers)
         entry = dict(key=item["key"], src=item["src"], artist=tags["artist"], title=tags["title"], album=tags.get("album") or "", year=str(tags.get("year") or ""),
                      genre=tags["genre"], discogs=tags.get("discogs") or "", cover=cover, notes="; ".join(n for n in notes if n))
