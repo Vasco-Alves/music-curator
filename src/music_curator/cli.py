@@ -122,6 +122,7 @@ def main(argv=None):
     add("apply", "carry out your browser answers that need no research (genre changes) and list the rest for your agent",
         (["--dry-run"], {"action": "store_true", "help": "show what would happen and change nothing"}),
         (["--set-aside"], {"action": "store_true", "help": "also move songs marked 'not worth keeping' to the Set aside folder (nothing is deleted)"}))
+    add("genres", "get every style Discogs lists for the records in your library, for the page (files keep their one genre)")
     add("suggest", "suggest playlists your songs are a confident fit for, to judge by ear on the To check page",
         (["playlists"], {"help": 'JSON file: [{"name": ..., "tracks": [{"name": ..., "artists": [...]}]}]'}),
         (["name"], {"nargs": "?", "help": "only songs that fit this playlist (or part of its name); default: all your playlists"}),
@@ -200,6 +201,10 @@ def main(argv=None):
         from . import apply as applier
         _need("library"), _need("log")
         return applier.main(args.dry_run, args.set_aside)
+    if args.cmd == "genres":
+        from . import genres
+        _need("library"), _need("log")
+        return genres.main()
     if args.cmd == "suggest":
         from . import suggest
         _need("library"), _need("log")

@@ -22,7 +22,7 @@ import threading
 import urllib.error
 import urllib.parse
 
-from . import config, discogs, folders, fpcompare, parse, resolve, tagwriter, videos, webapp
+from . import apply, config, discogs, folders, fpcompare, genres, parse, resolve, tagwriter, videos, webapp
 
 MAX_GAP_S = 20  # how far a file's length may be from the record's. Past it the file may be another edit (on a real library, the first wrong match came at 55 s)
 DECODE_TIMEOUT_S = 120  # a song takes about a second to play through
@@ -48,7 +48,7 @@ class Stop(Exception):
 def missing(paths):
     """What has to be in place before Curate can run, in words for the person ("" when it's ready)."""
     if not paths["library"] or not paths["log"] or not paths["inbox"]:
-        return "Choose your library and downloads folders first, under Folders."
+        return "Choose your library and downloads folders first, under Settings."
     if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
         return "Curate needs ffmpeg and ffprobe. Install ffmpeg, add it to your PATH, then restart this app."
     try:
@@ -568,23 +568,41 @@ def status(server):
     state = dict(server.curate_state or {})
     running = bool(state.get("running"))
     return dict(problem=missing(server.collection.paths) if server.collection else "", running=running, stopping=running and bool(server.curate_stop and server.curate_stop.is_set()), step=state.get("step", ""),
-                done=state.get("done", 0), total=state.get("total", 0), name=state.get("name", ""), failed=state.get("failed", ""), result=state.get("result"))
+                done=state.get("done", 0), total=state.get("total", 0), name=state.get("name", ""), failed=state.get("failed", ""), result=state.get("result"),
+                styles_missing=len(genres.wanted(server.collection)) if server.collection else 0)
 
 
-def _work(server, run):
-    state = server.curate_state
+def _work(server, run, lookups, set_aside):
+    """All of it, in order: what's waiting in your downloads, then your other answers, then the genres the records list."""
+    state, paths, collection = server.curate_state, run.paths, server.collection
+    failed, result = "", None
     try:
-        state.update(result=run.go())
+        try:
+            result = run.go() if lookups else run.summary()
+        except Stop as ex:
+            failed, result = _no_token_in(str(ex)), run.summary()
+        if not run.stopping.is_set():
+            state.update(step="Carrying out your answers", done=0, total=0, name="")
+            with _OneAtATime(os.path.join(os.path.dirname(paths["log"]), "curate.lock")):
+                result.update(apply.carry_out(paths, set_aside, collection.update_answers, run.stopping, state.update))
+        if lookups and not failed and not run.stopping.is_set():
+            state.update(step="Getting every genre Discogs lists", done=0, total=0, name="")
+            collection.refresh()
+            found = genres.fill(paths, genres.wanted(collection), state.update, run.stopping)
+            collection.refresh()
+            result.update(stopped=result.get("stopped") or found["stopped"], said=" ".join(x for x in (result.get("said"), found["said"]) if x))
+        if run.stopping.is_set():
+            result.update(stopped=True)
     except Stop as ex:
-        state.update(failed=_no_token_in(str(ex)), result=run.summary())
+        failed = _no_token_in(str(ex))
     except (Exception, SystemExit) as ex:  # noqa: BLE001  the page must never be left saying "running" forever
-        state.update(failed=f"Curate stopped unexpectedly ({type(ex).__name__}). Songs already added stay added.", result=run.summary())
+        failed = f"Curate stopped unexpectedly ({type(ex).__name__}). Songs already added stay added."
     finally:
-        state.update(running=False)
+        state.update(result=result or run.summary(), failed=failed, running=False)
         server.curate_lock.release()
 
 
-def start(server):
+def start(server, set_aside=False):
     """Begin a run in the background; the page follows it through status(). One at a time."""
     collection = server.collection
     if not collection:
@@ -592,8 +610,8 @@ def start(server):
     if not server.curate_lock.acquire(blocking=False):
         return dict(error="Curate is already running.")
     try:
-        problem = missing(collection.paths)
-        if problem:
+        problem = missing(collection.paths)  # your answers need no token or ffmpeg, so they can go ahead without them
+        if problem and not (collection.paths["decisions"] and collection.paths["log"] and collection.paths["library"] and apply.any_for_the_page(collection.paths, set_aside)):
             server.curate_lock.release()
             return dict(error=problem)
 
@@ -603,7 +621,7 @@ def start(server):
         state = server.curate_state = dict(running=True, step="Starting", done=0, total=0, name="", failed="", result=None)
         server.curate_stop = threading.Event()
         run = Run(collection.paths, say=lambda _: None, progress=state.update, stopping=server.curate_stop, retire=retire)
-        threading.Thread(target=_work, args=(server, run), daemon=True).start()
+        threading.Thread(target=_work, args=(server, run, not problem, set_aside), daemon=True).start()
     except BaseException:
         server.curate_lock.release()
         raise

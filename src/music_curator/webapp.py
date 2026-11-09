@@ -23,7 +23,7 @@ from . import config, folders, library
 
 WEB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"), "/style.css": ("style.css", "text/css; charset=utf-8"), "/glass.css": ("glass.css", "text/css; charset=utf-8"), "/hifi.css": ("hifi.css", "text/css; charset=utf-8"),
-          "/app.js": ("app.js", "text/javascript; charset=utf-8"), "/favicon.svg": ("favicon.svg", "image/svg+xml")}
+          "/app.js": ("app.js", "text/javascript; charset=utf-8"), "/effects.js": ("effects.js", "text/javascript; charset=utf-8"), "/favicon.svg": ("favicon.svg", "image/svg+xml")}
 CSP = ("default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; media-src 'self'; "
        "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 ACTIONS = {"keep", "genre", "identify", "drop", "recheck", "better", "cover", "flag", "add", "added", "pick", "stream"}
@@ -188,6 +188,7 @@ class Collection:
         self.levels, self.levels_sig = {}, None
         self.waves, self.waves_sig = {}, None
         self.own, self.own_sig = {}, None
+        self.styles, self.styles_sig = {}, None
         self._read_decisions()
 
     def _watch(self, name, path, keep):
@@ -255,6 +256,10 @@ class Collection:
             return
         counted = lambda v: isinstance(v, dict) and type(v.get("plays")) is int and 0 < v["plays"] < 1_000_000
         self.plays, self.plays_sig, self.plays_broken = {k: v for k, v in loaded.items() if counted(v)}, sig, False
+
+    def _read_styles(self):
+        """Every style Discogs lists for each record (`genres.py`)."""
+        self._watch("styles", styles_path(self.paths), lambda saved: {k: v for k, v in saved.items() if isinstance(v, dict) and isinstance(v.get("styles"), list)})
 
     def _read_hits(self):
         """What the last Check Spotify found for the songs still waiting."""
@@ -421,6 +426,7 @@ class Collection:
             self._read_saved_lists()
             self._read_own()
             self._read_levels()
+            self._read_styles()
             self._read_log()
             self._read_review_list()
             if self.labels is None:
@@ -459,7 +465,7 @@ class Collection:
                     album=info["album"], year=info["year"], genre=info["genre"], secs=info["secs"], kbps=info["kbps"],
                     bytes=st.st_size, cover=info["cover"], v=str(st.st_mtime_ns), link=link, done=area == "inbox" and norm(path) in self.log_done,
                     added=self._first_seen(row, (row or {}).get("date", "")), was=os.path.basename((row or {}).get("src", "")),
-                    notes=(row or {}).get("notes", ""), trust=trust_of(row), label="", country="", format="", tracks=0, _path=path, _rel=rel, _tagless=info.get("tagless", False))
+                    notes=(row or {}).get("notes", ""), trust=trust_of(row), label="", country="", format="", tracks=0, also=[], wide=False, _path=path, _rel=rel, _tagless=info.get("tagless", False))
         heard = self.plays.get(play_key(song))
         song.update(plays=heard["plays"] if heard else 0, played=str(heard.get("last") or "") if heard else "", lufs=self.levels.get(level_key(song)))
         m = re.search(r"discogs\.com/(release|master)/(\d{1,12})(?!\d)", link)
@@ -467,6 +473,9 @@ class Collection:
             found = self.labels[0 if m[1] == "release" else 1].get(int(m[2]))
             if found:
                 song.update(label=found["label"], country=found["country"], format=found["format"], tracks=found["tracks"])
+        styles = self.styles.get(record_of(link))
+        if styles:  # the file keeps its one genre: these are for finding it under the others
+            song.update(also=[x for x in styles["styles"] if isinstance(x, str) and x and x != song["genre"]], wide=bool(styles.get("wide")))
         stem = os.path.splitext(song["file"])[0]
         held = self.curated.get(key) if area == "inbox" and not song["done"] else None
         listed = self._reason(stem, song["artist"], song["title"]) if area != "library" else ""
@@ -855,7 +864,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._json(answer, 400 if answer.get("error") else 200)
         if route in ("/api/curate", "/api/curate/stop"):
             from . import curate
-            answer = curate.start(self.server) if route == "/api/curate" else curate.stop(self.server)
+            answer = curate.start(self.server, body.get("set_aside") is True) if route == "/api/curate" else curate.stop(self.server)
             return self._json(answer, 400 if answer.get("error") else 200)
         if route.startswith("/api/export"):
             from . import export
@@ -917,6 +926,16 @@ def spotify_hits_path(paths):
 
 def better_links_path(paths):
     return os.path.join(os.path.dirname(paths["decisions"]), "better_links.json")
+
+
+def styles_path(paths):
+    return os.path.join(os.path.dirname(paths["decisions"]), "styles.json")
+
+
+def record_of(link):
+    """'release/123' or 'master/456' from a Discogs link, or nothing."""
+    m = re.search(r"discogs\.com/(release|master)/(\d{1,12})(?!\d)", link or "")
+    return f"{m[1]}/{m[2]}" if m else ""
 
 
 def plays_path(paths):

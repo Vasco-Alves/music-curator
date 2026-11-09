@@ -178,13 +178,15 @@ If your AI app has its own browser (the Claude desktop app's Browser pane, for e
 
 `curator serve` gives the person a local page to explore the library and answer what only ears can settle. With no config
 it opens on a first-run screen where they pick their library and downloads folders; that saves `curator.toml` to the per-user
-location (`--config` or `$CURATOR_CONFIG` override it), and every command then finds it. To change folders, use its Folders page. It reads the
+location (`--config` or `$CURATOR_CONFIG` override it), and every command then finds it. To change folders, use its Settings page. It reads the
 library, the log and (optional `[paths]` keys) a `review` folder and a `review_list` Markdown file with one
 `- **Artist - Title**: reason` per song. The page never changes music; answers land in `decisions.json` next to the log, keyed
 `<kind>:<area>/<relative path>`, and `curator decisions` lists them. Play counts land in `plays.json` beside it, keyed by artist and title, so a count follows a song to another folder or a better copy. Playlists made in the app are in `own_playlists.json`, keyed the same way: if you change a song's artist or title, it shows as not here in those playlists, so tell the person.
 
 To act on them, run `curator apply --dry-run`, show the person what it would do, and after their OK run `curator apply`. Nothing
-is deleted: old copies go to a `Set aside` folder next to the log, and every change is logged.
+is deleted: old copies go to a `Set aside` folder next to the log, and every change is logged. The page's **Curate** button does the same work (and, if the person ticks the box, the `drop` answers too), so answers may already be done by the time you look.
+
+Every style Discogs lists for a record is in `styles.json` next to the log, per record, filled by Curate or `curator genres`. The page shows them and finds songs under them; the file's tag and folder still get the one genre.
 
 - `genre`: `apply` does it. It changes the genre tag and nothing else, moves the song to the new genre's folder unless it's kept
   elsewhere (a soundtrack folder, say), and retires the question. Spotify matching doesn't depend on the genre or the folder. It works on

@@ -119,7 +119,7 @@ verified answer, only in how the title was spelled. The rules were tuned on that
 Files nobody can look up, like nightcore edits or unofficial remixes, always wait for you or an agent. An agent adds what Curate can't
 do: reading odd names, settling versions from the audio, checking other sources, and looking for better-sounding copies.
 
-**Comparing audio (optional).** If you have yt-dlp, Folders has a setting for this, off by default (`compare_audio = true` under `[curate]` does the same). When Curate finds the record but can't tell which version your file is, it fetches the video linked on that record, compares it with your file, and deletes it straight after. A match is never treated as proof, because a video can be mislabelled or be another mix from the same record. So nothing goes in because of it: To check says when the app is strongly sure your file is the same recording, and you decide.
+**Comparing audio (optional).** If you have yt-dlp, Settings has a switch for this, off by default (`compare_audio = true` under `[curate]` does the same). When Curate finds the record but can't tell which version your file is, it fetches the video linked on that record, compares it with your file, and deletes it straight after. A match is never treated as proof, because a video can be mislabelled or be another mix from the same record. So nothing goes in because of it: To check says when the app is strongly sure your file is the same recording, and you decide.
 
 ## See it in your browser
 
@@ -133,7 +133,14 @@ do: reading odd names, settling versions from the audio, checking other sources,
 - **Playlists**: make your own, add songs to them from anywhere in the app and drag them into the order you want, or **Import** `.m3u` and `.m3u8` files from another player. Each line of a file is matched to a song you already have, and you're told which ones it couldn't find. Once you've pressed Check Spotify, your Spotify playlists play here too, as far as you have the songs as files. Each song's details say which of them it's on, and the Songs page can show just the songs that are on none. Streamed songs you don't have are left out. **Save as files** writes them all as `.m3u8` playlists that other players can open.
 - **Now Playing**: click the cover in the play bar for the big view, with what's up next, which you can drag into another order. The seek bar shows the shape of the song, so you can jump straight to a breakdown or a drop.
 - **Crossfade**: a button on the play bar blends each song into the next over 3, 6 or 10 seconds. It leaves songs from the same record alone, since they may run into each other on purpose.
-- **Glow with the kick**: a button on the play bar that makes the green parts of the page and the background glow softly on each kick. It's off until you turn it on.
+- **Effects**: pictures made from the sound on Now Playing, in the colors of the record: Ribbon, Bars, Trails, Stars, Halo and Space, each with its own list of styles, from LEDs and an oscilloscope to fireworks, and sliders under **Adjust** for each one, with 100% as the default. Space is a flight past nebulas, galaxies, planets and black holes that changes course on the beat, with shooting stars on the hi-hats and the odd visitor. **V** picks the next one and **F** shows just the picture, with the controls coming back when you move the mouse. **All pages** keeps it going faintly behind the rest of the app.
+- **Your color**: Settings changes the green of the buttons to another color, or to the strongest color on the record that's playing.
+- **Favourites**: the heart on the play bar, Now Playing, the song panel and song rows adds to a local playlist called Favourites, which sits first on the Playlists page and works like any other.
+- **More than one genre**: a file keeps the one genre you settled on, but the app also shows every style Discogs lists for its record, and finds the song under any of them. On a compilation those are the whole album's, so they're only shown. Kept in `styles.json` next to the log; Curate fills it in.
+- **Glow, Flash and Sparkle**: separate switches, on the play bar and on Now Playing. Glow makes the buttons light up softly on each kick, and Flash does the same to the background. Sparkle follows the hi-hats instead: the dots in the clock tick and now and then a glint catches the record or the play button. All three are off until you turn them on.
+- **Surprises**: now and then the app nods along to the kick, and once in a while it dances. Settings says how often, how strong and how long, or turns them off, and the nodding can stay on all the time.
+- **Mood**: the background and the way a kick lands change a little with the genre of what's playing: softer for trance, yellow for acid, darker and quicker for hardcore. Settings turns it off.
+- **White labels and stickers**: a song with no verified cover shows as a blank promo record with its name stamped on it. Sleeves carry small stickers for what the curator knows: a seal when every song on the record is verified, a yellow label when something waits for you on To check, and an orange one when a better copy may exist.
 - **Radio**: Start radio on any song and it keeps playing others like it from your library, going by genre, label, year, artist and the playlists they share. Clear what's next to stop it.
 - **Even volume**: a button on the play bar that turns loud songs down to match the rest. It never raises a song, because nearly every file already reaches full scale and raising it would distort it, so quieter songs stay as they are. Each song is measured with ffmpeg the first time it's needed, and the file isn't changed.
 - **To check**: the questions only ears can answer (genre toss-ups, songs that couldn't be verified), with the audio right there. **Quick mode** takes them one at a time: press a number to answer and the next song starts.
@@ -141,13 +148,13 @@ do: reading odd names, settling versions from the audio, checking other sources,
 
 ![Progress: how sure each song is, library growth, what's left to check](docs/img/progress.jpg)
 
-The first time it asks where your library and downloads live, and you can change them later under Folders. Picking a
+The first time it asks where your library and downloads live, and you can change them later under Settings. Picking a
 folder never moves any music. The app keeps its log, answers and cache in a `_curation` folder next to the library, and its
 settings in your user profile. Browsing only ever reads your music. Your answers go to `decisions.json` next to the log, with play counts in `plays.json` and the playlists you make in `own_playlists.json` beside it. The
-one thing on the page that adds to your library is the Curate button, and the only outside service it talks to is Discogs (plus YouTube, if you turn on comparing audio). Export never changes your library, and copying only ever adds files to the folder you pick.
+one thing on the page that changes your library is the Curate button, and the only outside service it talks to is Discogs (plus YouTube, if you turn on comparing audio). Export never changes your library, and copying only ever adds files to the folder you pick.
 
-`curator apply --dry-run` shows what your answers would do, and `curator apply` carries out the ones that need no research: genre
-changes, which also move the song to the new genre's folder. Songs you marked not worth keeping only move if you add `--set-aside`.
+When you've answered To check, press **Curate** at the top of that page. It adds the songs you identified and carries out your other answers that need no research: genre
+changes, which also move the song to the new genre's folder, and, if you tick the box, the songs you marked not worth keeping. `curator apply` does the same from a terminal (`--dry-run` to preview, `--set-aside` for those songs).
 Nothing is deleted: old copies go to a `Set aside` folder next to the log, which you can empty whenever you like. Answers that need
 research, like finding a better copy, stay on the list for your agent.
 
@@ -191,6 +198,7 @@ client_id = "your client id"
 | `serve [--port N] [--no-browser]` | open the library in your browser |
 | `decisions` | list what you decided in the browser |
 | `apply [--dry-run] [--set-aside]` | carry out your browser answers that need no research |
+| `genres` | get every style Discogs lists for the records in your library, for the page (files keep their one genre) |
 | `suggest PLAYLISTS [NAME] [--count N]` | suggest playlists your songs are a confident fit for, to judge by ear on To check (experimental) |
 | `discogs …`, `vgmdb …` | raw clients |
 

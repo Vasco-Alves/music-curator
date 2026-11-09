@@ -12,11 +12,11 @@
 <body>
   <div class="shell">
     <nav class="rail" aria-label="Main">
-      <a class="brand" href="#/"><img src="/favicon.svg" alt="" width="26" height="26"><span>Curator</span></a>
+      <a class="brand" href="#/"><span>Curator</span></a>
       <div class="rail-links" id="rail-links"></div>
       <a class="rail-credit" href="https://www.discogs.com" target="_blank" rel="noreferrer noopener">Data provided by Discogs</a>
       <div class="rail-foot">
-        <a class="icon-btn" id="settings-link" href="#/settings" title="Folders" aria-label="Folders"></a>
+        <a class="icon-btn" id="settings-link" href="#/settings" title="Settings" aria-label="Settings"></a>
         <button class="icon-btn" id="refresh" type="button" title="Read the library again" aria-label="Read the library again"></button>
         <button class="icon-btn" id="theme" type="button" title="Light or dark" aria-label="Switch between light and dark"></button>
       </div>
@@ -33,6 +33,7 @@
         <button class="np-title" id="np-title" type="button">Nothing playing</button>
         <div class="np-artist" id="np-artist"></div>
       </div>
+      <button class="icon-btn heart" id="np-heart" type="button" aria-label="Favourite" aria-pressed="false" hidden></button>
     </div>
     <div class="transport">
       <div class="buttons">
@@ -43,26 +44,40 @@
         <button class="icon-btn" id="repeat" type="button" aria-label="Repeat"></button>
       </div>
       <div class="seek">
-        <span class="time" id="cur">0:00</span>
+        <span class="time" id="cur" role="timer"></span>
         <div class="wave-box" data-bars="190"><input id="seek" type="range" min="0" max="1000" value="0" aria-label="Position in the song" disabled></div>
-        <span class="time" id="dur">0:00</span>
+        <span class="time" id="dur" role="timer"></span>
       </div>
     </div>
     <div class="vol">
-      <span id="vol-icon"></span>
-      <input id="vol" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="Volume">
-      <button class="icon-btn" id="even" type="button" aria-label="Even volume" aria-pressed="false"></button>
-      <button class="icon-btn" id="fade" type="button" aria-label="Crossfade" aria-pressed="false"></button>
-      <button class="icon-btn" id="kick" type="button" aria-label="Glow with the kick" aria-pressed="false"></button>
-      <button class="icon-btn" id="now-toggle" type="button" aria-label="Now playing" title="Now playing" aria-pressed="false"></button>
-      <button class="icon-btn" id="panel-toggle" type="button" aria-label="Song panel" aria-pressed="false"></button>
+      <div class="deck-right">
+        <div class="vol-row">
+          <span id="vol-icon"></span>
+          <input id="vol" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="Volume">
+          <button class="icon-btn" id="now-toggle" type="button" aria-label="Now playing" title="Now playing" aria-pressed="false"></button>
+          <button class="icon-btn" id="panel-toggle" type="button" aria-label="Song panel" aria-pressed="false"></button>
+        </div>
+        <div class="switches">
+          <button class="icon-btn" id="even" type="button" aria-label="Even volume" aria-pressed="false"></button>
+          <button class="icon-btn" id="fade" type="button" aria-label="Crossfade" aria-pressed="false"></button>
+          <button class="icon-btn" id="kick" type="button" aria-label="Glow the buttons on the kick" aria-pressed="false"></button>
+          <button class="icon-btn" id="flash" type="button" aria-label="Flash the background on the kick" aria-pressed="false"></button>
+          <button class="icon-btn" id="sparkle" type="button" aria-label="Small lights on the hi-hats" aria-pressed="false"></button>
+        </div>
+      </div>
     </div>
     <audio id="audio" preload="metadata"></audio>
   </footer>
 
+  <svg class="paints" aria-hidden="true" focusable="false"><defs>
+    <linearGradient id="bar-glass" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="paint-a"/><stop offset=".5" class="paint-b"/><stop offset="1" class="paint-c"/></linearGradient>
+    <linearGradient id="bar-soft" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="paint-b"/><stop offset="1" class="paint-d"/></linearGradient>
+    <linearGradient id="area-glow" x1="0" y1="0" x2="0" y2="1"><stop offset="0" class="paint-b"/><stop offset="1" class="paint-e"/></linearGradient>
+  </defs></svg>
   <div class="tip" id="tip" hidden></div>
   <div class="toast" id="toast" role="status" hidden></div>
   <datalist id="genres"></datalist>
+  <script src="/effects.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

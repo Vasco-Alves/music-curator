@@ -7,6 +7,7 @@ import http.client
 import io
 import json
 import os
+import re
 import shutil
 import sys
 import tempfile
@@ -263,6 +264,13 @@ class FromThePage(Base):
         for sheet in ("/style.css", "/glass.css", "/hifi.css"):
             self.assertIn(f'href="{sheet}"', page)
             self.assertEqual(self.ask("GET", sheet)[0], 200, sheet)
+
+    def test_every_script_the_page_asks_for_is_there(self):
+        page = self.ask("GET", "/")[1].decode("utf-8")
+        for script in re.findall(r'<script src="([^"]+)"', page):
+            self.assertEqual(self.ask("GET", script)[0], 200, script)
+        self.assertIn('<script src="/effects.js"', page)
+        self.assertLess(page.index("/effects.js"), page.index("/app.js"), "the player looks for the effects as it starts")
 
     def test_the_page_is_told_how_a_copy_is_going(self):
         self.assertFalse(self.ask("GET", "/api/all")[1]["meta"]["export"]["running"])

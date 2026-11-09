@@ -32,7 +32,7 @@ const ICONS = {
   warn: "M12 4 2.5 20h19zM12 10v4.5M12 17.5h.01", sliders: "M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4", shuffle: "M16 4h5v5M4 20 21 4M21 15v5h-5M15 15l6 5M4 4l5 5",
   play: "M8 5v14l11-7z", pause: "M7 5h3.5v14H7zM13.5 5H17v14h-3.5z", prev: "M19 6v12l-9-6zM6 6h2.2v12H6z", next: "M5 6v12l9-6zM15.8 6H18v12h-2.2z",
   repeat: "M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3", upnext: "M4 6h16M4 12h9M4 18h9M16 12.500v7l5.500-3.500z",
-  kick: "M3 12h4l2.500-7 4 14 2.500-7h5", grip: "M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01", fade: "M3 6c7 0 11 12 18 12M3 18c7 0 11-12 18-12", radio: "M12 13.5a1.500 1.500 0 1 0 0-3 1.500 1.500 0 0 0 0 3zM8.200 8a5.500 5.500 0 0 0 0 8M15.800 8a5.500 5.500 0 0 1 0 8M5.200 5a10 10 0 0 0 0 14M18.800 5a10 10 0 0 1 0 14", plus: "M12 5v14M5 12h14", import: "M12 4v11M8 11l4 4 4-4M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5", chevron: "M6 9l6 6 6-6", expand: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5", even: "M6 9v6M10 9v6M14 9v6M18 9v6M3 5h18M3 19h18", user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.500 20a7.500 7.500 0 0 1 15 0",
+  kick: "M3 12h4l2.500-7 4 14 2.500-7h5", flash: "M13 3 5 14h6l-1 7 8-11h-6z", heart: "M12 20.500s-7.500-4.600-9.200-9.200C1.700 8.200 3.600 5 6.800 5c2.200 0 3.900 1.200 5.200 3 1.300-1.800 3-3 5.200-3 3.200 0 5.100 3.200 4 6.300-1.700 4.600-9.200 9.200-9.200 9.200z", sparkle: "M11 4l1.800 5.700L18.500 11.500l-5.700 1.800L11 19l-1.800-5.700L3.500 11.500l5.700-1.800zM19 3v4M17 5h4", grip: "M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01", fade: "M3 6c7 0 11 12 18 12M3 18c7 0 11-12 18-12", radio: "M12 13.5a1.500 1.500 0 1 0 0-3 1.500 1.500 0 0 0 0 3zM8.200 8a5.500 5.500 0 0 0 0 8M15.800 8a5.500 5.500 0 0 1 0 8M5.200 5a10 10 0 0 0 0 14M18.800 5a10 10 0 0 1 0 14", plus: "M12 5v14M5 12h14", import: "M12 4v11M8 11l4 4 4-4M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5", chevron: "M6 9l6 6 6-6", expand: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5", even: "M6 9v6M10 9v6M14 9v6M18 9v6M3 5h18M3 19h18", user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.500 20a7.500 7.500 0 0 1 15 0",
   disc: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z", tag: "M4 4h7.5l8.500 8.500-7.500 7.500L4 11.500zM8 8h.01", export: "M12 15V4M8 8l4-4 4 4M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5",
 };
 const FILLED = new Set(["play", "pause", "prev", "next"]);
@@ -42,6 +42,8 @@ function icon(name, size = 18, cls) {
     stroke: solid ? "none" : "currentColor", "stroke-width": 1.9, "stroke-linecap": "round", "stroke-linejoin": "round" }, svg("path", { d: ICONS[name] }));
 }
 
+const genresOf = (s) => [s.genre, ...(s.wide ? [] : s.also || [])].filter(Boolean); // the one on the file, then the others Discogs lists. A compilation's are the whole album's, so they don't count
+const logo = () => el("span", { class: "logo", "aria-hidden": "true" }); // drawn by the stylesheet, because a picture in a file can't take the app's color
 const fmt = (n) => Number(n).toLocaleString("en-US");
 const plural = (n, one, many) => `${fmt(n)} ${n === 1 ? one : many || one + "s"}`;
 const sum = (xs) => xs.reduce((a, b) => a + (b || 0), 0);
@@ -124,6 +126,7 @@ function indexLists() {
   const whereIs = (lists) => { const m = new Map(); for (const p of lists) for (const id of p.ids) m.set(id, [...(m.get(id) || []), p.name]); return m; };
   S.inSpotify = whereIs(spotify);
   S.inOwn = whereIs(own);
+  paintHearts();
 }
 const playlistChores = () => waitingToAdd().reduce((n, [, d]) => n + lines(d.note).length, 0) + sum(((S.meta.spotify || {}).to_remove || []).map((r) => r.count));
 function badge() {
@@ -244,16 +247,35 @@ function ranks(rows, href) {
 }
 
 /* ---------- covers and shared bits ---------- */
+/* A song with no verified cover looks like a promo record with nothing printed on it: a plain sleeve, a white label, and its name stamped on by hand. */
+const STAMP_INK = ["#1d2a6b", "#262622", "#5d2a86", "#9c2a25"];
+function whiteLabel(s) {
+  const seed = [...s.id].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7), name = s.title || s.file || "";
+  return el("span", { class: "white-label", "aria-hidden": "true", style: `--tilt:${(seed % 9) - 4}deg;--stamp:${STAMP_INK[seed % STAMP_INK.length]}` },
+    el("span", { class: "wl-artist" }, s.artist || ""), el("span", { class: "wl-title" }, name), el("span", { class: "wl-word" }, name.split(/\s+/)[0].slice(0, 10)));
+}
 function coverEl(s, play, label) {
-  const c = el("div", { class: `cover${s.cover ? "" : " vinyl"}` });
+  const c = el("div", { class: `cover${s.cover ? "" : " blank"}` }, s.cover ? null : whiteLabel(s));
   if (s.cover) {
     const img = el("img", { src: coverUrl(s), alt: "", loading: "lazy", decoding: "async" });
-    img.addEventListener("error", () => { img.remove(); c.classList.add("vinyl"); });
+    img.addEventListener("error", () => { img.remove(); c.classList.add("blank"); c.prepend(whiteLabel(s)); });
     c.append(img);
   }
   if (play) c.append(el("button", { class: "over", type: "button", title: "Play", "aria-label": label || `Play ${songName(s)}`, onclick: (e) => { e.stopPropagation(); play(); } }, icon("play", 20)));
   return c;
 }
+/* What the curator knows about a record, stuck on its sleeve: a seal once every song on it is verified, a price label for what still needs you, another for a better copy. */
+const BETTER_KINDS = new Set(["better"]), GOLD_PLAYS = 100;
+const stillOpen = (s, kinds) => s.checks.some((c) => kinds.has(c.kind) && !isDone({ s, c, key: `${c.kind}:${s.key}` }));
+function stickers(songs) {
+  const toCheck = songs.some((s) => stillOpen(s, NEEDS)), better = songs.some((s) => stillOpen(s, BETTER_KINDS));
+  return [toCheck || better ? el("span", { class: "stickers" },
+    toCheck ? el("span", { class: "sticker to-check", title: "Waiting for you on To check" }, "To check") : null,
+    better ? el("span", { class: "sticker better-copy", title: "A better copy may be out there. Yours stays unless you say otherwise." }, "Better copy") : null) : null,
+  songs.length && songs.every((s) => s.trust === "verified") ? el("span", { class: "sticker seal", title: TRUST.verified.long }, icon("shield", 13)) : null,
+  songs.some((s) => (s.plays || 0) >= GOLD_PLAYS) ? el("span", { class: "sticker gold", title: `A gold record: played ${GOLD_PLAYS} times or more` }) : null].filter(Boolean);
+}
+const stuck = (cover, songs) => { cover.append(...stickers(songs)); return cover; };
 function trustTag(s) {
   const t = TRUST[s.trust] || TRUST.unknown;
   return el("span", { class: `trust ${t.cls}`, title: t.long }, icon(t.icon, 15), t.label);
@@ -399,7 +421,7 @@ function matcher(f) {
   const words = fold(f.q).split(/\s+/).filter(Boolean);
   return (s) => {
     if (f.area !== "all" && s.area !== f.area) return false;
-    if (f.genre && s.genre !== f.genre) return false;
+    if (f.genre && !genresOf(s).includes(f.genre)) return false;
     if (f.trust && s.trust !== f.trust) return false;
     if (f.label && s.label !== f.label) return false;
     if (f.playlist && !(S.lists.get(f.playlist) || new Map()).has(s.id)) return false;
@@ -412,7 +434,7 @@ function matcher(f) {
     if (f.from && !(s.year && +s.year >= +f.from)) return false;
     if (f.to && !(s.year && +s.year <= +f.to)) return false;
     if (words.length) {
-      s._hay = s._hay || fold(`${s.artist} ${s.title} ${s.album} ${s.genre} ${s.label} ${s.file}`);
+      s._hay = s._hay || fold(`${s.artist} ${s.title} ${s.album} ${genresOf(s).join(" ")} ${s.label} ${s.file}`);
       if (!words.every((w) => s._hay.includes(w))) return false;
     }
     return true;
@@ -485,7 +507,7 @@ function pageSongs(params) {
       ...(f.from ? [chipOff(f.from === f.to ? `Year: ${f.from}` : `Years: ${f.from}–${f.to}`, () => { f.from = f.to = ""; update(); })] : []),
       ...(NEWEST_FIRST[S.sort.key] && S.sort.dir < 0 ? [chipOff(NEWEST_FIRST[S.sort.key], () => { S.sort = { key: "artist", dir: 1 }; update(); })] : []));
     const own = ownList(f.playlist);
-    if (!list.length) return results.replaceChildren(el("p", { class: "empty" }, own && !own.ids.length ? "Nothing in this playlist yet. Find a song and press + to add it." : "Nothing matches these filters."));
+    if (!list.length) return results.replaceChildren(el("p", { class: "empty" }, own && !own.ids.length ? "Nothing in this playlist yet. Find a song and press + to add it." : "Nothing. Not even on a white label."));
     S.songView === "grid" ? renderTiles(results, list) : renderTable(results, list, update, own ? takeOut : null, canMove(list) ? moveRow : null);
   }
   const chipOff = (text, off) => el("button", { class: "chip", type: "button", title: "Remove this filter", onclick: off }, text, " ", el("em", {}, "×"));
@@ -505,7 +527,7 @@ function pageSongs(params) {
     el("div", { class: "filters" },
       el("div", { class: "search" }, icon("search", 16), search),
       pick("Where", "area", Object.entries(AREAS)),
-      pick("Genre", "genre", [["", "All genres"], ...tally(S.songs.map((s) => s.genre)).sort((a, b) => a[0].localeCompare(b[0])).map(([g, c]) => [g, `${g} (${c})`])]),
+      pick("Genre", "genre", [["", "All genres"], ...tally(S.songs.flatMap(genresOf)).sort((a, b) => a[0].localeCompare(b[0])).map(([g, c]) => [g, `${g} (${c})`])]),
       pick("Decade", "decade", [["", "All years"], ...decades.map(([d, c]) => [d, `${d}s (${c})`]), ["none", "No year"]]),
       pick("How sure", "trust", [["", "How sure: any"], ...Object.entries(TRUST).map(([k, t]) => [k, t.label])]),
       (S.meta.my_playlists || []).length ? pick("Spotify lists", "spotify", [["", "Spotify lists: any"], ["yes", `On a Spotify list (${fmt(onLists)})`], ["no", `On no Spotify list (${fmt(inScope().length - onLists)})`]]) : null,
@@ -562,12 +584,13 @@ function renderTable(box, list, update, takeOut, moved) {
       head("Album", "album", "c-album"), head("Year", "year", "c-year"), head("Genre", "genre", "c-genre"), head("Length", "secs", "c-len num"), head("kbps", "kbps", "c-kbps num"), head("Plays", "plays", "c-plays num"), head("How sure", "trust", "c-trust"))),
     body), holder);
   if (moved) sortable(body, "tr", moved);
-  lazy(body, list, (s) => el("tr", { class: `has-play${moved ? " can-move" : ""}`, draggable: moved ? "true" : null, dataset: { song: s.id }, onclick: () => openDrawer(s.id) },
+  lazy(body, list, (s) => el("tr", { class: `has-play${moved ? " can-move" : ""}${isFavourite(s) ? " fav" : ""}`, draggable: moved ? "true" : null, dataset: { song: s.id }, onclick: () => openDrawer(s.id) },
     el("td", { class: "c-cover" }, coverEl(s, () => playFrom(s.id))),
     el("td", { class: "t-cell" }, el("button", { class: "t-main", type: "button", title: s.title, onclick: (e) => { e.stopPropagation(); openDrawer(s.id); } }, s.title), el("span", { class: "t-sub", title: s.artist }, s.artist),
       takeOut ? el("button", { class: "row-add row-out", type: "button", title: "Take out of this playlist", "aria-label": `Take ${songName(s)} out of this playlist`, onclick: (e) => { e.stopPropagation(); takeOut(s, e.currentTarget.closest("tr")); } }, icon("x", 15)) : null,
       el("button", { class: "row-add row-list", type: "button", title: "Add to a playlist", "aria-label": `Add ${songName(s)} to a playlist`, onclick: (e) => { e.stopPropagation(); addToList([s.id], songName(s) || s.file); } }, icon("plus", 15)),
-      el("button", { class: "row-add", type: "button", title: "Add to queue", "aria-label": `Add ${songName(s)} to the queue`, onclick: (e) => { e.stopPropagation(); enqueue([s.id]); } }, icon("listadd", 15))),
+      el("button", { class: "row-add", type: "button", title: "Add to queue", "aria-label": `Add ${songName(s)} to the queue`, onclick: (e) => { e.stopPropagation(); enqueue([s.id]); } }, icon("listadd", 15)),
+      el("button", { class: `row-add row-heart${isFavourite(s) ? " on" : ""}`, type: "button", title: heartTitle(isFavourite(s)), "aria-label": `Favourite ${songName(s)}`, "aria-pressed": String(isFavourite(s)), dataset: { heart: s.id }, onclick: heartClick(s) }, icon("heart", 15))),
     el("td", { class: "c-album", title: s.album }, s.album), el("td", { class: "c-year" }, s.year), el("td", { class: "c-genre", title: s.genre }, s.genre),
     el("td", { class: "c-len num" }, clock(s.secs)), el("td", { class: "c-kbps num" }, s.kbps || "–"), el("td", { class: "c-plays num", dataset: { plays: s.id } }, s.plays ? fmt(s.plays) : "–"), el("td", { class: "c-trust" }, trustTag(s))), holder);
 }
@@ -726,13 +749,42 @@ function shelfCover(item, mosaic) {
   c.append(el("button", { class: "over", type: "button", title: "Play", "aria-label": label, onclick: (e) => { e.stopPropagation(); play(); } }, icon("play", 20)));
   return c;
 }
-const disc = (art) => el("div", { class: "disc" }, el("div", { class: "disc-label" }, art && art.cover ? el("img", { src: coverUrl(art), alt: "", decoding: "async" }) : null));
-const shelfTile = (item, mosaic) => el("div", { class: "tile has-play shelf", onclick: () => { location.hash = item.href; } },
-  el("div", { class: "sleeve" }, disc(), shelfCover(item, mosaic)),
-  el("a", { class: "t-main", href: item.href, title: item.name, onclick: (e) => e.stopPropagation() }, item.name),
-  item.lines.map((line) => el("span", { class: "t-sub", title: line }, line)));
+const disc = (art) => el("div", { class: "disc" }, el("div", { class: `disc-label${art && !art.cover ? " blank" : ""}` }, art && art.cover ? el("img", { src: coverUrl(art), alt: "", decoding: "async" }) : null));
+/* The reflection on the glass shelf: the bottom of the cover, turned over and faded out. It's drawn small and stretched back up, which is what makes it soft, and it costs nothing once it's drawn. */
+function reflection(cover) {
+  const img = cover.querySelector("img");
+  if (!img) return null;
+  const c = el("canvas", { class: "reflection", width: 64, height: 20, "aria-hidden": "true" });
+  const draw = () => {
+    const g = c.getContext("2d"), w = img.naturalWidth, h = img.naturalHeight, part = h * 0.26;
+    if (!w) return;
+    g.save();
+    g.translate(0, c.height);
+    g.scale(1, -1);
+    if ("filter" in g) g.filter = "blur(.9px)";
+    g.drawImage(img, 0, h - part, w, part, 0, 0, c.width, c.height);
+    g.restore();
+    g.globalCompositeOperation = "destination-in";
+    const down = g.createLinearGradient(0, 0, 0, c.height), across = g.createLinearGradient(0, 0, c.width, 0);
+    for (const [at, strength] of [[0, 0.72], [0.3, 0.38], [0.65, 0.12], [1, 0]]) down.addColorStop(at, `rgba(0, 0, 0, ${strength})`); // it eases away rather than stopping
+    for (const [at, strength] of [[0, 0], [0.07, 1], [0.93, 1], [1, 0]]) across.addColorStop(at, `rgba(0, 0, 0, ${strength})`); // and its sides are soft too
+    for (const fade of [down, across]) {
+      g.fillStyle = fade;
+      g.fillRect(0, 0, c.width, c.height);
+    }
+  };
+  if (img.complete) draw(); else img.addEventListener("load", draw, { once: true });
+  return c;
+}
+const shelfTile = (item, mosaic, glass) => { // glass: a record on its glass plate on the Albums page, with its stickers and its reflection
+  const cover = shelfCover(item, mosaic);
+  return el("div", { class: "tile has-play shelf", onclick: () => { location.hash = item.href; } },
+    el("div", { class: "sleeve" }, disc(), glass ? stuck(cover, item.songs) : cover, glass ? reflection(cover) : null),
+    el("a", { class: "t-main", href: item.href, title: item.name, onclick: (e) => e.stopPropagation() }, item.name),
+    item.lines.map((line) => el("span", { class: "t-sub", title: line }, line)));
+};
 const songTile = (s, play) => el("div", { class: "tile has-play shelf", dataset: { song: s.id }, onclick: () => openDrawer(s.id) }, // like an album on the shelf: the record slides out, and play is its own button
-  el("div", { class: "sleeve" }, disc(), coverEl(s, play)), el("span", { class: "t-main", title: s.title }, s.title), el("span", { class: "t-sub", title: s.artist }, s.artist));
+  el("div", { class: "sleeve" }, disc(), stuck(coverEl(s, play), [s])), el("span", { class: "t-main", title: s.title }, s.title), el("span", { class: "t-sub", title: s.artist }, s.artist));
 const byTitle = (a, b) => fold(a.title).localeCompare(fold(b.title));
 const yearsOf = (songs) => songs.map((s) => +s.year).filter(Boolean);
 const artistsOf = (s) => (s.artist || "").split(" & ").map((a) => a.trim()).filter(Boolean);
@@ -780,7 +832,7 @@ function playlistItems() { // the ones made here, then your Spotify playlists as
     return { own: key !== p.name, name: p.name, songs, year: Math.max(0, ...yearsOf(songs)), lines: [line(songs.length), genre].filter(Boolean),
       href: `#/songs?${q2({ playlist: key, area: "all" })}`, hay: fold(`${p.name} ${songs.map((s) => `${s.artist} ${s.genre}`).join(" ")}`) };
   };
-  return [...(S.meta.own_playlists || []).map((p) => item(p, OWN + p.id, (n) => (p.away.length ? `${fmt(n)} of ${fmt(n + p.away.length)} here` : n ? plural(n, "song") : "No songs yet"))),
+  return [...[...(S.meta.own_playlists || [])].sort((a, b) => (b.name === FAVOURITES) - (a.name === FAVOURITES)).map((p) => item(p, OWN + p.id, (n) => (p.away.length ? `${fmt(n)} of ${fmt(n + p.away.length)} here` : n ? plural(n, "song") : "No songs yet"))),
     ...(S.meta.my_playlists || []).map((p) => item(p, p.name, (n) => `${fmt(n)} of ${fmt(p.total)} here`)).filter((x) => x.songs.length)];
 }
 function artistItems() {
@@ -881,16 +933,16 @@ function pageShelf(params, o) {
     const words = fold(f.q).split(/\s+/).filter(Boolean);
     const list = all.filter((x) => (!f.many || x.songs.length > 1) && words.every((w) => x.hay.includes(w))).sort(sorters[f.sort] || sorters.most);
     countLine.textContent = o.count(list.length);
-    if (!list.length) return results.replaceChildren(el("p", { class: "empty" }, all.length ? "Nothing matches that." : o.none));
+    if (!list.length) return results.replaceChildren(el("p", { class: "empty" }, all.length ? "Nothing by that name in the crates." : o.none));
     results.replaceChildren();
     for (const [title, has, none] of o.groups || [["", () => true]]) {
       const items = list.filter(has);
       if (!items.length && (f.q || !none)) continue; // a search with nothing in this group doesn't need its heading
       if (title) results.append(el("h2", { class: "section" }, title));
       if (!items.length) { results.append(el("p", { class: "note" }, none)); continue; }
-      const grid = el("div", { class: "grid" }), holder = el("div");
+      const glass = o.page === "albums", grid = el("div", { class: `grid${glass ? " on-shelf" : ""}` }), holder = el("div");
       results.append(grid, holder);
-      lazy(grid, items, (x) => shelfTile(x, o.mosaic), holder);
+      lazy(grid, items, (x) => shelfTile(x, o.mosaic, glass), holder);
     }
   }
   const search = el("input", { type: "search", placeholder: o.placeholder, value: f.q, "aria-label": "Search", id: "song-search", oninput: (e) => { f.q = e.target.value; update(); } });
@@ -925,13 +977,24 @@ async function decide(song, kind, action, extra = {}) {
   } catch { r = null; }
   if (!r) { toast("Couldn't save that. Is the server still running?"); return false; }
   if (!r.ok) { const data = await r.json().catch(() => ({})); toast(data.error || "Couldn't save that."); return false; }
-  const key = `${kind}:${song.key}`;
+  const key = `${kind}:${song.key}`, waited = needsYou();
   if (action === null) delete S.decisions[key];
   else S.decisions[key] = { kind, action, genre: extra.genre || "", note: extra.note || "" };
   badge();
   if (cards.has(key)) cards.get(key)(false); // the same question can be on the page and in the panel: both show the answer
   if (drawerSong === song.id) paintPanel();
+  repaintCurate();
+  if (waited && !needsYou()) recordsFall();
   return true;
+}
+function recordsFall() { // the very last one answered: a few small records come down, once
+  if (calm.matches || !surprises.falling) return;
+  for (let i = document.body.classList.contains("gentle") ? 8 : 16; i > 0; i--) {
+    const record = el("div", { class: "falling", "aria-hidden": "true" }), size = 22 + Math.random() * 26;
+    record.style.cssText = `left:${(Math.random() * 100).toFixed(1)}vw;width:${size.toFixed(0)}px;height:${size.toFixed(0)}px`;
+    document.body.append(record);
+    record.animate([{ transform: "translateY(-70px) rotate(0deg)" }, { transform: `translateY(${innerHeight + 70}px) rotate(${(720 + Math.random() * 720).toFixed(0)}deg)` }], { duration: 1500 + Math.random() * 1300, delay: Math.random() * 500, easing: "cubic-bezier(.4,.1,.7,1)", fill: "backwards" }).finished.then(() => record.remove(), () => record.remove());
+  }
 }
 function decidedText(d) {
   return { keep: d.kind === "playlist" ? "Doesn't fit" : d.kind === "waiting" ? "Left for now" : d.kind === "spotify" ? "Not the same" : "Keep it as it is", genre: `Change the genre to ${d.genre}`, identify: `You said: ${d.note}`, drop: d.note === "On Spotify" ? "It's on Spotify, so your file isn't needed" : "Not worth keeping", stream: `On Spotify, in ${lines(d.note).join(", ")}`, pick: `It's ${(d.note || "").split("|").slice(1).join("|")}. Press Curate to add it.`,
@@ -1075,13 +1138,14 @@ function pageCheck(params) {
   view.replaceChildren(el("div", {},
     el("div", { class: "page-head" }, el("h1", {}, "To check"), counter),
     el("div", { class: "meter" }, meterFill),
+    curateBar(false, true),
     el("div", { class: "pills" }, pill("needs", "Needs you", (it) => NEEDS.has(it.c.kind)), ORDER.map((k) => pill(k, KINDS[k].label, (it) => it.c.kind === k))),
     el("div", { class: "check-tools" },
       list.length ? el("button", { class: "btn small", type: "button", onclick: () => { S.listen = true; const q = queue(); if (q.length) playQueue(q, 0, "To check"); } }, icon("play", 14), "Listen through these") : null,
       queue().length ? el("a", { class: "btn small", href: `#/check?${q2({ kind: kind === "needs" ? "" : kind, quick: "1" })}`, title: "One song at a time, answered from the keyboard" }, icon("ears", 14), "Quick mode") : null,
       el("label", {}, el("input", { type: "checkbox", checked: showDone, onchange: (e) => { location.hash = link(kind, e.target.checked); } }), "Show what's decided")),
-    list.length ? box : el("p", { class: "empty" }, "Nothing left to check here."), holder,
-    el("p", { class: "hintbar" }, "Your answers are saved in ", el("code", {}, S.meta.decisions_file || "decisions.json"), ". Nothing in your music changes until you press Curate, run ", el("code", {}, "curator apply"), ", or your AI app does it.")));
+    list.length ? box : el("p", { class: "empty" }, "Nothing left to check. Your ears can rest."), holder,
+    el("p", { class: "hintbar" }, "Your answers are saved as you go. Nothing in your music changes until you press Curate at the top of this page, or ask your AI app to apply them.")));
   paintMeter();
   lazy(box, list, (it) => itemCard(it, paintMeter), holder);
 }
@@ -1122,7 +1186,7 @@ function pageQuick(params) {
     count.textContent = `${fmt(left)} of ${fmt(total)} left`;
     meter.style.width = `${total ? ((total - left) / total) * 100 : 0}%`;
     cards.clear();
-    if (!left || !it) return card.replaceChildren(el("div", { class: "quick-body" }, el("p", {}, total ? "All answered." : "Nothing left to check here."), el("a", { class: "btn small", href: back }, "Back to the list")));
+    if (!left || !it) return card.replaceChildren(el("div", { class: "quick-body" }, el("p", {}, total ? "All answered. Your ears can rest." : "Nothing left to check. Your ears can rest."), el("a", { class: "btn small", href: back }, "Back to the list")));
     cards.set(it.key, () => paint());
     const k = KINDS[it.c.kind], answers = controls(it.s, it.c, (advance) => {
       if (!advance) return paint();
@@ -1255,6 +1319,34 @@ function addToList(ids, what) { // one song or a whole list, into a playlist you
     return [el("div", { class: "inline-form" }, name, el("button", { class: "btn small", type: "button", onclick: make }, "Make it")), rows.length ? el("div", { class: "modal-list" }, rows) : null, said];
   });
 }
+/* Favourites: a playlist like any other, with a button of its own. So it plays, exports and goes to Spotify the same way. */
+const FAVOURITES = "Favourites";
+const favouritesList = () => (S.meta.own_playlists || []).find((p) => p.name === FAVOURITES);
+function isFavourite(s) {
+  const list = favouritesList(), have = list && S.lists && S.lists.get(OWN + list.id);
+  return !!have && have.has(s.id);
+}
+const heartTitle = (on) => (on ? "In your favourites. Click to take it out" : "Add to your favourites");
+function paintHearts() {
+  document.querySelectorAll("[data-heart]").forEach((b) => {
+    const s = S.byId.get(b.dataset.heart), on = !!s && isFavourite(s), row = b.closest("tr");
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-pressed", String(on));
+    b.title = heartTitle(on);
+    if (row) row.classList.toggle("fav", on);
+  });
+}
+async function toggleFavourite(s, button) {
+  const list = favouritesList(), on = isFavourite(s), r = await post(!list ? "/api/playlists/new" : on ? "/api/playlists/remove" : "/api/playlists/add", list ? { list: list.id, ids: [s.id] } : { name: FAVOURITES, ids: [s.id] });
+  if (r.error) return toast(r.error);
+  tookLists(r);
+  paintHearts();
+  if (!on && !calm.matches) button.animate({ scale: [1, 1.45, 1] }, { duration: 320, easing: "ease-out" });
+  const now = favouritesList();
+  if (now && new URLSearchParams(location.hash.split("?")[1] || "").get("playlist") === OWN + now.id) route();
+}
+const heartClick = (s) => (e) => { e.stopPropagation(); toggleFavourite(s, e.currentTarget); };
+const favButton = (s) => { const on = isFavourite(s); return el("button", { class: `btn small heart${on ? " on" : ""}`, type: "button", title: heartTitle(on), "aria-pressed": String(on), dataset: { heart: s.id }, onclick: heartClick(s) }, icon("heart", 14), "Favourite"); };
 const listButton = (ids, what) => el("button", { class: "btn small", type: "button", onclick: () => addToList(ids, what) }, icon("plus", 14), "Add to playlist");
 function addToSpotify(s) { // Spotify doesn't let apps add local files, so this only puts the song on your list of things to drag in
   const names = (S.meta.spotify || {}).playlists || [], on = new Set(S.inSpotify.get(s.id) || []), said = S.decisions[`playlist:${s.key}`], waiting = said && said.action === "add" ? lines(said.note) : [];
@@ -1381,11 +1473,25 @@ function pageAdd(params) {
 let curateTimer = null;
 const freshSongs = () => S.songs.filter((s) => s.area === "inbox" && !s.done && !s.looked && !S.decisions[`waiting:${s.key}`]).length;
 const answersToRun = () => Object.entries(S.decisions).filter(([k, d]) => k.startsWith("waiting:inbox/") && /\.(mp3|flac|m4a)$/i.test(k) && S.songs.some((s) => `waiting:${s.key}` === k && !s.done) && (d.action === "pick" || (d.action === "identify" && /\s[-–—]\s/.test(d.note || "")))).length;
-function lastRunWords(r) {
-  return `${r.stopped ? "Stopped early. " : ""}Added ${plural(r.added, "song")}${r.waiting ? `, ${fmt(r.waiting)} waiting for you` : ""}.${r.strong ? ` ${fmt(r.strong)} of those ${r.strong === 1 ? "has" : "have"} a strong audio match for you to confirm.` : ""}${r.said ? ` ${r.said}` : ""}`;
+function answersWaiting() { // what's been answered and not carried out yet, by who can do it
+  const out = { genres: 0, drops: 0, research: 0 }, songs = new Map(S.songs.map((s) => [s.key, s]));
+  for (const [k, d] of Object.entries(S.decisions)) {
+    const song = songs.get(k.slice(k.indexOf(":") + 1));
+    if (!song || song.done) continue;
+    if (d.action === "genre") { if (song.area === "library") out.genres++; else out.research++; }
+    else if (d.action === "drop") out.drops++;
+    else if (["better", "cover", "flag", "recheck"].includes(d.action)) out.research++;
+    else if ((d.action === "identify" || d.action === "pick") && !(k.startsWith("waiting:inbox/") && (d.action === "pick" || /\s[-–—]\s/.test(d.note || "")))) out.research++;
+  }
+  return out;
 }
+function lastRunWords(r) {
+  const did = [r.added || !(r.changed || r.aside) ? `Added ${plural(r.added, "song")}${r.waiting ? `, ${fmt(r.waiting)} waiting for you` : ""}` : "", r.changed ? `Changed ${plural(r.changed, "genre")}` : "", r.aside ? `Set ${fmt(r.aside)} aside` : ""].filter(Boolean).join(". "), left = r.not_done || [];
+  return `${r.stopped ? "Stopped early. " : ""}${did}.${r.strong ? ` ${fmt(r.strong)} of those ${r.strong === 1 ? "has" : "have"} a strong audio match for you to confirm.` : ""}${left.length ? ` ${plural(left.length, "answer")} couldn't be carried out. ${left[0]}` : ""}${r.said ? ` ${r.said}` : ""}`;
+}
+let curateAside = false; // the songs marked not worth keeping only leave if you tick the box
 function paintCurate(box) {
-  const c = S.meta.curate || {}, fresh = freshSongs(), answers = answersToRun(), todo = fresh + answers;
+  const c = S.meta.curate || {}, fresh = freshSongs(), answers = answersToRun(), w = answersWaiting(), records = c.styles_missing || 0, aside = curateAside ? w.drops : 0, lookups = fresh + answers + records, here = w.genres + aside, todo = lookups + here;
   if (c.running) {
     const fill = el("div");
     fill.style.width = c.total ? `${Math.round((c.done / c.total) * 100)}%` : "0";
@@ -1393,37 +1499,39 @@ function paintCurate(box) {
     box.replaceChildren(
       el("div", { class: "curate-head" },
         el("div", { class: "grow" },
-          el("h2", {}, c.total ? `Curating song ${fmt(Math.min(c.done + 1, c.total))} of ${fmt(c.total)}` : c.step || "Curating"),
+          el("h2", {}, c.total ? `${c.step === "Looking up" ? "Curating song" : `${c.step}:`} ${fmt(Math.min(c.done + 1, c.total))} of ${fmt(c.total)}` : c.step || "Curating"),
           el("div", { class: "note curate-now" }, c.total ? c.name : "This can take a few minutes: Discogs answers about once a second.")),
         el("button", { class: "btn small", type: "button", disabled: !!c.stopping, onclick: (e) => { e.currentTarget.disabled = true; e.currentTarget.textContent = "Stopping…"; post("/api/curate/stop", {}); } }, c.stopping ? "Stopping…" : "Stop")),
       el("div", { class: "meter" }, fill));
     return;
   }
-  const last = box.dataset.always ? c.result : null;
-  box.hidden = !todo && !last && !c.failed;
+  const last = box.dataset.always ? c.result : null, research = box.dataset.check ? w.research : 0;
+  box.hidden = !todo && !w.drops && !research && !last && !c.failed;
   if (box.hidden) { box.replaceChildren(); return; }
-  const words = [fresh ? plural(fresh, "new song") : "", answers ? plural(answers, "answer") : ""].filter(Boolean).join(" and ");
-  const blocked = todo && c.problem;
+  const words = [fresh ? plural(fresh, "new song") : "", answers ? plural(answers, "answer") : "", w.genres ? plural(w.genres, "genre change") : "", aside ? `${fmt(aside)} to set aside` : "", records ? `the genres of ${plural(records, "record")}` : ""].filter(Boolean).join(", ");
+  const blocked = lookups && !here && c.problem, says = [fresh + answers ? "Looks each song up on Discogs and adds the ones it's sure of. The rest wait for you on To check." : "", w.genres || aside ? "Anything replaced or taken out is kept in the Set aside folder." : "", records && !(fresh + answers) ? "Looks up every genre Discogs lists for your records. The files keep the one they have." : ""].filter(Boolean).join(" ");
   box.replaceChildren(...[
     el("div", { class: "curate-head" },
       el("div", { class: "grow" },
-        el("h2", {}, todo ? `${words} to curate` : "Curate"),
-        el("div", { class: "note" }, blocked ? c.problem : todo ? "Looks each song up on Discogs and adds the ones it's sure of. The rest wait for you on To check. Your originals stay as they are." : "Nothing new in your downloads.")),
+        el("h2", {}, todo ? `To curate: ${words}` : "Curate"),
+        el("div", { class: "note" }, blocked ? c.problem : todo ? says : w.drops || research ? "Nothing here for the button to do yet." : "Nothing new in your downloads.")),
       blocked ? (/DISCOGS_TOKEN/.test(c.problem) ? el("a", { class: "btn small", href: "https://www.discogs.com/settings/developers", target: "_blank", rel: "noreferrer noopener" }, icon("link", 14), "Get a token") : null)
         : todo ? el("button", { class: "btn primary", type: "button", onclick: startCurate }, "Curate") : null),
+    w.drops ? el("label", { class: "filter-check curate-aside" }, el("input", { type: "checkbox", checked: curateAside, onchange: (e) => { curateAside = e.target.checked; repaintCurate(); } }), `Also move the ${plural(w.drops, "song")} marked not worth keeping to the Set aside folder. Nothing is deleted.`) : null,
+    research ? el("p", { class: "note curate-said" }, `${plural(research, "answer")} ${research === 1 ? "needs" : "need"} some research, like finding a better copy. Ask your AI app to apply your answers.`) : null,
     c.failed ? el("p", { class: "note curate-said" }, c.failed) : null,
     last ? el("p", { class: "note curate-said" }, lastRunWords(last), last.waiting ? [" ", el("a", { href: "#/check" }, "See what's waiting")] : null) : null,
   ].filter(Boolean));
 }
-function curateBar(always) {
+function curateBar(always, check) {
   if (!S.meta.curate) return null;
-  const box = el("div", { class: "card curate-bar", id: "curate-bar", dataset: { always: always ? "1" : "" } });
+  const box = el("div", { class: "card curate-bar", id: "curate-bar", dataset: { always: always ? "1" : "", check: check ? "1" : "" } });
   paintCurate(box);
   return box;
 }
 function repaintCurate() { const box = $("#curate-bar"); if (box) paintCurate(box); }
 async function startCurate() {
-  const r = await post("/api/curate", {});
+  const r = await post("/api/curate", { set_aside: curateAside });
   if (r.error) return toast(r.error);
   S.meta.curate = { ...S.meta.curate, running: true, step: "Starting", done: 0, total: 0, name: "", failed: "", result: null };
   repaintCurate();
@@ -1466,14 +1574,18 @@ function whenLabel(t, unit, short) {
 function pageProgress() {
   const lib = S.lib, inbox = S.songs.filter((s) => s.area === "inbox" && !s.done), review = S.songs.filter((s) => s.area === "review"), P_ = S.progress;
   const count = (t) => lib.filter((s) => s.trust === t).length, left = needsYou(), verified = count("verified");
-  const kpi = (label, value, sub, href) => el(href ? "a" : "div", { class: "kpi", href }, el("div", { class: "label" }, label), el("div", { class: "value" }, fmt(value)), el("div", { class: "sub" }, sub));
-  const fresh = freshSongs();
-  const page = el("div", {}, el("div", { class: "page-head" }, el("h1", {}, "Progress")), curateBar(true),
-    el("div", { class: "kpis" },
-      kpi("In your library", lib.length, lib.length ? `${Math.round((verified / lib.length) * 100)}% verified${count("auto") ? `, ${fmt(count("auto"))} auto-matched` : ""}` : "", "#/songs"),
-      kpi("Waiting in the inbox", inbox.length, !inbox.length ? "nothing new" : fresh ? `${fmt(fresh)} not looked at yet` : "all looked at"),
-      kpi("Not in the library yet", review.length, "couldn't be verified", "#/songs?area=review"),
-      kpi("Left to check", left, left ? "need your ears" : "all done", "#/check")));
+  const kpi = (label, value, sub, href) => el(href ? "a" : "div", { class: "kpi", href }, el("div", { class: "label" }, label), el("div", { class: "value" }, counter(value)), el("div", { class: "sub" }, sub));
+  const fresh = freshSongs(), sure = lib.length ? Math.round((verified / lib.length) * 100) : 0;
+  const page = el("div", { class: "progress-page" }, el("div", { class: "page-head" }, el("h1", {}, "Progress")), curateBar(true),
+    el("div", { class: "progress-top" },
+      el("a", { class: "card gauge", href: "#/songs", "aria-label": `${sure}% of your library is verified` },
+        el("div", { class: "gauge-ring", style: `--v:${sure}` }, el("div", { class: "gauge-glass" }, counter(sure, 2), el("span", { class: "gauge-unit" }, "%"))),
+        el("div", { class: "gauge-label" }, lib.length ? `${fmt(verified)} of ${plural(lib.length, "song")} verified` : "Nothing in the library yet")),
+      el("div", { class: "kpis" },
+        kpi("In your library", lib.length, lib.length ? `${sure}% verified${count("auto") ? `, ${fmt(count("auto"))} auto-matched` : ""}` : "", "#/songs"),
+        kpi("Waiting in the inbox", inbox.length, !inbox.length ? "nothing new" : fresh ? `${fmt(fresh)} not looked at yet` : "all looked at"),
+        kpi("Not in the library yet", review.length, "couldn't be verified", "#/songs?area=review"),
+        kpi("Left to check", left, left ? "need your ears" : "all done", "#/check"))));
 
   const parts = Object.entries(TRUST).map(([k, t]) => ({ name: t.label, long: t.long, n: count(k), cls: t.cls })).filter((p) => p.n);
   const total = sum(parts.map((p) => p.n));
@@ -1641,7 +1753,7 @@ function folderForm(st, opts) {
 function pageSetup() {
   const st = S.setup, missing = st.reason === "missing";
   view.replaceChildren(el("div", { class: "setup-wrap" },
-    el("div", { class: "setup-brand" }, el("img", { src: "/favicon.svg", alt: "", width: 26, height: 26 }), "Curator"),
+    el("div", { class: "setup-brand" }, logo(), "Curator"),
     el("h1", {}, missing ? "Where did your library go?" : "Where does your music live?"),
     el("p", { class: "lead" }, missing ? `Couldn't find it at ${st.library}. If it's on a drive, plug it in and reload this page. If it moved, pick its new location.`
       : "Pick two folders to get started. You can change them later."),
@@ -1673,7 +1785,10 @@ async function pageSettings() {
   if (!location.hash.startsWith("#/settings")) return;
   if (!st) return view.replaceChildren(el("p", { class: "empty" }, "Couldn't read your settings. Is the app still running?"));
   view.replaceChildren(el("div", { class: "settings-wrap" },
-    el("div", { class: "page-head" }, el("h1", {}, "Folders")),
+    el("div", { class: "page-head" }, el("h1", {}, "Settings")),
+    accentSetting(),
+    vibeSetting(),
+    surprisesSetting(),
     folderForm(st, { showReview: true, requireChange: true, button: "Save folders", saved: async () => {
       if (!(await safeLoad())) return;
       toast("Folders saved.");
@@ -1780,12 +1895,12 @@ function paintPanel() {
   const close = el("button", { class: "icon-btn drawer-close", type: "button", "aria-label": "Hide the panel", title: "Hide the panel", onclick: closeDrawer, id: "drawer-close" }, icon("x", 18));
   if (!s) {
     drawer.classList.remove("fresh");
-    drawer.replaceChildren(close, el("div", { class: "panel-empty" }, el("div", { class: "cover vinyl" }), el("p", {}, "Nothing playing yet."), el("p", { class: "note" }, "Play a song, or click one, to see it here.")));
+    drawer.replaceChildren(close, el("div", { class: "panel-empty" }, emptyDeck()));
     return;
   }
   const isNow = now && now.id === s.id;
   const t = TRUST[s.trust] || TRUST.unknown;
-  const facts = [["Album", s.album], ["Year", s.year], ["Genre", s.genre], ["Label", s.label], ["Country", s.country], ["Length", clock(s.secs)],
+  const facts = [["Album", s.album], ["Year", s.year], ["Genre", s.genre], [s.wide ? "On this album" : "Also", (s.also || []).length ? (s.wide ? s.also.join(", ") : s.also.flatMap((g, i) => [i ? ", " : "", el("a", { class: "fact-link", href: `#/songs?${q2({ genre: g })}` }, g)])) : ""], ["Label", s.label], ["Country", s.country], ["Length", clock(s.secs)],
     ["Quality", [(/\.(flac|m4a|aac|ogg|opus|wav)$/i.exec(s.file) || [])[1]?.toUpperCase(), s.kbps ? `${s.kbps} kbps` : ""].filter(Boolean).join(" · ")], ["Size", `${(s.bytes / 1e6).toFixed(1)} MB`],
     ["Where", s.area === "library" ? [S.meta.library, s.folder].filter(Boolean).join(" / ") : s.area === "review" ? ["Review", s.folder].filter(Boolean).join(" / ") : s.where],
     ["File", s.file], ["Added", s.added ? s.added.replace("T", " ").slice(0, 16) : ""], ["Played", playedWords(s)], ["Local playlists", (S.meta.own_playlists || []).length ? (S.inOwn.get(s.id) || []).join(", ") || "None" : ""], ["Spotify playlists", (S.meta.my_playlists || []).length ? (S.inSpotify.get(s.id) || []).join(", ") || "None" : ""], ["Loudness", typeof s.lufs === "number" ? `${s.lufs.toFixed(1)} LUFS` : ""]].filter(([, v]) => v);
@@ -1809,11 +1924,11 @@ function paintPanel() {
   fill(drawer, {}, [
     close,
     isNow ? el("div", { class: "panel-tag" }, "Now playing") : now ? el("button", { class: "linkish panel-tag", type: "button", onclick: () => openDrawer(now.id) }, "Back to what's playing") : null,
-    el("div", { class: `sleeve${isNow ? " now" : ""}` }, disc(isNow ? s : null), coverEl(s)), el("h2", {}, s.title), el("div", { class: "by" }, s.artist),
+    el("div", { class: `sleeve${isNow ? " now" : ""}` }, disc(isNow ? s : null), stuck(coverEl(s), [s])), el("h2", {}, s.title), el("div", { class: "by" }, s.artist),
     el("div", { class: "actions" },
       isNow ? null : el("button", { class: "btn primary small", type: "button", onclick: () => (S.list.includes(s.id) ? playFrom(s.id) : playQueue([s.id], 0, "")) }, icon("play", 14), "Play"),
       isNow ? null : queueButtons([s.id]),
-      listButton([s.id], songName(s) || s.file), spotifyButton(s), radioButton(s),
+      favButton(s), listButton([s.id], songName(s) || s.file), spotifyButton(s), radioButton(s),
       s.link ? el("a", { class: "btn small", href: s.link, target: "_blank", rel: "noreferrer noopener" }, icon("link", 14), linkName) : null,
       shop ? el("a", { class: "btn small", href: shop.href, target: "_blank", rel: "noreferrer noopener" }, icon(shop.icon, 14), shop.label) : null),
     queueList(s), recordList(s),
@@ -1843,33 +1958,167 @@ function paintNowQueue() { // on its own, so changing the queue doesn't pull the
 }
 function pageNow() {
   const s = current(), close = el("button", { class: "icon-btn now-close", type: "button", title: "Close (Esc)", "aria-label": "Close Now Playing", onclick: closeNow }, icon("chevron", 22));
-  if (!s) return view.replaceChildren(el("div", { class: "now-page now-nothing" }, close, el("div", { class: "cover vinyl" }), el("p", {}, "Nothing playing yet."),
-    S.lib.length ? el("button", { class: "btn primary", type: "button", onclick: () => playQueue(shuffled(S.lib).map((x) => x.id), 0, "Shuffle") }, icon("shuffle", 16), "Play something") : null));
+  if (!s) return view.replaceChildren(el("div", { class: "now-page now-nothing" }, close, emptyDeck()));
   const songs = (o) => `#/songs?${q2(o)}`, dot = () => el("span", { class: "now-dot" }, "·");
   const place = el("input", { type: "range", min: 0, max: 1000, value: 0, "aria-label": "Position in the song" });
   wireSeek(place);
   const about = [s.album ? el("a", { href: songs({ album: s.album }) }, s.album) : null, s.year ? el("a", { href: songs({ from: s.year, to: s.year }) }, s.year) : null, s.genre ? el("a", { href: songs({ genre: s.genre }) }, s.genre) : null, s.label ? el("a", { href: songs({ label: s.label }) }, s.label) : null].filter(Boolean);
-  view.replaceChildren(el("div", { class: "now-page" }, close,
+  view.replaceChildren(el("div", { class: "now-page" }, close, fxBar(), el("div", { class: "fx-title" }, el("strong", {}, s.title || s.file), el("span", {}, s.artist)),
     el("div", { class: "now-stage" },
-      el("div", { class: "sleeve now" }, disc(s), coverEl(s)),
+      el("div", { class: "sleeve now" }, tonearm(), disc(s), stuck(coverEl(s), [s])),
       el("div", { class: "now-info" },
         el("div", { class: "eyebrow" }, P.label && P.label !== "Shuffle" ? P.label : "Now playing"),
         el("h1", {}, s.title || s.file),
         el("div", { class: "by" }, artistsOf(s).flatMap((a, i) => [i ? " & " : "", el("a", { href: songs({ artist: a }) }, a)])),
         el("div", { class: "now-about" }, about.flatMap((a, i) => (i ? [dot(), a] : [a]))),
-        el("div", { class: "actions" }, el("button", { class: "btn small", type: "button", onclick: () => { openNext = s.id; closeNow(); } }, "Song details"), listButton([s.id], songName(s) || s.file), radioButton(s), s.link ? el("a", { class: "btn small", href: s.link, target: "_blank", rel: "noreferrer noopener" }, icon("link", 14), sourceName(s.link)) : null)),
+        el("div", { class: "actions" }, el("button", { class: "btn small", type: "button", onclick: () => { openNext = s.id; closeNow(); } }, "Song details"), favButton(s), listButton([s.id], songName(s) || s.file), spotifyButton(s), radioButton(s), s.link ? el("a", { class: "btn small", href: s.link, target: "_blank", rel: "noreferrer noopener" }, icon("link", 14), sourceName(s.link)) : null)),
       el("div", { class: "wave-box wave-big", dataset: { bars: 300 } }, waveShape("wave-rest"), waveShape("wave-done"), place)),
     el("div", { class: "now-queue", id: "now-queue" })));
   paintNowQueue();
   showPlace(audio.duration ? audio.currentTime / audio.duration : 0);
   paintWave();
+  syncFx();
+  moveArm();
 }
+/* The tonearm: parked at the side, on the record while there's music, and working its way in towards the label as the song goes on. */
+const ARM_PARKED = -3, ARM_START = 13, ARM_END = 29; // degrees
+function tonearm() {
+  const tube = "M16 6V56Q16 61 14 65";
+  return svg("svg", { class: "tonearm", viewBox: "0 0 34 78", "aria-hidden": "true" },
+    svg("g", { class: "arm" }, svg("path", { class: "arm-hit", d: "M16 6V56Q16 61 13 74", onclick: (e) => { e.stopPropagation(); togglePlay(); } }, svg("title", {}, "Lift the needle")), svg("rect", { class: "arm-weight", x: 13, y: 0, width: 6, height: 8, rx: 1.4 }), svg("path", { class: "arm-shade", d: tube }), svg("path", { class: "arm-tube", d: tube }), svg("rect", { class: "arm-head", x: 10.2, y: 64, width: 5.6, height: 10.5, rx: 1, transform: "rotate(14 13 69)" })),
+    svg("circle", { class: "arm-base", cx: 16, cy: 12, r: 7.5 }), svg("circle", { class: "arm-cap", cx: 16, cy: 12, r: 3.6 }), svg("ellipse", { class: "arm-gleam", cx: 16, cy: 10.5, rx: 2.3, ry: 1.25 }));
+}
+function moveArm() {
+  const arm = $(".now-stage .tonearm");
+  if (!arm) return;
+  const angle = audio.paused || !audio.duration ? ARM_PARKED : ARM_START + (ARM_END - ARM_START) * (audio.currentTime / audio.duration);
+  if (arm.dataset.angle && Math.abs(angle - +arm.dataset.angle) < 0.25) return; // it creeps in small steps, so it isn't always moving
+  arm.dataset.angle = angle;
+  arm.style.setProperty("--arm", `${angle.toFixed(2)}deg`);
+}
+function emptyDeck() { // nothing loaded yet: a turntable at rest, and one way to get going
+  return [el("div", { class: "sleeve now bare" }, tonearm(), disc()), el("p", { class: "empty-line" }, "Nothing on the deck yet"), el("p", { class: "note" }, "Play a song, or click one, to see it here."),
+    S.lib.length ? el("button", { class: "btn primary", type: "button", onclick: () => playQueue(shuffled(S.lib).map((x) => x.id), 0, "Shuffle") }, icon("shuffle", 16), "Play something") : null];
+}
+
+/* ---------- the color of the buttons: the usual green, one you pick, or the one on the record that's playing ---------- */
+const ACCENTS = [["#4fe0a8", "Mint"], ["#4cc9f0", "Sky"], ["#7b8cff", "Indigo"], ["#c58bff", "Violet"], ["#ff7ac6", "Pink"], ["#ff6b5e", "Coral"], ["#ffb13d", "Amber"]];
+let coverAccent = null;
+function useAccent(rgb) { // one color, made safe for the theme: light enough on dark, dark enough on light
+  const root = document.documentElement.style, light = document.documentElement.dataset.theme === "light";
+  if (!rgb) return ["--accent", "--accent-ink", "--accent-soft", "--accent-glow", "--mark", "--readout"].forEach((n) => root.removeProperty(n));
+  const [r, g, b] = rgb.map((x) => x / 255), top = Math.max(r, g, b), low = Math.min(r, g, b), span = top - low;
+  const hue = span ? (((top === r ? (g - b) / span : top === g ? 2 + (b - r) / span : 4 + (r - g) / span) * 60) + 360) % 360 : 0, sat = span ? Math.min(95, Math.max(55, Math.round((span / (1 - Math.abs(top + low - 1) || 1)) * 100))) : 0;
+  const shade = Math.round(((top + low) / 2) * 100), level = light ? Math.min(34, Math.max(24, shade)) : Math.min(78, Math.max(58, shade)); // as near the color you chose as the theme allows
+  const tone = (l, a = 1) => `hsl(${Math.round(hue)} ${sat}% ${l}% / ${a})`;
+  [["--accent", tone(level)], ["--accent-ink", light ? "#ffffff" : "#14160a"], ["--accent-soft", tone(level, 0.12)], ["--accent-glow", tone(level, 0.26)], ["--mark", tone(light ? 34 : 48)], ["--readout", tone(light ? 24 : 66)]].forEach(([n, v]) => root.setProperty(n, v));
+}
+const fromHex = (hex) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+let acidFor = ""; // set by typing the word: the song it lasts for, or "next" if nothing was playing
+function paintAccent() {
+  if (acidFor) return useAccent([245, 230, 40]);
+  const pick = store("curator-accent") || "";
+  useAccent(pick === "cover" ? coverAccent : /^#[0-9a-f]{6}$/i.test(pick) ? fromHex(pick) : null);
+}
+function accentSetting() {
+  const box = el("div", { class: "card accent-setting" });
+  const choose = (pick) => { store("curator-accent", pick); paintAccent(); paint(); };
+  function paint() {
+    const pick = store("curator-accent") || "", custom = pick.startsWith("#") && !ACCENTS.some(([hex]) => hex === pick) ? pick : "";
+    const swatch = (hex, name, value) => el("button", { class: `swatch${pick === value ? " on" : ""}`, type: "button", title: name, "aria-label": name, "aria-pressed": String(pick === value), style: `background:${hex}`, onclick: () => choose(value) });
+    box.replaceChildren(el("h2", {}, "Color"), el("p", { class: "note" }, "For the buttons and everything else that's green."),
+      el("div", { class: "swatches", role: "group", "aria-label": "Color" }, swatch("#d4f03c", "The usual green", ""), ACCENTS.map(([hex, name]) => swatch(hex, name, hex)),
+        el("label", { class: `swatch-any${custom ? " on" : ""}`, title: "Any color you like" }, el("input", { type: "color", value: custom || "#d4f03c", "aria-label": "Any color you like", oninput: (e) => { store("curator-accent", e.target.value); paintAccent(); }, onchange: () => paint() }), "Any color"),
+        el("button", { class: `chip${pick === "cover" ? " on" : ""}`, type: "button", "aria-pressed": String(pick === "cover"), title: "Takes the strongest color of the record that's playing. A grey or black cover keeps the usual green", onclick: () => choose("cover") }, "From the song's cover")));
+  }
+  paint();
+  return box;
+}
+
+/* ---------- effects: pictures from the sound on Now Playing, drawn by effects.js ---------- */
+const FX = window.Effects || null, fxStyles = FX ? FX.styles : {}, familyOf = (name) => Object.keys(fxStyles).find((k) => fxStyles[k].some(([style]) => style === name)) || ""; // each effect is one choice with several styles
+let fxName = familyOf(store("curator-fx")) ? store("curator-fx") : "", fxEverywhere = store("curator-fx-all") === "1", fxFull = false, fxIdle = 0;
+const fxShowing = () => !!FX && !!fxName && !calm.matches && (fxEverywhere || onNowPage());
+/* Sliders for the effect showing. 100% is how it was designed, each style remembers its own, and only what's been moved is saved. */
+let fxTuning = {}, fxAdjusting = false;
+try { fxTuning = JSON.parse(store("curator-fx-tuning") || "{}") || {}; } catch { fxTuning = {}; }
+function saveTuning() {
+  store("curator-fx-tuning", JSON.stringify(fxTuning));
+  if (FX) FX.tuning(fxTuning[fxName] || {});
+}
+function fxAdjust() {
+  const reset = el("button", { class: "btn small", type: "button", disabled: !fxTuning[fxName], onclick: () => { delete fxTuning[fxName]; saveTuning(); paintFxBar(); } }, "Back to default");
+  return el("div", { class: "card fx-adjust" }, FX.knobs(fxName).map(([key, label, min, max]) => {
+    const value = (fxTuning[fxName] || {})[key] ?? 1, shown = el("span", { class: "fx-value" }, `${Math.round(value * 100)}%`);
+    return el("label", { class: "fx-knob" }, el("span", {}, label), el("input", { type: "range", min, max, step: 0.05, value, oninput: (e) => {
+      const v = +e.target.value, set = (fxTuning[fxName] = fxTuning[fxName] || {});
+      shown.textContent = `${Math.round(v * 100)}%`;
+      if (Math.abs(v - 1) < 0.001) delete set[key]; else set[key] = v;
+      if (!Object.keys(set).length) delete fxTuning[fxName];
+      saveTuning();
+      reset.disabled = !fxTuning[fxName];
+    } }), shown);
+  }), reset);
+}
+const fxBar = () => (FX && !calm.matches ? el("div", { class: "fx-bar" },
+  el("div", { class: "fx-picks", role: "group", "aria-label": "Effects" }, el("span", { class: "fx-label" }, "Effect"), [["", "None"], ...FX.names].map(([k, t]) => {
+    const on = familyOf(fxName) === k;
+    return el("button", { class: `chip${on ? " on" : ""}`, type: "button", "aria-pressed": String(on), onclick: () => setFx(k && familyOf(store(`curator-fx-${k}`)) === k ? store(`curator-fx-${k}`) : k) }, t);
+  }), fxName ? el("select", { class: "fx-style", "aria-label": "Style", title: "Style", onchange: (e) => setFx(e.target.value) }, fxStyles[familyOf(fxName)].map(([k, t]) => el("option", { value: k, selected: fxName === k }, t))) : null),
+  fxName ? el("button", { class: `btn small${fxAdjusting ? " on" : ""}`, type: "button", "aria-pressed": String(fxAdjusting), title: "Adjust this effect", onclick: () => { fxAdjusting = !fxAdjusting; paintFxBar(); } }, icon("sliders", 14), "Adjust") : null,
+  el("button", { class: `btn small${kickOn ? " on" : ""}`, type: "button", "aria-pressed": String(kickOn), title: kickOn ? "The buttons glow on each kick. Click to stop it" : "Make the buttons glow on each kick", onclick: () => setKick(!kickOn) }, icon("kick", 14), "Glow"),
+  el("button", { class: `btn small${flashOn ? " on" : ""}`, type: "button", "aria-pressed": String(flashOn), title: flashOn ? "The background flashes on each kick. Click to stop it" : "Make the background flash on each kick", onclick: () => setFlash(!flashOn) }, icon("flash", 14), "Flash"),
+  el("button", { class: `btn small${sparkleOn ? " on" : ""}`, type: "button", "aria-pressed": String(sparkleOn), title: sparkleOn ? "Small lights tick on the hi-hats. Click to stop it" : "Make small lights tick on the hi-hats", onclick: () => setSparkle(!sparkleOn) }, icon("sparkle", 14), "Sparkle"),
+  fxName ? [el("button", { class: `btn small${fxEverywhere ? " on" : ""}`, type: "button", "aria-pressed": String(fxEverywhere), title: fxEverywhere ? "Showing behind every page. Click to keep it to Now Playing" : "Show it behind every page", onclick: () => setFxEverywhere(!fxEverywhere) }, icon("grid", 14), "All pages"),
+    el("button", { class: "btn small", type: "button", title: "Just the picture (F)", onclick: () => fullFx(!fxFull) }, icon("expand", 14), fxFull ? "Exit full view" : "Full view")] : null,
+  fxName && fxAdjusting ? fxAdjust() : null) : null);
+const paintFxBar = () => { const b = $(".fx-bar"); if (b) b.replaceWith(fxBar()); };
+function syncFx() { // after anything that changes whether a picture should be showing
+  if (!FX) return;
+  const on = fxShowing(), here = onNowPage();
+  document.body.classList.toggle("fx-on", on);
+  document.body.classList.toggle("fx-around", on && !here); // behind the other pages it's fainter, because there's more to read
+  FX.tuning(fxTuning[fxName] || {});
+  if (on) FX.show(fxName); else FX.hide();
+  if (fxFull && !(on && here)) fullFx(false);
+  startSound();
+}
+function setFxEverywhere(on) {
+  fxEverywhere = on;
+  store("curator-fx-all", on ? "1" : "");
+  paintFxBar();
+  syncFx();
+}
+function setFx(name) {
+  fxName = name;
+  store("curator-fx", name);
+  if (name) store(`curator-fx-${familyOf(name)}`, name); // the style you come back to it with next time
+  if (!name && fxFull) fullFx(false);
+  paintFxBar();
+  syncFx();
+}
+function wakeFx() { // in full view the controls and the pointer go away until the mouse moves
+  if (!fxFull) return;
+  document.body.classList.remove("idle");
+  clearTimeout(fxIdle);
+  fxIdle = setTimeout(() => document.body.classList.add("idle"), 3000);
+}
+function fullFx(on) {
+  fxFull = on;
+  FX.full(on);
+  document.body.classList.toggle("fx-full", on);
+  document.body.classList.remove("idle");
+  clearTimeout(fxIdle);
+  wakeFx();
+  paintFxBar();
+}
+window.addEventListener("mousemove", wakeFx);
 
 /* ---------- the background takes its colors from what's playing ---------- */
 const ambient = (() => { // a tiny picture stretched over the window: it looks blurred, and moving it costs next to nothing, unlike a real blur
   const SIZE = 64, THUMB = 9, CAP = 112, FLOOR = 190; // how bright (dark theme) or how dark (light theme) it may get: the words on top have to stay readable
   const box = el("div", { class: "ambient", "aria-hidden": "true" }), layers = [0, 1].map(() => el("canvas", { width: SIZE, height: SIZE }));
-  box.append(...layers, el("div", { class: "ambient-scrim" }));
+  box.append(...layers, el("div", { class: "ambient-scrim" }), el("div", { class: "ambient-flash" }), ...["euphoric", "acid", "hard"].map((mood) => el("div", { class: `vibe vibe-${mood}` })));
   document.body.prepend(box);
   const thumb = el("canvas", { width: THUMB, height: THUMB });
   let front = 0, turn = 0;
@@ -1889,10 +2138,12 @@ const ambient = (() => { // a tiny picture stretched over the window: it looks b
   }
   return (s) => {
     const mine = ++turn;
-    if (!s || !s.cover) { layers.forEach((l) => l.classList.remove("on")); box.classList.remove("lit"); return; } // back to the usual background
+    if (!s || !s.cover) { layers.forEach((l) => l.classList.remove("on")); box.classList.remove("lit"); if (FX) FX.cover(null); coverAccent = null; paintAccent(); return; } // back to the usual background
     const img = new Image();
     img.onload = () => {
       if (mine !== turn) return;
+      coverAccent = FX ? FX.cover(img) : null;
+      paintAccent();
       try { paint(layers[1 - front], img); } catch { return; }
       layers[1 - front].classList.add("on");
       layers[front].classList.remove("on");
@@ -2039,6 +2290,7 @@ const heard = { secs: 0, at: null, counted: false };
 let playsWarned = false;
 function listenAgain() { heard.secs = 0; heard.at = null; heard.counted = false; }
 const playedWords = (s) => (s.plays ? `${plural(s.plays, "time")}, last ${s.played.replace("T", " ").slice(0, 16)}` : "Not yet");
+let repeats = { id: "", n: 0 }; // the same song this many times running
 function countListening() {
   const t = audio.currentTime, gap = heard.at === null ? 0 : t - heard.at;
   heard.at = t;
@@ -2050,6 +2302,11 @@ function countListening() {
   post("/api/played", { id: s.id }).then((r) => {
     if (r.error) { if (!playsWarned) toast(r.error); playsWarned = true; return; }
     s.plays = r.plays; s.played = r.played;
+    repeats = repeats.id === s.id ? { id: s.id, n: repeats.n + 1 } : { id: s.id, n: 1 };
+    const now = new Date();
+    if (s.plays === GOLD_PLAYS) toast(`${s.title || s.file} just went gold: ${GOLD_PLAYS} plays.`);
+    else if (surprises.notes && repeats.n === 5) toast("Still this one? Good.");
+    else if (surprises.notes && now.getHours() === 3 && store("curator-3am") !== now.toDateString()) { store("curator-3am", now.toDateString()); toast("3 a.m. Excellent choice."); } // once a night
     document.querySelectorAll(`td[data-plays="${s.id}"]`).forEach((n) => { n.textContent = fmt(s.plays); });
     document.querySelectorAll(`dd[data-plays="${s.id}"]`).forEach((n) => { n.textContent = playedWords(s); });
   });
@@ -2067,12 +2324,19 @@ function loadCurrent(autoplay = true, at = 0) {
   showSong(s);
 }
 function showSong(s) { // everything on the page that goes with the song that's on
+  if (acidFor === "next") acidFor = s.id;
+  else if (acidFor && acidFor !== s.id) { acidFor = ""; paintAccent(); }
+  setVibe(s);
   $("#np-title").textContent = s.title || s.file;
+  $("#np-heart").hidden = false;
+  $("#np-heart").dataset.heart = s.id;
+  $("#np-heart").setAttribute("aria-label", `Favourite ${songName(s) || s.file}`);
+  paintHearts();
   $("#np-title").title = songName(s);
   $("#np-artist").textContent = P.label ? `${s.artist} · ${P.label}` : s.artist;
   const c = $("#np-cover");
-  c.replaceChildren(); c.className = `cover${s.cover ? "" : " vinyl"}`;
-  if (s.cover) c.append(el("img", { src: coverUrl(s), alt: "" }));
+  c.replaceChildren(); c.className = `cover${s.cover ? "" : " blank"}`;
+  c.append(s.cover ? el("img", { src: coverUrl(s), alt: "" }) : whiteLabel(s));
   ["#play", "#prev", "#next", "#seek"].forEach((x) => ($(x).disabled = false));
   showPlace(audio.duration ? audio.currentTime / audio.duration : 0);
   paintWave();
@@ -2119,7 +2383,7 @@ function startFade(n, deck) {
   topUpRadio();
   matchLevel(s);
   audio.play().catch(() => {});
-  $("#dur").textContent = clock(audio.duration);
+  showTime($("#dur"), clock(audio.duration));
   showSong(s);
   fadeTimer = setInterval(() => {
     const part = Math.min(1, audio.currentTime / fadeLength);
@@ -2151,59 +2415,335 @@ function paintFade() {
    Off until you turn it on, because to be watched the sound has to go through the browser's audio path. That only gets connected once it's known to be running, so it can't silence the music. */
 const GLOWING = ".btn.primary, .play-btn, .pill.on, .chip.on, .icon-btn.active, .nav.active svg, [data-song].playing .cover .over, .wave-done";
 const calm = matchMedia("(prefers-reduced-motion: reduce)");
-let kickOn = store("curator-kick") === "on", kickContext = null, kickLevel = null, kickFrame = 0;
-const kick = { slow: 0, prev: 0, last: 0 };
-async function wireKick() { // true once the sound is going through it and can be watched
+let kickOn = store("curator-kick") === "on", flashOn = store("curator-flash") === "on", sparkleOn = store("curator-sparkle") === "on", kickContext = null, kickLevel = null, hatLevel = null, kickWide = null, kickFrame = 0;
+const kick = { slow: 0, prev: 0, last: 0 }, hat = { slow: 0, prev: 0, last: 0, glint: 0, orb: 0 };
+function soundSince(meter, samples) { // the sound since the last look, so a slow machine that looks less often doesn't miss what came in between
+  let lastLook = 0;
+  return () => {
+    const now = performance.now(), want = Math.max(samples.length >> 2, Math.min(samples.length, Math.round(((now - lastLook) / 1000) * kickContext.sampleRate)));
+    lastLook = now;
+    meter.getFloatTimeDomainData(samples);
+    let all = 0;
+    for (let i = samples.length - want; i < samples.length; i++) all += samples[i] * samples[i];
+    return Math.sqrt(all / want);
+  };
+}
+async function wireSound() { // true once the sound is going through it and can be watched
   try {
     kickContext = kickContext || new AudioContext();
     if (kickContext.state !== "running") await Promise.race([kickContext.resume(), new Promise((r) => setTimeout(r, 400))]);
     if (kickContext.state !== "running") return false;
     if (!kickLevel) {
-      const low = kickContext.createBiquadFilter(), meter = kickContext.createAnalyser(), samples = new Float32Array(512);
+      const low = kickContext.createBiquadFilter(), meter = kickContext.createAnalyser(), high = kickContext.createBiquadFilter(), hatMeter = kickContext.createAnalyser(), wide = kickContext.createAnalyser();
       low.type = "lowpass";
       low.frequency.value = 130; // the kick, and not much else
-      meter.fftSize = samples.length;
+      meter.fftSize = 2048;
       low.connect(meter);
-      decks.forEach((d) => { const source = kickContext.createMediaElementSource(d); source.connect(kickContext.destination); source.connect(low); });
+      high.type = "highpass";
+      high.frequency.value = 7500; // the hi-hats and the top of the claps
+      hatMeter.fftSize = 1024;
+      high.connect(hatMeter);
+      wide.fftSize = 2048; // the whole sound, for the effects
+      wide.smoothingTimeConstant = 0.6;
+      wide.minDecibels = -90;
+      wide.maxDecibels = -15;
+      kickWide = wide;
+      decks.forEach((d) => { const source = kickContext.createMediaElementSource(d); source.connect(kickContext.destination); source.connect(low); source.connect(high); source.connect(wide); });
       kickContext.addEventListener("statechange", () => { if (kickContext.state === "suspended" && !audio.paused) kickContext.resume().catch(() => {}); });
-      kickLevel = () => { meter.getFloatTimeDomainData(samples); let all = 0; for (const x of samples) all += x * x; return Math.sqrt(all / samples.length); };
+      kickLevel = soundSince(meter, new Float32Array(2048));
+      hatLevel = soundSince(hatMeter, new Float32Array(1024));
     }
     return true;
   } catch { return false; }
 }
-function glow(strength) { // soft and over quickly. Each runs by itself, so nothing is redrawn between kicks
-  document.querySelectorAll(GLOWING).forEach((n) => n.animate({ filter: [`brightness(${1.1 + 0.14 * strength}) drop-shadow(0 0 7px var(--accent))`, "brightness(1) drop-shadow(0 0 0 transparent)"] }, { duration: 240, easing: "ease-out" }));
-  const scrim = $(".ambient.lit .ambient-scrim");
-  if (scrim && !document.body.classList.contains("gentle")) scrim.animate({ opacity: [0.86 - 0.1 * strength, 1] }, { duration: 300, easing: "ease-out" }); // the cover's colors come through a little more
+/* The mood of what's playing. The genre says which, and it changes the background and how a kick lands, never what's on the page. */
+const VIBE_OF = new Map([
+  ["euphoric", ["Trance", "Hard Trance", "Goa Trance", "Psy-Trance", "Progressive Trance", "Nightcore", "Happy Hardcore", "Euro House", "Eurodance", "Italodance", "Progressive House", "Hard House"]],
+  ["acid", ["Acid", "Acid Techno", "Acid House"]],
+  ["hard", ["Hardcore", "Gabber", "Speedcore", "Frenchcore", "Terror", "Hardstyle", "Jumpstyle", "J-Core", "Breakcore", "Industrial", "Hard Techno", "Freetekno"]],
+].flatMap(([mood, genres]) => genres.map((genre) => [genre, mood])));
+const FEEL = { "": { ms: 240, lift: 0.1, blur: 7 }, euphoric: { ms: 430, lift: 0.08, blur: 13, flash: 480 }, acid: { ms: 320, lift: 0.1, blur: 8, wobble: true }, hard: { ms: 130, lift: 0.24, blur: 4, flash: 150 } }; // how long a kick lasts, how bright, how far the light spreads
+const DRIFT = { euphoric: 0.7, acid: 1.15, hard: 1.7 }; // how fast the background turns
+const moodOf = (s) => genresOf(s).map((g) => VIBE_OF.get(g)).find(Boolean) || ""; // the genre on the file first, then the others it's listed under
+let vibesOn = store("curator-vibes") !== "off", vibe = "", moodStrength = Number.isFinite(parseFloat(store("curator-mood"))) ? Math.min(1, Math.max(0, parseFloat(store("curator-mood")))) : 0.6;
+document.documentElement.style.setProperty("--mood", String(moodStrength));
+function setVibe(s) {
+  vibe = acidFor ? "acid" : (vibesOn && s && moodOf(s)) || "";
+  document.body.dataset.vibe = vibe;
+  if (FX) { FX.mood(vibe); FX.song(s ? songName(s) || s.file : ""); }
+  document.querySelectorAll(".ambient canvas").forEach((c) => c.getAnimations().forEach((a) => { if (a.animationName === "ambient-turn") a.updatePlaybackRate(DRIFT[vibe] || 1); }));
+  if (vibe !== "acid") $("#play").style.filter = "";
 }
-function watchKick(now) {
-  kickFrame = 0;
-  if (!kickOn || audio.paused || document.hidden) return;
-  kickFrame = requestAnimationFrame(watchKick);
-  const level = kickLevel();
-  kick.slow = kick.slow ? kick.slow + (level - kick.slow) * 0.03 : level; // what's usual just now, so it works at any volume
-  if (level > kick.prev * 1.1 && level > kick.slow * 1.3 && level > 0.003 && now - kick.last > 250) { // 250 ms: the bass note between two kicks isn't one
-    kick.last = now;
-    glow(Math.min(1, level / kick.slow - 1.3));
+function surprisesSetting() {
+  const box = el("div", { class: "card accent-setting" }), save = () => store("curator-surprises", JSON.stringify(surprises));
+  const soonest = { dance: () => { danceAfter = performance.now() + waitFor("dance", true); }, bob: () => { bobAfter = performance.now() + waitFor("bob", true); } };
+  const slider = (label, min, max, step, value, words, change) => {
+    const shown = el("span", { class: "fx-value" }, words(value));
+    return el("label", { class: "fx-knob surprise-knob" }, el("span", {}, label), el("input", { type: "range", min, max, step, value, oninput: (e) => { change(+e.target.value); shown.textContent = words(+e.target.value); save(); } }), shown);
+  };
+  const percent = (v) => `${Math.round(v * 100)}%`, seconds = (v) => `${v} s`;
+  const one = (key, name, about, tryIt) => {
+    const how = surprises[key];
+    return el("div", { class: "surprise" },
+      el("div", { class: "surprise-head" }, el("div", { class: "grow" }, el("strong", {}, name), el("div", { class: "note" }, about)), el("button", { class: "btn small", type: "button", onclick: tryIt }, "Try it")),
+      el("div", { class: "pills", role: "group", "aria-label": `How often: ${name}` }, [...OFTEN_WORDS, ...(key === "bob" ? [["always", "Always"]] : [])].map(([value, word]) => el("button", { class: `chip${how.often === value ? " on" : ""}`, type: "button", "aria-pressed": String(how.often === value), onclick: () => { how.often = value; soonest[key](); save(); startSound(); paint(); } }, word))),
+      how.often === "off" ? null : [slider("Strength", 0.3, 2, 0.05, how.strength, percent, (v) => { how.strength = v; }), how.often === "always" ? null : slider("Length", 2, 30, 0.5, how.secs, seconds, (v) => { how.secs = v; })]);
+  };
+  const tick = (key, words) => el("label", { class: "filter-check surprise-tick" }, el("input", { type: "checkbox", checked: surprises[key], onchange: (e) => { surprises[key] = e.target.checked; save(); } }), words);
+  function paint() {
+    if (calm.matches) return box.replaceChildren(el("h2", {}, "Surprises"), el("p", { class: "note" }, "Your computer is set to show less motion, so none of these happen."));
+    const changed = JSON.stringify(surprises) !== JSON.stringify(SURPRISE_DEFAULTS);
+    box.replaceChildren(el("h2", {}, "Surprises"), el("p", { class: "note" }, "Things that happen by themselves now and then, on the kick of whatever's playing."),
+      one("dance", "The dance", "The whole app dances for a few seconds.", letsDance),
+      one("bob", "Bobbing", "Everything nods to the kick for a few seconds.", letsBob),
+      tick("clock", "Jokes on the clock: 303 at 3:03 on acid tracks, and 11 at full volume"),
+      tick("notes", "Small notes: late at night, or the same song over and over"),
+      tick("falling", "Small records falling when To check is cleared"),
+      el("p", { class: "note surprise-foot" }, "What flies past in Space is under Adjust, on Now Playing."),
+      el("button", { class: "btn small", type: "button", disabled: !changed, onclick: () => { surprises = JSON.parse(JSON.stringify(SURPRISE_DEFAULTS)); save(); soonest.dance(); soonest.bob(); startSound(); paint(); } }, "Back to default"));
   }
-  kick.prev = level;
+  paint();
+  return box;
 }
-async function startKick() {
-  if (kickOn && !calm.matches && !audio.paused && !kickFrame && (await wireKick()) && !kickFrame) kickFrame = requestAnimationFrame(watchKick);
+function vibeSetting() {
+  return el("div", { class: "card accent-setting" }, el("h2", {}, "Mood"), el("p", { class: "note" }, "The background, the way a kick lands and who visits in Space change with the genre of what's playing: softer for trance, yellow for acid, darker and quicker for hardcore. An effect covers the background, so it shows best with no effect on."),
+    el("label", { class: "filter-check vibe-note" }, el("input", { type: "checkbox", checked: vibesOn, onchange: (e) => { vibesOn = e.target.checked; store("curator-vibes", vibesOn ? "on" : "off"); setVibe(current()); } }), "Let the look follow the music"),
+    (() => { const shown = el("span", { class: "fx-value" }, `${Math.round(moodStrength * 100)}%`); return el("label", { class: "fx-knob vibe-note" }, el("span", {}, "Strength of the background"), el("input", { type: "range", min: 0, max: 1, step: 0.05, value: moodStrength, oninput: (e) => { moodStrength = +e.target.value; store("curator-mood", String(moodStrength)); document.documentElement.style.setProperty("--mood", String(moodStrength)); shown.textContent = `${Math.round(moodStrength * 100)}%`; } }), shown); })());
+}
+function glow(strength) { // soft and over quickly. Each runs by itself, so nothing is redrawn between kicks
+  const feel = FEEL[vibe], rest = "brightness(1) drop-shadow(0 0 0 transparent)", peak = `brightness(${1 + feel.lift + 0.14 * strength}) drop-shadow(0 0 ${feel.blur}px var(--accent))`, again = `brightness(${1 + feel.lift / 2}) drop-shadow(0 0 ${feel.blur / 2}px var(--accent))`;
+  document.querySelectorAll(GLOWING).forEach((n) => n.animate({ filter: feel.wobble ? [peak, rest, again, rest] : [peak, rest] }, { duration: feel.ms, easing: "ease-out" }));
+}
+function flashBackground(strength) { // its own switch, because the whole window moving is a lot more noticeable than a few buttons
+  const time = { duration: FEEL[vibe].flash || 300, easing: document.body.classList.contains("gentle") ? "steps(4, end)" : "ease-out" }, scrim = $(".ambient.lit .ambient-scrim"); // a slow machine can only redraw the whole window a few times, so there it fades in steps
+  if (scrim) scrim.animate({ opacity: [0.86 - 0.1 * strength, 1] }, time); // the cover's colors come through a little more
+  else $(".ambient-flash").animate({ opacity: [0.5 + 0.5 * strength, 0] }, time); // a song with no cover has no colors to bring out
+  if (fxShowing()) $("#fx").animate({ filter: [`brightness(${(1.12 + 0.22 * strength) * FX.light()})`, `brightness(${FX.light()})`] }, time); // an effect covers the background, so it takes the flash too
+}
+/* The dance: every so often, for a few seconds, the app loses itself in the music. It comes by itself now and then, and typing "dance" starts it whenever you like. */
+const DANCERS = [ // who joins in, how far each moves, how long each waits for the one before it, and how many may join
+  { who: ".nav svg", up: 4, rock: 7, wait: 18 },
+  { who: ".logo", up: 2, rock: 18 },
+  { who: ".buttons .icon-btn, .vol .icon-btn", up: 3, rock: 5, wait: 20 },
+  { who: "#cur .digit, #dur .digit", up: 2, wait: 16 },
+  { who: "#np-cover", rock: 5 },
+  { who: "#view .cover:not(.now-stage .cover), .drawer .cover", up: 5, rock: 2.5, wait: 14, most: 36 },
+  { who: "#view .chip, #view .pill, #view .btn", up: 3, rock: 2, wait: 12, most: 30 },
+  { who: ".now-info h1 .letter", up: 9, rock: 6, wait: 24, most: 90 },
+  { who: ".now-info .eyebrow, .now-info .by, .now-about", up: 4, wait: 60 },
+  { who: ".now-stage .tonearm", up: 4, rock: 1.5 },
+  { who: ".now-stage .sleeve", pump: 0.018 },
+  { who: ".col", grow: "1 {}", most: 60 }, // the charts jump like a graphic equalizer
+  { who: ".rank .bar", grow: "{} 1", most: 30 },
+  { who: ".gauge-ring", pump: 0.035 },
+];
+const HOW_OFTEN = { dance: { rare: [25, 50], some: [10, 25], often: [4, 10] }, bob: { rare: [8, 15], some: [2, 6], often: [0.7, 2] } }; // minutes between them, at random within the range
+const OFTEN_WORDS = [["off", "Never"], ["rare", "Rarely"], ["some", "Sometimes"], ["often", "Often"]];
+const SURPRISE_DEFAULTS = { dance: { often: "rare", strength: 1, secs: 6.5 }, bob: { often: "some", strength: 1, secs: 8 }, clock: true, notes: true, falling: true };
+function readSurprises() { // Settings, under Surprises. Anything missing or odd is the default
+  let saved;
+  try { saved = JSON.parse(store("curator-surprises") || "{}"); } catch { saved = {}; }
+  if (!saved || typeof saved !== "object") saved = {};
+  const out = JSON.parse(JSON.stringify(SURPRISE_DEFAULTS));
+  for (const key of ["dance", "bob"]) {
+    const one = saved[key] || {};
+    if (one.often === "off" || HOW_OFTEN[key][one.often] || (key === "bob" && one.often === "always")) out[key].often = one.often;
+    if (Number.isFinite(one.strength)) out[key].strength = Math.min(2, Math.max(0.3, one.strength));
+    if (Number.isFinite(one.secs)) out[key].secs = Math.min(30, Math.max(2, one.secs));
+  }
+  for (const key of ["clock", "notes", "falling"]) if (typeof saved[key] === "boolean") out[key] = saved[key];
+  return out;
+}
+let surprises = readSurprises();
+function waitFor(key, first) { // the first one of a visit comes sooner
+  const range = HOW_OFTEN[key][surprises[key].often];
+  if (!range) return Infinity;
+  const [low, high] = first ? [range[0] * 0.25, range[1] * 0.4] : range;
+  return (low + Math.random() * (high - low)) * 60000;
+}
+let danceAfter = performance.now() + waitFor("dance", true), bobAfter = performance.now() + waitFor("bob", true), bobUntil = 0, danceUntil = 0, danceBeat = 0, danceMoved = 0, danceTimer = 0;
+const onScreen = (n) => { const r = n.getBoundingClientRect(); return r.width > 0 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth; };
+function danceTitle(on) { // the song's name comes apart into letters for the dance, and goes back together after
+  const h = $(".now-info h1");
+  if (!h) return;
+  if (!on) {
+    if (h.dataset.whole === undefined) return;
+    h.textContent = h.dataset.whole;
+    delete h.dataset.whole;
+    h.removeAttribute("aria-label");
+    return;
+  }
+  if (h.dataset.whole !== undefined) return;
+  const text = h.textContent;
+  h.dataset.whole = text;
+  h.setAttribute("aria-label", text);
+  h.replaceChildren(...text.split(/(\s+)/).filter(Boolean).map((part) => (/\s/.test(part) ? part : el("span", { class: "word" }, [...part].map((c) => el("span", { class: "letter" }, c))))));
+}
+function startDance(now) {
+  const lasts = surprises.dance.secs * 1000;
+  danceUntil = now + lasts;
+  danceBeat = 0;
+  danceTitle(true);
+  clearTimeout(danceTimer);
+  danceTimer = setTimeout(endDance, lasts + 300);
+}
+function endDance() { // and not again for a good while
+  danceUntil = 0;
+  danceAfter = performance.now() + waitFor("dance");
+  danceTitle(false);
+}
+function dance(now, hit) {
+  if (calm.matches) return;
+  if (!danceUntil) {
+    if (now < danceAfter || hit < 0.4) return;
+    startDance(now);
+  }
+  if (now > danceUntil) return;
+  danceMoved = now;
+  const power = (0.7 + 0.5 * hit) * surprises.dance.strength, few = document.body.classList.contains("gentle"), together = danceBeat % 8 >= 4; // four beats as a wave, then four all at once
+  for (const { who, up = 0, rock = 0, pump = 0, grow = "", wait = 0, most = 60 } of DANCERS) {
+    let n = 0;
+    for (const it of document.querySelectorAll(who)) {
+      if (n >= (few ? Math.min(most, 12) : most)) break;
+      if (!onScreen(it)) continue;
+      const side = (n + danceBeat) % 2 ? 1 : -1, moves = {};
+      if (up) moves.translate = ["0 0", `0 ${(-up * power).toFixed(1)}px`, "0 0"]; // these three leave the transforms that hovering and the sleeves use alone
+      if (rock) moves.rotate = ["0deg", `${(side * rock * power).toFixed(1)}deg`, "0deg"];
+      if (pump) moves.scale = ["1", (1 + pump * power).toFixed(3), "1"];
+      if (grow) moves.scale = ["1 1", grow.replace("{}", (1 + Math.random() * 0.34 * power).toFixed(3)), "1 1"];
+      it.animate(moves, { duration: 280, delay: together ? 0 : n * wait, easing: few ? "steps(4, end)" : "ease-out" });
+      n++;
+    }
+  }
+  danceBeat++;
+}
+function letsDance() {
+  if (calm.matches) return;
+  if (audio.paused) return toast("Put some music on first.");
+  startDance(performance.now());
+  startSound();
+}
+function letsBob() {
+  if (calm.matches) return;
+  if (audio.paused) return toast("Put some music on first.");
+  bobUntil = performance.now() + surprises.bob.secs * 1000;
+  startSound();
+}
+function bobbing(now, hit) { // every few minutes, for a few seconds, everything nods along with the kick. Not while the dance is on
+  if (calm.matches || danceUntil) return;
+  if (surprises.bob.often === "always") return bobToTheKick(hit);
+  if (!bobUntil) {
+    if (now < bobAfter || hit < 0.3) return;
+    bobUntil = now + surprises.bob.secs * 1000;
+  }
+  if (now > bobUntil) {
+    bobUntil = 0;
+    bobAfter = now + waitFor("bob");
+    return;
+  }
+  bobToTheKick(hit);
+}
+function bobToTheKick(strength) { // everything nods together, a little. The controls always, and as many covers as there's room for
+  const few = document.body.classList.contains("gentle"), up = ((1.6 + 2.4 * strength) * surprises.bob.strength).toFixed(1), moves = { translate: ["0 0", `0 -${up}px`, "0 0"] }, time = { duration: Math.max(200, FEEL[vibe].ms), easing: few ? "steps(3, end)" : "ease-out" };
+  document.querySelectorAll(".nav svg, .buttons .icon-btn, .play-btn, .vol .icon-btn, #np-cover").forEach((it) => { if (onScreen(it)) it.animate(moves, time); });
+  let covers = few ? 6 : 30;
+  for (const it of document.querySelectorAll("#view .cover:not(.now-stage .cover), .drawer .cover")) {
+    if (!covers) break;
+    if (onScreen(it)) { it.animate(moves, time); covers--; }
+  }
+}
+function setKick(on) { // from the play bar or from Now Playing
+  kickOn = on;
+  store("curator-kick", on ? "on" : "off");
+  paintKick();
+  paintFxBar();
+  startSound();
+}
+function setFlash(on) {
+  flashOn = on;
+  store("curator-flash", on ? "on" : "off");
+  paintKick();
+  paintFxBar();
+  startSound();
+}
+function setSparkle(on) {
+  sparkleOn = on;
+  store("curator-sparkle", on ? "on" : "off");
+  paintKick();
+  paintFxBar();
+  startSound();
+}
+function findKick(now) { // how strong, 0 to 1, or -1 if this moment isn't a kick
+  const level = kickLevel(), hit = level > kick.prev * 1.1 && level > kick.slow * 1.3 && level > 0.003 && now - kick.last > 250; // 250 ms: the bass note between two kicks isn't one
+  kick.slow = kick.slow ? kick.slow + (level - kick.slow) * 0.03 : level; // what's usual just now, so it works at any volume
+  kick.prev = level;
+  if (!hit) return -1;
+  kick.last = now;
+  return Math.min(1, level / kick.slow - 1.3);
+}
+function findHat(now) { // the same idea at the very top of the sound. They come much quicker than kicks, so the gap allowed is short
+  const level = hatLevel(), hit = level > hat.prev * 1.2 && level > hat.slow * 1.2 && level > 0.0012 && now - hat.last > 70;
+  hat.slow = hat.slow ? hat.slow + (level - hat.slow) * 0.04 : level;
+  hat.prev = level;
+  if (!hit) return -1;
+  hat.last = now;
+  return Math.min(1, (level / hat.slow - 1.2) / 1.5);
+}
+function glintOn(host, left, top, size) { // a tiny star of light, reused
+  const spark = host.querySelector(":scope > .spark") || host.appendChild(el("i", { class: "spark" }));
+  spark.style.left = `${left}%`;
+  spark.style.top = `${top}%`;
+  spark.style.setProperty("--spark", `${size}px`);
+  spark.animate({ opacity: [1, 0], transform: ["scale(1) rotate(0deg)", "scale(.2) rotate(45deg)"] }, { duration: 230, easing: "ease-out" });
+}
+function sparkle(now, strength) { // far too many of these for anything bigger: the dots in the clock tick, and the better ones catch the light on the record and the orb
+  document.querySelectorAll("#cur .colon .on").forEach((dot) => dot.animate({ opacity: [0.2, 1] }, { duration: 110, easing: "ease-out" }));
+  if (strength > 0.12 && now - hat.glint > 200) {
+    hat.glint = now;
+    document.querySelectorAll(".sleeve.now .disc").forEach((disc) => { const at = (Math.random() * 130 - 65) * (Math.PI / 180), out = 30 + Math.random() * 17; glintOn(disc, 50 + Math.cos(at) * out, 50 + Math.sin(at) * out, 13 + 16 * strength); });
+  }
+  if (strength > 0.4 && now - hat.orb > 620) {
+    hat.orb = now;
+    glintOn($("#play"), 27 + Math.random() * 14, 18 + Math.random() * 8, 14 + 7 * strength);
+  }
+}
+const glowing = () => (kickOn || flashOn || sparkleOn || surprises.dance.often !== "off" || surprises.bob.often !== "off" || danceUntil > performance.now() || bobUntil > performance.now()) && !calm.matches; // any of them needs to hear the music
+function soundFrame(now) {
+  kickFrame = 0;
+  const hearing = !!kickLevel && !audio.paused, picture = fxShowing() && (hearing || onNowPage()); // on the other pages it only moves while there's music
+  if (document.hidden || !((glowing() && hearing) || picture)) return;
+  kickFrame = requestAnimationFrame(soundFrame);
+  const hit = hearing ? findKick(now) : -1, tick = hearing ? findHat(now) : -1;
+  if (hit >= 0 && glowing()) {
+    if (kickOn) glow(hit);
+    if (flashOn) flashBackground(hit);
+  }
+  if (tick >= 0 && sparkleOn && !calm.matches) sparkle(now, tick);
+  if (hit >= 0) dance(now, hit);
+  else if (danceUntil && now - danceMoved > 640) dance(now, 0.4); // a quiet passage: it keeps time by itself
+  if (hit >= 0) bobbing(now, hit);
+  if (picture) FX.frame(now, hearing ? kickWide : null, hit, tick);
+}
+async function startSound() {
+  if (!glowing() && !fxShowing()) return;
+  if (!audio.paused) await wireSound(); // only with the music playing: a picture can draw without it, and a browser won't start sound by itself
+  if (!kickFrame && ((glowing() && kickLevel && !audio.paused) || fxShowing())) kickFrame = requestAnimationFrame(soundFrame);
 }
 function paintKick() {
-  const b = $("#kick");
-  b.hidden = calm.matches;
-  b.classList.toggle("active", kickOn);
-  b.setAttribute("aria-pressed", String(kickOn));
-  b.title = kickOn ? "Glowing with the kick" : "Glow with the kick";
+  for (const [id, on, title] of [["#kick", kickOn, kickOn ? "The buttons glow on each kick" : "Make the buttons glow on each kick"], ["#flash", flashOn, flashOn ? "The background flashes on each kick" : "Make the background flash on each kick"], ["#sparkle", sparkleOn, sparkleOn ? "Small lights tick on the hi-hats" : "Make small lights tick on the hi-hats"]]) {
+    const b = $(id);
+    b.hidden = calm.matches;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-pressed", String(on));
+    b.title = title;
+  }
 }
 /* Radio: from one song, others like it, at random with the closest ones the most likely. It tops itself up as it plays. */
 const RADIO_BATCH = 25, RADIO_LOW = 5, RADIO_NEAR = 4;
 const listsOf = (s) => [...(S.inSpotify.get(s.id) || []), ...(S.inOwn.get(s.id) || [])];
 function likeness(seed, s, seedLists) { // playlists count as well as genre: they're how you group songs by feel
   const gap = seed.year && s.year ? Math.abs(+seed.year - +s.year) : 99;
-  return (seed.genre && seed.genre === s.genre ? 4 : 0) + (seed.label && seed.label === s.label ? 3 : 0) + (artistsOf(seed).some((a) => artistsOf(s).includes(a)) ? 2 : 0)
+  return (seed.genre && seed.genre === s.genre ? 4 : genresOf(seed).some((g) => genresOf(s).includes(g)) ? 2 : 0) + (seed.label && seed.label === s.label ? 3 : 0) + (artistsOf(seed).some((a) => artistsOf(s).includes(a)) ? 2 : 0)
     + (gap <= 1 ? 3 : gap <= 3 ? 2 : gap <= 6 ? 1 : 0) + 3 * Math.min(2, listsOf(s).filter((n) => seedLists.has(n)).length);
 }
 function radioPicks(seed, taken, count) {
@@ -2261,7 +2801,7 @@ function checkSmoothness() { // moving a whole window's background is easy with 
     requestAnimationFrame(count);
   }, 2500); // after the colors have finished fading in
 }
-let gentleTimer = 0, gentleTick = 0, lastScroll = 0;
+let gentleTimer = 0, gentleTick = 0, gentleTurn = 0, lastScroll = 0;
 view.addEventListener("scroll", () => { lastScroll = performance.now(); }, { passive: true });
 function gentleMotion() { // a running CSS animation makes the browser redraw the whole window every frame, so on a slow machine things get moved from here, a few times a second
   const body = document.body, on = body.classList.contains("gentle") && body.classList.contains("is-playing") && !document.hidden;
@@ -2270,24 +2810,130 @@ function gentleMotion() { // a running CSS animation makes the browser redraw th
   gentleTimer = setInterval(() => {
     if (performance.now() - lastScroll < 400) return; // scrolling comes first
     gentleTick++;
+    if (vibe === "acid") $("#play").style.filter = `hue-rotate(${(Math.sin(gentleTick * 0.34) * 10).toFixed(1)}deg)`; // the wobble, a few times a second
     const label = $(".sleeve.now .disc-label");
     if (label) label.style.transform = `rotate(${(gentleTick * 16) % 360}deg)`;
     if (gentleTick % 2) return; // the background only needs half as many
-    const turn = (gentleTick * 0.65) % 360, grow = 1.31 + 0.11 * Math.sin((gentleTick * Math.PI) / 280);
-    document.querySelectorAll(".ambient canvas.on").forEach((c) => { c.style.transform = `rotate(${turn}deg) scale(${grow.toFixed(3)})`; });
+    gentleTurn = (gentleTurn + 1.3 * (DRIFT[vibe] || 1)) % 360;
+    const grow = 1.31 + 0.11 * Math.sin((gentleTick * Math.PI) / 280);
+    document.querySelectorAll(".ambient canvas.on").forEach((c) => { c.style.transform = `rotate(${gentleTurn.toFixed(1)}deg) scale(${grow.toFixed(3)})`; });
   }, 125);
 }
 document.addEventListener("visibilitychange", gentleMotion);
 function paintPlay() {
   const paused = audio.paused;
   if (!paused) checkSmoothness();
-  $("#play").replaceChildren(icon(paused ? "play" : "pause", 18));
+  $("#play").replaceChildren(icon(paused ? "play" : "pause", 24));
   $("#play").setAttribute("aria-label", paused ? "Play" : "Pause");
   document.body.classList.toggle("is-playing", !paused);
+  if (paused) $("#play").style.filter = "";
   gentleMotion();
+  spinRecords();
+  moveArm();
+}
+/* The record can be turned by hand. Only what you see turns: the music carries on. */
+let handOn = null;
+window.addEventListener("pointerdown", (e) => {
+  const disc = e.button === 0 && e.target.closest && e.target.closest(".sleeve.now .disc"), label = disc && disc.querySelector(".disc-label");
+  if (!label) return;
+  const box = disc.getBoundingClientRect(), x = box.left + box.width / 2, y = box.top + box.height / 2;
+  handOn = { disc, label, x, y, at: Math.atan2(e.clientY - y, e.clientX - x), angle: parseFloat(label.style.rotate) || 0, speed: 0, when: performance.now(), turns: label.getAnimations() };
+  handOn.turns.forEach((t) => t.pause());
+  disc.classList.add("held");
+  disc.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+window.addEventListener("pointermove", (e) => {
+  if (!handOn) return;
+  const h = handOn, at = Math.atan2(e.clientY - h.y, e.clientX - h.x), now = performance.now();
+  let step = at - h.at;
+  if (step > Math.PI) step -= 2 * Math.PI; else if (step < -Math.PI) step += 2 * Math.PI;
+  const degrees = (step * 180) / Math.PI;
+  h.at = at;
+  h.angle += degrees;
+  h.speed = degrees / Math.max(1, now - h.when);
+  h.when = now;
+  h.label.style.rotate = `${h.angle.toFixed(1)}deg`;
+});
+function letGo() {
+  if (!handOn) return;
+  const { disc, label, turns } = handOn;
+  let { angle, speed } = handOn, last = performance.now();
+  handOn = null;
+  disc.classList.remove("held");
+  if (!audio.paused) turns.forEach((t) => t.play());
+  if (calm.matches || document.body.classList.contains("gentle")) return;
+  const coast = (now) => { // it keeps going for a moment after you let go
+    speed *= Math.exp(-(now - last) / 350);
+    angle += speed * (now - last);
+    last = now;
+    label.style.rotate = `${angle.toFixed(1)}deg`;
+    if (Math.abs(speed) > 0.01 && label.isConnected) requestAnimationFrame(coast);
+  };
+  requestAnimationFrame(coast);
+}
+window.addEventListener("pointerup", letGo);
+window.addEventListener("pointercancel", letGo);
+let spinTimer = 0, spinSpeed = 0;
+function spinRecords() { // a record takes a moment to get up to speed, and to come to a stop
+  if (document.body.classList.contains("gentle") || calm.matches) return; // there it's moved from gentleMotion, or not at all
+  const turns = [...document.querySelectorAll(".sleeve.now .disc-label")].flatMap((label) => label.getAnimations()), goal = audio.paused ? 0 : 1, from = spinTimer ? spinSpeed : 1 - goal; // part-way through a change it carries on from there
+  clearInterval(spinTimer);
+  spinTimer = 0;
+  if (!turns.length) return;
+  turns.forEach((t) => t.play()); // from here on this decides, not the stylesheet
+  let step = 0;
+  spinTimer = setInterval(() => {
+    step++;
+    spinSpeed = from + ((goal - from) * step) / SPIN_STEPS;
+    turns.forEach((t) => t.updatePlaybackRate(Math.max(0.001, spinSpeed)));
+    if (step < SPIN_STEPS) return;
+    clearInterval(spinTimer);
+    spinTimer = 0;
+    if (!goal) turns.forEach((t) => t.pause());
+  }, 40);
+}
+const SPIN_STEPS = 20; // of 40 ms each
+/* The clock on the deck: digits drawn the way a hi-fi's display shows them, with the segments that are off still faintly there. */
+const SEGMENTS = { 0: "abcdef", 1: "bc", 2: "abdeg", 3: "abcdg", 4: "bcfg", 5: "acdfg", 6: "acdefg", 7: "abc", 8: "abcdefg", 9: "abcdfg", "-": "g", " ": "" };
+const SEGMENT_SHAPES = (() => {
+  const w = 1.25, gap = 0.3, left = 2, right = 12, top = 2, mid = 12, bottom = 22;
+  const across = (y) => `${left + gap},${y} ${left + gap + w},${y - w} ${right - gap - w},${y - w} ${right - gap},${y} ${right - gap - w},${y + w} ${left + gap + w},${y + w}`;
+  const down = (x, from, to) => `${x},${from + gap} ${x + w},${from + gap + w} ${x + w},${to - gap - w} ${x},${to - gap} ${x - w},${to - gap - w} ${x - w},${from + gap + w}`;
+  return { a: across(top), b: down(right, top, mid), c: down(right, mid, bottom), d: across(bottom), e: down(left, mid, bottom), f: down(left, top, mid), g: across(mid) };
+})();
+const digitCell = () => svg("svg", { class: "digit", viewBox: "0 0 17 24", "aria-hidden": "true" }, svg("g", { transform: "translate(3 0) skewX(-7)" }, Object.entries(SEGMENT_SHAPES).map(([seg, points]) => svg("polygon", { points, dataset: { seg } }))));
+const colonCell = () => svg("svg", { class: "digit colon", viewBox: "0 0 6 24", "aria-hidden": "true" }, svg("circle", { class: "on", cx: 3.6, cy: 8, r: 1.4 }), svg("circle", { class: "on", cx: 2.6, cy: 16, r: 1.4 }));
+let clockJokeUntil = 0, clockJokeOn = "";
+function showClock() {
+  const s = current(), box = $("#cur");
+  if (surprises.clock && s && Math.floor(audio.currentTime) === 183 && moodOf(s) === "acid" && clockJokeOn !== s.id) { // 3:03 into an acid track: the clock tips its hat to the 303
+    clockJokeOn = s.id;
+    clockJokeUntil = performance.now() + 1600;
+    showTime(box, "303");
+    box.classList.add("flicker");
+  }
+  if (performance.now() < clockJokeUntil) return;
+  box.classList.remove("flicker");
+  showTime(box, clock(audio.currentTime));
+}
+function counter(value, places = 3) { // a number on the same digits as the deck's clock, with the places it doesn't use still faintly there
+  return el("span", { class: "counter", role: "img", "aria-label": fmt(value) }, [...String(Math.max(0, Math.round(value))).padStart(places)].map((c) => {
+    const cell = digitCell();
+    cell.querySelectorAll("polygon").forEach((p) => p.classList.toggle("on", SEGMENTS[c].includes(p.dataset.seg)));
+    return cell;
+  }));
+}
+function showTime(box, text) {
+  if (box.dataset.shows === text) return;
+  box.dataset.shows = text;
+  const known = text !== "–", shown = [...(known ? text.padStart(5) : "--:--")]; // a blank place for the tens of minutes, like a real display
+  box.setAttribute("aria-label", known ? text : "Not known yet");
+  if (box.children.length !== shown.length || shown.some((c, i) => (c === ":") !== box.children[i].classList.contains("colon"))) box.replaceChildren(...shown.map((c) => (c === ":" ? colonCell() : digitCell())));
+  shown.forEach((c, i) => { if (c !== ":") box.children[i].querySelectorAll("polygon").forEach((p) => p.classList.toggle("on", SEGMENTS[c].includes(p.dataset.seg))); });
 }
 function fillRange(input) {
-  const part = `${((input.value - input.min) / (input.max - input.min)) * 100}%`, box = input.closest(".wave-box");
+  const part =`${((input.value - input.min) / (input.max - input.min)) * 100}%`, box = input.closest(".wave-box");
   input.style.setProperty("--v", part);
   if (box) box.style.setProperty("--v", part); // the played part of the shape goes by this too
 }
@@ -2295,7 +2941,7 @@ function fillRange(input) {
 const waveShape = (kind) => svg("svg", { class: `wave ${kind}`, preserveAspectRatio: "none", "aria-hidden": "true" }, svg("path", {}));
 function showPlace(part) { document.querySelectorAll(".wave-box input").forEach((bar) => { bar.value = part * 1000; fillRange(bar); }); }
 function wireSeek(bar) {
-  bar.addEventListener("input", () => { dragging = true; showPlace(bar.value / 1000); if (audio.duration) $("#cur").textContent = clock((bar.value / 1000) * audio.duration); });
+  bar.addEventListener("input", () => { dragging = true; showPlace(bar.value / 1000); if (audio.duration) showTime($("#cur"), clock((bar.value / 1000) * audio.duration)); });
   bar.addEventListener("change", () => { if (audio.duration) audio.currentTime = (bar.value / 1000) * audio.duration; dragging = false; });
 }
 function wavePath(wave, bars) { // as many bars as fit, mirrored around the middle
@@ -2329,7 +2975,7 @@ async function learnWave(s) { // measured the first time it's needed, then kept
 }
 const togglePlay = () => { if (!audio.src) return; audio.paused ? audio.play().catch(() => {}) : audio.pause(); };
 const onDeck = (type, fn) => decks.forEach((d) => d.addEventListener(type, (e) => { if (e.target === audio) fn(e); })); // only the deck you're listening to speaks for the player
-onDeck("play", () => { paintPlay(); if (outgoing) outgoing.play().catch(() => {}); startKick(); });
+onDeck("play", () => { paintPlay(); if (outgoing) outgoing.play().catch(() => {}); startSound(); });
 onDeck("pause", () => { paintPlay(); saveSpot(); if (outgoing) outgoing.pause(); });
 window.addEventListener("pagehide", saveSpot);
 const startOver = () => { audio.currentTime = 0; listenAgain(); };
@@ -2340,16 +2986,19 @@ onDeck("timeupdate", () => {
   watchFade();
   if (dragging || !audio.duration) return;
   showPlace(audio.currentTime / audio.duration);
-  $("#cur").textContent = clock(audio.currentTime);
+  showClock();
+  moveArm();
   if (performance.now() - lastSaved > 4000) saveSpot();
 });
 onDeck("loadedmetadata", () => {
-  $("#dur").textContent = clock(audio.duration);
+  showTime($("#dur"), clock(audio.duration));
   if (resumeAt && resumeAt < audio.duration - 2) audio.currentTime = resumeAt;
   resumeAt = 0;
 });
 $("#seek").before(waveShape("wave-rest"), waveShape("wave-done"));
 wireSeek($("#seek"));
+showTime($("#cur"), "0:00");
+showTime($("#dur"), "0:00");
 $("#play").addEventListener("click", togglePlay);
 $("#prev").addEventListener("click", () => (audio.currentTime > 4 ? startOver() : step(-1)));
 $("#next").addEventListener("click", () => step(1));
@@ -2414,7 +3063,20 @@ function setEven(on) {
 $("#vol").value = store("curator-volume") || 0.8;
 setVolume();
 fillRange($("#vol"));
-$("#vol").addEventListener("input", (e) => { setVolume(); fillRange(e.target); store("curator-volume", e.target.value); });
+let volumeWas = +$("#vol").value;
+$("#vol").addEventListener("input", (e) => {
+  setVolume();
+  fillRange(e.target);
+  store("curator-volume", e.target.value);
+  const now = +e.target.value;
+  if (surprises.clock && now >= 1 && volumeWas < 1 && !calm.matches) { // all the way up
+    clockJokeUntil = performance.now() + 1400;
+    showTime($("#cur"), "11");
+    $("#cur").classList.add("flicker");
+    setTimeout(showClock, 1450);
+  }
+  volumeWas = now;
+});
 $("#even").append(icon("even", 17));
 $("#even").addEventListener("click", () => setEven(!evenOn));
 paintEven();
@@ -2422,9 +3084,139 @@ $("#fade").append(icon("fade", 17));
 $("#fade").addEventListener("click", () => { fadeSecs = FADES[(FADES.indexOf(fadeSecs) + 1) % FADES.length]; store("curator-fade", String(fadeSecs)); paintFade(); });
 paintFade();
 $("#kick").append(icon("kick", 17));
-$("#kick").addEventListener("click", () => { kickOn = !kickOn; store("curator-kick", kickOn ? "on" : "off"); paintKick(); startKick(); });
+$("#kick").addEventListener("click", () => setKick(!kickOn));
+$("#flash").append(icon("flash", 17));
+$("#flash").addEventListener("click", () => setFlash(!flashOn));
+$("#sparkle").append(icon("sparkle", 17));
+$("#np-heart").append(icon("heart", 17));
+$("#np-heart").addEventListener("click", (e) => { e.stopPropagation(); const s = current(); if (s) toggleFavourite(s, e.currentTarget); });
+$("#sparkle").addEventListener("click", () => setSparkle(!sparkleOn));
 paintKick();
-document.addEventListener("visibilitychange", startKick);
+$(".brand").prepend(logo());
+$(".logo").addEventListener("click", (e) => { if (!calm.matches) e.currentTarget.animate({ rotate: ["0deg", "1440deg"] }, { duration: 2300, easing: "cubic-bezier(.12,.7,.25,1)" }); }); // given a push, it spins and slows down
+/* Type the word "acid" anywhere that isn't a text box: a smiley rolls along the deck, hopping over the orb, and the app goes acid yellow until the song ends. */
+let typedLately = "";
+function rollSmiley() {
+  if (calm.matches) return;
+  const dot = (cx) => svg("ellipse", { cx, cy: 26, rx: 4.2, ry: 8, fill: "#16140a" }), face = el("div", { class: "smiley", "aria-hidden": "true" }, svg("svg", { viewBox: "0 0 64 64", width: 38, height: 38 }, svg("circle", { cx: 32, cy: 32, r: 30, fill: "#f7e11e", stroke: "#16140a", "stroke-width": 2.5 }), dot(22), dot(42), svg("path", { d: "M14 39a19 17 0 0 0 36 0", fill: "none", stroke: "#16140a", "stroke-width": 4, "stroke-linecap": "round" })));
+  $(".player").append(face);
+  const across = $(".player").clientWidth, at = (part, up, turns) => ({ transform: `translate(${(-60 + (across + 120) * part).toFixed(0)}px, ${up}px) rotate(${turns * 360}deg)`, offset: part });
+  face.animate([at(0, 0, 0), at(0.43, 0, 1.6), at(0.5, -26, 1.9), at(0.57, 0, 2.2), at(1, 0, 4)], { duration: 3800, easing: "linear" }).finished.then(() => face.remove(), () => face.remove());
+}
+window.addEventListener("keydown", (e) => {
+  if (e.ctrlKey || e.altKey || e.metaKey || e.key.length !== 1 || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
+  typedLately = (typedLately + e.key.toLowerCase()).slice(-6);
+  const word = FX && FX.words.find((w) => typedLately.endsWith(w));
+  if (word) { typedLately = ""; return FX.word(word); }
+  if (typedLately.endsWith("dance")) { typedLately = ""; return letsDance(); }
+  if (typedLately.endsWith("bob")) { typedLately = ""; return letsBob(); }
+  if (!typedLately.endsWith("acid")) return;
+  typedLately = "";
+  acidFor = current() ? current().id : "next";
+  paintAccent();
+  setVibe(current());
+  rollSmiley();
+});
+if (!calm.matches) { // switching on: about a second, once per visit
+  document.body.classList.add("powering");
+  setTimeout(() => document.body.classList.remove("powering"), 1100);
+}
+/* Dropdowns: the select stays on the page and keeps doing the work. This only draws its open list in the app's own glass, because the browser's can't be styled. On a phone the phone's own picker is better. */
+let menu = null;
+const mousePointer = matchMedia("(hover: hover)");
+function closeMenu(backToSelect) {
+  if (!menu) return;
+  const { box, select } = menu;
+  menu = null;
+  box.remove();
+  if (backToSelect) select.focus();
+}
+function openMenu(select) {
+  closeMenu();
+  const pick = (option) => {
+    closeMenu(true);
+    if (select.value === option.value) return;
+    select.value = option.value;
+    select.dispatchEvent(new Event("input", { bubbles: true }));
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  };
+  const box = el("div", { class: "menu", role: "listbox", "aria-label": select.getAttribute("aria-label") || "Choose" }, [...select.options].map((o) => el("button", { class: "menu-item", type: "button", role: "option", "aria-selected": String(o.selected), onclick: () => pick(o) }, o.textContent)));
+  (select.closest("dialog") || document.body).append(box);
+  const at = select.getBoundingClientRect(), below = innerHeight - at.bottom - 12, tall = Math.min(box.scrollHeight + 2, 340), upwards = below < tall && at.top > below;
+  box.style.minWidth = `${at.width}px`;
+  box.style.maxHeight = `${Math.min(340, Math.max(upwards ? at.top - 12 : below, 120))}px`;
+  box.style.left = `${Math.max(8, Math.min(at.left, innerWidth - box.offsetWidth - 8))}px`;
+  box.style.top = `${upwards ? Math.max(8, at.top - Math.min(tall, at.top - 12) - 4) : at.bottom + 4}px`;
+  menu = { box, select };
+  const current = box.querySelector('[aria-selected="true"]') || box.firstChild;
+  current.focus();
+  current.scrollIntoView({ block: "nearest" });
+}
+document.addEventListener("mousedown", (e) => {
+  const select = e.target.closest?.("select");
+  if (select && mousePointer.matches) {
+    e.preventDefault(); // no browser list
+    select.focus();
+    if (menu && menu.select === select) closeMenu(); else openMenu(select);
+  } else if (menu && !menu.box.contains(e.target)) closeMenu();
+});
+document.addEventListener("keydown", (e) => {
+  if (menu) {
+    const items = [...menu.box.children], at = items.indexOf(document.activeElement), go = { ArrowDown: at + 1, ArrowUp: at - 1, Home: 0, End: items.length - 1 }[e.key];
+    if (e.key === "Escape") { e.preventDefault(); closeMenu(true); }
+    else if (e.key === "Tab") closeMenu(true);
+    else if (go !== undefined) { e.preventDefault(); items[Math.max(0, Math.min(items.length - 1, go))].focus(); }
+    e.stopPropagation(); // the player's own keys wait until this is closed
+  } else if (e.target.matches?.("select") && mousePointer.matches && (e.key === "Enter" || e.key === " " || e.key === "F4" || (e.altKey && e.key.startsWith("Arrow")))) {
+    e.preventDefault();
+    e.stopPropagation();
+    openMenu(e.target);
+  }
+}, true);
+for (const [target, type] of [[window, "resize"], [window, "blur"], [window, "hashchange"], [view, "scroll"]]) target.addEventListener(type, () => closeMenu(), { passive: true });
+/* The glow from the Windows 7 taskbar: it follows the pointer over a cover, in that cover's own color. */
+const coverColors = new Map();
+let hotCover = null, hotMove = null, hotFrame = 0;
+function coverColor(img) { // worked out once per picture, and only for the ones the pointer actually reaches
+  if (!coverColors.has(img.src)) {
+    const rgb = FX && img.complete ? FX.vivid(img) : null;
+    coverColors.set(img.src, rgb ? rgb.map(Math.round).join(", ") : "255, 255, 255"); // grey and black labels get plain light
+  }
+  return coverColors.get(img.src);
+}
+function paintHot() {
+  hotFrame = 0;
+  const e = hotMove, cover = e && e.target.closest?.(".tile .cover");
+  if (cover !== hotCover) {
+    if (hotCover) hotCover.classList.remove("hot");
+    hotCover = cover || null;
+    if (cover) {
+      const img = cover.querySelector("img");
+      if (img) cover.style.setProperty("--hot", coverColor(img));
+      cover.classList.add("hot");
+    }
+  }
+  if (!cover) return;
+  const box = cover.getBoundingClientRect(), x = e.clientX - box.left, y = e.clientY - box.top;
+  cover.style.setProperty("--hx", `${x.toFixed(0)}px`);
+  cover.style.setProperty("--hy", `${y.toFixed(0)}px`);
+  cover.style.setProperty("--tilt-x", ((x / box.width - 0.5) * 4).toFixed(2));
+  cover.style.setProperty("--tilt-y", ((0.5 - y / box.height) * 4).toFixed(2));
+}
+$(".player").addEventListener("pointermove", (e) => { // the shine on the orb leans towards the pointer
+  if (e.pointerType === "touch" || calm.matches) return;
+  const orb = $("#play"), box = orb.getBoundingClientRect(), lean = (gap, reach) => Math.max(-1, Math.min(1, gap / reach));
+  orb.style.setProperty("--orb-x", (lean(e.clientX - box.left - box.width / 2, 320) * 9).toFixed(1));
+  orb.style.setProperty("--orb-y", (lean(e.clientY - box.top - box.height / 2, 80) * 5).toFixed(1));
+}, { passive: true });
+$(".player").addEventListener("pointerleave", () => { $("#play").style.setProperty("--orb-x", "0"); $("#play").style.setProperty("--orb-y", "0"); }, { passive: true });
+view.addEventListener("pointermove", (e) => {
+  if (e.pointerType === "touch" || calm.matches) return;
+  hotMove = e;
+  if (!hotFrame) hotFrame = requestAnimationFrame(paintHot);
+}, { passive: true });
+view.addEventListener("pointerleave", () => { hotMove = null; if (!hotFrame) hotFrame = requestAnimationFrame(paintHot); }, { passive: true });
+document.addEventListener("visibilitychange", startSound);
 if ("mediaSession" in navigator) {
   navigator.mediaSession.setActionHandler("previoustrack", () => step(-1));
   navigator.mediaSession.setActionHandler("nexttrack", () => step(1));
@@ -2450,11 +3242,13 @@ function paintTheme() {
 }
 if (store("curator-theme") === "light") document.documentElement.dataset.theme = "light";
 paintTheme();
+paintAccent();
 $("#theme").addEventListener("click", () => {
   const dark = document.documentElement.dataset.theme !== "light";
   if (dark) document.documentElement.dataset.theme = "light"; else delete document.documentElement.dataset.theme;
   store("curator-theme", dark ? "light" : "dark");
   paintTheme();
+  paintAccent();
   if (current()) ambient(current());
 });
 $("#settings-link").append(icon("sliders", 17));
@@ -2480,6 +3274,7 @@ function route() {
   moveNav();
   const pages = { home: pageHome, songs: pageSongs, artists: pageArtists, albums: pageAlbums, labels: pageLabels, check: pageCheck, add: pageAdd, progress: pageProgress, settings: pageSettings, now: pageNow };
   (pages[page] || pageHome)(params);
+  syncFx();
   view.scrollTop = 0;
   markPlaying();
   const open = params.get("open") || openNext;
@@ -2491,6 +3286,11 @@ window.addEventListener("keydown", (e) => {
   if ($("dialog[open]")) return; // the box over the page has the keyboard
   const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
   if (!typing && quickKeys && quickKeys(e)) return e.preventDefault();
+  if (e.key === "Escape" && fxFull) return fullFx(false);
+  if (!typing && FX && onNowPage() && !e.ctrlKey && !e.altKey && !e.metaKey && (e.key === "v" || e.key === "f")) { // next effect, and just the picture
+    if (e.key === "v") { const all = ["", ...FX.names.flatMap(([k]) => fxStyles[k].map(([style]) => style))]; setFx(all[(all.indexOf(fxName) + 1) % all.length]); } else if (fxName) fullFx(!fxFull);
+    return e.preventDefault();
+  }
   if (e.key === "Escape") { if (onNowPage()) closeNow(); else if (!roomy.matches) closeDrawer(); }
   else if (e.code === "Space" && !typing && e.target.tagName !== "BUTTON" && e.target.tagName !== "A") { e.preventDefault(); togglePlay(); }
   else if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !typing && !e.ctrlKey && !e.altKey && !e.metaKey && current()) { // ten seconds either way, or with Shift a song

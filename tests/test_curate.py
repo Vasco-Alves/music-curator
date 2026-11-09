@@ -1354,6 +1354,73 @@ class FromThePage(WithDiscogs):
         self.assertTrue(self.server.curate_lock.acquire(blocking=False))
         self.server.curate_lock.release()
 
+    def test_the_button_carries_out_genre_answers_too(self):
+        self.song("Techno")
+        self.answer("genre", "library/Techno/A - B.mp3", genre="Acid")
+        self.assertEqual(self.post()[0], 200)
+        state = self.wait()
+        self.assertEqual((state["result"]["changed"], state["failed"]), (1, ""))
+        self.assertEqual(self.in_library(), ["Acid/A - B.mp3"])
+        self.assertEqual(self.saved(), {})
+
+    def test_not_worth_keeping_needs_the_box_ticked(self):
+        self.song("Techno")
+        self.answer("drop", "library/Techno/A - B.mp3", kind="check")
+        self.post()
+        self.assertEqual(self.wait()["result"]["aside"], 0)
+        self.assertEqual(self.in_library(), ["Techno/A - B.mp3"])
+        self.post(body=json.dumps(dict(set_aside=True)))
+        self.assertEqual(self.wait()["result"]["aside"], 1)
+        self.assertEqual(self.in_library(), [])
+
+    def test_only_a_real_tick_counts(self):
+        self.song("Techno")
+        self.answer("drop", "library/Techno/A - B.mp3", kind="check")
+        self.post(body=json.dumps(dict(set_aside="yes")))
+        self.assertEqual(self.wait()["result"]["aside"], 0)
+        self.assertEqual(self.in_library(), ["Techno/A - B.mp3"])
+
+    def test_answers_go_ahead_with_no_token(self):
+        self.song("Techno")
+        self.answer("genre", "library/Techno/A - B.mp3", genre="Acid")
+        def no_token():
+            raise SystemExit("not set")
+        with mock.patch.object(discogs, "token", no_token):
+            self.assertEqual(self.post()[0], 200)
+            state = self.wait()
+        self.assertEqual((state["result"]["changed"], state["failed"]), (1, ""))
+        self.assertEqual(self.in_library(), ["Acid/A - B.mp3"])
+
+    def test_it_ends_by_getting_the_other_genres(self):
+        self.song("Acid")
+        self.fake.add("A", "Record", [("A1", "B", LENGTH)], styles=("Acid", "Techno"))
+        self.server.collection.refresh()
+        self.assertEqual(self.call("GET", "/api/curate")[1]["styles_missing"], 1)
+        self.post()
+        state = self.wait()
+        self.assertEqual((state["failed"], state["styles_missing"]), ("", 0))
+        everything = self.call("GET", "/api/all")[1]
+        self.assertEqual(next(s for s in everything["songs"] if s["area"] == "library")["also"], ["Techno"])
+
+    def test_stop_during_the_lookups_leaves_your_answers_for_next_time(self):
+        self.song("Techno")
+        self.answer("genre", "library/Techno/A - B.mp3", genre="Acid")
+        self.file("A - One")
+        started, carry_on = threading.Event(), threading.Event()
+        def slow(**kw):
+            started.set()
+            carry_on.wait(5)
+            return []
+        with mock.patch.object(discogs, "search", slow):
+            self.post()
+            started.wait(5)
+            self.post("/api/curate/stop")
+            carry_on.set()
+            state = self.wait()
+        self.assertTrue(state["result"]["stopped"])
+        self.assertEqual(self.in_library(), ["Techno/A - B.mp3"])
+        self.assertIn("genre:library/Techno/A - B.mp3", self.saved())
+
     def test_the_page_can_tell_it_is_stopping(self):
         self.file("A - One")
         started, carry_on = threading.Event(), threading.Event()

@@ -262,8 +262,9 @@ def _open_log(path):
 
 
 class Run:
-    def __init__(self, paths, dry_run, needs_log):
-        self.paths, self.dry_run = paths, dry_run
+    def __init__(self, paths, dry_run, needs_log, say=print, update=None):
+        self.paths, self.dry_run, self.say, self.update = paths, dry_run, say, update
+        self.troubles = []  # what couldn't be done, in words for the page
         self.collection = webapp.Collection(paths)
         self.collection._read_log()
         self.aside = os.path.join(_aside_folder(paths), datetime.datetime.now().strftime("%Y-%m-%d %H-%M-%S"))
@@ -301,20 +302,29 @@ class Run:
     def forget(self, key, keep=False, moved=None):
         """Take an answer off the list, reading the list again first: the page may have saved new answers meanwhile.
         moved=(old file, new file): the song's other answers go with it."""
+        def change(answers):
+            if keep and isinstance(answers.get(key), dict):
+                answers[key]["action"] = "keep"
+            else:
+                answers.pop(key, None)
+            if moved:
+                old, new = moved
+                same = lambda d: isinstance(d, dict) and d.get("file") == old  # noqa: E731
+                renamed = {(f"{k.split(':', 1)[0]}:{new}" if same(d) else k): (dict(d, file=new) if same(d) else d) for k, d in answers.items()}
+                answers.clear()
+                answers.update(renamed)
+        if self.update:  # from the page, which keeps the list and may be saving a new answer this moment
+            problem = self.update(change)
+            if problem:
+                raise Skip(problem)
+            return
         path = self.paths["decisions"]
         try:
             with open(path, encoding="utf-8-sig") as f:
                 answers = json.load(f)
         except (OSError, ValueError) as ex:
             raise Skip(f"your answers couldn't be read ({ex})") from ex
-        if keep and isinstance(answers.get(key), dict):
-            answers[key]["action"] = "keep"
-        else:
-            answers.pop(key, None)
-        if moved:
-            old, new = moved
-            same = lambda d: isinstance(d, dict) and d.get("file") == old  # noqa: E731
-            answers = {(f"{k.split(':', 1)[0]}:{new}" if same(d) else k): (dict(d, file=new) if same(d) else d) for k, d in answers.items()}
+        change(answers)
         tmp = path + ".apply.tmp"
         with open(tmp, "w", encoding="utf-8", errors="replace") as f:
             json.dump(answers, f, ensure_ascii=False, indent=1)
@@ -325,26 +335,29 @@ class Run:
         try:
             self.forget(key, keep, moved)
         except (OSError, Skip) as ex:
-            print(f"    Its answer couldn't be taken off the list ({getattr(ex, 'strerror', None) or ex}). The next run will clear it.")
+            self.say(f"    Its answer couldn't be taken off the list ({getattr(ex, 'strerror', None) or ex}). The next run will clear it.")
 
     def attempt(self, key, answer, handler):
         name = answer["song"]
         try:
             handler(key, answer, name)
         except Gone:
-            print(f"  {name}: its file isn't there any more, so this answer {'would be' if self.dry_run else 'was'} cleared")
+            self.say(f"  {name}: its file isn't there any more, so this answer {'would be' if self.dry_run else 'was'} cleared")
             self.cleared += 1
             if not self.dry_run:
                 self.retire(key)
         except Skip as ex:
-            print(f"  {name}: not done: {ex}")
+            self.say(f"  {name}: not done: {ex}")
             self.problems += 1
+            self.troubles.append(f"{name}: {ex}.")
         except PermissionError:
-            print(f"  {name}: not done: the file is in use. Close whatever is playing it and run this again")
+            self.say(f"  {name}: not done: the file is in use. Close whatever is playing it and run this again")
             self.problems += 1
+            self.troubles.append(f"{name}: the file is in use. Stop playing it and press Curate again.")
         except OSError as ex:
-            print(f"  {name}: not done: {ex.strerror or ex}")
+            self.say(f"  {name}: not done: {ex.strerror or ex}")
             self.problems += 1
+            self.troubles.append(f"{name}: {ex.strerror or ex}.")
 
     def to_aside(self, action, path, file):
         target = os.path.join(self.aside, *file.split("/"))
@@ -414,7 +427,7 @@ class Run:
             raise Skip("only MP3, FLAC and M4A files can be changed this way for now")
         genre, song = _clean_answer(answer.get("genre")), library.read_song(path)
         if song["genre"] == genre:
-            print(f"  {name}: already {genre}, nothing to change")
+            self.say(f"  {name}: already {genre}, nothing to change")
             if not self.dry_run:
                 self.retire(key, keep=True)
             return
@@ -432,14 +445,14 @@ class Run:
         where = "your library" if webapp.norm(folder) == webapp.norm(self.paths["library"]) else os.path.relpath(folder, self.paths["library"])
         line = f"  {name}: {song['genre'] or '(none)'} -> {genre}, {'moved to' if moving else 'stays in'} {where}"
         if self.dry_run:
-            print(line)
+            self.say(line)
             self.changed += 1
             return
         row = dict(self.collection._log_row(path, os.path.relpath(path, root).replace(os.sep, "/")) or _first_row(path, song))
         row.update(date=_now(), status=row["status"] if row.get("status", "").startswith("check") else "ok", dest=dest, genre=genre,
                    notes=_settled(row.get("notes", ""), song["genre"]))
         self.swap(answer["file"], path, dest, old, new, song, genre, row, already_placed)
-        print(line)
+        self.say(line)
         self.changed += 1
         new_file = "library/" + os.path.relpath(dest, self.paths["library"]).replace(os.sep, "/")
         self.retire(key, moved=(answer["file"], new_file) if moving else None)
@@ -447,7 +460,7 @@ class Run:
     def take_out(self, key, answer, name):
         area, root, path = _locate(answer.get("file"), self.paths)
         if self.dry_run:
-            print(f"  {name}: would go to the {SET_ASIDE} folder")
+            self.say(f"  {name}: would go to the {SET_ASIDE} folder")
             self.removed += 1
             return
         song, logged = library.read_song(path), None
@@ -462,9 +475,51 @@ class Run:
         except BaseException:
             self.take_back(mark)
             raise
-        print(f"  {name}: set aside")
+        self.say(f"  {name}: set aside")
         self.removed += 1
         self.retire(key)
+
+
+def _listed(answers):
+    """The answers that are in a usable shape, by song."""
+    pairs = [(k, d) for k, d in answers.items() if isinstance(d, dict) and d.get("action") and isinstance(d["action"], str) and isinstance(d.get("song"), str)] if isinstance(answers, dict) else []
+    return sorted(pairs, key=lambda pair: pair[1]["song"].lower())
+
+
+def _for_the_page(paths, set_aside):
+    """The answers the page's Curate button can carry out: what's going first, then the genre changes."""
+    try:
+        with open(paths["decisions"], encoding="utf-8-sig") as f:
+            pairs = _listed(json.load(f))
+    except (OSError, ValueError):
+        return []
+    return ([p for p in pairs if p[1]["action"] == "drop"] if set_aside else []) + [p for p in pairs if p[1]["action"] == "genre" and str(p[1].get("file") or "").startswith("library/")]
+
+
+def any_for_the_page(paths, set_aside):
+    return bool(_for_the_page(paths, set_aside))
+
+
+def carry_out(paths, set_aside=False, update=None, stopping=None, progress=None):
+    """What the page's Curate button does with your answers: the same work as the command, told back in numbers. Anything that can't be done is said and stays on the list."""
+    work = _for_the_page(paths, set_aside)
+    told = dict(changed=0, aside=0, cleared=0, not_done=[])
+    if not work:
+        return told
+    try:
+        run = Run(paths, False, True, say=lambda _: None, update=update)
+    except SystemExit as ex:  # the log can't be written: better to find out before anything changes
+        return dict(told, not_done=[str(ex)])
+    try:
+        for n, (key, answer) in enumerate(work):
+            if stopping and stopping.is_set():
+                break
+            if progress:
+                progress(done=n, total=len(work), name=answer["song"])
+            run.attempt(key, answer, run.take_out if answer["action"] == "drop" else run.change_genre)
+    finally:
+        run.close()
+    return dict(changed=run.changed, aside=run.removed, cleared=run.cleared, not_done=run.troubles)
 
 
 def main(dry_run=False, set_aside=False):
@@ -478,8 +533,7 @@ def main(dry_run=False, set_aside=False):
                 answers = json.load(f)
         except (OSError, ValueError) as ex:
             sys.exit(f"Couldn't read your answers in {paths['decisions']}: {ex}")
-    pairs = [(k, d) for k, d in answers.items() if isinstance(d, dict) and d.get("action") and isinstance(d["action"], str) and isinstance(d.get("song"), str)] if isinstance(answers, dict) else []
-    pairs.sort(key=lambda pair: pair[1]["song"].lower())
+    pairs = _listed(answers)
     genres = [p for p in pairs if p[1]["action"] == "genre"]
     drops = [p for p in pairs if p[1]["action"] == "drop"]
     adds = [p for p in pairs if p[1]["action"] == "add"]
