@@ -185,6 +185,7 @@ class Collection:
         self.plays, self.plays_sig, self.plays_broken = {}, None, False
         self.saved_lists, self.saved_lists_sig = {}, None
         self.levels, self.levels_sig = {}, None
+        self.waves, self.waves_sig = {}, None
         self._read_decisions()
 
     def _watch(self, name, path, keep):
@@ -212,6 +213,10 @@ class Collection:
     def _read_levels(self):
         """How loud each song was measured to be."""
         self._watch("levels", levels_path(self.paths), lambda saved: {k: v for k, v in saved.items() if type(v) in (int, float)})
+
+    def _read_waves(self):
+        """The shape of each song that has been played."""
+        self._watch("waves", waves_path(self.paths), lambda saved: {k: v for k, v in saved.items() if isinstance(v, list) and all(type(x) is int and 0 <= x <= 100 for x in v)})
 
     def _read_saved_lists(self):
         """Your Spotify playlists as they were at the last Check Spotify."""
@@ -607,33 +612,41 @@ class Collection:
             song.update(plays=entry["plays"], played=now)
             return dict(plays=entry["plays"], played=now)
 
-    def level(self, song_id):
-        """How loud a song is, measuring it the first time it's asked for. Returns {lufs}, with None if it can't be told, or {error}."""
+    def _measured(self, song_id, word, kept, read, path_of, measure):
+        """Something measured from a song's audio: from the file it's kept in, or measured now and added to it. Returns {word: value}, with None if it can't be told, or {error}."""
         with self.lock:
-            self._read_levels()
+            read()
             song = self.songs.get(str(song_id))
             if not song:
                 return dict(error="unknown song")
             key, path = level_key(song), song["_path"]
-            if key in self.levels:
-                return dict(lufs=self.levels[key])
-        from . import loudness
-        lufs = loudness.measure(path)  # outside the lock: the rest of the app doesn't wait for this
-        if lufs is None:
-            return dict(lufs=None)
+            if key in getattr(self, kept):
+                return {word: getattr(self, kept)[key]}
+        value = measure(path)  # outside the lock: the rest of the app doesn't wait for this
+        if value is None:
+            return {word: None}
         with self.lock:
-            self._read_levels()
-            self.levels[key] = lufs
-            song["lufs"] = lufs
-            tmp = levels_path(self.paths) + ".tmp"
+            read()
+            getattr(self, kept)[key] = value
+            tmp = path_of(self.paths) + ".tmp"
             try:
                 os.makedirs(os.path.dirname(tmp) or ".", exist_ok=True)
                 with open(tmp, "w", encoding="utf-8") as f:
-                    json.dump(self.levels, f, ensure_ascii=False)
-                os.replace(tmp, levels_path(self.paths))
+                    json.dump(getattr(self, kept), f, ensure_ascii=False)
+                os.replace(tmp, path_of(self.paths))
             except OSError:  # only costs measuring it again next time
                 pass
-        return dict(lufs=lufs)
+        return {word: value}
+
+    def level(self, song_id):
+        """How loud a song is, measuring it the first time it's asked for."""
+        from . import loudness
+        return self._measured(song_id, "lufs", "levels", self._read_levels, levels_path, loudness.measure)
+
+    def wave(self, song_id):
+        """The shape of a song, measuring it the first time it's asked for."""
+        from . import waveform
+        return self._measured(song_id, "wave", "waves", self._read_waves, waves_path, waveform.measure)
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -730,9 +743,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if route == "/api/curate":
             from . import curate
             return self._json(curate.status(self.server))
-        m = re.fullmatch(r"/api/loudness/([0-9a-f]{12})", route)
+        m = re.fullmatch(r"/api/(loudness|waveform)/([0-9a-f]{12})", route)
         if m and collection:
-            answer = collection.level(m[1])
+            answer = collection.level(m[2]) if m[1] == "loudness" else collection.wave(m[2])
             return self._json(answer, 404 if answer.get("error") else 200)
         m = re.fullmatch(r"/(cover|audio)/([0-9a-f]{12})", route)
         song = collection.songs.get(m[2]) if m and collection else None  # only indexed files, never a path from the URL
@@ -893,6 +906,10 @@ def better_links_path(paths):
 
 def plays_path(paths):
     return os.path.join(os.path.dirname(paths["decisions"]), "plays.json")
+
+
+def waves_path(paths):
+    return os.path.join(os.path.dirname(paths["decisions"]), "waveforms.json")
 
 
 def levels_path(paths):

@@ -1522,6 +1522,8 @@ function pageNow() {
   if (!s) return view.replaceChildren(el("div", { class: "now-page now-nothing" }, close, el("div", { class: "cover vinyl" }), el("p", {}, "Nothing playing yet."),
     S.lib.length ? el("button", { class: "btn primary", type: "button", onclick: () => playQueue(shuffled(S.lib).map((x) => x.id), 0, "Shuffle") }, icon("shuffle", 16), "Play something") : null));
   const songs = (o) => `#/songs?${q2(o)}`, dot = () => el("span", { class: "now-dot" }, "·");
+  const place = el("input", { type: "range", min: 0, max: 1000, value: 0, "aria-label": "Position in the song" });
+  wireSeek(place);
   const about = [s.album ? el("a", { href: songs({ album: s.album }) }, s.album) : null, s.year ? el("a", { href: songs({ from: s.year, to: s.year }) }, s.year) : null, s.genre ? el("a", { href: songs({ genre: s.genre }) }, s.genre) : null, s.label ? el("a", { href: songs({ label: s.label }) }, s.label) : null].filter(Boolean);
   view.replaceChildren(el("div", { class: "now-page" }, close,
     el("div", { class: "now-stage" },
@@ -1531,9 +1533,12 @@ function pageNow() {
         el("h1", {}, s.title || s.file),
         el("div", { class: "by" }, artistsOf(s).flatMap((a, i) => [i ? " & " : "", el("a", { href: songs({ artist: a }) }, a)])),
         el("div", { class: "now-about" }, about.flatMap((a, i) => (i ? [dot(), a] : [a]))),
-        el("div", { class: "actions" }, el("button", { class: "btn small", type: "button", onclick: () => { openNext = s.id; closeNow(); } }, "Song details"), s.link ? el("a", { class: "btn small", href: s.link, target: "_blank", rel: "noreferrer noopener" }, icon("link", 14), sourceName(s.link)) : null))),
+        el("div", { class: "actions" }, el("button", { class: "btn small", type: "button", onclick: () => { openNext = s.id; closeNow(); } }, "Song details"), s.link ? el("a", { class: "btn small", href: s.link, target: "_blank", rel: "noreferrer noopener" }, icon("link", 14), sourceName(s.link)) : null)),
+      el("div", { class: "wave-box wave-big", dataset: { bars: 300 } }, waveShape("wave-rest"), waveShape("wave-done"), place)),
     el("div", { class: "now-queue", id: "now-queue" })));
   paintNowQueue();
+  showPlace(audio.duration ? audio.currentTime / audio.duration : 0);
+  paintWave();
 }
 
 /* ---------- the background takes its colors from what's playing ---------- */
@@ -1726,7 +1731,9 @@ function loadCurrent(autoplay = true, at = 0) {
   c.replaceChildren(); c.className = `cover${s.cover ? "" : " vinyl"}`;
   if (s.cover) c.append(el("img", { src: coverUrl(s), alt: "" }));
   ["#play", "#prev", "#next", "#seek"].forEach((x) => ($(x).disabled = false));
-  $("#seek").value = 0; fillRange($("#seek"));
+  showPlace(0);
+  paintWave();
+  learnWave(S.byId.get(P.queue[P.i + 1])); // ready before it's needed
   if ("mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: s.title, artist: s.artist, album: s.album, artwork: s.cover ? [{ src: coverUrl(s), sizes: "512x512" }] : [] });
   markPlaying();
   $(".np").classList.add("ready");
@@ -1780,7 +1787,47 @@ function paintPlay() {
   document.body.classList.toggle("is-playing", !paused);
   gentleMotion();
 }
-function fillRange(input) { input.style.setProperty("--v", `${((input.value - input.min) / (input.max - input.min)) * 100}%`); }
+function fillRange(input) {
+  const part = `${((input.value - input.min) / (input.max - input.min)) * 100}%`, box = input.closest(".wave-box");
+  input.style.setProperty("--v", part);
+  if (box) box.style.setProperty("--v", part); // the played part of the shape goes by this too
+}
+/* The shape of the song. A vector stretched to fit, so it needs no redrawing when the window changes, and the page's colors apply to it. */
+const waveShape = (kind) => svg("svg", { class: `wave ${kind}`, preserveAspectRatio: "none", "aria-hidden": "true" }, svg("path", {}));
+function showPlace(part) { document.querySelectorAll(".wave-box input").forEach((bar) => { bar.value = part * 1000; fillRange(bar); }); }
+function wireSeek(bar) {
+  bar.addEventListener("input", () => { dragging = true; showPlace(bar.value / 1000); if (audio.duration) $("#cur").textContent = clock((bar.value / 1000) * audio.duration); });
+  bar.addEventListener("change", () => { if (audio.duration) audio.currentTime = (bar.value / 1000) * audio.duration; dragging = false; });
+}
+function wavePath(wave, bars) { // as many bars as fit, mirrored around the middle
+  let d = "";
+  for (let x = 0; x < bars; x++) {
+    const from = Math.floor((x * wave.length) / bars), to = Math.max(from + 1, Math.floor(((x + 1) * wave.length) / bars));
+    const h = Math.max(4, sum(wave.slice(from, to)) / (to - from));
+    d += `M${x} ${(100 - h) / 2}h.72v${h}h-.72z`;
+  }
+  return d;
+}
+function paintWave() {
+  const s = current(), wave = s && s.wave;
+  document.querySelectorAll(".wave-box").forEach((box) => {
+    box.classList.toggle("has-wave", !!wave);
+    if (!wave) return;
+    const bars = +box.dataset.bars, d = wavePath(wave, bars);
+    box.querySelectorAll("svg").forEach((shape) => { shape.setAttribute("viewBox", `0 0 ${bars} 100`); shape.firstChild.setAttribute("d", d); });
+  });
+  learnWave(s); // not known yet: a new song, or the library has just been read again
+}
+async function learnWave(s) { // measured the first time it's needed, then kept
+  if (!s || s.wave !== undefined || s.askedWave) return;
+  s.askedWave = true;
+  const r = await fetch(`/api/waveform/${s.id}`, { cache: "no-store" }).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+  s.askedWave = false;
+  if (!r) return;
+  (S.byId.get(s.id) || s).wave = r.wave; // the library may have been read again while this was measured, and then these are new objects
+  const now = current();
+  if (now && now.id === s.id) paintWave();
+}
 const togglePlay = () => { if (!audio.src) return; audio.paused ? audio.play().catch(() => {}) : audio.pause(); };
 audio.addEventListener("play", paintPlay);
 audio.addEventListener("pause", () => { paintPlay(); saveSpot(); });
@@ -1791,8 +1838,7 @@ audio.addEventListener("error", () => { if (audio.getAttribute("src")) toast("Th
 audio.addEventListener("timeupdate", () => {
   countListening();
   if (dragging || !audio.duration) return;
-  $("#seek").value = (audio.currentTime / audio.duration) * 1000;
-  fillRange($("#seek"));
+  showPlace(audio.currentTime / audio.duration);
   $("#cur").textContent = clock(audio.currentTime);
   if (performance.now() - lastSaved > 4000) saveSpot();
 });
@@ -1801,8 +1847,8 @@ audio.addEventListener("loadedmetadata", () => {
   if (resumeAt && resumeAt < audio.duration - 2) audio.currentTime = resumeAt;
   resumeAt = 0;
 });
-$("#seek").addEventListener("input", (e) => { fillRange(e.target); dragging = true; if (audio.duration) $("#cur").textContent = clock((e.target.value / 1000) * audio.duration); });
-$("#seek").addEventListener("change", (e) => { if (audio.duration) audio.currentTime = (e.target.value / 1000) * audio.duration; dragging = false; });
+$("#seek").before(waveShape("wave-rest"), waveShape("wave-done"));
+wireSeek($("#seek"));
 $("#play").addEventListener("click", togglePlay);
 $("#prev").addEventListener("click", () => (audio.currentTime > 4 ? startOver() : step(-1)));
 $("#next").addEventListener("click", () => step(1));
