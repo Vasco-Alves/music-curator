@@ -87,11 +87,11 @@ class FindingTheSong(unittest.TestCase):
     def test_from_the_playlists_own_folder(self):
         self.assertEqual(self.find(line("../Acid/A - One.mp3"), song()), "a")
 
-    def test_upper_and_lower_case_dont_matter(self):
-        self.assertEqual(self.find(line("A - ONE.MP3"), song()), "a")
+    def test_upper_and_lower_case_dont_matter(self):  # a name that can't be read as artist and title, so only the file name can find it
+        self.assertEqual(self.find(line("TRACK 01.MP3"), song(file="Track 01.mp3")), "a")
 
     def test_with_quotes_round_it(self):
-        self.assertEqual(self.find(line('"A - One.mp3"'), song()), "a")
+        self.assertEqual(self.find(line('"Track 01.mp3"'), song(file="Track 01.mp3")), "a")
 
     def test_written_as_a_file_address(self):
         self.assertEqual(self.find(line("file:///D:/Music/A%20-%20One.mp3"), song()), "a")

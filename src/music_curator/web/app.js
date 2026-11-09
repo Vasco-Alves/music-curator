@@ -403,6 +403,7 @@ function matcher(f) {
     if (f.trust && s.trust !== f.trust) return false;
     if (f.label && s.label !== f.label) return false;
     if (f.playlist && !(S.lists.get(f.playlist) || new Map()).has(s.id)) return false;
+    if (f.spotify && S.inSpotify.has(s.id) !== (f.spotify === "yes")) return false;
     if (f.album && fold(s.album).trim() !== fold(f.album).trim()) return false;
     if (f.country && s.country !== f.country) return false;
     if (f.artist && !(s.artist || "").split(" & ").map((a) => a.trim()).includes(f.artist)) return false;
@@ -431,7 +432,7 @@ function comparator({ key, dir }) {
 }
 const NEWEST_FIRST = { plays: "Most played first", played: "Last played first", added: "Newest in your library first" };
 function pageSongs(params) {
-  const f = {}; for (const k of ["q", "genre", "decade", "trust", "album", "artist", "label", "playlist", "country", "from", "to"]) f[k] = params.get(k) || "";
+  const f = {}; for (const k of ["q", "genre", "decade", "trust", "album", "artist", "label", "playlist", "country", "from", "to", "spotify"]) f[k] = params.get(k) || "";
   f.area = params.get("area") || "library";
   if (NEWEST_FIRST[params.get("sort")]) S.sort = { key: params.get("sort"), dir: -1 };
   if (f.playlist) S.sort = { key: "playlist", dir: 1 };
@@ -477,6 +478,7 @@ function pageSongs(params) {
   const pick = (label, key, options) => el("select", { "aria-label": label, onchange: (e) => { f[key] = e.target.value; update(); } }, options.map(([v, t]) => el("option", { value: v, selected: f[key] === v }, t)));
 
   const decades = tally(inScope().map((s) => (s.year ? String(Math.floor(+s.year / 10) * 10) : ""))).sort((a, b) => +a[0] - +b[0]);
+  const onLists = inScope().filter((s) => S.inSpotify.has(s.id)).length;
   const search = el("input", { type: "search", placeholder: "Search artist, title, album…", value: f.q, "aria-label": "Search", id: "song-search", oninput: (e) => { f.q = e.target.value; update(); } });
   const toggle = el("div", { class: "view-toggle", role: "group", "aria-label": "View" });
   const paintToggle = () => toggle.replaceChildren(
@@ -492,6 +494,7 @@ function pageSongs(params) {
       pick("Genre", "genre", [["", "All genres"], ...tally(S.songs.map((s) => s.genre)).sort((a, b) => a[0].localeCompare(b[0])).map(([g, c]) => [g, `${g} (${c})`])]),
       pick("Decade", "decade", [["", "All years"], ...decades.map(([d, c]) => [d, `${d}s (${c})`]), ["none", "No year"]]),
       pick("How sure", "trust", [["", "How sure: any"], ...Object.entries(TRUST).map(([k, t]) => [k, t.label])]),
+      (S.meta.my_playlists || []).length ? pick("Spotify lists", "spotify", [["", "Spotify lists: any"], ["yes", `On a Spotify list (${fmt(onLists)})`], ["no", `On no Spotify list (${fmt(inScope().length - onLists)})`]]) : null,
       toggle),
     chips, head, el("div", { class: "list-head" }, countLine, el("div", { class: "actions" }, adder, exporter.button)), exporter.panel, results));
   update();

@@ -126,7 +126,7 @@ def _free_name(name, draft):
 def read_m3u(text):
     """What an M3U or M3U8 file lists, in order: where each song is and, if it says, what it's called and how long it is."""
     out, shown, secs = [], "", None
-    for line in re.split(r"[\r\n]+", text.lstrip("﻿")):
+    for line in re.split(r"[\r\n]+", text.lstrip("\ufeff")):
         line = line.strip()[:LONGEST_LINE]
         info = re.match(r"#EXTINF:\s*(-?\d+(?:\.\d+)?)[^,]*,(.*)", line, re.I)
         if info:
