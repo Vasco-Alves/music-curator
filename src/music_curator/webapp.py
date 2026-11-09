@@ -803,8 +803,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self._host_ok():
             return self._reply(403, b"Forbidden")
         route = self._route()
-        if route not in ("/api/decision", "/api/played", "/api/settings", "/api/settings/compare", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/curate", "/api/curate/stop", "/api/export/list", "/api/export/copy", "/api/export/stop", "/api/export/playlists",
-                         "/api/playlists/new", "/api/playlists/add", "/api/playlists/remove", "/api/playlists/rename", "/api/playlists/delete", "/api/playlists/import"):
+        if route not in ("/api/decision", "/api/played", "/api/settings", "/api/settings/compare", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/spotify/send", "/api/curate", "/api/curate/stop", "/api/export/list", "/api/export/copy", "/api/export/stop", "/api/export/playlists",
+                         "/api/playlists/new", "/api/playlists/add", "/api/playlists/remove", "/api/playlists/move", "/api/playlists/rename", "/api/playlists/delete", "/api/playlists/import"):
             return self._reply(404, b"Not found")
         origin = self.headers.get("Origin")
         try:
@@ -865,7 +865,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             from . import own_playlists
             answer = own_playlists.handle(self.server.collection, route, body)
             return self._json(answer, 400 if answer.get("error") else 200)
-        if route in ("/api/spotify/check", "/api/spotify/move", "/api/spotify/stream"):
+        if route in ("/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/spotify/send"):
             names = body.get("playlists")
             if route.endswith("stream") and (not isinstance(names, list) or not 0 < len(names) <= 50 or not all(isinstance(n, str) and n for n in names)):
                 return self._json(dict(error="Choose at least one playlist."), 400)
@@ -875,6 +875,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 from . import spotify
                 if route.endswith("stream"):
                     return self._json(spotify.run_stream(self.server, body.get("id"), list(dict.fromkeys(names))))
+                if route.endswith("send"):
+                    return self._json(spotify.run_send(self.server, body.get("list")))
                 return self._json(spotify.run(self.server) if route.endswith("check") else spotify.run_gather(self.server))
             finally:
                 self.server.spotify_lock.release()

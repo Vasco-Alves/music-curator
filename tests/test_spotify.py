@@ -19,7 +19,7 @@ import urllib.request
 from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
-from music_curator import config, spotify, webapp  # noqa: E402
+from music_curator import config, own_playlists, spotify, webapp  # noqa: E402
 from test_apply import Base  # noqa: E402
 from test_webapp import FRAME, write_mp3  # noqa: E402
 
@@ -38,7 +38,7 @@ class FakeSpotify:
 
     def __init__(self, lists, shape="item", page=100, snapshots=None, catalog=None):
         self.lists, self.shape, self.page, self.snapshots, self.catalog = lists, shape, page, snapshots or {}, catalog or []
-        self.calls, self.fail, self.puts, self.posts, self.searches = [], {}, [], [], []
+        self.calls, self.fail, self.puts, self.posts, self.searches, self.made = [], {}, [], [], [], []
 
     def track(self, t):
         """"Artist - Title", or a dict with name, artists, album, secs and local."""
@@ -67,6 +67,11 @@ class FakeSpotify:
             items[at:at] = piece
             self.snapshots[name] = f"after{len(self.puts)}"
             return dict(snapshot_id=self.snapshots[name])
+        if method == "POST" and parts.path.endswith("/me/playlists"):
+            body = json.loads(data)
+            self.made.append(body)
+            self.lists[body["name"]] = []
+            return dict(id=f"id{len(self.lists) - 1}", name=body["name"])
         if method == "POST":
             name = list(self.lists)[int(parts.path.split("/")[-2].removeprefix("id"))]
             uris = json.loads(data)["uris"]
@@ -795,6 +800,156 @@ class AddingTheStreamedSong(MightBeOnSpotify):
     test_the_search_only_asks_to_read = None
 
 
+class SendingALocalPlaylist(Checking):
+    NAME = "Night Bus"
+
+    def setUp(self):
+        super().setUp()
+        self.collection = webapp.Collection(self.paths)
+        self.collection.refresh()
+
+    def client(self, fake):
+        client = super().client(fake)
+        client.scope = spotify.TO_CHANGE  # signed in already: sign-in itself is tested below
+        return client
+
+    def make(self, *names, list_name=None):
+        by_file = {s["file"]: s["id"] for s in self.collection.songs.values()}
+        return own_playlists.handle(self.collection, "/api/playlists/new", dict(name=list_name or self.NAME, ids=[by_file[f"{n}.mp3"] for n in names]))["made"]["id"]
+
+    def send(self, fake, list_id, client=None):
+        return spotify.send_playlist(client or self.client(fake), self.collection, list_id)
+
+    def test_it_makes_a_private_playlist_of_that_name(self):
+        fake = FakeSpotify({})
+        result = self.send(fake, self.make("A - One"))
+        self.assertEqual(fake.made, [dict(name=self.NAME, public=False)])
+        self.assertTrue(result["made"])
+        self.assertIn(f"Made {self.NAME} on Spotify", result["message"])
+
+    def test_it_asks_for_the_playlist_the_current_way(self):
+        fake = FakeSpotify({})
+        self.send(fake, self.make("A - One"))
+        self.assertTrue(any(c.endswith("/v1/me/playlists") for c in fake.calls))
+
+    def test_its_songs_wait_on_the_to_do(self):
+        result = self.send(FakeSpotify({}), self.make("A - One", "B - Two"))
+        self.assertEqual(result["sent"], 2)
+        self.assertEqual(self.note("A - One"), ("add", self.NAME))
+        self.assertEqual(self.note("B - Two"), ("add", self.NAME))
+        self.assertIn("2 songs are on your Spotify to-do", result["message"])
+
+    def test_no_local_file_is_sent_to_spotify(self):  # it can't take them: only the playlist itself is made
+        fake = FakeSpotify({})
+        self.send(fake, self.make("A - One"))
+        self.assertEqual(fake.posts, [])
+
+    def test_a_playlist_thats_already_there_isnt_made_again(self):
+        fake = FakeSpotify({self.NAME: []})
+        result = self.send(fake, self.make("A - One"))
+        self.assertEqual(fake.made, [])
+        self.assertFalse(result["made"])
+        self.assertIn("already on Spotify", result["message"])
+        self.assertEqual(self.note("A - One"), ("add", self.NAME))
+
+    def test_songs_already_in_it_dont_wait(self):
+        result = self.send(FakeSpotify({self.NAME: ["A - One"]}), self.make("A - One", "B - Two"))
+        self.assertEqual(result["sent"], 1)
+        self.assertNotIn("playlist:library/Acid/A - One.mp3", self.saved())
+        self.assertEqual(self.note("B - Two"), ("add", self.NAME))
+
+    def test_when_they_are_all_in_it_it_says_so(self):
+        result = self.send(FakeSpotify({self.NAME: ["A - One"]}), self.make("A - One"))
+        self.assertEqual(result["sent"], 0)
+        self.assertIn("Every song is already in it", result["message"])
+
+    def test_a_song_waiting_for_another_playlist_keeps_that(self):
+        self.want("A - One", RAVE)
+        self.collection.refresh()
+        self.send(FakeSpotify({}), self.make("A - One"))
+        self.assertEqual(self.note("A - One"), ("add", f"{RAVE}\n{self.NAME}"))
+
+    def test_sending_twice_lists_it_once(self):
+        list_id, fake = self.make("A - One"), FakeSpotify({})
+        self.send(fake, list_id)
+        self.send(fake, list_id)
+        self.assertEqual(self.note("A - One"), ("add", self.NAME))
+        self.assertEqual(len(fake.made), 1)
+
+    def test_if_spotify_wont_make_it_you_can_still_do_it_by_hand(self):
+        fake = FakeSpotify({})
+
+        def fetch(url, headers=None, data=None, method=None):
+            if method == "POST":
+                raise http_error(url, 403)
+            return fake(url, headers, data, method)
+        client = self.client(fake)
+        client.fetch = fetch
+        result = self.send(fake, self.make("A - One"), client=client)
+        self.assertFalse(result["made"])
+        self.assertEqual(result["sent"], 1)
+        self.assertIn("make a playlist with that exact name", result["message"])
+        self.assertEqual(self.note("A - One"), ("add", self.NAME))
+
+    def test_a_long_wait_from_spotify_sends_nothing(self):
+        fake = FakeSpotify({})
+        fake.fail["/me/playlists"] = [(429, dict(Retry_After="3600"))]
+        result = self.send(fake, self.make("A - One"))
+        self.assertEqual(result["sent"], 0)
+        self.assertIn("asked to wait", result["message"])
+        self.assertEqual(self.saved(), {})
+
+    def test_it_will_not_start_during_a_wait(self):
+        list_id = self.make("A - One")
+        spotify.write_state(self.paths, wait_until=(datetime.datetime.now() + datetime.timedelta(hours=1)).isoformat())
+        fake = FakeSpotify({})
+        self.assertIn("Try again after that", self.send(fake, list_id)["message"])
+        self.assertEqual(fake.calls, [])
+
+    def test_it_asks_for_permission_to_change_playlists(self):
+        list_id, fake, asked_for = self.make("A - One"), FakeSpotify({}), []
+        client = spotify.Client("id", self.paths, fetch=fake, sleep=lambda s: None)
+
+        def sign_in():
+            asked_for.append(client.scope)
+            raise spotify.Stop("Spotify sign-in wasn't finished, so nothing was checked.")
+        with mock.patch.object(client, "sign_in", side_effect=sign_in):
+            result = spotify.send_playlist(client, self.collection, list_id)
+        self.assertEqual(asked_for, [spotify.TO_CHANGE])
+        self.assertIn("wasn't finished", result["message"])
+        self.assertEqual((client.scope, fake.made), (spotify.SCOPES, []))
+        self.assertEqual(self.saved(), {})
+
+    def test_a_playlist_that_isnt_there(self):
+        fake = FakeSpotify({})
+        self.assertIn("isn't there", self.send(fake, "nope")["message"])
+        self.assertEqual(fake.calls, [])
+
+    def test_a_playlist_with_no_songs_sends_nothing(self):
+        fake = FakeSpotify({})
+        self.assertIn("nothing to send", self.send(fake, self.make())["message"])
+        self.assertEqual(fake.made, [])
+
+    def test_a_song_not_in_the_library_yet_is_left_out(self):  # the to-do only lists finished songs
+        waiting = write_mp3(os.path.join(self.review, "Rev - Song.mp3"), artist="Rev", title="Song", album="")
+        self.collection.refresh()
+        ids = [s["id"] for s in self.collection.songs.values() if s["_path"] == waiting or s["file"] == "A - One.mp3"]
+        list_id = own_playlists.handle(self.collection, "/api/playlists/new", dict(name=self.NAME, ids=ids))["made"]["id"]
+        result = self.send(FakeSpotify({}), list_id)
+        self.assertEqual(result["sent"], 1)
+        self.assertIn("Left out 1 song not in your library yet", result["message"])
+        self.assertNotIn("playlist:review/Rev - Song.mp3", self.saved())
+
+    def test_check_spotify_ticks_them_off_as_you_drag_them_in(self):
+        fake = FakeSpotify({})
+        self.send(fake, self.make("A - One", "B - Two"))
+        fake.lists[self.NAME].append("A - One")
+        result = spotify.check(self.client(fake), webapp.Collection(self.paths))
+        self.assertEqual((result["arrived"], result["missing"]), (1, 1))
+        self.assertEqual(self.note("A - One")[0], "added")
+        self.assertEqual(self.note("B - Two"), ("add", self.NAME))
+
+
 class SigningIn(Base):
     def free_port(self):
         with socket.socket() as s:
@@ -906,6 +1061,14 @@ class TheButton(Base):
 
     def test_other_websites_cant_press_the_move_button(self):
         self.assertEqual(self.post_to("/api/spotify/move", {"Origin": "https://evil.example"})[0], 403)
+
+    def test_other_websites_cant_send_a_playlist(self):
+        self.assertEqual(self.post_to("/api/spotify/send", {"Origin": "https://evil.example"})[0], 403)
+
+    def test_sending_a_playlist_without_a_client_id_says_so(self):
+        status, data = self.post_body("/api/spotify/send", dict(list="x"))
+        self.assertEqual(status, 200)
+        self.assertIn("no Spotify Client ID", data["message"])
 
     def test_the_move_button_says_when_spotify_isnt_set_up(self):
         status, data = self.post_to("/api/spotify/move")

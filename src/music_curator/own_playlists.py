@@ -260,6 +260,16 @@ def handle(collection, route, body):
         draft[target]["entries"] = [e for e in draft[target]["entries"] if stays(e)]
         return {}
 
+    def move(draft):  # the songs named go in front of the song `before`, or to the end if it's None
+        goes, before, which = {s["id"] for s in songs}, body.get("before"), lambda e: (_song_of(e, index) or {}).get("id")
+        entries = draft[target]["entries"]
+        moving, rest = [e for e in entries if which(e) in goes], [e for e in entries if which(e) not in goes]
+        at = len(rest) if before is None else next((n for n, e in enumerate(rest) if which(e) == before), None)
+        if not moving or at is None:
+            return dict(error="That song isn't in this playlist any more. Read the library again.")
+        draft[target]["entries"] = rest[:at] + moving + rest[at:]
+        return {}
+
     def rename(draft):
         problem = _name_problem(name, draft, but=target)
         if problem:
@@ -274,7 +284,7 @@ def handle(collection, route, body):
     def checked(draft):
         if what != "new" and target not in draft:
             return dict(error="That playlist isn't there any more. Read the library again.")
-        return dict(new=new, add=add, remove=remove, rename=rename, delete=delete)[what](draft)
+        return dict(new=new, add=add, remove=remove, move=move, rename=rename, delete=delete)[what](draft)
 
     with collection.lock:
         songs, index = picked(collection, body.get("ids")), _by_name(collection.songs.values())

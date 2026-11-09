@@ -201,7 +201,7 @@ td.num, th.num { text-align: right; }
 .tile .cover { width: 100%; height: auto; aspect-ratio: 1; border-radius: 8px; }
 .tile .t-main { margin-top: 7px; }
 .tile.playing .t-main { color: var(--accent); }
-.strip { display: flex; gap: 14px; overflow-x: auto; margin-top: -6px; padding: 6px 2px 10px; scrollbar-width: thin; } /* the padding is room for a cover to lift on hover */
+.strip { display: flex; gap: 14px; overflow-x: auto; margin-top: -6px; padding: 6px 30px 10px 2px; scrollbar-width: thin; } /* the padding is room for a cover to lift on hover, and for the last record to slide out */
 .strip .tile { flex: 0 0 148px; }
 .see-all { margin-left: 10px; font-weight: 400; letter-spacing: 0; }
 .sentinel { height: 1px; }
@@ -300,6 +300,17 @@ body.now-view .shell, body.now-view.drawer-open:not(.setup) .shell { grid-templa
 .pick.off { color: var(--ink-3); cursor: default; }
 .pick.off:hover { background: none; }
 .pick em { flex: none; margin-left: auto; font-style: normal; font-size: 12px; color: var(--ink-3); }
+#fade { position: relative; }
+#fade:not([data-secs=""])::after { content: attr(data-secs); position: absolute; right: 2px; bottom: 0; color: var(--accent); font-size: 10px; font-weight: 700; }
+kbd { padding: 1px 5px; border-radius: 4px; background: var(--surface-3); color: var(--ink-2); font: 600 11px ui-monospace, Consolas, monospace; }
+.chip kbd, .quick-card .btn kbd { margin-right: 6px; }
+.quick-card { display: flex; align-items: flex-start; gap: 20px; margin-top: 14px; }
+.quick-card .cover { width: 200px; height: 200px; border-radius: 10px; }
+.quick-body { flex: 1; min-width: 0; }
+.quick-body h2 { margin: 2px 0 6px; font-size: 20px; font-weight: 700; overflow-wrap: anywhere; }
+.quick-body .actions { margin-top: 12px; }
+.quick-keys { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 14px; color: var(--ink-3); font-size: 13px; }
+@media (max-width: 560px) { .quick-card { flex-direction: column; } .quick-card .cover { width: 100%; height: auto; aspect-ratio: 1; } }
 .modal { width: min(440px, calc(100vw - 32px)); max-height: min(560px, calc(100dvh - 48px)); padding: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--ink); box-shadow: 0 24px 64px rgba(0, 0, 0, .5); overflow: hidden; }
 .modal[open] { display: flex; }
 .modal::backdrop { background: rgba(0, 0, 0, .55); }
@@ -354,6 +365,14 @@ body:not(.drawer-open) .drawer { display: none; }
 .t-cell { position: relative; }
 .row-add { position: absolute; top: 50%; right: 6px; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; transform: translateY(-50%); color: var(--ink); background: var(--surface-3); opacity: 0; }
 tr:hover .row-add, .row-add:focus-visible { opacity: 1; }
+tr.can-move { cursor: grab; }
+tr.held, .track.held { opacity: .4; }
+tr.drop-above td { box-shadow: inset 0 2px 0 var(--accent); }
+tr.drop-below td { box-shadow: inset 0 -2px 0 var(--accent); }
+.track.drop-above { box-shadow: 0 -2px 0 var(--accent); }
+.track.drop-below { box-shadow: 0 2px 0 var(--accent); }
+.track-grip { display: grid; flex: none; place-items: center; width: 16px; margin-left: 2px; color: var(--ink-3); cursor: grab; opacity: 0; }
+.track:hover .track-grip { opacity: 1; }
 .row-list { right: 38px; }
 .row-out { right: 70px; }
 @media (hover: none) { .row-add, .track-x { opacity: 1; } .row-list { display: none; } .row-out { right: 38px; } }

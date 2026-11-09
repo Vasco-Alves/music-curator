@@ -130,10 +130,13 @@ do: reading odd names, settling versions from the audio, checking other sources,
 - **Overview**: a wall of your covers, what you added last, your peak years, top genres, artists, labels and countries. Once you've played a few songs it also shows what you listen to most. A song counts as played once you've heard half of it, or 4 minutes if that comes first.
 - **Songs**: search and filter everything, play it, see how each song was verified and what the file used to be called, and jump to its Discogs page to check it or buy the record. **Export** takes whatever you've filtered: an M3U playlist, a spreadsheet, or copies in a folder or on a USB drive, with a playlist that goes along with them, for your phone, car or another player.
 - **Artists**, **Albums** and **Labels**: browse your library by cover, play a whole record, and click through to its songs.
-- **Playlists**: make your own and add songs to them from anywhere in the app, or **Import** `.m3u` and `.m3u8` files from another player. Each line of a file is matched to a song you already have, and you're told which ones it couldn't find. Once you've pressed Check Spotify, your Spotify playlists play here too, as far as you have the songs as files. Each song's details say which of them it's on, and the Songs page can show just the songs that are on none. Streamed songs you don't have are left out. **Save as files** writes them all as `.m3u8` playlists that other players can open.
-- **Now Playing**: click the cover in the play bar for the big view, with what's up next. The seek bar shows the shape of the song, so you can jump straight to a breakdown or a drop.
+- **Playlists**: make your own, add songs to them from anywhere in the app and drag them into the order you want, or **Import** `.m3u` and `.m3u8` files from another player. Each line of a file is matched to a song you already have, and you're told which ones it couldn't find. Once you've pressed Check Spotify, your Spotify playlists play here too, as far as you have the songs as files. Each song's details say which of them it's on, and the Songs page can show just the songs that are on none. Streamed songs you don't have are left out. **Save as files** writes them all as `.m3u8` playlists that other players can open.
+- **Now Playing**: click the cover in the play bar for the big view, with what's up next, which you can drag into another order. The seek bar shows the shape of the song, so you can jump straight to a breakdown or a drop.
+- **Crossfade**: a button on the play bar blends each song into the next over 3, 6 or 10 seconds. It leaves songs from the same record alone, since they may run into each other on purpose.
+- **Glow with the kick**: a button on the play bar that makes the green parts of the page and the background glow softly on each kick. It's off until you turn it on.
+- **Radio**: Start radio on any song and it keeps playing others like it from your library, going by genre, label, year, artist and the playlists they share. Clear what's next to stop it.
 - **Even volume**: a button on the play bar that turns loud songs down to match the rest. It never raises a song, because nearly every file already reaches full scale and raising it would distort it, so quieter songs stay as they are. Each song is measured with ffmpeg the first time it's needed, and the file isn't changed.
-- **To check**: the questions only ears can answer (genre toss-ups, songs that couldn't be verified), with the audio right there.
+- **To check**: the questions only ears can answer (genre toss-ups, songs that couldn't be verified), with the audio right there. **Quick mode** takes them one at a time: press a number to answer and the next song starts.
 - **Progress**: what's waiting in the inbox, how sure each song is, library growth, latest changes.
 
 ![Progress: how sure each song is, library growth, what's left to check](docs/img/progress.jpg)
@@ -153,8 +156,8 @@ file with one `- **Artist - Title**: reason` per song).
 
 ### Checking Spotify (optional)
 
-Spotify doesn't let apps add or remove local files in playlists, so the **Playlists** tab lists what's for you to do by hand. Songs you
-accept under Playlist ideas wait under To add, for you to drag in. A **Check Spotify** button confirms what arrived and lists under To
+Your local playlists live in the app, and Spotify is something it checks. Spotify doesn't let apps add or remove local files in playlists, so the **Spotify to-do** tab on the Playlists page lists what's for you to do by hand. Songs you
+accept under Playlist ideas, or press **Add to Spotify** on, wait under To add, for you to drag in. **Send to Spotify** on a local playlist makes it on Spotify and lists its songs the same way. It asks for permission to change your playlists when you press it, and if Spotify won't let your app make playlists, you make one with the same name yourself. A **Check Spotify** button confirms what arrived and lists under To
 remove the local entries with no matching file (Spotify shows those greyed) and any second copies, with where they are in the playlist.
 It only reads your playlists, the sign-in stays in memory until the app closes, and a playlist that hasn't changed isn't read twice. If entries to remove are spread through a playlist, **Move all to the bottom** gathers them so you can select them in one go. That button asks Spotify for permission to reorder your playlists when you press it, and it never removes anything.
 

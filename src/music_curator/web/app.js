@@ -32,7 +32,7 @@ const ICONS = {
   warn: "M12 4 2.5 20h19zM12 10v4.5M12 17.5h.01", sliders: "M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4", shuffle: "M16 4h5v5M4 20 21 4M21 15v5h-5M15 15l6 5M4 4l5 5",
   play: "M8 5v14l11-7z", pause: "M7 5h3.5v14H7zM13.5 5H17v14h-3.5z", prev: "M19 6v12l-9-6zM6 6h2.2v12H6z", next: "M5 6v12l9-6zM15.8 6H18v12h-2.2z",
   repeat: "M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3", upnext: "M4 6h16M4 12h9M4 18h9M16 12.500v7l5.500-3.500z",
-  plus: "M12 5v14M5 12h14", import: "M12 4v11M8 11l4 4 4-4M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5", chevron: "M6 9l6 6 6-6", expand: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5", even: "M6 9v6M10 9v6M14 9v6M18 9v6M3 5h18M3 19h18", user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.500 20a7.500 7.500 0 0 1 15 0",
+  kick: "M3 12h4l2.500-7 4 14 2.500-7h5", grip: "M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01", fade: "M3 6c7 0 11 12 18 12M3 18c7 0 11-12 18-12", radio: "M12 13.5a1.500 1.500 0 1 0 0-3 1.500 1.500 0 0 0 0 3zM8.200 8a5.500 5.500 0 0 0 0 8M15.800 8a5.500 5.500 0 0 1 0 8M5.200 5a10 10 0 0 0 0 14M18.800 5a10 10 0 0 1 0 14", plus: "M12 5v14M5 12h14", import: "M12 4v11M8 11l4 4 4-4M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5", chevron: "M6 9l6 6 6-6", expand: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5", even: "M6 9v6M10 9v6M14 9v6M18 9v6M3 5h18M3 19h18", user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.500 20a7.500 7.500 0 0 1 15 0",
   disc: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z", tag: "M4 4h7.5l8.500 8.500-7.500 7.500L4 11.500zM8 8h.01", export: "M12 15V4M8 8l4-4 4 4M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5",
 };
 const FILLED = new Set(["play", "pause", "prev", "next"]);
@@ -278,6 +278,7 @@ function lazy(container, items, one, holder) {
 function clearPage() {
   S.observers.forEach((o) => o.disconnect());
   S.observers = [];
+  quickKeys = quickFollow = null;
   hideTip();
 }
 
@@ -361,8 +362,7 @@ function pageHome() {
   const page = el("div", {}, curateBar(), hero);
 
   const newest = lib.filter((s) => s.added).sort((a, b) => b.added.localeCompare(a.added) || fold(songName(a)).localeCompare(fold(songName(b)))).slice(0, 20);
-  if (newest.length) page.append(el("h2", { class: "section" }, "Recently added", seeAll("added")), el("div", { class: "strip" }, newest.map((s, i) => el("div", { class: "tile has-play", dataset: { song: s.id }, onclick: () => openDrawer(s.id) },
-    coverEl(s, () => playQueue(newest.map((x) => x.id), i, "Recently added")), el("span", { class: "t-main", title: s.title }, s.title), el("span", { class: "t-sub", title: s.artist }, s.artist)))));
+  if (newest.length) page.append(el("h2", { class: "section" }, "Recently added", seeAll("added")), el("div", { class: "strip" }, newest.map((s, i) => songTile(s, () => playQueue(newest.map((x) => x.id), i, "Recently added")))));
 
   page.append(el("h2", { class: "section" }, "What stands out"), factsBox(factCards(lib, st)), el("h2", { class: "section" }, "What you play"));
   const top = lib.filter((s) => s.plays).sort((a, b) => b.plays - a.plays || b.played.localeCompare(a.played));
@@ -442,9 +442,23 @@ function pageSongs(params) {
   const adder = el("button", { class: "btn small", type: "button", onclick: () => addToList(S.list, plural(S.list.length, "song")) }, icon("plus", 14), "Add to playlist");
 
   const sync = () => { const qs = q2({ ...f, area: f.area === "library" ? "" : f.area }); history.replaceState(null, "", `#/songs${qs ? `?${qs}` : ""}`); };
+  const canMove = (list) => { // only with the whole playlist showing, in its own order, so "above that song" means one thing
+    const own = ownList(f.playlist);
+    return !!own && S.songView !== "grid" && S.sort.key === "playlist" && list.length === own.ids.length;
+  };
+  async function moveRow(row, before) {
+    const own = ownList(f.playlist), body = row.parentElement, lastShown = S.list.indexOf(body.lastElementChild.dataset.song); // a long list is only drawn as you scroll
+    const r = await post("/api/playlists/move", { list: own.id, ids: [row.dataset.song], before: before ? before.dataset.song : S.list[lastShown + 1] || null });
+    if (r.error) { toast(r.error); return update(); }
+    const keyboard = row.contains(document.activeElement) ? document.activeElement : null; // moving a row takes the keyboard's place away from it
+    body.insertBefore(row, before);
+    if (keyboard) keyboard.focus();
+    tookLists(r);
+    S.list = [...ownList(f.playlist).ids];
+  }
   function paintHead(list) {
     const own = ownList(f.playlist);
-    countLine.textContent = `${plural(list.length, "song")} · ${longTime(sum(list.map((s) => s.secs)))}`;
+    countLine.textContent = `${plural(list.length, "song")} · ${longTime(sum(list.map((s) => s.secs)))}${list.length > 1 && canMove(list) ? " · drag a song to move it" : ""}`;
     exporter.counted();
     adder.disabled = !list.length;
     head.replaceChildren(...(own ? [ownHead(own, list)] : !list.length ? [] : f.playlist ? [playlistHead(f.playlist, list)] : f.album ? [albumHead(list)] : f.label ? [labelHead(f.label, list)] : f.artist ? [artistHead(f.artist, list)] : []));
@@ -472,7 +486,7 @@ function pageSongs(params) {
       ...(NEWEST_FIRST[S.sort.key] && S.sort.dir < 0 ? [chipOff(NEWEST_FIRST[S.sort.key], () => { S.sort = { key: "artist", dir: 1 }; update(); })] : []));
     const own = ownList(f.playlist);
     if (!list.length) return results.replaceChildren(el("p", { class: "empty" }, own && !own.ids.length ? "Nothing in this playlist yet. Find a song and press + to add it." : "Nothing matches these filters."));
-    S.songView === "grid" ? renderTiles(results, list) : renderTable(results, list, update, own ? takeOut : null);
+    S.songView === "grid" ? renderTiles(results, list) : renderTable(results, list, update, own ? takeOut : null, canMove(list) ? moveRow : null);
   }
   const chipOff = (text, off) => el("button", { class: "chip", type: "button", title: "Remove this filter", onclick: off }, text, " ", el("em", {}, "×"));
   const pick = (label, key, options) => el("select", { "aria-label": label, onchange: (e) => { f[key] = e.target.value; update(); } }, options.map(([v, t]) => el("option", { value: v, selected: f[key] === v }, t)));
@@ -499,7 +513,44 @@ function pageSongs(params) {
     chips, head, el("div", { class: "list-head" }, countLine, el("div", { class: "actions" }, adder, exporter.button)), exporter.panel, results));
   update();
 }
-function renderTable(box, list, update, takeOut) {
+function sortable(box, selector, moved) { // drag a row to a new place, or use Alt and the arrow keys. moved(row, before): before is the row it now goes in front of, or null for the end
+  let held = null, mark = null;
+  const unmark = () => { if (mark) mark.classList.remove("drop-above", "drop-below"); mark = null; };
+  const rowOf = (n) => (n.closest ? n.closest(selector) : null);
+  const move = (row, before) => { if (before !== row && before !== row.nextElementSibling) moved(row, before); }; // those two would leave it where it is
+  box.addEventListener("dragstart", (e) => {
+    held = rowOf(e.target);
+    if (!held) return;
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", ""); // Firefox won't start a drag with nothing in it
+    held.classList.add("held");
+  });
+  box.addEventListener("dragover", (e) => {
+    const row = held && rowOf(e.target);
+    if (!row) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    unmark();
+    if (row === held) return;
+    mark = row;
+    mark.classList.add(e.clientY > row.getBoundingClientRect().top + row.offsetHeight / 2 ? "drop-below" : "drop-above");
+  });
+  box.addEventListener("drop", (e) => {
+    if (!held || !mark) return;
+    e.preventDefault();
+    move(held, mark.classList.contains("drop-below") ? mark.nextElementSibling : mark);
+  });
+  box.addEventListener("dragend", () => { if (held) held.classList.remove("held"); held = null; unmark(); });
+  box.addEventListener("keydown", (e) => {
+    if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
+    const row = rowOf(e.target);
+    if (!row) return;
+    e.preventDefault();
+    const to = e.key === "ArrowUp" ? row.previousElementSibling : row.nextElementSibling;
+    if (to) move(row, e.key === "ArrowUp" ? to : to.nextElementSibling);
+  });
+}
+function renderTable(box, list, update, takeOut, moved) {
   const head = (label, key, cls) => el("th", { class: cls }, el("button", { type: "button", class: S.sort.key === key ? "on" : "", onclick: () => {
     S.sort = { key, dir: S.sort.key === key ? -S.sort.dir : NEWEST_FIRST[key] ? -1 : 1 }; update();
   } }, `${label}${S.sort.key === key ? (S.sort.dir > 0 ? " ↑" : " ↓") : ""}`));
@@ -510,7 +561,8 @@ function renderTable(box, list, update, takeOut) {
     el("thead", {}, el("tr", {}, el("th", { class: "c-cover" }), el("th", {}, el("button", { type: "button", class: S.sort.key === "artist" ? "on" : "", onclick: () => { S.sort = { key: "artist", dir: S.sort.key === "artist" ? -S.sort.dir : 1 }; update(); } }, `Artist${S.sort.key === "artist" ? (S.sort.dir > 0 ? " ↑" : " ↓") : ""}`), " · ", el("button", { type: "button", class: S.sort.key === "title" ? "on" : "", onclick: () => { S.sort = { key: "title", dir: S.sort.key === "title" ? -S.sort.dir : 1 }; update(); } }, `Title${S.sort.key === "title" ? (S.sort.dir > 0 ? " ↑" : " ↓") : ""}`)),
       head("Album", "album", "c-album"), head("Year", "year", "c-year"), head("Genre", "genre", "c-genre"), head("Length", "secs", "c-len num"), head("kbps", "kbps", "c-kbps num"), head("Plays", "plays", "c-plays num"), head("How sure", "trust", "c-trust"))),
     body), holder);
-  lazy(body, list, (s) => el("tr", { class: "has-play", dataset: { song: s.id }, onclick: () => openDrawer(s.id) },
+  if (moved) sortable(body, "tr", moved);
+  lazy(body, list, (s) => el("tr", { class: `has-play${moved ? " can-move" : ""}`, draggable: moved ? "true" : null, dataset: { song: s.id }, onclick: () => openDrawer(s.id) },
     el("td", { class: "c-cover" }, coverEl(s, () => playFrom(s.id))),
     el("td", { class: "t-cell" }, el("button", { class: "t-main", type: "button", title: s.title, onclick: (e) => { e.stopPropagation(); openDrawer(s.id); } }, s.title), el("span", { class: "t-sub", title: s.artist }, s.artist),
       takeOut ? el("button", { class: "row-add row-out", type: "button", title: "Take out of this playlist", "aria-label": `Take ${songName(s)} out of this playlist`, onclick: (e) => { e.stopPropagation(); takeOut(s, e.currentTarget.closest("tr")); } }, icon("x", 15)) : null,
@@ -522,8 +574,7 @@ function renderTable(box, list, update, takeOut) {
 function renderTiles(box, list) {
   const grid = el("div", { class: "grid" }), holder = el("div");
   box.replaceChildren(grid, holder);
-  lazy(grid, list, (s) => el("div", { class: "tile has-play", dataset: { song: s.id }, onclick: () => openDrawer(s.id) },
-    coverEl(s, () => playFrom(s.id)), el("span", { class: "t-main", title: s.title }, s.title), el("span", { class: "t-sub", title: s.artist }, s.artist)), holder);
+  lazy(grid, list, (s) => songTile(s, () => playFrom(s.id)), holder);
 }
 
 /* ---------- export: a playlist file, a spreadsheet, or copies in a folder ---------- */
@@ -680,6 +731,8 @@ const shelfTile = (item, mosaic) => el("div", { class: "tile has-play shelf", on
   el("div", { class: "sleeve" }, disc(), shelfCover(item, mosaic)),
   el("a", { class: "t-main", href: item.href, title: item.name, onclick: (e) => e.stopPropagation() }, item.name),
   item.lines.map((line) => el("span", { class: "t-sub", title: line }, line)));
+const songTile = (s, play) => el("div", { class: "tile has-play shelf", dataset: { song: s.id }, onclick: () => openDrawer(s.id) }, // like an album on the shelf: the record slides out, and play is its own button
+  el("div", { class: "sleeve" }, disc(), coverEl(s, play)), el("span", { class: "t-main", title: s.title }, s.title), el("span", { class: "t-sub", title: s.artist }, s.artist));
 const byTitle = (a, b) => fold(a.title).localeCompare(fold(b.title));
 const yearsOf = (songs) => songs.map((s) => +s.year).filter(Boolean);
 const artistsOf = (s) => (s.artist || "").split(" & ").map((a) => a.trim()).filter(Boolean);
@@ -792,6 +845,20 @@ function ownHead(p, songs) {
         tookLists(r);
         location.hash = "#/add";
       } }, "Delete"))]) }, "Delete");
+  const send = (S.meta.spotify || {}).ready && songs.length ? el("button", { class: "btn small", type: "button", title: "Make this playlist on Spotify, and list its songs for you to drag in", onclick: () => modal(`Send ${p.name} to Spotify?`, (box) => {
+    const go = el("button", { class: "btn primary small", type: "button", onclick: async () => {
+      go.disabled = true;
+      go.textContent = "Sending…";
+      const r = await post("/api/spotify/send", { list: p.id });
+      box.close();
+      if (!(await safeLoad())) return;
+      if (r.sent) location.hash = "#/add?tab=todo"; else route();
+      toast(r.error || r.message);
+    } }, "Send");
+    return [el("p", { class: "note" }, `This makes a private playlist called ${p.name} on your Spotify, if you don't have one already. Spotify doesn't let apps add local files, so its songs then wait on your Spotify to-do for you to drag in.`),
+      el("p", { class: "note" }, "If a Spotify tab opens, approve it there."), el("div", { class: "modal-go" }, el("button", { class: "linkish", type: "button", onclick: () => box.close() }, "Cancel"), go)];
+  }) }, icon("export", 14), "Send to Spotify") : null;
+  const there = (S.meta.my_playlists || []).find((x) => fold(x.name) === fold(p.name)), both = there ? songs.filter((s) => there.ids.includes(s.id)).length : 0;
   const away = p.away.length ? el("details", { class: "twin" }, el("summary", {}, `Show the ${plural(p.away.length, "song")} you don't have`),
     el("div", { class: "scroll" }, el("ul", { class: "away-list" }, p.away.map((name) => el("li", {}, name)))),
     el("button", { class: "linkish", type: "button", onclick: async () => {
@@ -799,8 +866,8 @@ function ownHead(p, songs) {
       if (r.error) return toast(r.error);
       changed(r);
     } }, "Take them out of this playlist")) : null;
-  return shelfHead({ name: p.name, by: songs.length ? plural(new Set(songs.flatMap(artistsOf)).size, "artist") : "", songs, links: [rename, remove], below: away,
-    facts: [["You have", songs.length ? `${plural(songs.length, "song")} · ${longTime(sum(songs.map((s) => s.secs)))}` : ""], ["Not here", p.away.length ? plural(p.away.length, "song") : ""], ["Genres", namesIn(songs, "genre", 4)], ["Years", yearSpan(yearsOf(songs))]] });
+  return shelfHead({ name: p.name, by: songs.length ? plural(new Set(songs.flatMap(artistsOf)).size, "artist") : "", songs, links: [send, rename, remove], below: away,
+    facts: [["You have", songs.length ? `${plural(songs.length, "song")} · ${longTime(sum(songs.map((s) => s.secs)))}` : ""], ["Not here", p.away.length ? plural(p.away.length, "song") : ""], ["On Spotify", there ? `${fmt(both)} of ${plural(songs.length, "song")}, in the playlist with this name` : ""], ["Genres", namesIn(songs, "genre", 4)], ["Years", yearSpan(yearsOf(songs))]] });
 }
 function pageShelf(params, o) {
   const f = { q: params.get("q") || "", sort: params.get("sort") || "most", many: params.get("many") === "1" }, all = o.items();
@@ -812,13 +879,19 @@ function pageShelf(params, o) {
     history.replaceState(null, "", `#/${o.page}${qs ? `?${qs}` : ""}`);
     S.observers.forEach((x) => x.disconnect()); S.observers = [];
     const words = fold(f.q).split(/\s+/).filter(Boolean);
-    const sorter = sorters[f.sort] || sorters.most;
-    const list = all.filter((x) => (!f.many || x.songs.length > 1) && words.every((w) => x.hay.includes(w))).sort((a, b) => (b.own ? 1 : 0) - (a.own ? 1 : 0) || sorter(a, b)); // playlists made here come first
+    const list = all.filter((x) => (!f.many || x.songs.length > 1) && words.every((w) => x.hay.includes(w))).sort(sorters[f.sort] || sorters.most);
     countLine.textContent = o.count(list.length);
     if (!list.length) return results.replaceChildren(el("p", { class: "empty" }, all.length ? "Nothing matches that." : o.none));
-    const grid = el("div", { class: "grid" }), holder = el("div");
-    results.replaceChildren(grid, holder);
-    lazy(grid, list, (x) => shelfTile(x, o.mosaic), holder);
+    results.replaceChildren();
+    for (const [title, has, none] of o.groups || [["", () => true]]) {
+      const items = list.filter(has);
+      if (!items.length && (f.q || !none)) continue; // a search with nothing in this group doesn't need its heading
+      if (title) results.append(el("h2", { class: "section" }, title));
+      if (!items.length) { results.append(el("p", { class: "note" }, none)); continue; }
+      const grid = el("div", { class: "grid" }), holder = el("div");
+      results.append(grid, holder);
+      lazy(grid, items, (x) => shelfTile(x, o.mosaic), holder);
+    }
   }
   const search = el("input", { type: "search", placeholder: o.placeholder, value: f.q, "aria-label": "Search", id: "song-search", oninput: (e) => { f.q = e.target.value; update(); } });
   const order = el("select", { "aria-label": "Sort", onchange: (e) => { f.sort = e.target.value; update(); } }, [["most", "Most songs"], ["name", "A to Z"], ["year", "Newest first"]].map(([v, t]) => el("option", { value: v, selected: f.sort === v }, t)));
@@ -980,12 +1053,13 @@ function controls(song, check, after) {
 }
 
 /* ---------- to check ---------- */
+const inCheckKind = (kind) => (it) => (kind === "needs" ? NEEDS.has(it.c.kind) : kind === "all" ? true : it.c.kind === kind);
+const checkOrder = (a, b) => ORDER.indexOf(a.c.kind) - ORDER.indexOf(b.c.kind) || fold(songName(a.s)).localeCompare(fold(songName(b.s)));
 function pageCheck(params) {
-  const kind = params.get("kind") || "needs", showDone = params.get("done") === "1", items = allItems();
-  const inKind = (it) => (kind === "needs" ? NEEDS.has(it.c.kind) : kind === "all" ? true : it.c.kind === kind);
+  if (params.get("quick") === "1") return pageQuick(params);
+  const kind = params.get("kind") || "needs", showDone = params.get("done") === "1", items = allItems(), inKind = inCheckKind(kind);
   const link = (k, done) => `#/check?${q2({ kind: k === "needs" ? "" : k, done: done ? "1" : "" })}`;
-  const list = items.filter(inKind).filter((it) => showDone || !isDone(it))
-    .sort((a, b) => ORDER.indexOf(a.c.kind) - ORDER.indexOf(b.c.kind) || fold(songName(a.s)).localeCompare(fold(songName(b.s))));
+  const list = items.filter(inKind).filter((it) => showDone || !isDone(it)).sort(checkOrder);
   const left = (f) => items.filter(f).filter((it) => !isDone(it)).length;
   const pill = (k, label, f) => { const n = left(f); return n || k === kind ? el("a", { class: `pill${k === kind ? " on" : ""}`, href: link(k, showDone) }, label, el("b", {}, fmt(n))) : null; };
 
@@ -1004,6 +1078,7 @@ function pageCheck(params) {
     el("div", { class: "pills" }, pill("needs", "Needs you", (it) => NEEDS.has(it.c.kind)), ORDER.map((k) => pill(k, KINDS[k].label, (it) => it.c.kind === k))),
     el("div", { class: "check-tools" },
       list.length ? el("button", { class: "btn small", type: "button", onclick: () => { S.listen = true; const q = queue(); if (q.length) playQueue(q, 0, "To check"); } }, icon("play", 14), "Listen through these") : null,
+      queue().length ? el("a", { class: "btn small", href: `#/check?${q2({ kind: kind === "needs" ? "" : kind, quick: "1" })}`, title: "One song at a time, answered from the keyboard" }, icon("ears", 14), "Quick mode") : null,
       el("label", {}, el("input", { type: "checkbox", checked: showDone, onchange: (e) => { location.hash = link(kind, e.target.checked); } }), "Show what's decided")),
     list.length ? box : el("p", { class: "empty" }, "Nothing left to check here."), holder,
     el("p", { class: "hintbar" }, "Your answers are saved in ", el("code", {}, S.meta.decisions_file || "decisions.json"), ". Nothing in your music changes until you press Curate, run ", el("code", {}, "curator apply"), ", or your AI app does it.")));
@@ -1027,6 +1102,75 @@ function itemCard(it, paintMeter) {
   cards.set(it.key, paint);
   paint(false);
   return card;
+}
+
+/* ---------- quick to check: one song at a time, answered from the keyboard ---------- */
+let quickKeys = null, quickFollow = null; // what the keyboard and the player do while this page is open
+function pageQuick(params) {
+  const kind = params.get("kind") || "needs", back = `#/check?${q2({ kind: kind === "needs" ? "" : kind })}`;
+  const items = allItems().filter(inCheckKind(kind)).filter((it) => !isDone(it)).sort(checkOrder), total = items.length, answered = [];
+  const open = (it) => !isDone(it) && it.s.checks.includes(it.c); // "Done with this" on a flag takes it off the song
+  const order = [...new Set(items.map((it) => it.s.id))], count = el("span", { class: "sub" }), meter = el("div"), card = el("div", { class: "card quick-card" });
+  let at = 0;
+  function hear() { // only if it's another song: a second question about one song doesn't start it again
+    const id = items[at].s.id, k = P.label === "To check" ? P.queue.indexOf(id) : -1;
+    if (current() && current().id === id && P.label === "To check") return;
+    if (k >= 0) { P.i = k; loadCurrent(); } else { S.listen = true; playQueue(order, order.indexOf(id), "To check"); }
+  }
+  function paint() {
+    const left = items.filter(open).length, it = items[at];
+    count.textContent = `${fmt(left)} of ${fmt(total)} left`;
+    meter.style.width = `${total ? ((total - left) / total) * 100 : 0}%`;
+    cards.clear();
+    if (!left || !it) return card.replaceChildren(el("div", { class: "quick-body" }, el("p", {}, total ? "All answered." : "Nothing left to check here."), el("a", { class: "btn small", href: back }, "Back to the list")));
+    cards.set(it.key, () => paint());
+    const k = KINDS[it.c.kind], answers = controls(it.s, it.c, (advance) => {
+      if (!advance) return paint();
+      if (S.decisions[it.key]) answered.push(it);
+      go(1);
+    });
+    [...answers.querySelectorAll("button")].slice(0, 9).forEach((b, n) => { b.dataset.key = n + 1; b.prepend(el("kbd", {}, n + 1)); });
+    card.replaceChildren(coverEl(it.s), el("div", { class: "quick-body" },
+      el("div", { class: "item-kind" }, it.s.genre ? `${k.one || k.label} · filed under ${it.s.genre}${it.s.year ? `, ${it.s.year}` : ""}` : k.one || k.label),
+      el("h2", {}, songName(it.s) || it.s.file), el("div", { class: "item-why" }, it.c.why), alreadyIn(it.c), recordLine(it.c), audioLine(it.c), spotifyLine(it.c), betterLine(it.c), answers));
+  }
+  function go(way) { // the next one still waiting for an answer, going round to the start if need be
+    for (let n = 1; n <= items.length; n++) {
+      const i = (at + way * n + items.length * n) % items.length;
+      if (open(items[i])) { at = i; paint(); hear(); return; }
+    }
+    paint(); // all answered
+    audio.pause();
+  }
+  async function undo() {
+    const it = answered.pop();
+    if (!it) return toast("Nothing to undo.");
+    if (await decide(it.s, it.c.kind, null)) { at = items.indexOf(it); paint(); hear(); }
+  }
+  quickFollow = (s) => { // the song changed some other way: it finished, or Next was pressed
+    if (P.label !== "To check" || (items[at] && items[at].s.id === s.id && open(items[at]))) return;
+    const i = items.findIndex((it) => it.s.id === s.id && open(it));
+    if (i >= 0) { at = i; paint(); } else if (items.some(open)) go(1);
+  };
+  quickKeys = (e) => {
+    if (e.ctrlKey || e.altKey || e.metaKey) return false;
+    const k = e.key.toLowerCase(), press = /^[1-9]$/.test(k) && card.querySelector(`[data-key="${k}"]`);
+    if (press) press.click();
+    else if (k === "n") go(1);
+    else if (k === "b") go(-1);
+    else if (k === "u") undo();
+    else if (k === "r") { if (audio.src) { audio.currentTime = 0; listenAgain(); } }
+    else if (k === "escape") location.hash = back;
+    else return false;
+    return true;
+  };
+  const hint = (keys, what) => el("span", {}, el("kbd", {}, keys), ` ${what}`);
+  view.replaceChildren(el("div", {},
+    el("div", { class: "page-head" }, el("h1", {}, "Quick To check"), count, el("a", { class: "linkish add-check", href: back }, "Back to the list")),
+    el("div", { class: "meter" }, meter), card,
+    el("p", { class: "quick-keys" }, hint("1–9", "answer"), hint("N", "skip"), hint("B", "back"), hint("U", "undo"), hint("R", "start again"), hint("Space", "pause"), hint("← →", "10 seconds"), hint("Esc", "leave"))));
+  paint();
+  if (items.length) hear();
 }
 
 /* ---------- to add: playlist answers waiting to be dragged in ---------- */
@@ -1088,7 +1232,7 @@ function addToList(ids, what) { // one song or a whole list, into a playlist you
     toast(`Added ${plural(r.added, "song")} to ${p.name}.${r.already ? ` ${fmt(r.already)} ${r.already === 1 ? "was" : "were"} already in it.` : ""}`);
     if (new URLSearchParams(location.hash.split("?")[1] || "").get("playlist") === OWN + p.id) route();
   };
-  modal(`Add ${what} to a playlist`, (box) => {
+  modal(`Add ${what} to a local playlist`, (box) => {
     const said = el("p", { class: "modal-said", role: "alert" });
     const name = el("input", { type: "text", maxlength: 100, placeholder: "Name for a new playlist", "aria-label": "Name for a new playlist", spellcheck: "false", autocomplete: "off" });
     const make = async () => {
@@ -1112,6 +1256,21 @@ function addToList(ids, what) { // one song or a whole list, into a playlist you
   });
 }
 const listButton = (ids, what) => el("button", { class: "btn small", type: "button", onclick: () => addToList(ids, what) }, icon("plus", 14), "Add to playlist");
+function addToSpotify(s) { // Spotify doesn't let apps add local files, so this only puts the song on your list of things to drag in
+  const names = (S.meta.spotify || {}).playlists || [], on = new Set(S.inSpotify.get(s.id) || []), said = S.decisions[`playlist:${s.key}`], waiting = said && said.action === "add" ? lines(said.note) : [];
+  modal(`Add ${songName(s) || s.file} to a Spotify playlist`, (box) => {
+    const find = el("input", { type: "text", placeholder: "Find a playlist", "aria-label": "Find a playlist", spellcheck: "false", autocomplete: "off" }), list = el("div", { class: "modal-list" });
+    const paint = () => list.replaceChildren(...names.filter((n) => fold(n).includes(fold(find.value))).map((n) => el("button", { class: "modal-row", type: "button", disabled: on.has(n) || waiting.includes(n), onclick: async () => {
+      if (!(await decide(s, "playlist", "add", { note: [...waiting, n].join("\n") }))) return;
+      box.close();
+      toast(`It's on your Spotify to-do, for you to drag into ${n}.`);
+    } }, el("span", {}, n), on.has(n) ? el("em", {}, "already on it") : waiting.includes(n) ? el("em", {}, "on your to-do") : null)));
+    find.addEventListener("input", paint);
+    paint();
+    return [el("p", { class: "note" }, "Spotify doesn't let apps add local files, so this goes on your Spotify to-do for you to drag in."), find, list];
+  });
+}
+const spotifyButton = (s) => (s.area === "library" && ((S.meta.spotify || {}).playlists || []).length ? el("button", { class: "btn small", type: "button", title: "Put it on your to-do, to drag into a Spotify playlist", onclick: () => addToSpotify(s) }, icon("listadd", 14), "Add to Spotify") : null);
 const newListButton = () => el("button", { class: "btn primary small", type: "button", onclick: () => nameBox("New playlist", "Make it", "", async (name) => {
   const r = await post("/api/playlists/new", { name });
   if (r.error) return r.error;
@@ -1155,8 +1314,8 @@ function playlistImporter() { // only the text of the file goes to the app, whic
 function pageAdd(params) {
   const shelves = playlistItems(), chores = playlistChores(), sp = S.meta.spotify || {}, tabbed = sp.ready || chores, listening = !tabbed || params.get("tab") !== "todo";
   const tabs = tabbed ? el("div", { class: "pills" },
-    el("a", { class: `pill${listening ? " on" : ""}`, href: "#/add" }, "Your playlists", el("b", {}, fmt(shelves.length))),
-    el("a", { class: `pill${listening ? "" : " on"}`, href: "#/add?tab=todo" }, "To add and remove", chores ? el("b", {}, fmt(chores)) : null)) : null;
+    el("a", { class: `pill${listening ? " on" : ""}`, href: "#/add" }, "Playlists", el("b", {}, fmt(shelves.length))),
+    el("a", { class: `pill${listening ? "" : " on"}`, href: "#/add?tab=todo", title: "What's left for you to do by hand in Spotify" }, "Spotify to-do", chores ? el("b", {}, fmt(chores)) : null)) : null;
   const groups = new Map();
   for (const [key, d] of waitingToAdd()) {
     const file = key.slice(key.indexOf(":") + 1), s = S.lib.find((x) => x.key === file);
@@ -1183,7 +1342,7 @@ function pageAdd(params) {
   } }, icon("refresh", 14), checking) : null;
   if (listening) {
     const filled = shelves.filter((x) => x.songs.length).length, saver = playlistSaver(filled), importer = playlistImporter();
-    return pageShelf(params, { page: "add", title: "Playlists", items: () => shelves, mosaic: true, placeholder: "Search playlists, artists and genres…", none: sp.ready ? "No playlists yet. Make one, import one from another player, or press Check Spotify to bring yours in." : "No playlists yet. Make one, or import one from another player.", tabs: [tabs, saver.panel, importer.said],
+    return pageShelf(params, { page: "add", title: "Playlists", items: () => shelves, groups: [["Local playlists", (x) => x.own, "None yet. Press New playlist, or Import one from another player."], ["Spotify playlists", (x) => !x.own, sp.ready ? "None yet. Press Check Spotify to see yours here." : ""]], mosaic: true, placeholder: "Search playlists, artists and genres…", none: sp.ready ? "No playlists yet. Make one, import one from another player, or press Check Spotify to bring yours in." : "No playlists yet. Make one, or import one from another player.", tabs: [tabs, saver.panel, importer.said],
       tools: el("div", { class: "add-check" }, checker ? said : null, checker, filled ? saver.toggle : null, importer.input, importer.button, newListButton()), count: (n) => plural(n, "playlist") });
   }
   const removing = (sp.to_remove || []).filter((r) => r.count), removeTotal = sum(removing.map((r) => r.count));
@@ -1592,11 +1751,18 @@ function queueList(s) { // what's playing and what's coming, only on the panel o
   const mixed = new Set(P.queue.map((id) => (S.byId.get(id) || {}).artist)).size > 1, rows = [];
   for (let k = from; k < to; k++) {
     const x = S.byId.get(P.queue[k]);
-    if (x) rows.push(trackRow(x, k + 1, k === P.i, mixed, () => { P.i = k; loadCurrent(); }, k === P.i ? null : () => removeFromQueue(k)));
+    if (!x) continue;
+    const row = trackRow(x, k + 1, k === P.i, mixed, () => { P.i = k; loadCurrent(); }, k === P.i ? null : () => removeFromQueue(k));
+    row.draggable = true;
+    row.dataset.at = k;
+    row.prepend(el("span", { class: "track-grip", title: "Drag to move" }, icon("grip", 13)));
+    rows.push(row);
   }
+  const tracks = el("div", { class: "tracks" }, rows);
+  sortable(tracks, ".track", (row, before) => moveInQueue(+row.dataset.at, before ? +before.dataset.at : +tracks.lastElementChild.dataset.at + 1));
   return [el("h3", { class: "queue-head" }, `${P.label && P.label !== "Shuffle" ? P.label : "Up next"} · ${plural(P.queue.length, "song")}`,
     P.i < P.queue.length - 1 ? el("button", { class: "linkish", type: "button", onclick: clearUpcoming }, "Clear what's next") : null),
-  el("div", { class: "tracks" }, rows)];
+  tracks];
 }
 function recordList(s) { // the album this song is on, unless that's already what's playing
   const songs = recordSongs(s), now = current();
@@ -1622,7 +1788,7 @@ function paintPanel() {
   const facts = [["Album", s.album], ["Year", s.year], ["Genre", s.genre], ["Label", s.label], ["Country", s.country], ["Length", clock(s.secs)],
     ["Quality", [(/\.(flac|m4a|aac|ogg|opus|wav)$/i.exec(s.file) || [])[1]?.toUpperCase(), s.kbps ? `${s.kbps} kbps` : ""].filter(Boolean).join(" · ")], ["Size", `${(s.bytes / 1e6).toFixed(1)} MB`],
     ["Where", s.area === "library" ? [S.meta.library, s.folder].filter(Boolean).join(" / ") : s.area === "review" ? ["Review", s.folder].filter(Boolean).join(" / ") : s.where],
-    ["File", s.file], ["Added", s.added ? s.added.replace("T", " ").slice(0, 16) : ""], ["Played", playedWords(s)], ["In your playlists", (S.inOwn.get(s.id) || []).join(", ")], ["On your Spotify lists", (S.inSpotify.get(s.id) || []).join(", ")], ["Loudness", typeof s.lufs === "number" ? `${s.lufs.toFixed(1)} LUFS` : ""]].filter(([, v]) => v);
+    ["File", s.file], ["Added", s.added ? s.added.replace("T", " ").slice(0, 16) : ""], ["Played", playedWords(s)], ["Local playlists", (S.meta.own_playlists || []).length ? (S.inOwn.get(s.id) || []).join(", ") || "None" : ""], ["Spotify playlists", (S.meta.my_playlists || []).length ? (S.inSpotify.get(s.id) || []).join(", ") || "None" : ""], ["Loudness", typeof s.lufs === "number" ? `${s.lufs.toFixed(1)} LUFS` : ""]].filter(([, v]) => v);
   const linkName = sourceName(s.link);
   const shop = shopLink(s), flagBox = el("div");
   const paint = () => {
@@ -1647,7 +1813,7 @@ function paintPanel() {
     el("div", { class: "actions" },
       isNow ? null : el("button", { class: "btn primary small", type: "button", onclick: () => (S.list.includes(s.id) ? playFrom(s.id) : playQueue([s.id], 0, "")) }, icon("play", 14), "Play"),
       isNow ? null : queueButtons([s.id]),
-      listButton([s.id], songName(s) || s.file),
+      listButton([s.id], songName(s) || s.file), spotifyButton(s), radioButton(s),
       s.link ? el("a", { class: "btn small", href: s.link, target: "_blank", rel: "noreferrer noopener" }, icon("link", 14), linkName) : null,
       shop ? el("a", { class: "btn small", href: shop.href, target: "_blank", rel: "noreferrer noopener" }, icon(shop.icon, 14), shop.label) : null),
     queueList(s), recordList(s),
@@ -1691,7 +1857,7 @@ function pageNow() {
         el("h1", {}, s.title || s.file),
         el("div", { class: "by" }, artistsOf(s).flatMap((a, i) => [i ? " & " : "", el("a", { href: songs({ artist: a }) }, a)])),
         el("div", { class: "now-about" }, about.flatMap((a, i) => (i ? [dot(), a] : [a]))),
-        el("div", { class: "actions" }, el("button", { class: "btn small", type: "button", onclick: () => { openNext = s.id; closeNow(); } }, "Song details"), listButton([s.id], songName(s) || s.file), s.link ? el("a", { class: "btn small", href: s.link, target: "_blank", rel: "noreferrer noopener" }, icon("link", 14), sourceName(s.link)) : null)),
+        el("div", { class: "actions" }, el("button", { class: "btn small", type: "button", onclick: () => { openNext = s.id; closeNow(); } }, "Song details"), listButton([s.id], songName(s) || s.file), radioButton(s), s.link ? el("a", { class: "btn small", href: s.link, target: "_blank", rel: "noreferrer noopener" }, icon("link", 14), sourceName(s.link)) : null)),
       el("div", { class: "wave-box wave-big", dataset: { bars: 300 } }, waveShape("wave-rest"), waveShape("wave-done"), place)),
     el("div", { class: "now-queue", id: "now-queue" })));
   paintNowQueue();
@@ -1738,15 +1904,18 @@ const ambient = (() => { // a tiny picture stretched over the window: it looks b
 })();
 
 /* ---------- player ---------- */
-const audio = $("#audio");
-const P = { queue: [], i: -1, label: "", original: null, shuffle: false, repeat: "off" }; // original: the order to go back to when shuffle goes off
+let audio = $("#audio"); // the deck you're listening to. In a crossfade the song on its way out keeps playing on the other one
+const decks = [audio, el("audio", { preload: "auto" })];
+audio.after(decks[1]);
+const P = { queue: [], i: -1, label: "", original: null, shuffle: false, repeat: "off", radio: null }; // original: the order to go back to when shuffle goes off. radio: the song a radio started from
 const current = () => S.byId.get(P.queue[P.i]);
 let dragging = false;
-function playQueue(ids, start, label) {
+function playQueue(ids, start, label, radio) {
   if (label !== "To check") S.listen = false;
   const list = [...ids]; // its own copy: the queue changes, the list it came from doesn't
   P.label = label || "";
-  if (P.shuffle && list.length > 1 && label !== "To check" && label !== "Shuffle") {
+  P.radio = radio || null;
+  if (P.shuffle && list.length > 1 && label !== "To check" && label !== "Shuffle" && !radio) {
     P.original = list;
     P.queue = [list[start], ...shuffled(list.filter((_, k) => k !== start))];
     P.i = 0;
@@ -1784,7 +1953,17 @@ function removeFromQueue(k) {
   paintPanel();
   saveSpot();
 }
+function moveInQueue(from, before) { // before: the place in the queue it goes in front of
+  const playing = P.queue[P.i], [id] = P.queue.splice(from, 1);
+  P.queue.splice(before > from ? before - 1 : before, 0, id);
+  P.i = P.queue.indexOf(playing);
+  const keyboard = document.activeElement.closest && document.activeElement.closest(".track");
+  paintPanel();
+  saveSpot();
+  if (keyboard) { const row = document.querySelector(`.track[data-at="${P.queue.indexOf(id)}"] .track-go`); if (row) row.focus(); } // it's drawn again, so the keyboard needs its place back
+}
 function clearUpcoming() {
+  P.radio = null; // clearing what's next is how a radio stops refilling itself
   const gone = new Set(P.queue.splice(P.i + 1));
   if (P.original) P.original = P.original.filter((x) => !gone.has(x));
   paintPanel();
@@ -1827,7 +2006,7 @@ let resumeAt = 0, lastSaved = 0;
 function saveSpot() { // where you are, so a reload or tomorrow picks up from here
   if (!P.queue.length) return;
   lastSaved = performance.now();
-  store("curator-player", JSON.stringify({ queue: P.queue.slice(0, 8000), i: P.i, label: P.label, original: P.original ? P.original.slice(0, 8000) : null, at: Math.floor(audio.currentTime || resumeAt || 0) }));
+  store("curator-player", JSON.stringify({ queue: P.queue.slice(0, 8000), i: P.i, label: P.label, original: P.original ? P.original.slice(0, 8000) : null, radio: P.radio, at: Math.floor(audio.currentTime || resumeAt || 0) }));
 }
 function restoreSpot() {
   let saved = null;
@@ -1840,6 +2019,7 @@ function restoreSpot() {
   P.i = P.queue.indexOf(id);
   P.label = typeof saved.label === "string" ? saved.label : "";
   P.original = Array.isArray(saved.original) ? known(saved.original) : null;
+  P.radio = S.byId.has(saved.radio) ? saved.radio : null;
   loadCurrent(false, +saved.at || 0);
 }
 function playFrom(id) {
@@ -1877,11 +2057,16 @@ function countListening() {
 function loadCurrent(autoplay = true, at = 0) {
   const s = current();
   if (!s) return;
+  endFade();
   resumeAt = at; // set on every load, so a spot that was never reached can't land on the next song
   listenAgain();
+  topUpRadio();
   matchLevel(s);
   audio.src = `/audio/${s.id}`;
   if (autoplay) audio.play().catch(() => {});
+  showSong(s);
+}
+function showSong(s) { // everything on the page that goes with the song that's on
   $("#np-title").textContent = s.title || s.file;
   $("#np-title").title = songName(s);
   $("#np-artist").textContent = P.label ? `${s.artist} · ${P.label}` : s.artist;
@@ -1889,7 +2074,7 @@ function loadCurrent(autoplay = true, at = 0) {
   c.replaceChildren(); c.className = `cover${s.cover ? "" : " vinyl"}`;
   if (s.cover) c.append(el("img", { src: coverUrl(s), alt: "" }));
   ["#play", "#prev", "#next", "#seek"].forEach((x) => ($(x).disabled = false));
-  showPlace(0);
+  showPlace(audio.duration ? audio.currentTime / audio.duration : 0);
   paintWave();
   learnWave(S.byId.get(P.queue[P.i + 1])); // ready before it's needed
   if ("mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: s.title, artist: s.artist, album: s.album, artwork: s.cover ? [{ src: coverUrl(s), sizes: "512x512" }] : [] });
@@ -1899,7 +2084,163 @@ function loadCurrent(autoplay = true, at = 0) {
   followPlaying();
   if (onNowPage()) pageNow();
   saveSpot();
+  if (quickFollow) quickFollow(s);
 }
+/* Crossfade: near the end of a song the next one starts on the other deck and the two trade places. The fade goes by the new song's own clock, so a pause holds it and seeking ahead finishes it.
+   Not while you're judging songs on To check, and not between songs of the same record, which may run into each other on purpose. */
+const FADES = [0, 3, 6, 10];
+let fadeSecs = FADES.includes(+store("curator-fade")) ? +store("curator-fade") : 0, fadeLength = 0, fadeTimer = 0, outgoing = null, outGain = 1, fadeIn = 1, fadeOut = 1, armedId = null;
+const upNext = () => (P.i + 1 < P.queue.length ? P.i + 1 : P.repeat === "all" && P.queue.length > 1 ? 0 : -1);
+function watchFade() {
+  const n = upNext(), now = current(), next = S.byId.get(P.queue[n]);
+  if (!fadeSecs || outgoing || P.repeat === "one" || P.label === "To check" || !now || !next || !isFinite(audio.duration) || audio.duration < fadeSecs * 2) return;
+  if (now.album && fold(now.album).trim() === fold(next.album).trim()) return;
+  const left = audio.duration - audio.currentTime, deck = decks.find((d) => d !== audio);
+  if (left > fadeSecs + 12) return;
+  if (armedId !== next.id) { // ready a little ahead, so it can start the moment it's needed
+    armedId = next.id;
+    deck.preload = "auto";
+    deck.src = `/audio/${next.id}`;
+    return;
+  }
+  if (left <= fadeSecs && !audio.paused && !audio.seeking && !dragging && deck.readyState >= 3) startFade(n, deck);
+}
+function startFade(n, deck) {
+  outgoing = audio;
+  outGain = volGain;
+  audio = deck;
+  armedId = null;
+  fadeLength = fadeSecs;
+  fadeIn = 0;
+  P.i = n;
+  const s = current();
+  resumeAt = 0;
+  listenAgain();
+  topUpRadio();
+  matchLevel(s);
+  audio.play().catch(() => {});
+  $("#dur").textContent = clock(audio.duration);
+  showSong(s);
+  fadeTimer = setInterval(() => {
+    const part = Math.min(1, audio.currentTime / fadeLength);
+    fadeIn = Math.sin((part * Math.PI) / 2); // equal power: the two together stay as loud as one all the way through
+    fadeOut = Math.cos((part * Math.PI) / 2);
+    setVolume();
+    if (part >= 1) endFade();
+  }, 40);
+}
+function endFade() {
+  if (!outgoing) return;
+  clearInterval(fadeTimer);
+  const old = outgoing;
+  outgoing = null;
+  fadeIn = fadeOut = 1;
+  old.pause();
+  old.removeAttribute("src");
+  old.load();
+  setVolume();
+}
+function paintFade() {
+  const b = $("#fade"), then = FADES[(FADES.indexOf(fadeSecs) + 1) % FADES.length];
+  b.classList.toggle("active", !!fadeSecs);
+  b.setAttribute("aria-pressed", String(!!fadeSecs));
+  b.dataset.secs = fadeSecs || "";
+  b.title = `${fadeSecs ? `Crossfade: ${fadeSecs} seconds.` : "Crossfade is off."} Click for ${then ? `${then} seconds` : "no crossfade"}.`;
+}
+/* The kick: the low end of what's playing is watched as it plays, and each kick makes the green things glow for a moment.
+   Off until you turn it on, because to be watched the sound has to go through the browser's audio path. That only gets connected once it's known to be running, so it can't silence the music. */
+const GLOWING = ".btn.primary, .play-btn, .pill.on, .chip.on, .icon-btn.active, .nav.active svg, [data-song].playing .cover .over, .wave-done";
+const calm = matchMedia("(prefers-reduced-motion: reduce)");
+let kickOn = store("curator-kick") === "on", kickContext = null, kickLevel = null, kickFrame = 0;
+const kick = { slow: 0, prev: 0, last: 0 };
+async function wireKick() { // true once the sound is going through it and can be watched
+  try {
+    kickContext = kickContext || new AudioContext();
+    if (kickContext.state !== "running") await Promise.race([kickContext.resume(), new Promise((r) => setTimeout(r, 400))]);
+    if (kickContext.state !== "running") return false;
+    if (!kickLevel) {
+      const low = kickContext.createBiquadFilter(), meter = kickContext.createAnalyser(), samples = new Float32Array(512);
+      low.type = "lowpass";
+      low.frequency.value = 130; // the kick, and not much else
+      meter.fftSize = samples.length;
+      low.connect(meter);
+      decks.forEach((d) => { const source = kickContext.createMediaElementSource(d); source.connect(kickContext.destination); source.connect(low); });
+      kickContext.addEventListener("statechange", () => { if (kickContext.state === "suspended" && !audio.paused) kickContext.resume().catch(() => {}); });
+      kickLevel = () => { meter.getFloatTimeDomainData(samples); let all = 0; for (const x of samples) all += x * x; return Math.sqrt(all / samples.length); };
+    }
+    return true;
+  } catch { return false; }
+}
+function glow(strength) { // soft and over quickly. Each runs by itself, so nothing is redrawn between kicks
+  document.querySelectorAll(GLOWING).forEach((n) => n.animate({ filter: [`brightness(${1.1 + 0.14 * strength}) drop-shadow(0 0 7px var(--accent))`, "brightness(1) drop-shadow(0 0 0 transparent)"] }, { duration: 240, easing: "ease-out" }));
+  const scrim = $(".ambient.lit .ambient-scrim");
+  if (scrim && !document.body.classList.contains("gentle")) scrim.animate({ opacity: [0.86 - 0.1 * strength, 1] }, { duration: 300, easing: "ease-out" }); // the cover's colors come through a little more
+}
+function watchKick(now) {
+  kickFrame = 0;
+  if (!kickOn || audio.paused || document.hidden) return;
+  kickFrame = requestAnimationFrame(watchKick);
+  const level = kickLevel();
+  kick.slow = kick.slow ? kick.slow + (level - kick.slow) * 0.03 : level; // what's usual just now, so it works at any volume
+  if (level > kick.prev * 1.1 && level > kick.slow * 1.3 && level > 0.003 && now - kick.last > 250) { // 250 ms: the bass note between two kicks isn't one
+    kick.last = now;
+    glow(Math.min(1, level / kick.slow - 1.3));
+  }
+  kick.prev = level;
+}
+async function startKick() {
+  if (kickOn && !calm.matches && !audio.paused && !kickFrame && (await wireKick()) && !kickFrame) kickFrame = requestAnimationFrame(watchKick);
+}
+function paintKick() {
+  const b = $("#kick");
+  b.hidden = calm.matches;
+  b.classList.toggle("active", kickOn);
+  b.setAttribute("aria-pressed", String(kickOn));
+  b.title = kickOn ? "Glowing with the kick" : "Glow with the kick";
+}
+/* Radio: from one song, others like it, at random with the closest ones the most likely. It tops itself up as it plays. */
+const RADIO_BATCH = 25, RADIO_LOW = 5, RADIO_NEAR = 4;
+const listsOf = (s) => [...(S.inSpotify.get(s.id) || []), ...(S.inOwn.get(s.id) || [])];
+function likeness(seed, s, seedLists) { // playlists count as well as genre: they're how you group songs by feel
+  const gap = seed.year && s.year ? Math.abs(+seed.year - +s.year) : 99;
+  return (seed.genre && seed.genre === s.genre ? 4 : 0) + (seed.label && seed.label === s.label ? 3 : 0) + (artistsOf(seed).some((a) => artistsOf(s).includes(a)) ? 2 : 0)
+    + (gap <= 1 ? 3 : gap <= 3 ? 2 : gap <= 6 ? 1 : 0) + 3 * Math.min(2, listsOf(s).filter((n) => seedLists.has(n)).length);
+}
+function radioPicks(seed, taken, count) {
+  const seedLists = new Set(listsOf(seed)), scored = S.lib.filter((s) => !taken.has(s.id)).map((s) => ({ s, score: likeness(seed, s, seedLists) })), near = scored.filter((x) => x.score >= RADIO_NEAR);
+  const pool = near.length >= count ? near : scored, out = []; // a song with little like it widens the net rather than stopping
+  let last = seed;
+  while (out.length < count && pool.length) {
+    const others = pool.filter((x) => !artistsOf(x.s).some((a) => artistsOf(last).includes(a))), from = others.length ? others : pool; // not the same artist twice in a row
+    let at = Math.random() * sum(from.map((x) => x.score ** 2 + 0.25));
+    const hit = from.find((x) => (at -= x.score ** 2 + 0.25) <= 0) || from[from.length - 1];
+    pool.splice(pool.indexOf(hit), 1);
+    out.push(hit.s.id);
+    last = hit.s;
+  }
+  return out;
+}
+function topUpRadio() {
+  const seed = P.radio && S.byId.get(P.radio);
+  if (!seed || P.queue.length - P.i - 1 >= RADIO_LOW) return;
+  let picks = radioPicks(seed, new Set(P.queue), RADIO_BATCH);
+  if (!picks.length) { // everything has been played: go round again
+    P.queue = P.queue.slice(P.i);
+    P.i = 0;
+    picks = radioPicks(seed, new Set(P.queue), RADIO_BATCH);
+  }
+  P.queue.push(...picks);
+}
+function startRadio(s) {
+  const picks = radioPicks(s, new Set([s.id]), RADIO_BATCH), label = `Radio: ${s.title || s.file}`;
+  if (current() && current().id === s.id) { // it's on already: it carries on, and only what comes next changes
+    S.listen = false;
+    Object.assign(P, { queue: [s.id, ...picks], i: 0, original: null, label, radio: s.id });
+    showSong(s);
+  } else playQueue([s.id, ...picks], 0, label, s.id);
+  toast(`Radio started from ${s.title || s.file}.`);
+}
+const radioButton = (s) => el("button", { class: "btn small", type: "button", title: "Keep playing songs like this one", onclick: () => startRadio(s) }, icon("radio", 14), "Start radio");
 function markPlaying() {
   const id = current() ? current().id : null;
   document.querySelectorAll("[data-song]").forEach((n) => n.classList.toggle("playing", n.dataset.song === id));
@@ -1987,20 +2328,22 @@ async function learnWave(s) { // measured the first time it's needed, then kept
   if (now && now.id === s.id) paintWave();
 }
 const togglePlay = () => { if (!audio.src) return; audio.paused ? audio.play().catch(() => {}) : audio.pause(); };
-audio.addEventListener("play", paintPlay);
-audio.addEventListener("pause", () => { paintPlay(); saveSpot(); });
+const onDeck = (type, fn) => decks.forEach((d) => d.addEventListener(type, (e) => { if (e.target === audio) fn(e); })); // only the deck you're listening to speaks for the player
+onDeck("play", () => { paintPlay(); if (outgoing) outgoing.play().catch(() => {}); startKick(); });
+onDeck("pause", () => { paintPlay(); saveSpot(); if (outgoing) outgoing.pause(); });
 window.addEventListener("pagehide", saveSpot);
 const startOver = () => { audio.currentTime = 0; listenAgain(); };
-audio.addEventListener("ended", () => { if (P.repeat === "one") { startOver(); audio.play().catch(() => {}); } else step(1); });
-audio.addEventListener("error", () => { if (audio.getAttribute("src")) toast("This file can't be played in the browser."); });
-audio.addEventListener("timeupdate", () => {
+onDeck("ended", () => { if (P.repeat === "one") { startOver(); audio.play().catch(() => {}); } else step(1); });
+onDeck("error", () => { if (audio.getAttribute("src")) toast("This file can't be played in the browser."); });
+onDeck("timeupdate", () => {
   countListening();
+  watchFade();
   if (dragging || !audio.duration) return;
   showPlace(audio.currentTime / audio.duration);
   $("#cur").textContent = clock(audio.currentTime);
   if (performance.now() - lastSaved > 4000) saveSpot();
 });
-audio.addEventListener("loadedmetadata", () => {
+onDeck("loadedmetadata", () => {
   $("#dur").textContent = clock(audio.duration);
   if (resumeAt && resumeAt < audio.duration - 2) audio.currentTime = resumeAt;
   resumeAt = 0;
@@ -2022,7 +2365,11 @@ function store(k, v) { try { if (v === undefined) return localStorage.getItem(k)
    So the level is set in the middle, not at the quietest song: louder songs come down to it, quieter ones stay as they are. */
 const LEVEL_TARGET = -12, LEVEL_USUAL = -10.5; // LUFS. The second is what to assume about a song until it has been measured
 let evenOn = store("curator-even") === "on", volGain = 1, gainFade = 0;
-function setVolume() { audio.volume = Math.max(0, Math.min(1, +$("#vol").value * volGain)); }
+function setVolume() {
+  const level = (gain, fade) => Math.max(0, Math.min(1, +$("#vol").value * gain * fade));
+  audio.volume = level(volGain, fadeIn);
+  if (outgoing) outgoing.volume = level(outGain, fadeOut);
+}
 function gainFor(s) {
   if (!evenOn) return 1;
   return Math.min(1, 10 ** ((LEVEL_TARGET - (s && typeof s.lufs === "number" ? s.lufs : LEVEL_USUAL)) / 20));
@@ -2071,6 +2418,13 @@ $("#vol").addEventListener("input", (e) => { setVolume(); fillRange(e.target); s
 $("#even").append(icon("even", 17));
 $("#even").addEventListener("click", () => setEven(!evenOn));
 paintEven();
+$("#fade").append(icon("fade", 17));
+$("#fade").addEventListener("click", () => { fadeSecs = FADES[(FADES.indexOf(fadeSecs) + 1) % FADES.length]; store("curator-fade", String(fadeSecs)); paintFade(); });
+paintFade();
+$("#kick").append(icon("kick", 17));
+$("#kick").addEventListener("click", () => { kickOn = !kickOn; store("curator-kick", kickOn ? "on" : "off"); paintKick(); startKick(); });
+paintKick();
+document.addEventListener("visibilitychange", startKick);
 if ("mediaSession" in navigator) {
   navigator.mediaSession.setActionHandler("previoustrack", () => step(-1));
   navigator.mediaSession.setActionHandler("nexttrack", () => step(1));
@@ -2136,6 +2490,7 @@ window.addEventListener("hashchange", route);
 window.addEventListener("keydown", (e) => {
   if ($("dialog[open]")) return; // the box over the page has the keyboard
   const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
+  if (!typing && quickKeys && quickKeys(e)) return e.preventDefault();
   if (e.key === "Escape") { if (onNowPage()) closeNow(); else if (!roomy.matches) closeDrawer(); }
   else if (e.code === "Space" && !typing && e.target.tagName !== "BUTTON" && e.target.tagName !== "A") { e.preventDefault(); togglePlay(); }
   else if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !typing && !e.ctrlKey && !e.altKey && !e.metaKey && current()) { // ten seconds either way, or with Shift a song

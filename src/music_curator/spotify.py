@@ -477,6 +477,11 @@ def _moves(positions, total):
     return out
 
 
+def _names_on_spotify(collection, song):
+    row = collection._log_row(song["_path"], song["_rel"]) or {}  # Spotify may still know a song by its old name
+    return {suggest.track_key(song["artist"], song["title"])} | ({suggest.track_key(row.get("src_artist"), row.get("src_title"))} if row.get("src_title") else set())
+
+
 def check(client, collection):
     """Compare what you meant to add with what's really in those playlists and update the list to match, and work out which entries have no file behind them."""
     until = _wait_until(collection.paths)
@@ -487,11 +492,7 @@ def check(client, collection):
     answers = {k: d for k, d in collection.decisions.items() if d.get("kind") == "playlist" and d.get("action") in ("add", "added") and d.get("file") in songs}
     wanted = sorted({n for d in answers.values() for n in _lines(d)})
 
-    keys = {}
-    for key, d in answers.items():
-        song = songs[d["file"]]
-        row = collection._log_row(song["_path"], song["_rel"]) or {}  # Spotify may still know a song by its old name
-        keys[key] = {suggest.track_key(song["artist"], song["title"])} | ({suggest.track_key(row.get("src_artist"), row.get("src_title"))} if row.get("src_title") else set())
+    keys = {key: _names_on_spotify(collection, songs[d["file"]]) for key, d in answers.items()}
 
     present, read, stopped, unknown, mine = {}, {}, "", [], {}
     cache = _read_cache(collection.paths)
@@ -689,6 +690,58 @@ def add_streamed(client, collection, song_id, names):
     return dict(added=len(added), message=" ".join(parts) or "Nothing was added.")
 
 
+def send_playlist(client, collection, list_id):
+    """Put one of your local playlists on Spotify. Spotify doesn't let apps add local files, so the playlist is made if it isn't there yet, and its songs wait on your to-do for you to drag in."""
+    from . import own_playlists  # here because it needs the web app's module loaded first
+    until = _wait_until(collection.paths)
+    if until:
+        return dict(sent=0, message=f"Spotify asked to wait until {until:%H:%M}. Try again after that.")
+    collection.refresh()
+    playlist = next((p for p in own_playlists.listed(collection) if p["id"] == list_id), None)
+    if not playlist:
+        return dict(sent=0, message="That playlist isn't there any more. Read the library again.")
+    name, members = playlist["name"], [collection.songs[i] for i in playlist["ids"]]
+    songs = [s for s in members if s["area"] == "library"]
+    if not songs:
+        return dict(sent=0, message="None of its songs are in your library yet, so there's nothing to send.")
+    client.allow_changes()
+    made, refused, there = False, False, set()
+    try:
+        mine = client.my_playlists()
+        if name in mine:
+            there = {suggest.track_key((e["artists"] or [""])[0], e["name"]) for e in client.entries(mine[name]["id"])}
+        else:
+            try:
+                client.post(f"{API}/me/playlists", dict(name=name, public=False))
+                made = True
+            except urllib.error.HTTPError:  # Spotify doesn't let every app make playlists. The songs can still wait for you
+                refused = True
+    except Stop as ex:
+        return dict(sent=0, message=str(ex))
+    except urllib.error.HTTPError as ex:
+        return dict(sent=0, message=f"Spotify answered with an error ({ex.code}), so nothing was sent.")
+    finally:
+        if not client.access:  # the bigger permission wasn't given: the next check asks only to read
+            client.scope = SCOPES
+    waiting, now = [s for s in songs if not _names_on_spotify(collection, s) & there], datetime.datetime.now().isoformat(timespec="seconds")
+
+    def change(current):
+        for song in waiting:
+            key = f"playlist:{song['key']}"
+            d = current.get(key)
+            names = _lines(d) if isinstance(d, dict) and d.get("action") == "add" else []
+            current[key] = dict(kind="playlist", action="add", song=f"{song['artist']} - {song['title']}".strip(" -"), file=song["key"], genre="", note="\n".join(dict.fromkeys([*names, name])), at=now)
+
+    problem = collection.update_answers(change) if waiting else None
+    if problem:
+        return dict(sent=0, message=problem)
+    count = f"{len(waiting)} song{'' if len(waiting) == 1 else 's'}"
+    first = f"Made {name} on Spotify." if made else f"Spotify wouldn't let the app make {name}, so make a playlist with that exact name there yourself." if refused else f"{name} is already on Spotify."
+    rest = f"{count} {'is' if len(waiting) == 1 else 'are'} on your Spotify to-do." if waiting else "Every song is already in it."
+    left = len(members) - len(songs)
+    return dict(sent=len(waiting), made=made, message=" ".join(x for x in (first, rest, f"Left out {left} song{'' if left == 1 else 's'} not in your library yet." if left else "") if x))
+
+
 def _with_client(server, action):
     client_id = config.get("spotify", "client_id")
     if not client_id:
@@ -714,3 +767,8 @@ def run_gather(server):
 def run_stream(server, song_id, names):
     """Answer the page's button for adding Spotify's version of a song to playlists."""
     return _with_client(server, lambda client, collection: add_streamed(client, collection, song_id, names))
+
+
+def run_send(server, list_id):
+    """Answer the page's Send to Spotify button."""
+    return _with_client(server, lambda client, collection: send_playlist(client, collection, list_id))

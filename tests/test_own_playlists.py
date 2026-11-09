@@ -328,7 +328,7 @@ class FromThePage(Base):
                 self.assertIn("no songs", self.problem("add", list=made, ids=ids))
 
     def test_a_playlist_that_isnt_there(self):
-        for what, extra in (("add", dict(ids=self.ids(self.one))), ("remove", dict(ids=self.ids(self.one))), ("rename", dict(name="New")), ("delete", {})):
+        for what, extra in (("add", dict(ids=self.ids(self.one))), ("remove", dict(ids=self.ids(self.one))), ("move", dict(ids=self.ids(self.one))), ("rename", dict(name="New")), ("delete", {})):
             with self.subTest(what):
                 self.assertIn("isn't there", self.problem(what, list="nope", **extra))
 
@@ -344,6 +344,64 @@ class FromThePage(Base):
         self.fine("remove", list=made, ids=self.ids(self.one))
         with open(self.one, "rb") as f:
             self.assertEqual(f.read(), before)
+
+    # moving
+
+    def three_songs(self):
+        return (self.make("X", self.one, self.two, self.three), *self.ids(self.one, self.two, self.three))
+
+    def test_a_song_can_move_up(self):
+        made, a, b, c = self.three_songs()
+        self.fine("move", list=made, ids=[c], before=a)
+        self.assertEqual(self.the_list()["ids"], [c, a, b])
+
+    def test_a_song_can_move_down(self):
+        made, a, b, c = self.three_songs()
+        self.fine("move", list=made, ids=[a], before=c)
+        self.assertEqual(self.the_list()["ids"], [b, a, c])
+
+    def test_a_song_can_move_to_the_end(self):
+        made, a, b, c = self.three_songs()
+        self.fine("move", list=made, ids=[a], before=None)
+        self.assertEqual(self.the_list()["ids"], [b, c, a])
+
+    def test_the_answer_has_the_new_order(self):
+        made, a, b, c = self.three_songs()
+        self.assertEqual(self.fine("move", list=made, ids=[b], before=a)["lists"][0]["ids"], [b, a, c])
+
+    def test_the_new_order_is_kept(self):
+        made, a, b, c = self.three_songs()
+        self.fine("move", list=made, ids=[c], before=b)
+        self.server.collection = webapp.Collection(webapp.app_paths())
+        self.assertEqual(self.the_list()["ids"], [a, c, b])
+
+    def test_a_song_that_isnt_here_keeps_its_place_among_the_others(self):
+        made, a, b, c = self.three_songs()
+        holder = os.path.join(self.root, "held.mp3")
+        shutil.move(self.two, holder)
+        self.server.collection.refresh()
+        self.fine("move", list=made, ids=[c], before=a)
+        shutil.move(holder, self.two)
+        self.assertEqual(self.the_list()["ids"], [c, a, b])
+
+    def test_only_a_song_in_the_playlist_can_move(self):
+        made = self.make("X", self.one)
+        self.assertIn("isn't in this playlist", self.problem("move", list=made, ids=self.ids(self.two), before=None))
+
+    def test_only_to_a_place_in_the_playlist(self):
+        made = self.make("X", self.one, self.two)
+        for before in (self.ids(self.three)[0], "000000000000", 5, ["x"]):
+            with self.subTest(before):
+                self.assertIn("isn't in this playlist", self.problem("move", list=made, ids=self.ids(self.one), before=before))
+        self.assertEqual(self.the_list()["ids"], self.ids(self.one, self.two))
+
+    def test_not_in_front_of_itself(self):
+        made, a, _, _ = self.three_songs()
+        self.assertIn("isn't in this playlist", self.problem("move", list=made, ids=[a], before=a))
+
+    def test_moving_nothing_is_a_mistake(self):
+        made = self.make("X", self.one)
+        self.assertIn("isn't in this playlist", self.problem("move", list=made, ids=[], before=None))
 
     # renaming and deleting
 
