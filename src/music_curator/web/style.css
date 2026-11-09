@@ -245,7 +245,7 @@ td.num, th.num { text-align: right; }
 .decided svg { color: var(--good); flex: none; }
 .linkish { color: var(--ink-3); text-decoration: underline; font-size: 13px; }
 .linkish:hover { color: var(--ink); }
-.add-check { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.add-check { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; margin-left: auto; }
 .add-check .sub { font-size: 13px; }
 .add-help { margin: 0 0 16px; font-size: 14px; }
 .add-part { margin: 26px 0 8px; }
@@ -300,6 +300,23 @@ body.now-view .shell, body.now-view.drawer-open:not(.setup) .shell { grid-templa
 .pick.off { color: var(--ink-3); cursor: default; }
 .pick.off:hover { background: none; }
 .pick em { flex: none; margin-left: auto; font-style: normal; font-size: 12px; color: var(--ink-3); }
+.modal { width: min(440px, calc(100vw - 32px)); max-height: min(560px, calc(100dvh - 48px)); padding: 0; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--ink); box-shadow: 0 24px 64px rgba(0, 0, 0, .5); overflow: hidden; }
+.modal[open] { display: flex; }
+.modal::backdrop { background: rgba(0, 0, 0, .55); }
+.modal-in { display: flex; flex-direction: column; flex: 1; gap: 10px; min-width: 0; min-height: 0; padding: 16px 18px; overflow-wrap: anywhere; }
+.modal-in > input[type="text"] { width: 100%; }
+.modal-list { display: flex; flex-direction: column; flex: 1 1 auto; gap: 1px; min-height: 0; margin: 0 -8px; overflow-y: auto; }
+.modal-row { display: flex; flex: none; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 7px; text-align: left; }
+.modal-row:hover:not(:disabled) { background: var(--surface-2); }
+.modal-row em { flex: none; margin-left: auto; font-style: normal; font-size: 12px; color: var(--ink-3); }
+.modal-said { color: var(--serious); font-size: 13px; }
+.modal-said:empty { display: none; }
+.modal-go { display: flex; align-items: center; justify-content: flex-end; gap: 14px; }
+.import-said { margin-bottom: 14px; }
+.import-said h2 { margin-bottom: 6px; }
+.import-one { padding: 3px 0; overflow-wrap: anywhere; }
+.import-one .twin { margin-top: 2px; }
+.away-list { margin: 0; padding-left: 18px; font-size: 13px; color: var(--ink-2); }
 .hintbar { color: var(--ink-3); font-size: 13px; margin-top: 16px; }
 code { font: 12.5px ui-monospace, Consolas, monospace; background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
 
@@ -337,7 +354,9 @@ body:not(.drawer-open) .drawer { display: none; }
 .t-cell { position: relative; }
 .row-add { position: absolute; top: 50%; right: 6px; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; transform: translateY(-50%); color: var(--ink); background: var(--surface-3); opacity: 0; }
 tr:hover .row-add, .row-add:focus-visible { opacity: 1; }
-@media (hover: none) { .row-add, .track-x { opacity: 1; } }
+.row-list { right: 38px; }
+.row-out { right: 70px; }
+@media (hover: none) { .row-add, .track-x { opacity: 1; } .row-list { display: none; } .row-out { right: 38px; } }
 .tracks { position: relative; max-height: 264px; overflow-y: auto; margin-top: 6px; padding: 4px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; }
 .track { display: flex; align-items: center; border-radius: 6px; font-size: 13.5px; color: var(--ink-2); }
 .track-go { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; padding: 6px 8px; text-align: left; color: inherit; font-weight: inherit; }

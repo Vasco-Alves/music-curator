@@ -130,7 +130,7 @@ do: reading odd names, settling versions from the audio, checking other sources,
 - **Overview**: a wall of your covers, what you added last, your peak years, top genres, artists, labels and countries. Once you've played a few songs it also shows what you listen to most. A song counts as played once you've heard half of it, or 4 minutes if that comes first.
 - **Songs**: search and filter everything, play it, see how each song was verified and what the file used to be called, and jump to its Discogs page to check it or buy the record. **Export** takes whatever you've filtered: an M3U playlist, a spreadsheet, or copies in a folder or on a USB drive, with a playlist that goes along with them, for your phone, car or another player.
 - **Artists**, **Albums** and **Labels**: browse your library by cover, play a whole record, and click through to its songs.
-- **Playlists**: once you've pressed Check Spotify, your Spotify playlists play here, as far as you have the songs as files. Streamed songs you don't have are left out. **Save as files** writes them all as `.m3u8` playlists that other players can open.
+- **Playlists**: make your own and add songs to them from anywhere in the app, or **Import** `.m3u` and `.m3u8` files from another player. Each line of a file is matched to a song you already have, and you're told which ones it couldn't find. Once you've pressed Check Spotify, your Spotify playlists play here too, as far as you have the songs as files, and each song's details say which of them it's on. Streamed songs you don't have are left out. **Save as files** writes them all as `.m3u8` playlists that other players can open.
 - **Now Playing**: click the cover in the play bar for the big view, with what's up next. The seek bar shows the shape of the song, so you can jump straight to a breakdown or a drop.
 - **Even volume**: a button on the play bar that turns loud songs down to match the rest. It never raises a song, because nearly every file already reaches full scale and raising it would distort it, so quieter songs stay as they are. Each song is measured with ffmpeg the first time it's needed, and the file isn't changed.
 - **To check**: the questions only ears can answer (genre toss-ups, songs that couldn't be verified), with the audio right there.
@@ -140,7 +140,7 @@ do: reading odd names, settling versions from the audio, checking other sources,
 
 The first time it asks where your library and downloads live, and you can change them later under Folders. Picking a
 folder never moves any music. The app keeps its log, answers and cache in a `_curation` folder next to the library, and its
-settings in your user profile. Browsing only ever reads your music. Your answers go to `decisions.json` next to the log, and play counts to `plays.json` beside it. The
+settings in your user profile. Browsing only ever reads your music. Your answers go to `decisions.json` next to the log, with play counts in `plays.json` and the playlists you make in `own_playlists.json` beside it. The
 one thing on the page that adds to your library is the Curate button, and the only outside service it talks to is Discogs (plus YouTube, if you turn on comparing audio). Export never changes your library, and copying only ever adds files to the folder you pick.
 
 `curator apply --dry-run` shows what your answers would do, and `curator apply` carries out the ones that need no research: genre

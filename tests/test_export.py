@@ -473,7 +473,7 @@ class FromThePage(Base):
     def test_no_playlists_is_refused(self):
         status, answer = self.save()
         self.assertEqual(status, 400)
-        self.assertIn("Check Spotify", answer["error"])
+        self.assertIn("no playlists", answer["error"])
 
     def test_no_folder_is_refused(self):
         self.lists(("Sunrise", [("B", "Two")]))

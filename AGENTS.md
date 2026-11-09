@@ -181,7 +181,7 @@ it opens on a first-run screen where they pick their library and downloads folde
 location (`--config` or `$CURATOR_CONFIG` override it), and every command then finds it. To change folders, use its Folders page. It reads the
 library, the log and (optional `[paths]` keys) a `review` folder and a `review_list` Markdown file with one
 `- **Artist - Title**: reason` per song. The page never changes music; answers land in `decisions.json` next to the log, keyed
-`<kind>:<area>/<relative path>`, and `curator decisions` lists them. Play counts land in `plays.json` beside it, keyed by artist and title, so a count follows a song to another folder or a better copy.
+`<kind>:<area>/<relative path>`, and `curator decisions` lists them. Play counts land in `plays.json` beside it, keyed by artist and title, so a count follows a song to another folder or a better copy. Playlists made in the app are in `own_playlists.json`, keyed the same way: if you change a song's artist or title, it shows as not here in those playlists, so tell the person.
 
 To act on them, run `curator apply --dry-run`, show the person what it would do, and after their OK run `curator apply`. Nothing
 is deleted: old copies go to a `Set aside` folder next to the log, and every change is logged.

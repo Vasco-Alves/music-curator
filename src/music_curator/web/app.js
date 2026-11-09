@@ -32,7 +32,7 @@ const ICONS = {
   warn: "M12 4 2.5 20h19zM12 10v4.5M12 17.5h.01", sliders: "M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4", shuffle: "M16 4h5v5M4 20 21 4M21 15v5h-5M15 15l6 5M4 4l5 5",
   play: "M8 5v14l11-7z", pause: "M7 5h3.5v14H7zM13.5 5H17v14h-3.5z", prev: "M19 6v12l-9-6zM6 6h2.2v12H6z", next: "M5 6v12l9-6zM15.8 6H18v12h-2.2z",
   repeat: "M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3", upnext: "M4 6h16M4 12h9M4 18h9M16 12.500v7l5.500-3.500z",
-  chevron: "M6 9l6 6 6-6", expand: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5", even: "M6 9v6M10 9v6M14 9v6M18 9v6M3 5h18M3 19h18", user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.500 20a7.500 7.500 0 0 1 15 0",
+  plus: "M12 5v14M5 12h14", import: "M12 4v11M8 11l4 4 4-4M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5", chevron: "M6 9l6 6 6-6", expand: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5", even: "M6 9v6M10 9v6M14 9v6M18 9v6M3 5h18M3 19h18", user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.500 20a7.500 7.500 0 0 1 15 0",
   disc: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z", tag: "M4 4h7.5l8.500 8.500-7.500 7.500L4 11.500zM8 8h.01", export: "M12 15V4M8 8l4-4 4 4M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5",
 };
 const FILLED = new Set(["play", "pause", "prev", "next"]);
@@ -72,7 +72,7 @@ function niceMax(v) { // a clean top for the axis whose half is clean too, close
 }
 
 /* ---------- state ---------- */
-const S = { songs: [], byId: new Map(), lib: [], decisions: {}, progress: {}, meta: {}, songView: "list", sort: { key: "artist", dir: 1 }, list: [], listen: false, observers: [], lists: new Map(), inLists: new Map() };
+const S = { songs: [], byId: new Map(), lib: [], decisions: {}, progress: {}, meta: {}, songView: "list", sort: { key: "artist", dir: 1 }, list: [], listen: false, observers: [], lists: new Map(), inSpotify: new Map(), inOwn: new Map() };
 const TRUST = {
   verified: { label: "Verified", long: "Confirmed against Discogs or MusicBrainz.", icon: "shield", cls: "good" },
   auto: { label: "Auto-matched", long: "Matched to a Discogs record by the app, by name and length, or you picked the version. Nobody has double-checked it.", icon: "tick", cls: "auto" },
@@ -108,15 +108,23 @@ async function load() {
   S.songs = d.songs; S.decisions = d.decisions; S.progress = d.progress; S.meta = d.meta;
   S.byId = new Map(d.songs.map((s) => [s.id, s]));
   S.lib = d.songs.filter((s) => s.area === "library");
-  S.lists = new Map((S.meta.my_playlists || []).map((p) => [p.name, new Map(p.ids.map((id, i) => [id, i]))]));
-  S.inLists = new Map();
-  for (const p of S.meta.my_playlists || []) for (const id of p.ids) S.inLists.set(id, [...(S.inLists.get(id) || []), p.name]);
+  indexLists();
   $("#genres").replaceChildren(...tally(S.lib.map((s) => s.genre)).map(([g]) => el("option", { value: g })));
   badge();
   if (S.meta.curate && S.meta.curate.running) watchCurate(); // the page was reloaded during a run
   if (S.meta.export && S.meta.export.running) watchExport();
 }
 
+const OWN = "own:"; // how the Songs page tells a playlist made here from a Spotify one, which can have the same name
+const ownList = (key) => (S.meta.own_playlists || []).find((p) => OWN + p.id === key);
+const listName = (key) => (key.startsWith(OWN) ? (ownList(key) || { name: "A deleted playlist" }).name : key);
+function indexLists() {
+  const own = S.meta.own_playlists || [], spotify = S.meta.my_playlists || [];
+  S.lists = new Map([...spotify.map((p) => [p.name, p.ids]), ...own.map((p) => [OWN + p.id, p.ids])].map(([key, ids]) => [key, new Map(ids.map((id, i) => [id, i]))]));
+  const whereIs = (lists) => { const m = new Map(); for (const p of lists) for (const id of p.ids) m.set(id, [...(m.get(id) || []), p.name]); return m; };
+  S.inSpotify = whereIs(spotify);
+  S.inOwn = whereIs(own);
+}
 const playlistChores = () => waitingToAdd().reduce((n, [, d]) => n + lines(d.note).length, 0) + sum(((S.meta.spotify || {}).to_remove || []).map((r) => r.count));
 function badge() {
   const c = $("#check-count"), a = $("#add-count");
@@ -429,9 +437,26 @@ function pageSongs(params) {
   if (f.playlist) S.sort = { key: "playlist", dir: 1 };
   const inScope = () => (f.area === "all" ? S.songs : S.songs.filter((s) => s.area === f.area));
   const results = el("div"), countLine = el("p", { class: "count-line" }), chips = el("div", { class: "actions" }), head = el("div");
-  const exporter = exportControls(() => [f.playlist, f.album, f.label, f.artist, f.genre, f.q.trim()].find(Boolean) || S.meta.library || "Library");
+  const exporter = exportControls(() => [listName(f.playlist), f.album, f.label, f.artist, f.genre, f.q.trim()].find(Boolean) || S.meta.library || "Library");
+  const adder = el("button", { class: "btn small", type: "button", onclick: () => addToList(S.list, plural(S.list.length, "song")) }, icon("plus", 14), "Add to playlist");
 
   const sync = () => { const qs = q2({ ...f, area: f.area === "library" ? "" : f.area }); history.replaceState(null, "", `#/songs${qs ? `?${qs}` : ""}`); };
+  function paintHead(list) {
+    const own = ownList(f.playlist);
+    countLine.textContent = `${plural(list.length, "song")} · ${longTime(sum(list.map((s) => s.secs)))}`;
+    exporter.counted();
+    adder.disabled = !list.length;
+    head.replaceChildren(...(own ? [ownHead(own, list)] : !list.length ? [] : f.playlist ? [playlistHead(f.playlist, list)] : f.album ? [albumHead(list)] : f.label ? [labelHead(f.label, list)] : f.artist ? [artistHead(f.artist, list)] : []));
+  }
+  async function takeOut(s, row) { // the row goes by itself, so you keep your place in a long list
+    const own = ownList(f.playlist), r = await post("/api/playlists/remove", { list: own.id, ids: [s.id] });
+    if (r.error) return toast(r.error);
+    tookLists(r);
+    toast(`Took ${songName(s) || s.file} out of ${own.name}.`);
+    row.remove();
+    S.list = S.list.filter((id) => id !== s.id);
+    if (S.list.length) paintHead(S.list.map((id) => S.byId.get(id))); else update();
+  }
   function update() {
     sync();
     results.replaceChildren();
@@ -440,14 +465,13 @@ function pageSongs(params) {
     const order = S.sort.key === "playlist" ? S.lists.get(f.playlist) : null; // a playlist stays in its own order until you sort it by a column
     const list = S.songs.filter(matcher(f)).sort(order ? (a, b) => order.get(a.id) - order.get(b.id) : comparator(S.sort));
     S.list = list.map((s) => s.id);
-    countLine.textContent = `${plural(list.length, "song")} · ${longTime(sum(list.map((s) => s.secs)))}`;
-    exporter.counted();
-    head.replaceChildren(...(!list.length ? [] : f.playlist ? [playlistHead(f.playlist, list)] : f.album ? [albumHead(list)] : f.label ? [labelHead(f.label, list)] : f.artist ? [artistHead(f.artist, list)] : []));
-    chips.replaceChildren(...[["playlist", "Playlist"], ["album", "Album"], ["artist", "Artist"], ["label", "Label"], ["country", "Country"]].filter(([k]) => f[k]).map(([k, w]) => chipOff(`${w}: ${f[k]}`, () => { f[k] = ""; update(); })),
+    paintHead(list);
+    chips.replaceChildren(...[["playlist", "Playlist"], ["album", "Album"], ["artist", "Artist"], ["label", "Label"], ["country", "Country"]].filter(([k]) => f[k]).map(([k, w]) => chipOff(`${w}: ${k === "playlist" ? listName(f[k]) : f[k]}`, () => { f[k] = ""; update(); })),
       ...(f.from ? [chipOff(f.from === f.to ? `Year: ${f.from}` : `Years: ${f.from}–${f.to}`, () => { f.from = f.to = ""; update(); })] : []),
       ...(NEWEST_FIRST[S.sort.key] && S.sort.dir < 0 ? [chipOff(NEWEST_FIRST[S.sort.key], () => { S.sort = { key: "artist", dir: 1 }; update(); })] : []));
-    if (!list.length) return results.replaceChildren(el("p", { class: "empty" }, "Nothing matches these filters."));
-    S.songView === "grid" ? renderTiles(results, list) : renderTable(results, list, update);
+    const own = ownList(f.playlist);
+    if (!list.length) return results.replaceChildren(el("p", { class: "empty" }, own && !own.ids.length ? "Nothing in this playlist yet. Find a song and press + to add it." : "Nothing matches these filters."));
+    S.songView === "grid" ? renderTiles(results, list) : renderTable(results, list, update, own ? takeOut : null);
   }
   const chipOff = (text, off) => el("button", { class: "chip", type: "button", title: "Remove this filter", onclick: off }, text, " ", el("em", {}, "×"));
   const pick = (label, key, options) => el("select", { "aria-label": label, onchange: (e) => { f[key] = e.target.value; update(); } }, options.map(([v, t]) => el("option", { value: v, selected: f[key] === v }, t)));
@@ -469,10 +493,10 @@ function pageSongs(params) {
       pick("Decade", "decade", [["", "All years"], ...decades.map(([d, c]) => [d, `${d}s (${c})`]), ["none", "No year"]]),
       pick("How sure", "trust", [["", "How sure: any"], ...Object.entries(TRUST).map(([k, t]) => [k, t.label])]),
       toggle),
-    chips, head, el("div", { class: "list-head" }, countLine, exporter.button), exporter.panel, results));
+    chips, head, el("div", { class: "list-head" }, countLine, el("div", { class: "actions" }, adder, exporter.button)), exporter.panel, results));
   update();
 }
-function renderTable(box, list, update) {
+function renderTable(box, list, update, takeOut) {
   const head = (label, key, cls) => el("th", { class: cls }, el("button", { type: "button", class: S.sort.key === key ? "on" : "", onclick: () => {
     S.sort = { key, dir: S.sort.key === key ? -S.sort.dir : NEWEST_FIRST[key] ? -1 : 1 }; update();
   } }, `${label}${S.sort.key === key ? (S.sort.dir > 0 ? " ↑" : " ↓") : ""}`));
@@ -486,6 +510,8 @@ function renderTable(box, list, update) {
   lazy(body, list, (s) => el("tr", { class: "has-play", dataset: { song: s.id }, onclick: () => openDrawer(s.id) },
     el("td", { class: "c-cover" }, coverEl(s, () => playFrom(s.id))),
     el("td", { class: "t-cell" }, el("button", { class: "t-main", type: "button", title: s.title, onclick: (e) => { e.stopPropagation(); openDrawer(s.id); } }, s.title), el("span", { class: "t-sub", title: s.artist }, s.artist),
+      takeOut ? el("button", { class: "row-add row-out", type: "button", title: "Take out of this playlist", "aria-label": `Take ${songName(s)} out of this playlist`, onclick: (e) => { e.stopPropagation(); takeOut(s, e.currentTarget.closest("tr")); } }, icon("x", 15)) : null,
+      el("button", { class: "row-add row-list", type: "button", title: "Add to a playlist", "aria-label": `Add ${songName(s)} to a playlist`, onclick: (e) => { e.stopPropagation(); addToList([s.id], songName(s) || s.file); } }, icon("plus", 15)),
       el("button", { class: "row-add", type: "button", title: "Add to queue", "aria-label": `Add ${songName(s)} to the queue`, onclick: (e) => { e.stopPropagation(); enqueue([s.id]); } }, icon("listadd", 15))),
     el("td", { class: "c-album", title: s.album }, s.album), el("td", { class: "c-year" }, s.year), el("td", { class: "c-genre", title: s.genre }, s.genre),
     el("td", { class: "c-len num" }, clock(s.secs)), el("td", { class: "c-kbps num" }, s.kbps || "–"), el("td", { class: "c-plays num", dataset: { plays: s.id } }, s.plays ? fmt(s.plays) : "–"), el("td", { class: "c-trust" }, trustTag(s))), holder);
@@ -637,6 +663,7 @@ function watchExport() {
 
 /* ---------- albums and labels: the library, shelf by shelf ---------- */
 function shelfCover(item, mosaic) {
+  if (!item.songs.length) return el("div", { class: "cover vinyl" }); // a new playlist with nothing in it yet
   const play = () => playAll(item.songs, item.name), label = `Play ${item.name}`;
   const faces = [], seen = new Set();
   for (const s of item.songs) if (s.cover && !seen.has(s.link || s.id)) { seen.add(s.link || s.id); faces.push(s); }
@@ -691,12 +718,14 @@ function labelItems() {
       href: `#/songs?${q2({ label: name })}`, hay: fold(`${name} ${songs.map((s) => `${s.artist} ${s.genre}`).join(" ")}`) };
   });
 }
-function playlistItems() { // your Spotify playlists, as far as your files go
-  return (S.meta.my_playlists || []).map((p) => {
+function playlistItems() { // the ones made here, then your Spotify playlists as far as your files go
+  const item = (p, key, line) => {
     const songs = p.ids.map((id) => S.byId.get(id)).filter(Boolean), genre = (tally(songs.map((s) => s.genre))[0] || [""])[0];
-    return { name: p.name, songs, year: Math.max(0, ...yearsOf(songs)), lines: [`${fmt(songs.length)} of ${fmt(p.total)} here`, genre].filter(Boolean),
-      href: `#/songs?${q2({ playlist: p.name, area: "all" })}`, hay: fold(`${p.name} ${songs.map((s) => `${s.artist} ${s.genre}`).join(" ")}`) };
-  }).filter((x) => x.songs.length);
+    return { own: key !== p.name, name: p.name, songs, year: Math.max(0, ...yearsOf(songs)), lines: [line(songs.length), genre].filter(Boolean),
+      href: `#/songs?${q2({ playlist: key, area: "all" })}`, hay: fold(`${p.name} ${songs.map((s) => `${s.artist} ${s.genre}`).join(" ")}`) };
+  };
+  return [...(S.meta.own_playlists || []).map((p) => item(p, OWN + p.id, (n) => (p.away.length ? `${fmt(n)} of ${fmt(n + p.away.length)} here` : n ? plural(n, "song") : "No songs yet"))),
+    ...(S.meta.my_playlists || []).map((p) => item(p, p.name, (n) => `${fmt(n)} of ${fmt(p.total)} here`)).filter((x) => x.songs.length)];
 }
 function artistItems() {
   const byName = new Map();
@@ -712,11 +741,11 @@ function artistItems() {
 }
 function shelfHead(o) { // what the Songs page is showing, when that's one record or one label
   const face = o.songs.find((s) => s.cover) || o.songs[0], play = () => playAll(o.songs, o.name), ids = o.songs.map((s) => s.id);
-  return el("div", { class: "card shelf-head" }, coverEl(face),
+  return el("div", { class: "card shelf-head" }, face ? coverEl(face) : el("div", { class: "cover vinyl" }),
     el("div", { class: "shelf-info" },
       el("h2", {}, o.name), o.by ? el("div", { class: "by" }, o.by) : null,
       el("dl", { class: "facts-list" }, o.facts.filter(([, v]) => v).map(([k, v]) => [el("dt", {}, k), el("dd", {}, v)])),
-      el("div", { class: "actions" }, el("button", { class: "btn primary small", type: "button", onclick: play }, icon("play", 14), "Play"), queueButtons(ids), o.links)));
+      el("div", { class: "actions" }, ids.length ? [el("button", { class: "btn primary small", type: "button", onclick: play }, icon("play", 14), "Play"), queueButtons(ids)] : null, o.links), o.below));
 }
 const namesIn = (songs, key, most) => tally(songs.map((s) => s[key])).slice(0, most).map(([v]) => v).join(", ");
 const yearSpan = (years) => (!years.length ? "" : Math.min(...years) === Math.max(...years) ? String(years[0]) : `${Math.min(...years)}–${Math.max(...years)}`);
@@ -744,6 +773,32 @@ function playlistHead(name, songs) {
   return shelfHead({ name, by: plural(new Set(songs.flatMap(artistsOf)).size, "artist"), songs,
     facts: [["You have", `${away ? `${fmt(songs.length)} of ${fmt(total)} songs` : plural(songs.length, "song")} · ${longTime(sum(songs.map((s) => s.secs)))}`], ["Only on Spotify", away ? plural(away, "song") : ""], ["Genres", namesIn(songs, "genre", 4)], ["Years", yearSpan(yearsOf(songs))]] });
 }
+function ownHead(p, songs) {
+  const changed = (r) => { tookLists(r); route(); return ""; };
+  const rename = el("button", { class: "btn small", type: "button", onclick: () => nameBox("Rename this playlist", "Rename", p.name, async (name) => {
+    const r = await post("/api/playlists/rename", { list: p.id, name });
+    return r.error || changed(r);
+  }) }, "Rename");
+  const remove = el("button", { class: "btn small", type: "button", onclick: () => modal(`Delete ${p.name}?`, (box) => [
+    el("p", { class: "note" }, "Only the list goes. Your songs stay where they are."),
+    el("div", { class: "modal-go" }, el("button", { class: "linkish", type: "button", onclick: () => box.close() }, "Cancel"),
+      el("button", { class: "btn primary small", type: "button", onclick: async () => {
+        const r = await post("/api/playlists/delete", { list: p.id });
+        box.close();
+        if (r.error) return toast(r.error);
+        tookLists(r);
+        location.hash = "#/add";
+      } }, "Delete"))]) }, "Delete");
+  const away = p.away.length ? el("details", { class: "twin" }, el("summary", {}, `Show the ${plural(p.away.length, "song")} you don't have`),
+    el("div", { class: "scroll" }, el("ul", { class: "away-list" }, p.away.map((name) => el("li", {}, name)))),
+    el("button", { class: "linkish", type: "button", onclick: async () => {
+      const r = await post("/api/playlists/remove", { list: p.id, away: true });
+      if (r.error) return toast(r.error);
+      changed(r);
+    } }, "Take them out of this playlist")) : null;
+  return shelfHead({ name: p.name, by: songs.length ? plural(new Set(songs.flatMap(artistsOf)).size, "artist") : "", songs, links: [rename, remove], below: away,
+    facts: [["You have", songs.length ? `${plural(songs.length, "song")} · ${longTime(sum(songs.map((s) => s.secs)))}` : ""], ["Not here", p.away.length ? plural(p.away.length, "song") : ""], ["Genres", namesIn(songs, "genre", 4)], ["Years", yearSpan(yearsOf(songs))]] });
+}
 function pageShelf(params, o) {
   const f = { q: params.get("q") || "", sort: params.get("sort") || "most", many: params.get("many") === "1" }, all = o.items();
   const results = el("div"), countLine = el("p", { class: "count-line" });
@@ -754,7 +809,8 @@ function pageShelf(params, o) {
     history.replaceState(null, "", `#/${o.page}${qs ? `?${qs}` : ""}`);
     S.observers.forEach((x) => x.disconnect()); S.observers = [];
     const words = fold(f.q).split(/\s+/).filter(Boolean);
-    const list = all.filter((x) => (!f.many || x.songs.length > 1) && words.every((w) => x.hay.includes(w))).sort(sorters[f.sort] || sorters.most);
+    const sorter = sorters[f.sort] || sorters.most;
+    const list = all.filter((x) => (!f.many || x.songs.length > 1) && words.every((w) => x.hay.includes(w))).sort((a, b) => (b.own ? 1 : 0) - (a.own ? 1 : 0) || sorter(a, b)); // playlists made here come first
     countLine.textContent = o.count(list.length);
     if (!list.length) return results.replaceChildren(el("p", { class: "empty" }, all.length ? "Nothing matches that." : o.none));
     const grid = el("div", { class: "grid" }), holder = el("div");
@@ -995,9 +1051,107 @@ function removeCard(r) {
     el("p", { class: "note" }, r.at_end ? (r.count === 1 ? "It's the last one in the playlist." : `They're the last ${fmt(r.count)} in the playlist.`) : "They're spread through the playlist, and the numbers below match the # column in Spotify. Move all to the bottom gathers them so you can select them in one go."),
     twin(["#", "Song", "Why"], r.songs.map((x) => [x.pos, x.song, x.why]), "Show which"));
 }
+/* ---------- your own playlists: made here, or brought in from a file ---------- */
+function modal(title, build) { // a small box over the page. Esc or a click outside it closes it
+  const inner = el("div", { class: "modal-in" }, el("h2", {}, title));
+  const box = el("dialog", { class: "modal", "aria-label": title, onclose: () => box.remove(), onclick: (e) => { if (e.target === box) box.close(); } }, inner);
+  document.body.append(box);
+  fill(inner, {}, build(box));
+  box.showModal();
+}
+function nameBox(title, word, start, save) { // save answers with what went wrong, or nothing
+  modal(title, (box) => {
+    const said = el("p", { class: "modal-said", role: "alert" });
+    const input = el("input", { type: "text", value: start, maxlength: 100, placeholder: "Playlist name", "aria-label": "Playlist name", spellcheck: "false", autocomplete: "off" });
+    const go = async () => {
+      const name = input.value.trim();
+      if (!name) return input.focus();
+      const problem = await save(name);
+      if (problem) said.textContent = problem; else box.close();
+    };
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
+    return [input, said, el("div", { class: "modal-go" }, el("button", { class: "linkish", type: "button", onclick: () => box.close() }, "Cancel"), el("button", { class: "btn primary small", type: "button", onclick: go }, word))];
+  });
+}
+function tookLists(r) { // the app answers every change with your playlists as they are now
+  S.meta.own_playlists = r.lists;
+  indexLists();
+  if (drawerSong) paintPanel();
+}
+function addToList(ids, what) { // one song or a whole list, into a playlist you have or a new one
+  if (!ids.length) return toast("There are no songs to add.");
+  const landed = (r, p) => {
+    tookLists(r);
+    toast(`Added ${plural(r.added, "song")} to ${p.name}.${r.already ? ` ${fmt(r.already)} ${r.already === 1 ? "was" : "were"} already in it.` : ""}`);
+    if (new URLSearchParams(location.hash.split("?")[1] || "").get("playlist") === OWN + p.id) route();
+  };
+  modal(`Add ${what} to a playlist`, (box) => {
+    const said = el("p", { class: "modal-said", role: "alert" });
+    const name = el("input", { type: "text", maxlength: 100, placeholder: "Name for a new playlist", "aria-label": "Name for a new playlist", spellcheck: "false", autocomplete: "off" });
+    const make = async () => {
+      if (!name.value.trim()) return name.focus();
+      const r = await post("/api/playlists/new", { name: name.value, ids });
+      if (r.error) { said.textContent = r.error; return; }
+      box.close();
+      landed(r, r.made);
+    };
+    name.addEventListener("keydown", (e) => { if (e.key === "Enter") make(); });
+    const rows = (S.meta.own_playlists || []).map((p) => {
+      const have = S.lists.get(OWN + p.id), missing = ids.filter((id) => !have.has(id)).length;
+      return el("button", { class: "modal-row", type: "button", disabled: !missing, onclick: async () => {
+        const r = await post("/api/playlists/add", { list: p.id, ids });
+        if (r.error) { said.textContent = r.error; return; }
+        box.close();
+        landed(r, p);
+      } }, el("span", {}, p.name), missing === ids.length ? null : el("em", {}, !missing ? "already in" : `${fmt(ids.length - missing)} already in`));
+    });
+    return [el("div", { class: "inline-form" }, name, el("button", { class: "btn small", type: "button", onclick: make }, "Make it")), rows.length ? el("div", { class: "modal-list" }, rows) : null, said];
+  });
+}
+const listButton = (ids, what) => el("button", { class: "btn small", type: "button", onclick: () => addToList(ids, what) }, icon("plus", 14), "Add to playlist");
+const newListButton = () => el("button", { class: "btn primary small", type: "button", onclick: () => nameBox("New playlist", "Make it", "", async (name) => {
+  const r = await post("/api/playlists/new", { name });
+  if (r.error) return r.error;
+  tookLists(r);
+  location.hash = `#/songs?${q2({ playlist: OWN + r.made.id, area: "all" })}`;
+  return "";
+}) }, icon("plus", 14), "New playlist");
+const IMPORT_MOST_BYTES = 7 << 20; // the app takes 8 MB at a time, and sending a file makes it a little longer
+let lastImport = null; // what the last import found, for the page it repaints
+async function playlistText(file) { // an .m3u8 is UTF-8. Older .m3u files are mostly in the Windows encoding
+  const bytes = await file.arrayBuffer();
+  try { return new TextDecoder("utf-8", { fatal: true }).decode(bytes); } catch { return new TextDecoder("windows-1252").decode(bytes); }
+}
+function importedLine(r) {
+  if (r.error) return el("p", { class: "import-one" }, r.error.includes(r.name) ? r.error : `${r.name}: ${r.error}`);
+  const lost = r.total - r.found;
+  return el("div", { class: "import-one" }, el("a", { class: "fact-link", href: `#/songs?${q2({ playlist: OWN + r.made.id, area: "all" })}` }, r.made.name), ` · found ${fmt(r.found)} of ${plural(r.total, "song")}`,
+    lost ? el("details", { class: "twin" }, el("summary", {}, `Show the ${plural(lost, "song")} it couldn't find`),
+      el("div", { class: "scroll" }, el("ul", { class: "away-list" }, r.missing.map((name) => el("li", {}, name)), r.more ? el("li", {}, `and ${fmt(r.more)} more`) : null))) : null);
+}
+function playlistImporter() { // only the text of the file goes to the app, which matches its lines to songs it already knows
+  const said = lastImport ? el("section", { class: "card import-said" }, el("h2", {}, "Imported"), lastImport.map(importedLine)) : null;
+  lastImport = null;
+  const input = el("input", { type: "file", accept: ".m3u,.m3u8", multiple: true, hidden: true, "aria-label": "Playlist files to import", onchange: async () => {
+    const files = [...input.files], got = [];
+    input.value = ""; // so the same file can be chosen again
+    button.disabled = true;
+    for (const file of files) {
+      const name = file.name.replace(/\.m3u8?$/i, "");
+      const r = file.size > IMPORT_MOST_BYTES ? { error: `${name} is too big to import.` } : await post("/api/playlists/import", { name, text: await playlistText(file) });
+      if (r.lists) S.meta.own_playlists = r.lists;
+      got.push({ name, ...r });
+    }
+    indexLists();
+    lastImport = got;
+    route();
+  } });
+  const button = el("button", { class: "btn small", type: "button", title: "Bring in .m3u or .m3u8 playlists from another player", onclick: () => input.click() }, icon("import", 14), "Import");
+  return { input, button, said };
+}
 function pageAdd(params) {
-  const shelves = playlistItems(), chores = playlistChores(), listening = shelves.length && params.get("tab") !== "todo";
-  const tabs = shelves.length ? el("div", { class: "pills" },
+  const shelves = playlistItems(), chores = playlistChores(), sp = S.meta.spotify || {}, tabbed = sp.ready || chores, listening = !tabbed || params.get("tab") !== "todo";
+  const tabs = tabbed ? el("div", { class: "pills" },
     el("a", { class: `pill${listening ? " on" : ""}`, href: "#/add" }, "Your playlists", el("b", {}, fmt(shelves.length))),
     el("a", { class: `pill${listening ? "" : " on"}`, href: "#/add?tab=todo" }, "To add and remove", chores ? el("b", {}, fmt(chores)) : null)) : null;
   const groups = new Map();
@@ -1014,7 +1168,7 @@ function pageAdd(params) {
     total.textContent = sum ? plural(sum, "song") + " left to add" : "All added";
   };
   paintCounts();
-  const sp = S.meta.spotify || {}, shown = (iso) => (iso.slice(0, 10) === new Date().toLocaleDateString("sv") ? iso.slice(11, 16) : iso.slice(0, 16).replace("T", " "));
+  const shown = (iso) => (iso.slice(0, 10) === new Date().toLocaleDateString("sv") ? iso.slice(11, 16) : iso.slice(0, 16).replace("T", " "));
   const said = el("span", { class: "sub" }, sp.wait_until ? `Spotify asked to wait until ${shown(sp.wait_until)}` : sp.checked ? `Last checked ${shown(sp.checked)}` : "");
   const checking = el("span", {}, "Check Spotify");
   const checker = sp.ready ? el("button", { class: "btn small", type: "button", disabled: !!sp.wait_until, onclick: async () => {
@@ -1025,9 +1179,9 @@ function pageAdd(params) {
     if (await safeLoad()) { route(); toast(r.message || r.error || "Checked."); }
   } }, icon("refresh", 14), checking) : null;
   if (listening) {
-    const saver = playlistSaver(shelves.length);
-    return pageShelf(params, { page: "add", title: "Playlists", items: () => shelves, mosaic: true, placeholder: "Search playlists, artists and genres…", none: "", tabs: [tabs, saver.panel], tools: el("div", { class: "add-check" }, checker ? said : null, checker, saver.toggle),
-      count: (n) => `${plural(n, "playlist")} with songs you have as files` });
+    const filled = shelves.filter((x) => x.songs.length).length, saver = playlistSaver(filled), importer = playlistImporter();
+    return pageShelf(params, { page: "add", title: "Playlists", items: () => shelves, mosaic: true, placeholder: "Search playlists, artists and genres…", none: sp.ready ? "No playlists yet. Make one, import one from another player, or press Check Spotify to bring yours in." : "No playlists yet. Make one, or import one from another player.", tabs: [tabs, saver.panel, importer.said],
+      tools: el("div", { class: "add-check" }, checker ? said : null, checker, filled ? saver.toggle : null, importer.input, importer.button, newListButton()), count: (n) => plural(n, "playlist") });
   }
   const removing = (sp.to_remove || []).filter((r) => r.count), removeTotal = sum(removing.map((r) => r.count));
   const odd = (sp.to_remove || []).flatMap((r) => (r.odd || []).map((x) => [r.playlist, x.pos, x.song]));
@@ -1465,7 +1619,7 @@ function paintPanel() {
   const facts = [["Album", s.album], ["Year", s.year], ["Genre", s.genre], ["Label", s.label], ["Country", s.country], ["Length", clock(s.secs)],
     ["Quality", [(/\.(flac|m4a|aac|ogg|opus|wav)$/i.exec(s.file) || [])[1]?.toUpperCase(), s.kbps ? `${s.kbps} kbps` : ""].filter(Boolean).join(" · ")], ["Size", `${(s.bytes / 1e6).toFixed(1)} MB`],
     ["Where", s.area === "library" ? [S.meta.library, s.folder].filter(Boolean).join(" / ") : s.area === "review" ? ["Review", s.folder].filter(Boolean).join(" / ") : s.where],
-    ["File", s.file], ["Added", s.added ? s.added.replace("T", " ").slice(0, 16) : ""], ["Played", playedWords(s)], ["Playlists", (S.inLists.get(s.id) || []).join(", ")], ["Loudness", typeof s.lufs === "number" ? `${s.lufs.toFixed(1)} LUFS` : ""]].filter(([, v]) => v);
+    ["File", s.file], ["Added", s.added ? s.added.replace("T", " ").slice(0, 16) : ""], ["Played", playedWords(s)], ["In your playlists", (S.inOwn.get(s.id) || []).join(", ")], ["On your Spotify lists", (S.inSpotify.get(s.id) || []).join(", ")], ["Loudness", typeof s.lufs === "number" ? `${s.lufs.toFixed(1)} LUFS` : ""]].filter(([, v]) => v);
   const linkName = sourceName(s.link);
   const shop = shopLink(s), flagBox = el("div");
   const paint = () => {
@@ -1490,6 +1644,7 @@ function paintPanel() {
     el("div", { class: "actions" },
       isNow ? null : el("button", { class: "btn primary small", type: "button", onclick: () => (S.list.includes(s.id) ? playFrom(s.id) : playQueue([s.id], 0, "")) }, icon("play", 14), "Play"),
       isNow ? null : queueButtons([s.id]),
+      listButton([s.id], songName(s) || s.file),
       s.link ? el("a", { class: "btn small", href: s.link, target: "_blank", rel: "noreferrer noopener" }, icon("link", 14), linkName) : null,
       shop ? el("a", { class: "btn small", href: shop.href, target: "_blank", rel: "noreferrer noopener" }, icon(shop.icon, 14), shop.label) : null),
     queueList(s), recordList(s),
@@ -1533,7 +1688,7 @@ function pageNow() {
         el("h1", {}, s.title || s.file),
         el("div", { class: "by" }, artistsOf(s).flatMap((a, i) => [i ? " & " : "", el("a", { href: songs({ artist: a }) }, a)])),
         el("div", { class: "now-about" }, about.flatMap((a, i) => (i ? [dot(), a] : [a]))),
-        el("div", { class: "actions" }, el("button", { class: "btn small", type: "button", onclick: () => { openNext = s.id; closeNow(); } }, "Song details"), s.link ? el("a", { class: "btn small", href: s.link, target: "_blank", rel: "noreferrer noopener" }, icon("link", 14), sourceName(s.link)) : null)),
+        el("div", { class: "actions" }, el("button", { class: "btn small", type: "button", onclick: () => { openNext = s.id; closeNow(); } }, "Song details"), listButton([s.id], songName(s) || s.file), s.link ? el("a", { class: "btn small", href: s.link, target: "_blank", rel: "noreferrer noopener" }, icon("link", 14), sourceName(s.link)) : null)),
       el("div", { class: "wave-box wave-big", dataset: { bars: 300 } }, waveShape("wave-rest"), waveShape("wave-done"), place)),
     el("div", { class: "now-queue", id: "now-queue" })));
   paintNowQueue();
@@ -1976,6 +2131,7 @@ function route() {
 }
 window.addEventListener("hashchange", route);
 window.addEventListener("keydown", (e) => {
+  if ($("dialog[open]")) return; // the box over the page has the keyboard
   const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
   if (e.key === "Escape") { if (onNowPage()) closeNow(); else if (!roomy.matches) closeDrawer(); }
   else if (e.code === "Space" && !typing && e.target.tagName !== "BUTTON" && e.target.tagName !== "A") { e.preventDefault(); togglePlay(); }

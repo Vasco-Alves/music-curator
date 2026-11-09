@@ -34,6 +34,7 @@ LOW_KBPS = 128  # below this a song is worth a better copy
 DISCARD_S = 2  # how long a refused request's leftover body gets read before the connection closes
 BODY_TIMEOUT_S = 15  # how long to wait for a request body that was promised
 EXPORT_BODY_MAX = 1 << 20  # room for about 70,000 songs
+IMPORT_BODY_MAX = 8 << 20  # a playlist file can list a whole library, with the full path of every song
 ENTRY = re.compile(r"^\s*[-*]\s+\*\*(.+?)\*\*(?:\s*\([^)]*\))?\s*:\s*(.+?)\s*$")
 
 
@@ -186,6 +187,7 @@ class Collection:
         self.saved_lists, self.saved_lists_sig = {}, None
         self.levels, self.levels_sig = {}, None
         self.waves, self.waves_sig = {}, None
+        self.own, self.own_sig = {}, None
         self._read_decisions()
 
     def _watch(self, name, path, keep):
@@ -222,6 +224,11 @@ class Collection:
         """Your Spotify playlists as they were at the last Check Spotify."""
         from . import spotify  # here because it needs this module loaded first
         self._watch("saved_lists", spotify.cache_path(self.paths), lambda saved: saved)
+
+    def _read_own(self):
+        """The playlists you made here. `own_playlists` won't save over a file that can't be read."""
+        from . import own_playlists  # here because it needs this module loaded first
+        self._watch("own", own_lists_path(self.paths), own_playlists.well_formed)
 
     def _read_plays(self):
         """How often each song was played. Same care as the answers: a file that can't be read is never saved over."""
@@ -412,6 +419,7 @@ class Collection:
             self._read_better()
             self._read_plays()
             self._read_saved_lists()
+            self._read_own()
             self._read_levels()
             self._read_log()
             self._read_review_list()
@@ -536,10 +544,10 @@ class Collection:
         with self.lock:
             self.refresh()
             songs = [{k: v for k, v in s.items() if not k.startswith("_")} for s in self.songs.values()]
-            from . import spotify  # here because it needs this module loaded first
+            from . import own_playlists, spotify  # here because they need this module loaded first
             return dict(songs=songs, decisions=self.decisions, progress=self.progress(),
                         meta=dict(library=os.path.basename(os.path.normpath(self.paths["library"])), spotify=spotify.status(self.paths),
-                                  has_log=bool(self.log_rows), has_review=bool(self.paths["review"]), playlists=self.ideas_names, my_playlists=spotify.playable(self.songs.values(), self.saved_lists),
+                                  has_log=bool(self.log_rows), has_review=bool(self.paths["review"]), playlists=self.ideas_names, my_playlists=spotify.playable(self.songs.values(), self.saved_lists), own_playlists=own_playlists.listed(self),
                                   decisions_file=os.path.basename(self.paths["decisions"])))
 
     def decide(self, body):
@@ -795,7 +803,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self._host_ok():
             return self._reply(403, b"Forbidden")
         route = self._route()
-        if route not in ("/api/decision", "/api/played", "/api/settings", "/api/settings/compare", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/curate", "/api/curate/stop", "/api/export/list", "/api/export/copy", "/api/export/stop", "/api/export/playlists"):
+        if route not in ("/api/decision", "/api/played", "/api/settings", "/api/settings/compare", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/curate", "/api/curate/stop", "/api/export/list", "/api/export/copy", "/api/export/stop", "/api/export/playlists",
+                         "/api/playlists/new", "/api/playlists/add", "/api/playlists/remove", "/api/playlists/rename", "/api/playlists/delete", "/api/playlists/import"):
             return self._reply(404, b"Not found")
         origin = self.headers.get("Origin")
         try:
@@ -807,7 +816,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._reply(403, b"Forbidden")
         if "application/json" not in self.headers.get("Content-Type", ""):
             return self._reply(415, b"JSON only")
-        if size < 0 or size > (EXPORT_BODY_MAX if route.startswith("/api/export") else 65536):  # an export names every song in the list
+        if size < 0 or size > (IMPORT_BODY_MAX if route == "/api/playlists/import" else EXPORT_BODY_MAX if route.startswith(("/api/export", "/api/playlists")) else 65536):  # these can name every song in the list
             return self._reply(413, b"Too large")
         self.connection.settimeout(BODY_TIMEOUT_S)
         raw = self.rfile.read(size)
@@ -851,6 +860,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if route.startswith("/api/export"):
             from . import export
             answer = export.handle(self.server, route, body)
+            return self._json(answer, 400 if answer.get("error") else 200)
+        if route.startswith("/api/playlists"):
+            from . import own_playlists
+            answer = own_playlists.handle(self.server.collection, route, body)
             return self._json(answer, 400 if answer.get("error") else 200)
         if route in ("/api/spotify/check", "/api/spotify/move", "/api/spotify/stream"):
             names = body.get("playlists")
@@ -910,6 +923,10 @@ def plays_path(paths):
 
 def waves_path(paths):
     return os.path.join(os.path.dirname(paths["decisions"]), "waveforms.json")
+
+
+def own_lists_path(paths):
+    return os.path.join(os.path.dirname(paths["decisions"]), "own_playlists.json")
 
 
 def levels_path(paths):

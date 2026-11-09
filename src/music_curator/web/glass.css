@@ -95,6 +95,7 @@ body.drawer-open .drawer { transform: none; opacity: 1; visibility: visible; tra
 }
 .toast { bottom: calc(var(--player-h) + var(--gap) * 2 + 12px); border-radius: 12px; box-shadow: var(--glass-shadow); animation: toast-in .32s var(--spring) both; }
 .tip { background: var(--popup); border-color: var(--glass-edge); border-radius: 9px; }
+.modal { background: var(--panel-light), var(--popup); border-color: var(--glass-edge); border-radius: 18px; box-shadow: var(--glass-shadow); }
 
 /* ---------- things that used to be solid ---------- */
 .table th { background: var(--glass-head); }

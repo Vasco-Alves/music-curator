@@ -96,13 +96,13 @@ def save_playlists(server, value):
     checked = folders.check("playlists", value)
     if not checked["ok"]:
         return dict(error=checked["message"] or "Choose a folder first.")
-    from . import spotify  # here because it needs the web app's module loaded first
+    from . import own_playlists, spotify  # here because they need the web app's module loaded first
     collection, folder = server.collection, checked["path"]
     with collection.lock:
         collection.refresh()
-        lists = [(p["name"], [collection.songs[i] for i in p["ids"]]) for p in spotify.playable(collection.songs.values(), collection.saved_lists)]
+        lists = [(p["name"], [collection.songs[i] for i in p["ids"]]) for p in [*own_playlists.listed(collection), *spotify.playable(collection.songs.values(), collection.saved_lists)] if p["ids"]]
     if not lists:
-        return dict(error="There are no playlists to save yet. Press Check Spotify first.")
+        return dict(error="There are no playlists to save yet.")
     saved, left, taken = 0, [], set()
     try:
         os.makedirs(folder, exist_ok=True)
