@@ -105,14 +105,14 @@ def _write_hits(paths, hits):
         pass
 
 
-def _cache_path(paths):
+def cache_path(paths):
     return os.path.join(os.path.dirname(paths["decisions"]), "spotify_playlists.json")
 
 
 def _read_cache(paths):
     """What each playlist held last time, so one that hasn't changed needn't be asked for again."""
     try:
-        with open(_cache_path(paths), encoding="utf-8-sig") as f:
+        with open(cache_path(paths), encoding="utf-8-sig") as f:
             cache = json.load(f)
         return cache if isinstance(cache, dict) else {}
     except (OSError, ValueError):
@@ -121,9 +121,9 @@ def _read_cache(paths):
 
 def _write_cache(paths, cache):
     try:
-        with open(_cache_path(paths) + ".tmp", "w", encoding="utf-8") as f:
+        with open(cache_path(paths) + ".tmp", "w", encoding="utf-8") as f:
             json.dump(cache, f, ensure_ascii=False)
-        os.replace(_cache_path(paths) + ".tmp", _cache_path(paths))
+        os.replace(cache_path(paths) + ".tmp", cache_path(paths))
     except OSError:  # only costs a few more requests next time
         pass
 
@@ -148,9 +148,16 @@ def _close(a, b):
     return not a or not b or abs(a - b) <= SAME_LENGTH_S
 
 
+def _saved_entry(e):
+    """(artist, name, secs) of a saved playlist entry. The file can be edited by hand, so whatever isn't the right type counts as not being there."""
+    artists, name, secs = e.get("artists"), e.get("name"), e.get("secs")
+    return (" ".join(a for a in artists if a and isinstance(a, str)) if isinstance(artists, list) else "", name if isinstance(name, str) else "", secs if type(secs) in (int, float) else 0)
+
+
 def playable(songs, cache):
     """Your playlists as far as the app can play them: [{name, total, ids}], in the playlist's order. A local entry is the file of that name. A streamed one counts only
-    if you also have it as a file of about the same length. A second copy of a song is played once."""
+    if you also have it as a file of about the same length. A second copy of a song is played once and counted once.
+    `total` is the songs you can listen to, here or on Spotify, so a local entry with no file behind it isn't one: Spotify can't play that either."""
     index, out = {}, []
     for s in songs:
         key = ("", _plain(os.path.splitext(s["file"])[0])) if s.get("_tagless") else (_plain(s["artist"]), _plain(s["title"]))
@@ -159,17 +166,20 @@ def playable(songs, cache):
         entries = playlist.get("entries") if isinstance(playlist, dict) else None
         if not isinstance(entries, list) or not isinstance(playlist.get("name"), str) or not playlist["name"]:  # saved before names were kept: the next Check Spotify adds them
             continue
-        ids, seen = [], set()
+        ids, seen, streamed = [], set(), set()
         for e in (x for x in entries if isinstance(x, dict)):
-            artist, secs = " ".join(a for a in e.get("artists") or [] if a), e.get("secs") or 0
-            found = index.get(("" if artist == "Unknown Artist" else _plain(artist), _plain(e.get("name"))), [])
+            artist, name, secs = _saved_entry(e)
+            key = ("" if artist == "Unknown Artist" else _plain(artist), _plain(name))
+            found = index.get(key, [])
             near = found if e.get("local") else [s for s in found if secs and s["secs"] and abs(s["secs"] - secs) <= MAY_BE_GAP_S]
             song = min(near, key=lambda s: (s["area"] != "library", abs((s["secs"] or 0) - secs)), default=None)
             if song and song["id"] not in seen:
                 seen.add(song["id"])
                 ids.append(song["id"])
+            elif not song and not e.get("local") and any(key):
+                streamed.add(key)
         if ids:
-            out.append(dict(name=playlist["name"], total=len(entries), ids=ids))
+            out.append(dict(name=playlist["name"], total=len(ids) + len(streamed), ids=ids))
     return sorted(out, key=lambda p: p["name"].casefold())
 
 

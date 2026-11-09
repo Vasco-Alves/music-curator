@@ -1473,7 +1473,7 @@ function paintPanel() {
 }
 
 /* ---------- now playing: the whole window for what's on ---------- */
-let beforeNow = "#/";
+let beforeNow = "#/", openNext = ""; // openNext is a song for the panel once the page has changed: route() decides about the panel, so it has to be told
 const onNowPage = () => location.hash.replace(/^#\/?/, "").split("?")[0] === "now";
 function openNow() { if (!onNowPage()) { beforeNow = location.hash || "#/"; location.hash = "#/now"; } }
 const closeNow = () => { location.hash = beforeNow; };
@@ -1498,7 +1498,7 @@ function pageNow() {
         el("h1", {}, s.title || s.file),
         el("div", { class: "by" }, artistsOf(s).flatMap((a, i) => [i ? " & " : "", el("a", { href: songs({ artist: a }) }, a)])),
         el("div", { class: "now-about" }, about.flatMap((a, i) => (i ? [dot(), a] : [a]))),
-        el("div", { class: "actions" }, el("button", { class: "btn small", type: "button", onclick: () => { closeNow(); openDrawer(s.id); } }, "Song details"), s.link ? el("a", { class: "btn small", href: s.link, target: "_blank", rel: "noreferrer noopener" }, icon("link", 14), sourceName(s.link)) : null))),
+        el("div", { class: "actions" }, el("button", { class: "btn small", type: "button", onclick: () => { openNext = s.id; closeNow(); } }, "Song details"), s.link ? el("a", { class: "btn small", href: s.link, target: "_blank", rel: "noreferrer noopener" }, icon("link", 14), sourceName(s.link)) : null))),
     el("div", { class: "now-queue", id: "now-queue" })));
   paintNowQueue();
 }
@@ -1644,8 +1644,7 @@ function restoreSpot() {
   P.i = P.queue.indexOf(id);
   P.label = typeof saved.label === "string" ? saved.label : "";
   P.original = Array.isArray(saved.original) ? known(saved.original) : null;
-  resumeAt = +saved.at || 0;
-  loadCurrent(false);
+  loadCurrent(false, +saved.at || 0);
 }
 function playFrom(id) {
   const i = S.list.indexOf(id);
@@ -1679,9 +1678,10 @@ function countListening() {
     document.querySelectorAll(`dd[data-plays="${s.id}"]`).forEach((n) => { n.textContent = playedWords(s); });
   });
 }
-function loadCurrent(autoplay = true) {
+function loadCurrent(autoplay = true, at = 0) {
   const s = current();
   if (!s) return;
+  resumeAt = at; // set on every load, so a spot that was never reached can't land on the next song
   listenAgain();
   matchLevel(s);
   audio.src = `/audio/${s.id}`;
@@ -1801,8 +1801,9 @@ async function learnLevel(s) { // measured the first time it's needed, then kept
   s.askedLevel = true;
   const r = await fetch(`/api/loudness/${s.id}`, { cache: "no-store" }).then((x) => (x.ok ? x.json() : null)).catch(() => null);
   if (!r) { s.askedLevel = false; return; }
-  if (typeof r.lufs === "number") s.lufs = r.lufs;
-  if (current() === s) fadeGain(gainFor(s));
+  const song = S.byId.get(s.id) || s, now = current(); // the library may have been read again while this was measured, and then these are new objects
+  if (typeof r.lufs === "number") song.lufs = r.lufs;
+  if (now && now.id === s.id) fadeGain(gainFor(song));
 }
 function matchLevel(s) {
   clearInterval(gainFade);
@@ -1890,7 +1891,9 @@ function route() {
   (pages[page] || pageHome)(params);
   view.scrollTop = 0;
   markPlaying();
-  if (params.get("open")) openDrawer(params.get("open")); else if (roomy.matches) showPanel(); else closeDrawer();
+  const open = params.get("open") || openNext;
+  openNext = "";
+  if (open) openDrawer(open); else if (roomy.matches) showPanel(); else closeDrawer();
 }
 window.addEventListener("hashchange", route);
 window.addEventListener("keydown", (e) => {

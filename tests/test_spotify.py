@@ -359,7 +359,7 @@ class ToRemove(Checking):
         self.assertEqual(self.listed(), before)
 
     def test_a_broken_memory_of_the_playlists_only_costs_a_new_read(self):
-        with open(spotify._cache_path(self.paths), "w", encoding="utf-8") as f:
+        with open(spotify.cache_path(self.paths), "w", encoding="utf-8") as f:
             f.write("{ not json")
         self.assertEqual(self.flagged(dict(name="X", artists=["Gone"])), [(1, "no file")])
 

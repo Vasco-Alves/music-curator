@@ -187,43 +187,36 @@ class Collection:
         self.levels, self.levels_sig = {}, None
         self._read_decisions()
 
-    def _read_levels(self):
-        """How loud each song was measured to be."""
-        path = levels_path(self.paths)
+    def _watch(self, name, path, keep):
+        """Keep self.<name> in step with a JSON file, reading it only when it has changed. `keep` picks out what's wanted from the object in it, or returns None if that's the wrong shape.
+        With no file there's nothing. One that can't be read just now leaves what was last read."""
         try:
             st = os.stat(path)
         except (OSError, TypeError, ValueError):
-            self.levels, self.levels_sig = {}, None
+            setattr(self, name, {})
+            setattr(self, f"{name}_sig", None)
             return
         sig = (st.st_mtime_ns, st.st_size)
-        if sig == self.levels_sig:
+        if sig == getattr(self, f"{name}_sig"):
             return
         try:
             with open(path, encoding="utf-8-sig") as f:
                 saved = json.load(f)
-        except (OSError, ValueError):
+            kept = keep(saved) if isinstance(saved, dict) else None
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
             return
-        if isinstance(saved, dict):
-            self.levels, self.levels_sig = {k: v for k, v in saved.items() if type(v) in (int, float)}, sig
+        if kept is not None:
+            setattr(self, name, kept)
+            setattr(self, f"{name}_sig", sig)
+
+    def _read_levels(self):
+        """How loud each song was measured to be."""
+        self._watch("levels", levels_path(self.paths), lambda saved: {k: v for k, v in saved.items() if type(v) in (int, float)})
 
     def _read_saved_lists(self):
         """Your Spotify playlists as they were at the last Check Spotify."""
-        path = saved_lists_path(self.paths)
-        try:
-            st = os.stat(path)
-        except (OSError, TypeError, ValueError):
-            self.saved_lists, self.saved_lists_sig = {}, None
-            return
-        sig = (st.st_mtime_ns, st.st_size)
-        if sig == self.saved_lists_sig:
-            return
-        try:
-            with open(path, encoding="utf-8-sig") as f:
-                saved = json.load(f)
-        except (OSError, ValueError):
-            return
-        if isinstance(saved, dict):
-            self.saved_lists, self.saved_lists_sig = saved, sig
+        from . import spotify  # here because it needs this module loaded first
+        self._watch("saved_lists", spotify.cache_path(self.paths), lambda saved: saved)
 
     def _read_plays(self):
         """How often each song was played. Same care as the answers: a file that can't be read is never saved over."""
@@ -253,80 +246,27 @@ class Collection:
 
     def _read_hits(self):
         """What the last Check Spotify found for the songs still waiting."""
-        path = spotify_hits_path(self.paths)
-        try:
-            st = os.stat(path)
-        except (OSError, TypeError, ValueError):
-            self.hits_sig, self.hits = None, {}
-            return
-        sig = (st.st_mtime_ns, st.st_size)
-        if sig == self.hits_sig:
-            return
-        try:
-            with open(path, encoding="utf-8-sig") as f:
-                hits = json.load(f)
-        except (OSError, ValueError):
-            return
-        if isinstance(hits, dict):
-            self.hits_sig, self.hits = sig, {k: v["hit"] for k, v in hits.items() if isinstance(v, dict) and isinstance(v.get("hit"), dict)}
+        self._watch("hits", spotify_hits_path(self.paths), lambda hits: {k: v["hit"] for k, v in hits.items() if isinstance(v, dict) and isinstance(v.get("hit"), dict)})
 
     def _read_better(self):
-        """Links an agent left to possibly better copies (`curator maybe-better`)."""
-        path = better_links_path(self.paths)
-        try:
-            st = os.stat(path)
-        except (OSError, TypeError, ValueError):
-            self.better_sig, self.better = None, {}
-            return
-        sig = (st.st_mtime_ns, st.st_size)
-        if sig == self.better_sig:
-            return
-        try:
-            with open(path, encoding="utf-8-sig") as f:
-                links = json.load(f)
-        except (OSError, ValueError):
-            return
-        if isinstance(links, dict):  # each one becomes a link on the page
-            self.better_sig, self.better = sig, {k: v for k, v in links.items() if isinstance(v, dict) and is_web_link(v.get("url")) and isinstance(v.get("why"), str)}
+        """Links an agent left to possibly better copies (`curator maybe-better`). Each one becomes a link on the page."""
+        self._watch("better", better_links_path(self.paths), lambda links: {k: v for k, v in links.items() if isinstance(v, dict) and is_web_link(v.get("url")) and isinstance(v.get("why"), str)})
 
     def _read_curated(self):
         """What the last Curate run couldn't settle, and why."""
-        try:
-            st = os.stat(curated_path(self.paths))
-        except (OSError, TypeError, ValueError):
-            self.curated_sig, self.curated = None, {}
-            return
-        sig = (st.st_mtime_ns, st.st_size)
-        if sig == self.curated_sig:
-            return
-        try:
-            with open(curated_path(self.paths), encoding="utf-8-sig") as f:
-                songs = json.load(f)["songs"]
-        except (OSError, ValueError, KeyError, TypeError):
-            return
-        if isinstance(songs, dict):
-            self.curated_sig, self.curated = sig, {k: v for k, v in songs.items() if isinstance(v, dict) and isinstance(v.get("why"), str)}
+        self._watch("curated", curated_path(self.paths), lambda saved: {k: v for k, v in saved["songs"].items() if isinstance(v, dict) and isinstance(v.get("why"), str)})
 
     def _read_ideas(self):
         """The playlist ideas from `curator suggest`, if any."""
-        path = suggestions_path(self.paths)
-        try:
-            st = os.stat(path)
-        except (OSError, TypeError, ValueError):
-            self.ideas_sig, self.ideas, self.ideas_names = None, {}, []
-            return
-        sig = (st.st_mtime_ns, st.st_size)
-        if sig == self.ideas_sig:
-            return
-        try:
-            with open(path, encoding="utf-8-sig") as f:
-                loaded = json.load(f)
-            songs, names = loaded["songs"], loaded["playlists"]
-        except (OSError, ValueError, KeyError, TypeError):
-            return
-        if isinstance(songs, dict) and isinstance(names, list):
-            ideas = {k: v for k, v in songs.items() if isinstance(v, dict) and isinstance(v.get("why"), str) and isinstance(v.get("fits"), list) and isinstance(v.get("also", []), list)}
-            self.ideas_sig, self.ideas, self.ideas_names = sig, ideas, [n for n in names if isinstance(n, str)]
+        def keep(saved):
+            songs, names = saved["songs"], saved["playlists"]
+            if not isinstance(songs, dict) or not isinstance(names, list):
+                return None
+            self.ideas_names = [n for n in names if isinstance(n, str)]
+            return {k: v for k, v in songs.items() if isinstance(v, dict) and isinstance(v.get("why"), str) and isinstance(v.get("fits"), list) and isinstance(v.get("also", []), list)}
+        self._watch("ideas", suggestions_path(self.paths), keep)
+        if self.ideas_sig is None:
+            self.ideas_names = []
 
     def _read_decisions(self):
         """The answers can change behind the page's back: `curator apply` takes away the ones it has carried out."""
@@ -955,10 +895,6 @@ def plays_path(paths):
     return os.path.join(os.path.dirname(paths["decisions"]), "plays.json")
 
 
-def saved_lists_path(paths):
-    return os.path.join(os.path.dirname(paths["decisions"]), "spotify_playlists.json")
-
-
 def levels_path(paths):
     return os.path.join(os.path.dirname(paths["decisions"]), "loudness.json")
 
@@ -968,13 +904,19 @@ def level_key(song):
     return f"{play_key(song)}|{song['bytes']}"
 
 
+def name_key(artist, title):
+    """One song's name, with the line between artist and title kept: "Ab - C" and "A - Bc" are different songs."""
+    artist, title = text_key(artist), text_key(title)
+    return f"{artist}|{title}" if artist or title else ""
+
+
 def log_name(row):
-    return text_key(f"{row.get('artist', '')} - {row.get('title', '')}")
+    return name_key(row.get("artist"), row.get("title"))
 
 
 def play_key(song):
     """Counts go by name, so a song keeps its count when it moves to another genre folder or a better copy replaces the file."""
-    return text_key(f"{song['artist']} - {song['title']}" if song["artist"] and song["title"] else os.path.splitext(song["file"])[0]) or song["key"]
+    return (name_key(song["artist"], song["title"]) if song["artist"] and song["title"] else text_key(os.path.splitext(song["file"])[0])) or song["key"]
 
 
 def is_web_link(text):

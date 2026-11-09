@@ -378,7 +378,7 @@ class Run:
         known = dict(size=size, release=found["release"], tried=outcome["tried"])
         if outcome["match"]:
             return dict(known, match=dict(url=outcome["match"]["url"], option=version_on_video(outcome["match"], found["options"])))
-        return None if outcome["failed"] or outcome["stopped"] else known  # one that couldn't be compared gets another go next time
+        return None if outcome["failed"] or outcome["stopped"] or outcome["unreadable"] else known  # one that couldn't be compared gets another go next time
 
     def _judged(self, key, item, said=""):
         used, found = lookup(item, self.history, self.library_keys)

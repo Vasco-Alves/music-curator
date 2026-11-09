@@ -107,18 +107,18 @@ def scratch(parent):
             print(f"Couldn't delete {folder}: please remove it by hand.", file=sys.stderr)
 
 
-def fetch_audio(video_id, folder, timeout=None):
-    """A video's audio, into a scratch() folder (with the yt-dlp interpreter from the config)."""
+def fetch_audio(video_id, folder, timeout=None, stopping=None):
+    """A video's audio, into a scratch() folder (with the yt-dlp interpreter from the config). Past `timeout`, or once `stopping` is set, it's given up on."""
     try:
-        r = subprocess.run([ytdlp_python(), "-I", os.path.join(HERE, "ytdlp_helper.py"), "audio", video_id, folder], capture_output=True, text=True, encoding="utf-8", timeout=timeout)
-    except subprocess.TimeoutExpired:
-        return {"error": "it took too long"}
+        out, err = fp.run_or_give_up([ytdlp_python(), "-I", os.path.join(HERE, "ytdlp_helper.py"), "audio", video_id, folder], timeout, stopping, text=True, encoding="utf-8")
+    except fp.GaveUp as ex:
+        return {"error": str(ex)}
     except OSError as ex:
         return {"error": str(ex)[:300]}
     try:
-        return json.loads(r.stdout.strip().splitlines()[-1])
+        return json.loads(out.strip().splitlines()[-1])
     except (ValueError, IndexError):
-        return {"error": (r.stderr or "no output")[-300:]}
+        return {"error": (err or "no output")[-300:]}
 
 
 @contextlib.contextmanager

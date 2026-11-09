@@ -53,22 +53,34 @@ def is_strong(ber, overlap_s, secs, video_secs):
 def find_match(src, secs, videos, parent, stopping=None):
     """Is this file, from start to finish, the same recording as one of these videos? What it fetches is deleted straight after.
     A match says the two are the same audio, not that the video is the version on the record: videos get mislabelled. So it's for a person to weigh."""
-    out = dict(tried=0, failed=0, stopped=False, match=None)
+    out = dict(tried=0, failed=0, stopped=False, unreadable=False, match=None)
     near = sorted((v for v in videos if not v.get("duration") or abs(v["duration"] - secs) <= STRONG_WITHIN_S), key=lambda v: (not v.get("duration"), abs((v.get("duration") or 0) - secs)))[:MOST_TO_FETCH]  # one that runs longer or shorter can't be a strong match, so it isn't worth fetching
     if not near:
         return out
-    mine = fpcompare.fingerprint(src)
+
+    def asked_to_stop():
+        out["stopped"] = bool(stopping and stopping.is_set())
+        return out["stopped"]
+
+    mine = fpcompare.fingerprint(src, stopping)
+    if asked_to_stop():
+        return out
+    if not mine:  # a damaged file, or ffmpeg got stuck on it: nothing was compared, so there's no answer to keep
+        out["unreadable"] = True
+        return out
     with samerec.scratch(parent) as folder:
         for v in near:
-            if stopping and stopping.is_set():
-                out["stopped"] = True
+            if asked_to_stop():
                 break
-            info = samerec.fetch_audio(v["id"], folder, timeout=FETCH_TIMEOUT_S)
-            if info.get("error") or not os.path.exists(info.get("file", "")):
+            info = samerec.fetch_audio(v["id"], folder, timeout=FETCH_TIMEOUT_S, stopping=stopping)
+            theirs = [] if info.get("error") or not os.path.exists(info.get("file", "")) else fpcompare.fingerprint(info["file"], stopping)
+            if asked_to_stop():
+                break
+            if not theirs:
                 out["failed"] += 1
                 continue
             out["tried"] += 1
-            ber, _, n = fpcompare.compare(mine, fpcompare.fingerprint(info["file"]))
+            ber, _, n = fpcompare.compare(mine, theirs)
             length = info.get("duration") or v.get("duration")
             if is_strong(ber, n * fpcompare.ITEM_S, secs, length):
                 out["match"] = {**v, "duration": length, "url": f"https://www.youtube.com/watch?v={v['id']}"}

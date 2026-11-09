@@ -2,14 +2,17 @@
 import http.client
 import json
 import os
+import shutil
 import subprocess
 import sys
+import tempfile
 import threading
+import time
 import unittest
 from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
-from music_curator import config, curate, discogs, samerec, videos, webapp  # noqa: E402
+from music_curator import config, curate, discogs, fpcompare, samerec, videos, webapp  # noqa: E402
 from test_apply import Base  # noqa: E402
 from test_curate import KEY, LENGTH, WithDiscogs  # noqa: E402
 from test_webapp import write_mp3  # noqa: E402
@@ -27,6 +30,7 @@ class Comparing(WithDiscogs):
         super().setUp()
         self.fetched, self.kept, self.there = [], [], []
         self.ber, self.items, self.video_secs, self.fetch_error, self.after_fetch = 0.1, 45, 5, None, None
+        self.unreadable = lambda path: False
         for patcher in (mock.patch.object(samerec, "fetch_audio", self.fetch), mock.patch.object(videos.fpcompare, "fingerprint", self.fingerprint),
                         mock.patch.object(videos.fpcompare, "compare", lambda a, b: (self.ber, 0, self.items)), mock.patch.object(curate, "can_compare", return_value=True)):
             patcher.start()
@@ -38,7 +42,7 @@ class Comparing(WithDiscogs):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    def fetch(self, video_id, folder, timeout=None):
+    def fetch(self, video_id, folder, timeout=None, stopping=None):
         self.fetched.append(video_id)
         if self.after_fetch:
             self.after_fetch()
@@ -50,9 +54,9 @@ class Comparing(WithDiscogs):
         self.kept.append(path)
         return dict(id=video_id, file=path, duration=self.video_secs)
 
-    def fingerprint(self, path):
+    def fingerprint(self, path, stopping=None):
         self.there.append(os.path.exists(path))
-        return [1, 2, 3]
+        return [] if self.unreadable(path) else [1, 2, 3]
 
     def record(self, tracks=(("A1", "Song", FAR),), linked=ONE_VIDEO, artist="A"):
         rid = self.fake.add(artist, "The Record", list(tracks))
@@ -323,6 +327,142 @@ class WhenFetchingFails(Comparing):
         self.assertEqual(self.fetched, [VIDEO])
         self.assertNotIn("audio", self.check(), "half compared isn't an answer")
         self.assertEqual(done["waiting"], 1)
+
+    def test_stopping_during_a_fetch_doesnt_count_against_the_videos(self):
+        self.file(SONG)
+        self.record()
+        stopping = threading.Event()
+        self.after_fetch = stopping.set
+        self.fetch_error = "stopped"
+        run, _ = self.run_it(stopping=stopping)
+        self.assertEqual(run.fetch_fails, 0)
+
+    def test_files_of_yours_that_cant_be_read_dont_blame_the_videos(self):
+        self.unreadable = lambda path: True
+        self.many(8)
+        _, done = self.run_it()
+        self.assertEqual((self.fetched, done["said"]), ([], ""))
+
+
+class WhenThereIsNoFingerprint(Comparing):
+    def yours(self, path):
+        return path.endswith(".mp3")
+
+    def theirs(self, path):
+        return path.endswith(".webm")
+
+    def test_your_own_file_is_no_answer_and_nothing_is_fetched(self):
+        self.unreadable = self.yours
+        self.file(SONG)
+        self.record()
+        self.run_it()
+        self.assertEqual(self.fetched, [])
+        self.assertNotIn("audio", self.check())
+
+    def test_your_own_file_gets_another_go(self):
+        self.unreadable = self.yours
+        self.file(SONG)
+        self.record()
+        self.run_it()
+        self.unreadable = lambda path: False
+        _, done = self.run_it()
+        self.assertEqual((self.fetched, done["strong"]), ([VIDEO], 1))
+
+    def test_a_video_that_cant_be_heard_isnt_counted_as_compared(self):
+        self.unreadable = self.theirs
+        self.file(SONG)
+        self.record()
+        self.run_it()
+        self.assertNotIn("audio", self.check())
+
+    def test_a_video_that_cant_be_heard_gets_another_go(self):
+        self.ber = 0.4
+        self.unreadable = self.theirs
+        self.file(SONG)
+        self.record()
+        self.run_it()
+        self.unreadable, self.fetched[:] = (lambda path: False), []
+        self.run_it()
+        self.assertEqual(self.fetched, [VIDEO])
+        self.assertEqual(self.check()["audio"], dict(strong=False, tried=1))
+
+    def test_one_video_heard_and_one_not_is_still_no_final_answer(self):
+        self.ber = 0.4
+        self.unreadable = lambda path: path.endswith(f"{OTHER}.webm")
+        self.file(SONG)
+        self.record(linked=((VIDEO, "A - Song", 5), (OTHER, "A - Song", 5)))
+        self.run_it()
+        self.assertNotIn("audio", self.check())
+
+
+class EndingAProgram(unittest.TestCase):
+    SLEEPS = [sys.executable, "-c", "import time; time.sleep(30)"]
+
+    def setUp(self):
+        patcher = mock.patch.object(fpcompare, "CHECK_EVERY_S", 0.02)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.started = time.monotonic()
+
+    def quickly(self):
+        self.assertLess(time.monotonic() - self.started, 15, "it should have been ended, not left to finish its 30 seconds")
+
+    def helper(self, code):
+        """A stand-in for the yt-dlp helper, so the real way of starting it is what gets tested."""
+        folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, folder, ignore_errors=True)
+        with open(os.path.join(folder, "ytdlp_helper.py"), "w", encoding="utf-8") as f:
+            f.write(code)
+        for patcher in (mock.patch.object(samerec, "HERE", folder), mock.patch.object(samerec, "ytdlp_python", return_value=sys.executable)):
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        return folder
+
+    def test_it_hands_back_what_the_program_said(self):
+        said = fpcompare.run_or_give_up([sys.executable, "-c", "import sys; print('out'); print('err', file=sys.stderr)"], 30, text=True, encoding="utf-8")
+        self.assertEqual([part.strip() for part in said], ["out", "err"])
+
+    def test_one_that_runs_too_long_is_ended(self):
+        with self.assertRaisesRegex(fpcompare.GaveUp, "too long"):
+            fpcompare.run_or_give_up(self.SLEEPS, timeout=0.1)
+        self.quickly()
+
+    def test_stop_ends_it_without_waiting_for_the_time_limit(self):
+        stopping = threading.Event()
+        timer = threading.Timer(0.1, stopping.set)
+        timer.start()
+        self.addCleanup(timer.cancel)
+        with self.assertRaisesRegex(fpcompare.GaveUp, "stopped"):
+            fpcompare.run_or_give_up(self.SLEEPS, timeout=30, stopping=stopping)
+        self.quickly()
+
+    def test_a_fetch_that_hangs_comes_back_as_an_error(self):
+        folder = self.helper("import time; time.sleep(30)")
+        self.assertEqual(samerec.fetch_audio("x", folder, timeout=0.1), {"error": "it took too long"})
+        self.quickly()
+
+    def test_a_fetch_stopped_partway_comes_back_as_an_error(self):
+        folder = self.helper("import time; time.sleep(30)")
+        stopping = threading.Event()
+        stopping.set()
+        self.assertEqual(samerec.fetch_audio("x", folder, stopping=stopping), {"error": "stopped"})
+        self.quickly()
+
+    def test_a_fetch_still_reads_the_helpers_answer(self):
+        folder = self.helper("print('progress'); print('{\"id\": \"x\", \"file\": \"a.webm\"}')")
+        self.assertEqual(samerec.fetch_audio("x", folder, timeout=30), dict(id="x", file="a.webm"))
+
+    def test_a_fetch_with_no_answer_says_what_went_wrong(self):
+        folder = self.helper("import sys; print('no such video', file=sys.stderr)")
+        self.assertIn("no such video", samerec.fetch_audio("x", folder, timeout=30)["error"])
+
+    def test_a_program_that_isnt_there_is_an_error_not_a_crash(self):
+        with mock.patch.object(samerec, "ytdlp_python", return_value=os.path.join(tempfile.gettempdir(), "no_such_python_here")):
+            self.assertIn("error", samerec.fetch_audio("x", tempfile.gettempdir(), timeout=30))
+
+    def test_a_fingerprint_that_hangs_is_no_fingerprint(self):
+        with mock.patch.object(fpcompare, "run_or_give_up", side_effect=fpcompare.GaveUp("it took too long")):
+            self.assertEqual(fpcompare.fingerprint("a.mp3"), [])
 
 
 class WhichVersionTheVideoIs(unittest.TestCase):

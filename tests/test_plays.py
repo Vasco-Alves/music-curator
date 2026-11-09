@@ -33,6 +33,18 @@ class Names(unittest.TestCase):
     def test_a_name_with_no_letters_at_all_still_has_a_key(self):
         self.assertEqual(self.key(artist="", title="", file="!!!.mp3", key="library/!!!.mp3"), "library/!!!.mp3")
 
+    def test_tags_with_no_letters_at_all_still_have_a_key(self):
+        self.assertEqual(self.key(artist="!!!", title="???", key="library/x.mp3"), "library/x.mp3")
+
+    def test_where_the_artist_ends_matters(self):
+        self.assertNotEqual(self.key(artist="Ab", title="C"), self.key(artist="A", title="Bc"))
+
+    def test_and_in_the_log_too(self):
+        self.assertNotEqual(webapp.log_name(dict(artist="Ab", title="C")), webapp.log_name(dict(artist="A", title="Bc")))
+
+    def test_the_log_and_the_counts_dont_care_about_spelling(self):
+        self.assertEqual(webapp.log_name(dict(artist="Á", title="SONG")), webapp.log_name(dict(artist="a", title="song")))
+
 
 class FromThePlayer(Base):
     def setUp(self):

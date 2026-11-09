@@ -6,17 +6,50 @@ Prints JSON: {"ber": bit error rate at the best alignment (0 = identical, ~0.5 =
               "offset_s": how far b is shifted against a, "overlap_s": compared length, "verdict": ...}
 Same recording (even a different rip or master) is typically < 0.25; a different song ~0.45-0.5.
 """
+import contextlib
 import json
 import struct
 import subprocess
 import sys
+import time
+
+from . import folders
 
 ITEM_S = 0.1238  # seconds per fingerprint item (4096-sample frames at 11025 Hz, 2/3 overlap)
+CHECK_EVERY_S = 0.5  # how soon a program notices it has been given up on
+FINGERPRINT_TIMEOUT_S = 300  # a song takes seconds and an hour-long mix about a minute: past this, ffmpeg has got stuck
 
 
-def fingerprint(path):
-    raw = subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", path,
-                          "-f", "chromaprint", "-fp_format", "raw", "-"], capture_output=True).stdout
+class GaveUp(Exception):
+    """A program was ended early. The message says why, in words for the person."""
+
+
+def run_or_give_up(command, timeout=None, stopping=None, **decoding):
+    """Run a program and return (stdout, stderr). It's ended if it runs past `timeout` seconds or someone sets `stopping`, and then this raises GaveUp."""
+    deadline = None if timeout is None else time.monotonic() + timeout
+    program = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=folders.NO_WINDOW, **decoding)
+    try:
+        while True:
+            try:
+                return program.communicate(timeout=CHECK_EVERY_S)
+            except subprocess.TimeoutExpired:
+                if stopping and stopping.is_set():
+                    raise GaveUp("stopped") from None
+                if deadline is not None and time.monotonic() >= deadline:
+                    raise GaveUp("it took too long") from None
+    finally:
+        if program.poll() is None:
+            program.kill()
+            with contextlib.suppress(subprocess.TimeoutExpired):
+                program.communicate(timeout=5)  # something it started itself can hold the pipes open, and that mustn't hold this up
+
+
+def fingerprint(path, stopping=None):
+    """A file's fingerprint, or [] if ffmpeg couldn't make one: a damaged file, or one it got stuck on."""
+    try:
+        raw = run_or_give_up(["ffmpeg", "-hide_banner", "-loglevel", "error", "-i", path, "-f", "chromaprint", "-fp_format", "raw", "-"], FINGERPRINT_TIMEOUT_S, stopping)[0]
+    except GaveUp:
+        return []
     return list(struct.unpack(f"<{len(raw) // 4}I", raw[: len(raw) // 4 * 4]))
 
 
