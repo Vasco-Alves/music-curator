@@ -156,6 +156,7 @@ Curate decides on names and lengths alone, so what it added is only a first pass
 6. **Record it.** `curator verified "Genre/Artist - Title.mp3" --how "what you checked"` turns it into Verified on the page. If something failed, don't mark it: tell the person what's wrong.
 
 **Every song Curate left** (in `curated.json`, still in the downloads folder): take it through **The workflow**, starting from the reason Curate gave. That includes other sources when Discogs doesn't have the song (step 5). Whatever you can verify gets the same checks before you call it done.
+If the person turned on comparing audio (`[curate] compare_audio`), an entry may hold `audio`: how many videos on the record were compared and, under `match`, one that's the same recording from start to finish. Curate never adds a song because of it, and neither should you on that alone: a video can be mislabelled or be another mix from the same record. Use it as one piece of evidence.
 
 ## Better copies
 
@@ -173,12 +174,14 @@ Checking a song includes asking whether a better recording of it exists: first t
 
 ## The browser app
 
+If your AI app has its own browser (the Claude desktop app's Browser pane, for example), open the page there, beside the conversation. You and the person then look at the same cards, and you can check how a change really looks. Reading the page is fine. Answering on it is theirs: don't click their answers for them unless they ask.
+
 `curator serve` gives the person a local page to explore the library and answer what only ears can settle. With no config
 it opens on a first-run screen where they pick their library and downloads folders; that saves `curator.toml` to the per-user
 location (`--config` or `$CURATOR_CONFIG` override it), and every command then finds it. To change folders, use its Folders page. It reads the
 library, the log and (optional `[paths]` keys) a `review` folder and a `review_list` Markdown file with one
 `- **Artist - Title**: reason` per song. The page never changes music; answers land in `decisions.json` next to the log, keyed
-`<kind>:<area>/<relative path>`, and `curator decisions` lists them.
+`<kind>:<area>/<relative path>`, and `curator decisions` lists them. Play counts land in `plays.json` beside it, keyed by artist and title, so a count follows a song to another folder or a better copy.
 
 To act on them, run `curator apply --dry-run`, show the person what it would do, and after their OK run `curator apply`. Nothing
 is deleted: old copies go to a `Set aside` folder next to the log, and every change is logged.

@@ -107,10 +107,12 @@ def scratch(parent):
             print(f"Couldn't delete {folder}: please remove it by hand.", file=sys.stderr)
 
 
-def fetch_audio(video_id, folder):
+def fetch_audio(video_id, folder, timeout=None):
     """A video's audio, into a scratch() folder (with the yt-dlp interpreter from the config)."""
     try:
-        r = subprocess.run([ytdlp_python(), "-I", os.path.join(HERE, "ytdlp_helper.py"), "audio", video_id, folder], capture_output=True, text=True, encoding="utf-8")
+        r = subprocess.run([ytdlp_python(), "-I", os.path.join(HERE, "ytdlp_helper.py"), "audio", video_id, folder], capture_output=True, text=True, encoding="utf-8", timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return {"error": "it took too long"}
     except OSError as ex:
         return {"error": str(ex)[:300]}
     try:

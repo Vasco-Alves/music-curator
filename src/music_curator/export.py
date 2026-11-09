@@ -25,10 +25,10 @@ def _cell(text):
 def to_csv(songs):
     out = io.StringIO(newline="")
     w = csv.writer(out)
-    w.writerow(["Artist", "Title", "Album", "Year", "Genre", "Label", "Country", "Seconds", "Kbps", "How sure", "Link", "File"])
+    w.writerow(["Artist", "Title", "Album", "Year", "Genre", "Label", "Country", "Seconds", "Kbps", "How sure", "Plays", "Link", "File"])
     for s in songs:
         w.writerow([_cell(s["artist"]), _cell(s["title"]), _cell(s["album"]), _cell(s["year"]), _cell(s["genre"]), _cell(s["label"]), _cell(s["country"]),
-                    round(s["secs"]) if s["secs"] else "", s["kbps"] or "", TRUST_WORDS.get(s["trust"], ""), _cell(s["link"]), _cell(s["_path"])])
+                    round(s["secs"]) if s["secs"] else "", s["kbps"] or "", TRUST_WORDS.get(s["trust"], ""), s.get("plays", 0), _cell(s["link"]), _cell(s["_path"])])
     return "﻿" + out.getvalue()  # so Excel reads it as UTF-8
 
 

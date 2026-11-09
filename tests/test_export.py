@@ -9,6 +9,7 @@ import json
 import os
 import shutil
 import sys
+import tempfile
 import threading
 import time
 import unittest
@@ -52,6 +53,23 @@ class Files(unittest.TestCase):
 
     def test_ordinary_words_are_untouched(self):
         self.assertEqual(dict(zip(*self.rows(song(title="A-side"))))["Title"], "A-side")
+
+
+class RecordDetails(unittest.TestCase):
+    def test_a_format_leaves_out_the_speed(self):
+        self.assertEqual(webapp.release_format({"formats": [{"name": "Vinyl", "descriptions": ['12"', "33 ⅓ RPM", "EP"]}]}), 'Vinyl, 12", EP')
+
+    def test_a_record_with_no_format_says_nothing(self):
+        self.assertEqual(webapp.release_format({}), "")
+
+    def test_tracks_are_counted_but_headings_are_not(self):
+        release = dict(id=7, labels=[dict(name="Harthouse")], country="Germany", year=1993, formats=[dict(name="CD")],
+                       tracklist=[dict(type_="heading", title="Side A"), dict(type_="track", title="One"), dict(type_="track", title="Two"), dict(title="Three")])
+        with tempfile.TemporaryDirectory() as folder:
+            with open(os.path.join(folder, "r.json"), "w", encoding="utf-8") as f:
+                json.dump(release, f)
+            found = webapp.discogs_index(folder)[0][7]
+        self.assertEqual((found["tracks"], found["format"], found["label"]), (3, "CD", "Harthouse"))
 
 
 class Where(Base):
@@ -180,6 +198,12 @@ class FromThePage(Base):
     def test_the_page_can_check_a_folder(self):
         status, answer = self.ask("POST", "/api/settings/check", dict(kind="export", path=self.lib))
         self.assertEqual((status, answer["ok"]), (200, False))
+
+    def test_every_stylesheet_the_page_asks_for_is_there(self):
+        page = self.ask("GET", "/")[1].decode("utf-8")
+        for sheet in ("/style.css", "/glass.css", "/hifi.css"):
+            self.assertIn(f'href="{sheet}"', page)
+            self.assertEqual(self.ask("GET", sheet)[0], 200, sheet)
 
     def test_the_page_is_told_how_a_copy_is_going(self):
         self.assertFalse(self.ask("GET", "/api/all")[1]["meta"]["export"]["running"])

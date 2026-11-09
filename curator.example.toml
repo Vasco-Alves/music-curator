@@ -18,6 +18,9 @@ user_agent = "MusicCurator/0.1"      # Discogs asks for a unique, descriptive Us
 [ytdlp]
 python = ""                          # Python with yt-dlp installed (only to compare your files with videos online)
 
+[curate]
+compare_audio = false                # when Curate can't tell which version a song is, compare it with the videos on the record (needs yt-dlp). It only tells you how sure it is
+
 [spotify]
 client_id = ""                       # optional: your Spotify app's Client ID, for the Check Spotify button (see README)
 

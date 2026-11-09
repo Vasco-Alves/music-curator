@@ -15,10 +15,65 @@ from . import discogs as d
 from . import fpcompare
 from . import samerec
 
+STRONG_BER = 0.2  # samerec's rule for "the same recording, start to finish"
+STRONG_WITHIN_S = 6  # a shorter edit matches for as long as it lasts, so the two have to run equally long...
+STRONG_OVERLAP = 0.9  # ...and match over nearly all of it
+MOST_TO_FETCH = 3  # videos per song
+FETCH_TIMEOUT_S = 240
+
 
 def vid_id(uri):
     m = re.search(r"(?:v=|youtu\.be/)([A-Za-z0-9_-]{11})", uri or "")
     return m.group(1) if m else None
+
+
+def linked(release, title, master=None, extra=()):
+    """The videos linked on a record and its other pressings that name this track."""
+    want = d.base_title(title)
+    videos, seen = [], set()
+    rids = [release] + list(extra or [])
+    if master:
+        vers = (d.get(f"/masters/{master}/versions", per_page=50) or {}).get("versions", [])
+        rids += [v["id"] for v in vers if v.get("id") not in rids][:4]
+    for rid in rids:
+        rel = d.get(f"/releases/{rid}") or {}
+        for v in rel.get("videos") or []:
+            vid = vid_id(v.get("uri"))
+            if vid and vid not in seen and want and want in d.norm(v.get("title")):
+                seen.add(vid)
+                videos.append({"id": vid, "title": v.get("title"), "duration": v.get("duration")})
+    return videos
+
+
+def is_strong(ber, overlap_s, secs, video_secs):
+    """Sure enough to tell someone: the two run equally long and match from start to finish."""
+    return bool(secs and video_secs) and ber < STRONG_BER and abs(secs - video_secs) <= STRONG_WITHIN_S and overlap_s >= STRONG_OVERLAP * min(secs, video_secs)
+
+
+def find_match(src, secs, videos, parent, stopping=None):
+    """Is this file, from start to finish, the same recording as one of these videos? What it fetches is deleted straight after.
+    A match says the two are the same audio, not that the video is the version on the record: videos get mislabelled. So it's for a person to weigh."""
+    out = dict(tried=0, failed=0, stopped=False, match=None)
+    near = sorted((v for v in videos if not v.get("duration") or abs(v["duration"] - secs) <= STRONG_WITHIN_S), key=lambda v: (not v.get("duration"), abs((v.get("duration") or 0) - secs)))[:MOST_TO_FETCH]  # one that runs longer or shorter can't be a strong match, so it isn't worth fetching
+    if not near:
+        return out
+    mine = fpcompare.fingerprint(src)
+    with samerec.scratch(parent) as folder:
+        for v in near:
+            if stopping and stopping.is_set():
+                out["stopped"] = True
+                break
+            info = samerec.fetch_audio(v["id"], folder, timeout=FETCH_TIMEOUT_S)
+            if info.get("error") or not os.path.exists(info.get("file", "")):
+                out["failed"] += 1
+                continue
+            out["tried"] += 1
+            ber, _, n = fpcompare.compare(mine, fpcompare.fingerprint(info["file"]))
+            length = info.get("duration") or v.get("duration")
+            if is_strong(ber, n * fpcompare.ITEM_S, secs, length):
+                out["match"] = {**v, "duration": length, "url": f"https://www.youtube.com/watch?v={v['id']}"}
+                break
+    return out
 
 
 def main(argv=None):
@@ -28,19 +83,7 @@ def main(argv=None):
     items = json.load(open(items_path, encoding="utf-8"))
     results = []
     for it in items:
-        want = d.base_title(it["title"])
-        videos, seen = [], set()
-        rids = [it["release"]] + list(it.get("extra_releases") or [])
-        if it.get("master"):
-            vers = (d.get(f"/masters/{it['master']}/versions", per_page=50) or {}).get("versions", [])
-            rids += [v["id"] for v in vers if v.get("id") not in rids][:4]
-        for rid in rids:
-            rel = d.get(f"/releases/{rid}") or {}
-            for v in rel.get("videos") or []:
-                vid = vid_id(v.get("uri"))
-                if vid and vid not in seen and want and want in d.norm(v.get("title")):
-                    seen.add(vid)
-                    videos.append({"id": vid, "title": v.get("title"), "duration": v.get("duration")})
+        videos = linked(it["release"], it["title"], it.get("master"), it.get("extra_releases"))
         local_fp = fpcompare.fingerprint(it["src"])
         checked = []
         with samerec.scratch(qdir) as folder:

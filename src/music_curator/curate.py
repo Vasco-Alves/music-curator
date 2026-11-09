@@ -4,6 +4,9 @@ Every song waiting in your downloads folders is looked up on Discogs. A song is 
 cover, only when the evidence settles it: its artist and name match a track on a record and, when the record lists a length, so does the
 length. With nobody double-checking, these rules are stricter than an agent's. Everything else waits on To check with the reason and the
 versions found, for you to settle by ear. Originals are never changed, and every write is logged.
+
+With comparing audio turned on, To check also says when a file is strongly the same recording as a video on its record. That's for you to
+weigh: a video can be mislabelled, so nothing goes in because of it.
 """
 import datetime
 import hashlib
@@ -12,17 +15,19 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import threading
 import urllib.error
 import urllib.parse
 
-from . import config, discogs, parse, resolve, tagwriter, webapp
+from . import config, discogs, folders, parse, resolve, tagwriter, videos, webapp
 
 MAX_GAP_S = 20  # how far a file's length may be from the record's. Past it the file may be another edit (on a real library, the first wrong match came at 55 s)
 AUTO_NOTE, PICK_NOTE = "matched automatically", "picked by you"  # in the log's notes; the page shows these songs as Auto-matched
 SAVE_EVERY = 10  # songs between saves of what's waiting, so a run that's cut off loses little
 GIVE_UP_AFTER = 3  # lookups failing in a row before the network is assumed to be down
+STOP_FETCHING_AFTER = 5  # videos failing in a row before comparing is given up for the run
 ONLY_MP3 = "Only MP3 files can be curated for now."
 NOT_LOOKED_UP = {
     "mix": "Looks like a DJ mix or a full album, so it wasn't looked up.",
@@ -138,6 +143,51 @@ def judge(item, found):
     return ""
 
 
+def compare_on():
+    return config.get("curate", "compare_audio", False) is True
+
+
+def can_compare():
+    """Comparing needs yt-dlp, and an ffmpeg that can make fingerprints."""
+    ffmpeg = shutil.which("ffmpeg")
+    if not ffmpeg:
+        return False
+    try:
+        muxers = subprocess.run([ffmpeg, "-hide_banner", "-muxers"], capture_output=True, text=True, errors="replace", timeout=20, creationflags=folders.NO_WINDOW).stdout
+        return "chromaprint" in muxers and subprocess.run([config.ytdlp_python(), "-I", "-c", "import yt_dlp"], capture_output=True, timeout=30, creationflags=folders.NO_WINDOW).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def worth_comparing(item, found):
+    """Comparing is for a song found on a record, by the artist the file names, when what's open is which version it is."""
+    if found.get("status") not in ("ready", "review") or not found.get("options") or not found.get("genre") or not found.get("release") or not item.get("secs"):
+        return False
+    return not item.get("artist") or same_artist(item["artist"], found.get("artist"))
+
+
+def option_id(o):
+    return f"{o['pos']}|{o['title']}"
+
+
+def version_on_video(video, options):
+    """Which version on the record a video is, if the video itself says. "" if it doesn't."""
+    if len(options) == 1:
+        return option_id(options[0])
+    notes = name_notes(video.get("title"))
+    named = [o for o in options if any(resolve.mix_matches(n, o["title"]) for n in notes)]
+    if len(named) == 1:
+        return option_id(named[0])
+    timed = [o for o in named or options if video.get("duration") and resolve.secs(o["dur"]) and abs(resolve.secs(o["dur"]) - video["duration"]) <= videos.STRONG_WITHIN_S]
+    return option_id(timed[0]) if len(timed) == 1 else ""
+
+
+def _heard(entry):
+    """What comparing the audio found out about a waiting song."""
+    audio = entry.get("audio")
+    return audio if isinstance(audio, dict) else {}
+
+
 def with_names(item, artist, title):
     """The same song under another reading of its name."""
     info = parse.parse(f"{artist} - {title}", {})
@@ -211,6 +261,7 @@ class Run:
         self.songs, self.added, self.loaded = {}, [], False
         self.looked, self.stopped = 0, False
         self.covers, self.writer, self.history, self.library_keys = None, None, {}, {}
+        self.comparing, self.fetch_fails, self.said = False, 0, ""
 
     # ---------------- files ----------------
 
@@ -267,13 +318,15 @@ class Run:
 
     # ---------------- one song ----------------
 
-    def hold(self, key, why, found=None, retry=False, said=""):
+    def hold(self, key, why, found=None, retry=False, said="", audio=None):
         old = self.songs.get(key) or {}
         entry = {"why": _no_token_in(why)}
+        if audio:
+            entry["audio"] = audio
         if found is None:  # a blip or a failed write says nothing about the song: what was found before still stands
-            entry.update({k: old[k] for k in ("options", "record", "said") if k in old})
+            entry.update({k: old[k] for k in ("options", "record", "said", "audio") if k in old})
         elif found.get("options") and found.get("genre") and (found["status"] != "dup" or "probably" in " ".join(found.get("reasons") or [])):
-            entry["options"] = [dict(o, id=f"{o['pos']}|{o['title']}") for o in found["options"]]
+            entry["options"] = [dict(o, id=option_id(o)) for o in found["options"]]
             entry["record"] = {k: found.get(k) or "" for k in ("discogs", "release_title", "labels", "album", "year", "genre", "cover_url")}
             entry["record"]["toss"] = " / ".join(found.get("genre_options") or []) if found.get("toss_up") else ""
         if said:
@@ -306,12 +359,33 @@ class Run:
         self.hold(key, f"Already in your library: {os.path.basename(m[1])}" if m else f"It's named .mp3, but it's really {codec[1]}. {ONLY_MP3}" if codec else status)
         return False
 
+    def _compare(self, key, item, found):
+        """How the file compares with the videos on the record, for the person to weigh. It never decides anything, and a file is only compared with a record once."""
+        try:
+            size = os.path.getsize(item["src"])
+            old = _heard(self.songs.get(key) or {})
+            if old and old.get("size") == size and old.get("release") == found.get("release"):
+                return old
+            if not self.comparing or not worth_comparing(item, found):
+                return None
+            self.progress(name=f"Comparing the audio: {item['file']}")
+            outcome = videos.find_match(item["src"], item["secs"], videos.linked(found["release"], found["title"], found.get("master")), os.path.join(self.paths["work"], "videos"), self.stopping)
+        except Exception:  # noqa: BLE001  this is extra: it never costs a song its place on the list
+            return None
+        self.fetch_fails = 0 if outcome["tried"] else self.fetch_fails + outcome["failed"]
+        if self.fetch_fails >= STOP_FETCHING_AFTER:
+            self.comparing, self.said = False, "The videos couldn't be fetched, so comparing stopped for this run. yt-dlp may need updating."
+        known = dict(size=size, release=found["release"], tried=outcome["tried"])
+        if outcome["match"]:
+            return dict(known, match=dict(url=outcome["match"]["url"], option=version_on_video(outcome["match"], found["options"])))
+        return None if outcome["failed"] or outcome["stopped"] else known  # one that couldn't be compared gets another go next time
+
     def _judged(self, key, item, said=""):
         used, found = lookup(item, self.history, self.library_keys)
         self.looked += 1
         why = judge(used, found)
         if why:
-            self.hold(key, f'You said "{said}". {why}' if said else why, found, said=said)
+            self.hold(key, f'You said "{said}". {why}' if said else why, found, said=said, audio=self._compare(key, used, found))
             return
         how = found.get("how") or ""
         gap = found.get("dur_diff")
@@ -357,12 +431,24 @@ class Run:
             self._judged(key, item)  # the list has changed since you chose: look it up again
             return True
         toss = "genre toss-up: " + record["toss"] if record.get("toss") else ""
-        return self.add(key, item, dict(record, artist=option["artist"], title=option["title"]), [f"{PICK_NOTE} from the versions on the record", toss])
+        heard = _heard(old)
+        match = heard.get("match") if isinstance(heard.get("match"), dict) else {}
+        same = f"same recording as a video on the record: {match['url']}" if match.get("url") and match.get("option") in ("", option["id"]) and heard.get("size") == os.path.getsize(item["src"]) else ""
+        return self.add(key, item, dict(record, artist=option["artist"], title=option["title"]), [f"{PICK_NOTE} from the versions on the record", same, toss])
 
     # ---------------- a whole run ----------------
 
     def summary(self):
-        return dict(added=len(self.added), waiting=len(self.songs), looked=self.looked, stopped=self.stopped, names=self.added[:12], when=datetime.datetime.now().isoformat(timespec="seconds"))
+        return dict(added=len(self.added), waiting=len(self.songs), looked=self.looked, stopped=self.stopped, names=self.added[:12], when=datetime.datetime.now().isoformat(timespec="seconds"),
+                    strong=sum(1 for entry in self.songs.values() if _heard(entry).get("match")), said=self.said)
+
+    def _will_compare(self):
+        if self.dry or not compare_on():  # a preview has no use for it: comparing never changes what goes in
+            return False
+        if can_compare():
+            return True
+        self.said = "Comparing audio is on, but it needs yt-dlp and an ffmpeg with chromaprint, so it was skipped."
+        return False
 
     def go(self):
         paths = self.paths
@@ -382,6 +468,7 @@ class Run:
                 os.makedirs(folder, exist_ok=True)
         except OSError as ex:
             raise Stop(f"A working folder can't be made ({ex.strerror or ex}). Nothing was changed.") from ex
+        self.comparing = self._will_compare()
         if self.dry:
             return self._go(folders)
         with _OneAtATime(os.path.join(os.path.dirname(paths["log"]), "curate.lock")):
@@ -497,6 +584,22 @@ def stop(server):
     return dict(ok=True)
 
 
+def compare_state():
+    return dict(available=can_compare(), on=compare_on())
+
+
+def set_compare(server, on):
+    if not isinstance(on, bool):
+        return dict(error="bad request")
+    with server.settings_lock:
+        try:
+            config.save_table(config.target_path(), "curate", dict(compare_audio=on))
+            config.load(config.target_path())
+        except (OSError, ValueError) as ex:
+            return dict(error=f"Couldn't save that: {ex}")
+    return dict(on=on)
+
+
 # ---------------- after a run: someone checked it properly ----------------
 
 def _library_song(songs, name):
@@ -586,4 +689,8 @@ def main(dry_run=False):
         print("Nothing is waiting in your downloads.")
         return 0
     print(f"\n{'Would add' if dry_run else 'Added'} {done['added']} song{'' if done['added'] == 1 else 's'}. {done['waiting']} waiting for you: open `curator serve`, then To check.")
+    if done["strong"]:
+        print(f"{done['strong']} of those {'has' if done['strong'] == 1 else 'have'} a strong audio match for you to confirm.")
+    if done["said"]:
+        print(done["said"])
     return 0

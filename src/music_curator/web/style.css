@@ -57,6 +57,7 @@ main > * { max-width: 1240px; margin-inline: auto; }
 .cover { position: relative; flex: none; width: 40px; height: 40px; border-radius: 5px; overflow: hidden; background: var(--surface-3); }
 .cover img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .cover.vinyl { background: radial-gradient(circle, var(--accent) 0 9%, var(--vinyl) 10% 13%, var(--groove) 13.5% 14%, var(--vinyl) 15% 21%, var(--groove) 21.5% 22%, var(--vinyl) 23% 29%, var(--groove) 29.5% 30%, var(--vinyl) 31% 100%); }
+.ambient, .disc { display: none; } /* hifi.css brings these in */
 .cover .over { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; background: rgba(0, 0, 0, .55); opacity: 0; transition: opacity .12s; width: 100%; height: 100%; }
 .cover .over:focus-visible, .has-play:hover .over { opacity: 1; }
 [data-song].playing .cover .over { opacity: 1; }
@@ -163,6 +164,15 @@ input::placeholder { color: var(--ink-3); }
 .export-go label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 .export-said { margin-bottom: 12px; overflow-wrap: anywhere; }
 .export-said ul { margin: 6px 0 0 18px; }
+.shelf-head { display: flex; align-items: flex-start; gap: 18px; margin: 4px 0 14px; }
+.shelf-head .cover { width: 168px; height: 168px; border-radius: 10px; }
+.shelf-info { flex: 1; min-width: 0; }
+.shelf-info h2 { font-size: 20px; font-weight: 700; letter-spacing: -.015em; overflow-wrap: anywhere; }
+.shelf-info .by { color: var(--ink-2); font-size: 15px; margin-top: 1px; overflow-wrap: anywhere; }
+.shelf-info .facts-list { margin-top: 10px; }
+@media (max-width: 560px) { .shelf-head { flex-direction: column; } }
+.shelf .cover .over { inset: auto 8px 8px auto; width: 42px; height: 42px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); box-shadow: 0 4px 12px rgba(0, 0, 0, .4); } /* clicking a cover opens the record: play is its own button */
+@media (hover: none) { .shelf .cover .over { opacity: 1; } }
 .cover.four-up img { position: absolute; width: 50%; height: 50%; }
 .cover.four-up img:nth-of-type(1) { top: 0; left: 0; }
 .cover.four-up img:nth-of-type(2) { top: 0; right: 0; }
@@ -180,7 +190,7 @@ input::placeholder { color: var(--ink-3); }
 .table tr[data-song] { cursor: pointer; }
 .table tr[data-song]:hover td { background: var(--surface); }
 .table tr.playing td { background: var(--accent-soft); }
-.c-cover { width: 56px; } .c-album { width: 19%; } .c-year { width: 62px; } .c-genre { width: 13%; } .c-len { width: 64px; } .c-kbps { width: 68px; } .c-trust { width: 142px; }
+.c-cover { width: 56px; } .c-album { width: 19%; } .c-year { width: 62px; } .c-genre { width: 13%; } .c-len { width: 64px; } .c-kbps { width: 68px; } .c-plays { width: 62px; } .c-trust { width: 142px; }
 td.num, th.num { text-align: right; }
 .t-main { display: block; overflow: hidden; text-overflow: ellipsis; color: var(--ink); font-weight: 550; text-align: left; max-width: 100%; white-space: nowrap; }
 .t-sub { display: block; overflow: hidden; text-overflow: ellipsis; color: var(--ink-3); font-size: 13px; white-space: nowrap; }
@@ -191,6 +201,9 @@ td.num, th.num { text-align: right; }
 .tile .cover { width: 100%; height: auto; aspect-ratio: 1; border-radius: 8px; }
 .tile .t-main { margin-top: 7px; }
 .tile.playing .t-main { color: var(--accent); }
+.strip { display: flex; gap: 14px; overflow-x: auto; margin-top: -6px; padding: 6px 2px 10px; scrollbar-width: thin; } /* the padding is room for a cover to lift on hover */
+.strip .tile { flex: 0 0 148px; }
+.see-all { margin-left: 10px; font-weight: 400; letter-spacing: 0; }
 .sentinel { height: 1px; }
 
 /* ---------- to check ---------- */
@@ -244,6 +257,41 @@ td.num, th.num { text-align: right; }
 .item-also { color: var(--ink-3); font-size: 13px; margin-top: 2px; overflow-wrap: anywhere; }
 .better-open { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
 .better-open .btn { color: var(--ink); }
+.audio-sure { margin-top: 6px; color: var(--ink-2); }
+.audio-sure b { color: var(--readout, var(--accent)); }
+.chip.sure { border-color: var(--readout, var(--accent)); }
+.chip.sure svg { margin-right: 4px; vertical-align: -2px; color: var(--readout, var(--accent)); }
+.compare-setting { margin-top: 16px; }
+.compare-setting .note { margin-top: 6px; }
+
+/* ---------- now playing ---------- */
+body.now-view .rail, body.now-view .drawer { display: none; }
+body.now-view .shell, body.now-view.drawer-open:not(.setup) .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); padding-right: 0; }
+.now-page { position: relative; display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 1fr); gap: 20px 48px; align-items: center; height: 100%; }
+.now-close { position: absolute; top: -14px; left: -14px; z-index: 2; }
+.now-stage { display: flex; flex-direction: column; align-items: center; gap: 26px; min-width: 0; text-align: center; }
+.now-stage .sleeve { width: min(50vh, 32vw, 460px); transform: translateX(-21%); } /* the record sticks out to the right, so this keeps the pair centred */
+.now-stage .cover { width: 100%; height: auto; aspect-ratio: 1; border-radius: 8px; box-shadow: 0 22px 60px rgba(0, 0, 0, .5); }
+.now-info { max-width: 640px; min-width: 0; }
+.now-info .eyebrow { font-size: 13px; color: var(--ink-3); }
+.now-info h1 { margin-top: 4px; font-size: clamp(22px, 3.4vmin, 40px); font-weight: 700; letter-spacing: -.02em; line-height: 1.15; overflow-wrap: anywhere; }
+.now-info .by { margin-top: 4px; color: var(--ink-2); font-size: clamp(15px, 2.1vmin, 22px); overflow-wrap: anywhere; }
+.now-info a:hover { text-decoration: underline; }
+.now-about { margin-top: 8px; color: var(--ink-3); font-size: 14px; overflow-wrap: anywhere; }
+.now-dot { margin: 0 7px; }
+.now-info .actions { justify-content: center; margin-top: 14px; }
+.now-queue { align-self: stretch; display: flex; flex-direction: column; min-height: 0; padding-top: 6px; }
+.now-queue .tracks { flex: 1; max-height: none; min-height: 0; }
+.now-nothing { grid-template-columns: minmax(0, 1fr); justify-items: center; align-content: center; text-align: center; }
+.now-nothing .cover { width: 160px; height: 160px; border-radius: 12px; }
+#np-cover { transition: transform .15s; }
+.np.ready #np-cover:hover { transform: scale(1.06); }
+@container content (max-width: 760px) {
+  .now-page { grid-template-columns: minmax(0, 1fr); height: auto; align-items: start; }
+  .now-stage .sleeve { width: min(40vh, 56vw); }
+  .now-queue { padding-top: 0; }
+  .now-queue .tracks { max-height: 320px; }
+}
 .pick-form { display: flex; flex-direction: column; gap: 8px; width: 100%; margin-top: 2px; }
 .pick-form input[type="search"] { padding: 5px 9px; }
 .pick-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 1px 10px; max-height: 196px; overflow-y: auto; }
@@ -284,6 +332,24 @@ body:not(.drawer-open) .drawer { display: none; }
 .facts-list { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 5px 10px; margin: 16px 0 0; }
 .facts-list dt { color: var(--ink-3); }
 .facts-list dd { margin: 0; overflow-wrap: anywhere; }
+.queue-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.queue-head .linkish { font-size: 12.5px; }
+.t-cell { position: relative; }
+.row-add { position: absolute; top: 50%; right: 6px; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; transform: translateY(-50%); color: var(--ink); background: var(--surface-3); opacity: 0; }
+tr:hover .row-add, .row-add:focus-visible { opacity: 1; }
+@media (hover: none) { .row-add, .track-x { opacity: 1; } }
+.tracks { position: relative; max-height: 264px; overflow-y: auto; margin-top: 6px; padding: 4px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; }
+.track { display: flex; align-items: center; border-radius: 6px; font-size: 13.5px; color: var(--ink-2); }
+.track-go { display: flex; flex: 1; align-items: center; gap: 8px; min-width: 0; padding: 6px 8px; text-align: left; color: inherit; font-weight: inherit; }
+.track-x { display: grid; flex: none; place-items: center; width: 26px; height: 26px; margin-right: 2px; border-radius: 50%; color: var(--ink-3); opacity: 0; }
+.track-x:hover { color: var(--ink); background: var(--surface-3); }
+.track:hover .track-x, .track-x:focus-visible { opacity: 1; }
+.track:hover { background: var(--surface-3); color: var(--ink); }
+.track.on { background: var(--accent-soft); color: var(--ink); font-weight: 600; }
+.track-n { display: inline-flex; flex: none; justify-content: flex-end; width: 20px; color: var(--ink-3); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.track.on .track-n { color: var(--accent); }
+.track-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.track-len { flex: none; color: var(--ink-3); font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .drawer h3 { font-size: 13px; color: var(--ink-3); font-weight: 500; margin: 18px 0 4px; }
 .box { background: var(--surface-2); border-radius: 9px; padding: 10px 12px; margin-top: 6px; overflow-wrap: anywhere; }
 
@@ -347,7 +413,7 @@ body.setup .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: m
 /* sized by the space the page really has, which is less while the song panel is open */
 @container content (max-width: 800px) {
   .facts, .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .c-album, .c-kbps { display: none; }
+  .c-album, .c-kbps, .c-plays { display: none; }
 }
 @container content (max-width: 560px) {
   .cols { grid-template-columns: minmax(0, 1fr); }
@@ -382,7 +448,7 @@ body.setup .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: m
   .cols { grid-template-columns: minmax(0, 1fr); }
   .hero-num { font-size: 60px; }
   .hero-copy { padding: 20px; }
-  .c-year, .c-genre, .c-trust { display: none; }
+  .c-year, .c-genre, .c-trust, .c-plays { display: none; }
   .view-toggle { margin-left: 0; }
   select { flex: 1 1 130px; max-width: none; }
   .search { max-width: none; flex-basis: 100%; }

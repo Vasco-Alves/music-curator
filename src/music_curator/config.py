@@ -28,6 +28,9 @@ DEFAULTS = {
     "ytdlp": {
         "python": "",        # interpreter that has yt-dlp installed; empty = this interpreter
     },
+    "curate": {
+        "compare_audio": False,  # when Curate can't tell which version a song is, compare it with the videos on the record. It only tells you how sure it is
+    },
     "spotify": {
         "client_id": "",     # optional: your own Spotify app's Client ID, for the Check Spotify button (it isn't a secret)
     },
@@ -155,6 +158,8 @@ def _toml_text(value):
 
 
 def _toml_value(value):
+    if isinstance(value, bool):
+        return "true" if value else "false"
     return "[" + ", ".join(_toml_text(v) for v in value) + "]" if isinstance(value, list) else _toml_text(value)
 
 
@@ -203,12 +208,12 @@ def _value_end(text, i):
     return re.compile(r"[^\s#]*").match(text, i).end()
 
 
-def edit_paths(text, updates):
-    """Set keys of the [paths] table in TOML text. Everything else stays as it was; only a replaced array loses comments inside it."""
+def edit_table(text, table, updates):
+    """Set keys of one table in TOML text. Everything else stays as it was; only a replaced array loses comments inside it."""
     newline = "\r\n" if "\r\n" in text else "\n"
-    header = re.search(r"""^[ \t]*\[[ \t]*(?:paths|"paths"|'paths')[ \t]*\][ \t]*(#[^\r\n]*)?\r?$""", text, re.M)
+    header = re.search(rf"""^[ \t]*\[[ \t]*(?:{table}|"{table}"|'{table}')[ \t]*\][ \t]*(#[^\r\n]*)?\r?$""", text, re.M)
     if not header:
-        block = "[paths]" + newline + "".join(f"{k} = {_toml_value(v)}{newline}" for k, v in updates.items())
+        block = f"[{table}]" + newline + "".join(f"{k} = {_toml_value(v)}{newline}" for k, v in updates.items())
         return (text.rstrip() + newline * 2 if text.strip() else "") + block
     start = text.find("\n", header.start())
     i = last = len(text) if start < 0 else start + 1
@@ -237,7 +242,19 @@ def edit_paths(text, updates):
     return text
 
 
+def edit_paths(text, updates):
+    return edit_table(text, "paths", updates)
+
+
 def save_paths(file, updates):
+    _save_table(file, "paths", updates, edit_paths)
+
+
+def save_table(file, table, updates):
+    _save_table(file, table, updates, lambda text, values: edit_table(text, table, values))
+
+
+def _save_table(file, table, updates, edit):
     """Update (or create, from the example) a config file. Refuses unless the result differs from the old file by exactly these values."""
     refusal = f"the app can't safely edit this settings file, so change it by hand: {file}"
     try:
@@ -246,10 +263,10 @@ def save_paths(file, updates):
     except FileNotFoundError:
         text = EXAMPLE
     expected = copy.deepcopy(tomllib.loads(text))
-    if not isinstance(expected.setdefault("paths", {}), dict):
+    if not isinstance(expected.setdefault(table, {}), dict):
         raise ValueError(refusal)
-    expected["paths"].update(updates)
-    text = edit_paths(text, updates)
+    expected[table].update(updates)
+    text = edit(text, updates)
     try:
         same = tomllib.loads(text) == expected
     except tomllib.TOMLDecodeError:
@@ -283,6 +300,9 @@ user_agent = "MusicCurator/0.1"      # Discogs asks for a unique, descriptive Us
 
 [ytdlp]
 python = ""                          # Python with yt-dlp installed (only to compare your files with videos online)
+
+[curate]
+compare_audio = false                # when Curate can't tell which version a song is, compare it with the videos on the record (needs yt-dlp). It only tells you how sure it is
 
 [spotify]
 client_id = ""                       # optional: your Spotify app's Client ID, for the Check Spotify button (see README)

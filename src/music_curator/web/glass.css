@@ -1,6 +1,6 @@
 /* The glass look: see-through surfaces, a soft glow behind them, gentle gloss and motion.
    It's a layer over style.css: take its <link> out of index.html to go back to the flat look.
-   No backdrop-filter and no moving background, on purpose: on a large window they took the page from 60 frames a second down to 20. */
+   No backdrop-filter and no moving gradients, on purpose: on a large window they took the page from 60 frames a second down to 20. (hifi.css moves the background a cheaper way.) */
 
 :root {
   --gap: 12px;

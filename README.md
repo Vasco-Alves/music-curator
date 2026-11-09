@@ -116,7 +116,9 @@ with the reason and the versions found: listen, then click the one it is, or typ
 On one real library of 518 songs, replayed from their original messy names, 55% went in by themselves and one disagreed with the
 verified answer, only in how the title was spelled. The rules were tuned on that same library, so expect a little less on yours.
 Files nobody can look up, like nightcore edits or unofficial remixes, always wait for you or an agent. An agent adds what Curate can't
-do: reading odd names, comparing audio fingerprints with the record, checking other sources, and looking for better-sounding copies.
+do: reading odd names, settling versions from the audio, checking other sources, and looking for better-sounding copies.
+
+**Comparing audio (optional).** If you have yt-dlp, Folders has a setting for this, off by default (`compare_audio = true` under `[curate]` does the same). When Curate finds the record but can't tell which version your file is, it fetches the video linked on that record, compares it with your file, and deletes it straight after. A match is never treated as proof, because a video can be mislabelled or be another mix from the same record. So nothing goes in because of it: To check says when the app is strongly sure your file is the same recording, and you decide.
 
 ## See it in your browser
 
@@ -124,9 +126,12 @@ do: reading odd names, comparing audio fingerprints with the record, checking ot
 
 ![To check: songs waiting for your ears, with the versions found](docs/img/check.jpg)
 
-- **Overview**: a wall of your covers, your peak years, top genres, artists, labels and countries.
+- **Overview**: a wall of your covers, what you added last, your peak years, top genres, artists, labels and countries. Once you've played a few songs it also shows what you listen to most. A song counts as played once you've heard half of it, or 4 minutes if that comes first.
 - **Songs**: search and filter everything, play it, see how each song was verified and what the file used to be called, and jump to its Discogs page to check it or buy the record. **Export** takes whatever you've filtered: an M3U playlist, a spreadsheet, or copies in a folder or on a USB drive, for your phone, car or another player.
-- **Albums** and **Labels**: browse your library by cover, play a whole record, and click through to its songs.
+- **Artists**, **Albums** and **Labels**: browse your library by cover, play a whole record, and click through to its songs.
+- **Playlists**: once you've pressed Check Spotify, your Spotify playlists play here, as far as you have the songs as files. Streamed songs you don't have are left out.
+- **Now Playing**: click the cover in the play bar for the big view, with what's up next.
+- **Even volume**: a button on the play bar that turns loud songs down to match the rest. It never raises a song, because nearly every file already reaches full scale and raising it would distort it, so quieter songs stay as they are. Each song is measured with ffmpeg the first time it's needed, and the file isn't changed.
 - **To check**: the questions only ears can answer (genre toss-ups, songs that couldn't be verified), with the audio right there.
 - **Progress**: what's waiting in the inbox, how sure each song is, library growth, latest changes.
 
@@ -134,8 +139,8 @@ do: reading odd names, comparing audio fingerprints with the record, checking ot
 
 The first time it asks where your library and downloads live, and you can change them later under Folders. Picking a
 folder never moves any music. The app keeps its log, answers and cache in a `_curation` folder next to the library, and its
-settings in your user profile. Browsing only ever reads your music, and your answers go to `decisions.json` next to the log. The
-one thing on the page that adds to your library is the Curate button, and the only outside service it talks to is Discogs. Export never changes your library, and copying only ever adds files to the folder you pick.
+settings in your user profile. Browsing only ever reads your music. Your answers go to `decisions.json` next to the log, and play counts to `plays.json` beside it. The
+one thing on the page that adds to your library is the Curate button, and the only outside service it talks to is Discogs (plus YouTube, if you turn on comparing audio). Export never changes your library, and copying only ever adds files to the folder you pick.
 
 `curator apply --dry-run` shows what your answers would do, and `curator apply` carries out the ones that need no research: genre
 changes, which also move the song to the new genre's folder. Songs you marked not worth keeping only move if you add `--set-aside`.
@@ -194,6 +199,7 @@ existing genres, game/TV soundtrack folders.
 ## Using it with AI agents
 
 - **Any agent:** point it at [AGENTS.md](AGENTS.md).
+- **An app with its own browser**, like the Claude desktop app: open the page right beside the chat, so you and the agent are looking at the same thing. This is the best way to use the two together.
 - **Claude Code:** [CLAUDE.md](CLAUDE.md) imports AGENTS.md; a skill is in [skills/music-curator](skills/music-curator).
 
 ## Notes and limits

@@ -22,7 +22,7 @@ import webbrowser
 from . import config, folders, library
 
 WEB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
-STATIC = {"/": ("index.html", "text/html; charset=utf-8"), "/style.css": ("style.css", "text/css; charset=utf-8"), "/glass.css": ("glass.css", "text/css; charset=utf-8"),
+STATIC = {"/": ("index.html", "text/html; charset=utf-8"), "/style.css": ("style.css", "text/css; charset=utf-8"), "/glass.css": ("glass.css", "text/css; charset=utf-8"), "/hifi.css": ("hifi.css", "text/css; charset=utf-8"),
           "/app.js": ("app.js", "text/javascript; charset=utf-8"), "/favicon.svg": ("favicon.svg", "image/svg+xml")}
 CSP = ("default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; media-src 'self'; "
        "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
@@ -129,8 +129,14 @@ def checks_for(song, row, reason, flagged):
     return checks
 
 
+def release_format(j):
+    """'Vinyl, 12", EP' from a Discogs release. The speed says nothing anyone browsing would want."""
+    first = (j.get("formats") or [{}])[0]
+    return ", ".join(x for x in [first.get("name") or "", *[d for d in first.get("descriptions") or [] if "RPM" not in d]] if x)
+
+
 def discogs_index(cache_dir):
-    """Label and country per release and per master, from the saved Discogs answers (never the network)."""
+    """Label, country, format and track count per release and per master, from the saved Discogs answers (never the network)."""
     releases, masters = {}, {}
     try:
         names = os.listdir(cache_dir)
@@ -148,8 +154,8 @@ def discogs_index(cache_dir):
             if not isinstance(j, dict) or not j.get("labels") or "id" not in j:
                 continue
             label = re.sub(r"\s*\(\d+\)$", "", j["labels"][0].get("name") or "").strip()
-            info = dict(label="" if label.lower().startswith("not on label") else label, country=j.get("country") or "",
-                        year=j.get("year") or 9999)
+            info = dict(label="" if label.lower().startswith("not on label") else label, country=j.get("country") or "", year=j.get("year") or 9999,
+                        format=release_format(j), tracks=sum(1 for t in j.get("tracklist") or [] if t.get("type_", "track") == "track"))
             releases[j["id"]] = info
             mid = j.get("master_id")
             if mid and (mid not in masters or info["year"] < masters[mid]["year"]):  # the earliest pressing
@@ -176,7 +182,74 @@ class Collection:
         self.curated_sig, self.curated = None, {}
         self.hits_sig, self.hits = None, {}
         self.better_sig, self.better = None, {}
+        self.plays, self.plays_sig, self.plays_broken = {}, None, False
+        self.saved_lists, self.saved_lists_sig = {}, None
+        self.levels, self.levels_sig = {}, None
         self._read_decisions()
+
+    def _read_levels(self):
+        """How loud each song was measured to be."""
+        path = levels_path(self.paths)
+        try:
+            st = os.stat(path)
+        except (OSError, TypeError, ValueError):
+            self.levels, self.levels_sig = {}, None
+            return
+        sig = (st.st_mtime_ns, st.st_size)
+        if sig == self.levels_sig:
+            return
+        try:
+            with open(path, encoding="utf-8-sig") as f:
+                saved = json.load(f)
+        except (OSError, ValueError):
+            return
+        if isinstance(saved, dict):
+            self.levels, self.levels_sig = {k: v for k, v in saved.items() if type(v) in (int, float)}, sig
+
+    def _read_saved_lists(self):
+        """Your Spotify playlists as they were at the last Check Spotify."""
+        path = saved_lists_path(self.paths)
+        try:
+            st = os.stat(path)
+        except (OSError, TypeError, ValueError):
+            self.saved_lists, self.saved_lists_sig = {}, None
+            return
+        sig = (st.st_mtime_ns, st.st_size)
+        if sig == self.saved_lists_sig:
+            return
+        try:
+            with open(path, encoding="utf-8-sig") as f:
+                saved = json.load(f)
+        except (OSError, ValueError):
+            return
+        if isinstance(saved, dict):
+            self.saved_lists, self.saved_lists_sig = saved, sig
+
+    def _read_plays(self):
+        """How often each song was played. Same care as the answers: a file that can't be read is never saved over."""
+        path = plays_path(self.paths)
+        try:
+            st = os.stat(path)
+        except FileNotFoundError:
+            self.plays, self.plays_sig, self.plays_broken = {}, None, False
+            return
+        except (OSError, TypeError, ValueError):
+            return
+        sig = (st.st_mtime_ns, st.st_size)
+        if sig == self.plays_sig:
+            return
+        try:
+            with open(path, encoding="utf-8-sig") as f:
+                loaded = json.load(f)
+            if not isinstance(loaded, dict):
+                raise ValueError("not a list of songs")
+        except OSError:
+            return
+        except ValueError:
+            self.plays_broken = True
+            return
+        counted = lambda v: isinstance(v, dict) and type(v.get("plays")) is int and 0 < v["plays"] < 1_000_000
+        self.plays, self.plays_sig, self.plays_broken = {k: v for k, v in loaded.items() if counted(v)}, sig, False
 
     def _read_hits(self):
         """What the last Check Spotify found for the songs still waiting."""
@@ -307,13 +380,16 @@ class Collection:
             src = norm(r["src"]) if r.get("src") else ""
             if src and (status == "ok" or status.startswith("check")):
                 done.add(src)
-            if src and src not in first and status == "ok" and is_date(r.get("date", "")):  # when the song first arrived, whatever changed later
-                first[src] = r["date"]
+            if status == "ok" and is_date(r.get("date", "")):  # when the song first arrived, whatever changed later: a better copy comes from somewhere else, so its name counts too
+                for known_as in filter(None, (src, log_name(r))):
+                    first.setdefault(known_as, r["date"])
         self.log_sig, self.log_rows, self.log_latest, self.log_moved, self.log_first = sig, rows, latest, moved, first
         self.log_done = done
 
     def _first_seen(self, row, otherwise=""):
-        return self.log_first.get(norm(row["src"]), otherwise) if row and row.get("src") else otherwise
+        if not row:
+            return otherwise
+        return min(filter(None, (self.log_first.get(norm(row["src"])) if row.get("src") else "", self.log_first.get(log_name(row)))), default=otherwise)
 
     def _log_row(self, path, rel):
         """The song's log entry. After the whole library has moved, its old paths in the log still end in the same folders and name."""
@@ -389,6 +465,9 @@ class Collection:
             self._read_curated()
             self._read_hits()
             self._read_better()
+            self._read_plays()
+            self._read_saved_lists()
+            self._read_levels()
             self._read_log()
             self._read_review_list()
             if self.labels is None:
@@ -427,12 +506,14 @@ class Collection:
                     album=info["album"], year=info["year"], genre=info["genre"], secs=info["secs"], kbps=info["kbps"],
                     bytes=st.st_size, cover=info["cover"], v=str(st.st_mtime_ns), link=link, done=area == "inbox" and norm(path) in self.log_done,
                     added=self._first_seen(row, (row or {}).get("date", "")), was=os.path.basename((row or {}).get("src", "")),
-                    notes=(row or {}).get("notes", ""), trust=trust_of(row), label="", country="", _path=path, _rel=rel, _tagless=info.get("tagless", False))
+                    notes=(row or {}).get("notes", ""), trust=trust_of(row), label="", country="", format="", tracks=0, _path=path, _rel=rel, _tagless=info.get("tagless", False))
+        heard = self.plays.get(play_key(song))
+        song.update(plays=heard["plays"] if heard else 0, played=str(heard.get("last") or "") if heard else "", lufs=self.levels.get(level_key(song)))
         m = re.search(r"discogs\.com/(release|master)/(\d{1,12})(?!\d)", link)
         if m and self.labels:
             found = self.labels[0 if m[1] == "release" else 1].get(int(m[2]))
             if found:
-                song.update(label=found["label"], country=found["country"])
+                song.update(label=found["label"], country=found["country"], format=found["format"], tracks=found["tracks"])
         stem = os.path.splitext(song["file"])[0]
         held = self.curated.get(key) if area == "inbox" and not song["done"] else None
         listed = self._reason(stem, song["artist"], song["title"]) if area != "library" else ""
@@ -446,6 +527,12 @@ class Collection:
             record = held.get("record") if isinstance(held.get("record"), dict) else {}
             if str(record.get("discogs", "")).startswith("https://www.discogs.com/"):  # it becomes a link on the page
                 waiting["record"] = dict(discogs=record["discogs"], title=str(record.get("release_title", "")), labels=str(record.get("labels", "")))
+            heard = held.get("audio") if isinstance(held.get("audio"), dict) else {}
+            match = heard.get("match") if isinstance(heard.get("match"), dict) else None
+            if heard.get("size") == st.st_size and match and re.fullmatch(r"https://www\.youtube\.com/watch\?v=[A-Za-z0-9_-]{11}", str(match.get("url", ""))):  # it becomes a link on the page
+                waiting["audio"] = dict(strong=True, url=match["url"], option=str(match.get("option") or ""))
+            elif heard.get("size") == st.st_size and "match" not in heard and type(heard.get("tried")) is int and heard["tried"] > 0:
+                waiting["audio"] = dict(strong=False, tried=heard["tried"])
         hit = self.hits.get(key) if area != "library" and not song["done"] else None
         if hit and re.fullmatch(r"[A-Za-z0-9]{10,40}", str(hit.get("id", ""))):
             song["checks"].append(dict(kind="spotify", why=spotify_words(hit), link=f"https://open.spotify.com/track/{hit['id']}"))
@@ -507,7 +594,7 @@ class Collection:
             from . import spotify  # here because it needs this module loaded first
             return dict(songs=songs, decisions=self.decisions, progress=self.progress(),
                         meta=dict(library=os.path.basename(os.path.normpath(self.paths["library"])), spotify=spotify.status(self.paths),
-                                  has_log=bool(self.log_rows), has_review=bool(self.paths["review"]), playlists=self.ideas_names,
+                                  has_log=bool(self.log_rows), has_review=bool(self.paths["review"]), playlists=self.ideas_names, my_playlists=spotify.playable(self.songs.values(), self.saved_lists),
                                   decisions_file=os.path.basename(self.paths["decisions"])))
 
     def decide(self, body):
@@ -555,6 +642,58 @@ class Collection:
                 return f"Your answers file ({os.path.basename(self.paths['decisions'])}) can't be read, so nothing was saved."
             change(self.decisions)
             return self._save_decisions()
+
+    def played(self, song_id):
+        """Count one listen. Returns what the page shows for that song now, or an error."""
+        with self.lock:
+            self._read_plays()
+            if self.plays_broken:
+                return dict(error=f"Your play counts ({os.path.basename(plays_path(self.paths))}) can't be read, so this play wasn't counted.")
+            song = self.songs.get(str(song_id))
+            if not song:
+                return dict(error="unknown song")
+            key, now = play_key(song), datetime.datetime.now().isoformat(timespec="seconds")
+            was = self.plays.get(key) or {}
+            entry = dict(song=f"{song['artist']} - {song['title']}".strip(" -") or song["file"], plays=was.get("plays", 0) + 1, first=was.get("first") or now, last=now)
+            tmp = plays_path(self.paths) + ".tmp"
+            try:
+                os.makedirs(os.path.dirname(tmp) or ".", exist_ok=True)
+                with open(tmp, "w", encoding="utf-8", errors="replace") as f:
+                    json.dump({**self.plays, key: entry}, f, ensure_ascii=False, indent=1)
+                os.replace(tmp, plays_path(self.paths))
+            except OSError as ex:
+                return dict(error=f"Couldn't save that play: {ex}")
+            self.plays[key] = entry
+            song.update(plays=entry["plays"], played=now)
+            return dict(plays=entry["plays"], played=now)
+
+    def level(self, song_id):
+        """How loud a song is, measuring it the first time it's asked for. Returns {lufs}, with None if it can't be told, or {error}."""
+        with self.lock:
+            self._read_levels()
+            song = self.songs.get(str(song_id))
+            if not song:
+                return dict(error="unknown song")
+            key, path = level_key(song), song["_path"]
+            if key in self.levels:
+                return dict(lufs=self.levels[key])
+        from . import loudness
+        lufs = loudness.measure(path)  # outside the lock: the rest of the app doesn't wait for this
+        if lufs is None:
+            return dict(lufs=None)
+        with self.lock:
+            self._read_levels()
+            self.levels[key] = lufs
+            song["lufs"] = lufs
+            tmp = levels_path(self.paths) + ".tmp"
+            try:
+                os.makedirs(os.path.dirname(tmp) or ".", exist_ok=True)
+                with open(tmp, "w", encoding="utf-8") as f:
+                    json.dump(self.levels, f, ensure_ascii=False)
+                os.replace(tmp, levels_path(self.paths))
+            except OSError:  # only costs measuring it again next time
+                pass
+        return dict(lufs=lufs)
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -645,9 +784,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._json(export.status(self.server))
         if route == "/api/settings":
             return self._json(folders.state())
+        if route == "/api/settings/compare":
+            from . import curate
+            return self._json(curate.compare_state())
         if route == "/api/curate":
             from . import curate
             return self._json(curate.status(self.server))
+        m = re.fullmatch(r"/api/loudness/([0-9a-f]{12})", route)
+        if m and collection:
+            answer = collection.level(m[1])
+            return self._json(answer, 404 if answer.get("error") else 200)
         m = re.fullmatch(r"/(cover|audio)/([0-9a-f]{12})", route)
         song = collection.songs.get(m[2]) if m and collection else None  # only indexed files, never a path from the URL
         if not song:
@@ -696,7 +842,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self._host_ok():
             return self._reply(403, b"Forbidden")
         route = self._route()
-        if route not in ("/api/decision", "/api/settings", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/curate", "/api/curate/stop", "/api/export/list", "/api/export/copy", "/api/export/stop"):
+        if route not in ("/api/decision", "/api/played", "/api/settings", "/api/settings/compare", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/curate", "/api/curate/stop", "/api/export/list", "/api/export/copy", "/api/export/stop"):
             return self._reply(404, b"Not found")
         origin = self.headers.get("Origin")
         try:
@@ -738,6 +884,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._json(dict(ok=True))
         if not self.server.collection:
             return self._json(dict(error="choose your folders first"), 400)
+        if route == "/api/played":
+            answer = self.server.collection.played(body.get("id"))
+            return self._json(answer, 400 if answer.get("error") else 200)
+        if route == "/api/settings/compare":
+            from . import curate
+            answer = curate.set_compare(self.server, body.get("on"))
+            return self._json(answer, 400 if answer.get("error") else 200)
         if route in ("/api/curate", "/api/curate/stop"):
             from . import curate
             answer = curate.start(self.server) if route == "/api/curate" else curate.stop(self.server)
@@ -796,6 +949,32 @@ def spotify_hits_path(paths):
 
 def better_links_path(paths):
     return os.path.join(os.path.dirname(paths["decisions"]), "better_links.json")
+
+
+def plays_path(paths):
+    return os.path.join(os.path.dirname(paths["decisions"]), "plays.json")
+
+
+def saved_lists_path(paths):
+    return os.path.join(os.path.dirname(paths["decisions"]), "spotify_playlists.json")
+
+
+def levels_path(paths):
+    return os.path.join(os.path.dirname(paths["decisions"]), "loudness.json")
+
+
+def level_key(song):
+    """By name and size: a moved song needn't be measured again, a better copy must."""
+    return f"{play_key(song)}|{song['bytes']}"
+
+
+def log_name(row):
+    return text_key(f"{row.get('artist', '')} - {row.get('title', '')}")
+
+
+def play_key(song):
+    """Counts go by name, so a song keeps its count when it moves to another genre folder or a better copy replaces the file."""
+    return text_key(f"{song['artist']} - {song['title']}" if song["artist"] and song["title"] else os.path.splitext(song["file"])[0]) or song["key"]
 
 
 def is_web_link(text):

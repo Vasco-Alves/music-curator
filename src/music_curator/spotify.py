@@ -148,6 +148,31 @@ def _close(a, b):
     return not a or not b or abs(a - b) <= SAME_LENGTH_S
 
 
+def playable(songs, cache):
+    """Your playlists as far as the app can play them: [{name, total, ids}], in the playlist's order. A local entry is the file of that name. A streamed one counts only
+    if you also have it as a file of about the same length. A second copy of a song is played once."""
+    index, out = {}, []
+    for s in songs:
+        key = ("", _plain(os.path.splitext(s["file"])[0])) if s.get("_tagless") else (_plain(s["artist"]), _plain(s["title"]))
+        index.setdefault(key, []).append(s)
+    for playlist in cache.values():
+        entries = playlist.get("entries") if isinstance(playlist, dict) else None
+        if not isinstance(entries, list) or not isinstance(playlist.get("name"), str) or not playlist["name"]:  # saved before names were kept: the next Check Spotify adds them
+            continue
+        ids, seen = [], set()
+        for e in (x for x in entries if isinstance(x, dict)):
+            artist, secs = " ".join(a for a in e.get("artists") or [] if a), e.get("secs") or 0
+            found = index.get(("" if artist == "Unknown Artist" else _plain(artist), _plain(e.get("name"))), [])
+            near = found if e.get("local") else [s for s in found if secs and s["secs"] and abs(s["secs"] - secs) <= MAY_BE_GAP_S]
+            song = min(near, key=lambda s: (s["area"] != "library", abs((s["secs"] or 0) - secs)), default=None)
+            if song and song["id"] not in seen:
+                seen.add(song["id"])
+                ids.append(song["id"])
+        if ids:
+            out.append(dict(name=playlist["name"], total=len(entries), ids=ids))
+    return sorted(out, key=lambda p: p["name"].casefold())
+
+
 def to_take_out(entries, index):
     """The entries of one playlist worth a word: local songs with no file behind them and second copies, to remove by hand, and ones whose name matches a file
     but not its length. Those usually still play: Spotify remembers the length a file had when it last read it."""
@@ -467,15 +492,18 @@ def check(client, collection):
             info, known = mine[name], cache.get(mine[name]["id"])
             if isinstance(known, dict) and info["snapshot"] and known.get("snapshot") == info["snapshot"] and isinstance(known.get("entries"), list):
                 read[name] = known["entries"]  # unchanged since last time: no need to ask
+                known["name"] = name  # it may have been renamed, which isn't a change to what's in it
             else:
                 read[name] = client.entries(info["id"])
-                cache[info["id"]] = dict(snapshot=info["snapshot"], entries=read[name])
+                cache[info["id"]] = dict(snapshot=info["snapshot"], entries=read[name], name=name)
             if name in wanted:
                 present[name] = {suggest.track_key((e["artists"] or [""])[0], e["name"]) for e in read[name]} - {"|"}
     except Stop as ex:
         stopped = str(ex)
     except urllib.error.HTTPError as ex:
         stopped = f"Spotify answered with an error ({ex.code}), so the check stopped there."
+    if mine and not stopped:  # a playlist you've deleted shouldn't stay playable here
+        cache = {k: v for k, v in cache.items() if k in {info["id"] for info in mine.values()}}
     _write_cache(collection.paths, cache)
 
     removals = None
@@ -570,7 +598,7 @@ def gather(client, collection):
             if steps:
                 touched += 1
                 entries = client.entries(info["id"])  # read it back: the list has to show what's really there
-            cache[info["id"]] = dict(snapshot=snapshot, entries=entries)
+            cache[info["id"]] = dict(snapshot=snapshot, entries=entries, name=name)
             row = _removal(name, entries, index)
             if row:
                 rows[name] = row
