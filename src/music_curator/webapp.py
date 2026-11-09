@@ -1,6 +1,6 @@
 """`curator serve`: a small local web app to explore the library, follow the pipeline and check songs by ear.
 
-Standard library only. It listens on 127.0.0.1. Browsing only reads your music: your answers go to decisions.json (next to the log),
+Standard library only. It listens on 127.0.0.1, and with `--lan` on your home network too, behind a private link. Browsing only reads your music: your answers go to decisions.json (next to the log),
 which `curator apply` and your agent act on later. The one thing that adds to your library is the Curate button (see curate.py),
 and the one outside service it talks to is Discogs.
 """
@@ -8,10 +8,14 @@ import collections
 import csv
 import datetime
 import hashlib
+import hmac
 import http.server
+import ipaddress
 import json
 import os
 import re
+import secrets
+import socket
 import sys
 import threading
 import time
@@ -23,9 +27,11 @@ from . import config, folders, library
 
 WEB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"), "/style.css": ("style.css", "text/css; charset=utf-8"), "/glass.css": ("glass.css", "text/css; charset=utf-8"), "/hifi.css": ("hifi.css", "text/css; charset=utf-8"),
-          "/app.js": ("app.js", "text/javascript; charset=utf-8"), "/effects.js": ("effects.js", "text/javascript; charset=utf-8"), "/favicon.svg": ("favicon.svg", "image/svg+xml")}
+          "/app.js": ("app.js", "text/javascript; charset=utf-8"), "/effects.js": ("effects.js", "text/javascript; charset=utf-8"), "/packs.js": ("packs.js", "text/javascript; charset=utf-8"), "/favicon.svg": ("favicon.svg", "image/svg+xml")}
 CSP = ("default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; media-src 'self'; "
        "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+LAN_COOKIE = "curator_lan"
+PC_ONLY = {"/api/settings", "/api/settings/compare", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/spotify/send", "/api/export/copy", "/api/export/playlists"}  # choosing folders, writing files elsewhere and signing in to Spotify all happen on the computer
 ACTIONS = {"keep", "genre", "identify", "drop", "recheck", "better", "cover", "flag", "add", "added", "pick", "stream"}
 WORDS = dict(keep="keep as it is", genre="change the genre", identify="identify it", drop="not worth keeping",
              recheck="look at it again", better="find a better copy", cover="find a cover", flag="flagged", add="add it to a playlist", added="added to a playlist",
@@ -716,6 +722,39 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _host_ok(self):  # blocks DNS rebinding: other sites can't reach this server through a name of their own
         return self.headers.get("Host", "").lower() in self.server.hosts
 
+    def _client_ip(self):
+        return self.client_address[0]
+
+    def _on_this_computer(self):
+        try:
+            return ipaddress.ip_address(self._client_ip()).is_loopback
+        except ValueError:
+            return False
+
+    def _let_in(self):
+        """With the home network turned on, anyone but this computer has to be on that network and have come through the private link. False once they've been answered."""
+        lan = self.server.lan
+        if not lan or self._on_this_computer():
+            return True
+        try:
+            nearby = ipaddress.ip_address(self._client_ip()) in lan["network"]
+            given = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("key", [""])[0]
+        except ValueError:
+            nearby, given = False, ""
+        if not nearby:
+            self._reply(403, b"Forbidden")
+            return False
+        pairs = (part.strip().split("=", 1) for part in self.headers.get("Cookie", "").split(";") if "=" in part)
+        held = next((value for name, value in pairs if name == LAN_COOKIE), "")
+        key = lan["key"].encode()
+        if hmac.compare_digest(held.encode("utf-8", "replace"), key):
+            return True
+        if self.command == "GET" and hmac.compare_digest(given.encode("utf-8", "replace"), key):  # from here on the phone remembers, and the key leaves the address bar
+            self._reply(303, b"", headers=[("Location", "/"), ("Cache-Control", "no-store"), ("Set-Cookie", f"{LAN_COOKIE}={lan['key']}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000")])
+            return False
+        self._reply(403, b"Open the private link shown on your computer.")
+        return False
+
     def _route(self):
         try:
             return urllib.parse.urlsplit(self.path).path
@@ -725,6 +764,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         if not self._host_ok():
             return self._reply(403, b"Forbidden")
+        if not self._let_in():
+            return None
         route = self._route()
         if route is None:
             return self._reply(400, b"Bad request")
@@ -811,10 +852,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.body_read = False
         if not self._host_ok():
             return self._reply(403, b"Forbidden")
+        if not self._let_in():
+            return None
         route = self._route()
         if route not in ("/api/decision", "/api/played", "/api/settings", "/api/settings/compare", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/spotify/send", "/api/curate", "/api/curate/stop", "/api/export/list", "/api/export/copy", "/api/export/stop", "/api/export/playlists",
                          "/api/playlists/new", "/api/playlists/add", "/api/playlists/remove", "/api/playlists/move", "/api/playlists/rename", "/api/playlists/delete", "/api/playlists/import"):
             return self._reply(404, b"Not found")
+        if self.server.lan and route in PC_ONLY and not self._on_this_computer():
+            return self._json(dict(error="That can only be done on the computer the app runs on."), 403)
         origin = self.headers.get("Origin")
         try:
             foreign = bool(origin) and urllib.parse.urlsplit(origin).netloc.lower() not in self.server.hosts
@@ -903,6 +948,7 @@ class Server(http.server.ThreadingHTTPServer):
     curate_state, curate_stop = None, None
     export_lock = threading.Lock()  # one copy at a time
     export_state, export_stop = None, None
+    lan = None  # {network, key} once `--lan` has opened it to the home network
 
 
 def app_paths():
@@ -986,7 +1032,40 @@ def spotify_words(hit):
     return f"Spotify has \"{hit.get('name', '')}\" by {', '.join(hit.get('artists') or [])}{album}, {length}. Listen and see if it's the same recording."
 
 
-def serve(port=8765, open_browser=True):
+def lan_address():
+    """This computer's address on the home network, or "" if it doesn't seem to have one."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
+            probe.connect(("192.0.2.1", 9))  # nothing is sent: this only asks which way out the system would use
+            address = probe.getsockname()[0]
+        found = ipaddress.ip_address(address)
+    except (OSError, ValueError):
+        return ""
+    return address if found.is_private and not found.is_loopback and not found.is_link_local else ""
+
+
+def lan_key():
+    """The private part of the link, kept next to your settings so a bookmark on your phone keeps working."""
+    path = os.path.join(os.path.dirname(config.env_file()), "lan_key.txt")
+    try:
+        with open(path, encoding="utf-8") as f:
+            saved = f.read().strip()
+        if re.fullmatch(r"[0-9a-f]{10}", saved):
+            return saved
+    except OSError:
+        pass
+    made = secrets.token_hex(5)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(made + "\n")
+    return made
+
+
+def serve(port=8765, open_browser=True, lan=False):
+    here = ""
+    if lan:
+        here = lan_address()
+        if not here:
+            sys.exit("This computer doesn't seem to be on a home network, so the app wasn't opened to one. Is it on Wi-Fi or plugged in?")
     collection = None
     if not folders.reason():  # otherwise the page opens on the first-run screen
         print("Reading your library...", flush=True)
@@ -994,7 +1073,7 @@ def serve(port=8765, open_browser=True):
         collection.refresh()
     for candidate in range(port, port + 20):
         try:
-            server = Server(("127.0.0.1", candidate), Handler)
+            server = Server(("0.0.0.0" if here else "127.0.0.1", candidate), Handler)
             break
         except OSError:
             continue
@@ -1004,6 +1083,10 @@ def serve(port=8765, open_browser=True):
     url = f"http://127.0.0.1:{candidate}/"
     opening = f"Your library is open at {url} ({len(collection.songs)} files)." if collection else f"Open {url} to choose your folders."
     print(f"{opening} Press Ctrl+C to stop.", flush=True)
+    if here:  # one network, and only with the link
+        server.lan = dict(network=ipaddress.ip_network(f"{here}/24", strict=False), key=lan_key())
+        server.hosts.add(f"{here}:{candidate}")
+        print(f"On your home network: http://{here}:{candidate}/?key={server.lan['key']}", flush=True)
     if open_browser:
         threading.Timer(0.3, webbrowser.open, [url]).start()
     try:

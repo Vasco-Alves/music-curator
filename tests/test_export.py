@@ -270,6 +270,7 @@ class FromThePage(Base):
         for script in re.findall(r'<script src="([^"]+)"', page):
             self.assertEqual(self.ask("GET", script)[0], 200, script)
         self.assertIn('<script src="/effects.js"', page)
+        self.assertLess(page.index("/packs.js"), page.index("/effects.js"), "the effects read their jokes from it")
         self.assertLess(page.index("/effects.js"), page.index("/app.js"), "the player looks for the effects as it starts")
 
     def test_the_page_is_told_how_a_copy_is_going(self):

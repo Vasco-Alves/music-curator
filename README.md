@@ -138,6 +138,8 @@ do: reading odd names, settling versions from the audio, checking other sources,
 - **Favourites**: the heart on the play bar, Now Playing, the song panel and song rows adds to a local playlist called Favourites, which sits first on the Playlists page and works like any other.
 - **More than one genre**: a file keeps the one genre you settled on, but the app also shows every style Discogs lists for its record, and finds the song under any of them. On a compilation those are the whole album's, so they're only shown. Kept in `styles.json` next to the log; Curate fills it in.
 - **Glow, Flash and Sparkle**: separate switches, on the play bar and on Now Playing. Glow makes the buttons light up softly on each kick, and Flash does the same to the background. Sparkle follows the hi-hats instead: the dots in the clock tick and now and then a glint catches the record or the play button. All three are off until you turn them on.
+- **On your phone**: `curator serve --lan` also opens the app on your home network and prints a private link. Open it once on the phone and it remembers. Only devices on that network with the link get in, and choosing folders, copying files and Spotify sign-in stay on the computer. It's plain HTTP, so keep it to a network you trust.
+- **Packs**: under Settings you can export how you've set the app up as a small file, and import someone else's: jokes, road signs, which genre gets which mood, sliders and surprises. A pack only holds words, numbers and colors, so it can't run anything. See `examples/example.curator-pack.json` to write one by hand.
 - **Surprises**: now and then the app nods along to the kick, and once in a while it dances. Settings says how often, how strong and how long, or turns them off, and the nodding can stay on all the time.
 - **Mood**: the background and the way a kick lands change a little with the genre of what's playing: softer for trance, yellow for acid, darker and quicker for hardcore. Settings turns it off.
 - **White labels and stickers**: a song with no verified cover shows as a blank promo record with its name stamped on it. Sleeves carry small stickers for what the curator knows: a seal when every song on the record is verified, a yellow label when something waits for you on To check, and an orange one when a better copy may exist.
@@ -198,6 +200,7 @@ client_id = "your client id"
 | `serve [--port N] [--no-browser]` | open the library in your browser |
 | `decisions` | list what you decided in the browser |
 | `apply [--dry-run] [--set-aside]` | carry out your browser answers that need no research |
+| `serve --lan` | also open the app on your home network, behind a private link, for your phone |
 | `genres` | get every style Discogs lists for the records in your library, for the page (files keep their one genre) |
 | `suggest PLAYLISTS [NAME] [--count N]` | suggest playlists your songs are a confident fit for, to judge by ear on To check (experimental) |
 | `discogs …`, `vgmdb …` | raw clients |

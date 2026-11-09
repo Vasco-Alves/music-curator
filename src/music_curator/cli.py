@@ -117,7 +117,8 @@ def main(argv=None):
         (["plan"], {}), (["--dry-run"], {"action": "store_true"}))
     add("serve", "open the library in your browser: explore it, follow the progress, check songs by ear",
         (["--port"], {"type": int, "default": 8765, "help": "first port to try (default 8765)"}),
-        (["--no-browser"], {"action": "store_true", "help": "don't open the browser"}))
+        (["--no-browser"], {"action": "store_true", "help": "don't open the browser"}),
+        (["--lan"], {"action": "store_true", "help": "also answer on your home network, behind a private link, so your phone can use it"}))
     add("decisions", "list what you decided in the browser (for you or your agent to apply)")
     add("apply", "carry out your browser answers that need no research (genre changes) and list the rest for your agent",
         (["--dry-run"], {"action": "store_true", "help": "show what would happen and change nothing"}),
@@ -193,7 +194,7 @@ def main(argv=None):
         return tagwriter.main([args.plan, _need("library"), _need("log")] + (["--dry-run"] if args.dry_run else []))
     if args.cmd == "serve":
         from . import webapp
-        return webapp.serve(args.port, not args.no_browser)
+        return webapp.serve(args.port, not args.no_browser, args.lan)
     if args.cmd == "decisions":
         from . import webapp
         return webapp.show_decisions()

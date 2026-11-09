@@ -4,12 +4,14 @@
 """
 import csv
 import http.client
+import ipaddress
 import json
 import os
 import sys
 import tempfile
 import threading
 import unittest
+from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
 from music_curator import library, tagwriter, webapp  # noqa: E402
@@ -94,6 +96,133 @@ class Helpers(unittest.TestCase):
         self.assertEqual(webapp.trust_of(dict(notes="", discogs="https://www.discogs.com/release/1")), "verified")
         self.assertEqual(webapp.trust_of(dict(notes="", discogs="https://www.youtube.com/watch?v=x")), "source")
         self.assertEqual(webapp.trust_of(dict(notes="unverified: unofficial remix", discogs="https://www.discogs.com/release/1")), "unverified")
+
+
+class Packs(unittest.TestCase):
+    def test_the_example_is_a_pack(self):
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "examples", "example.curator-pack.json")
+        with open(path, encoding="utf-8") as f:
+            pack = json.load(f)
+        self.assertEqual((pack["curatorPack"], pack["name"]), (1, "Example pack"))
+        self.assertTrue(set(pack) <= {"curatorPack", "name", "by", "about", "words", "genres", "settings"})
+
+    def test_the_page_can_load_the_rules(self):
+        self.assertEqual(webapp.STATIC["/packs.js"][0], "packs.js")
+        self.assertTrue(os.path.exists(os.path.join(webapp.WEB, "packs.js")))
+
+
+class HomeNetwork(unittest.TestCase):
+    KEY = "abc123def0"
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        p = lambda *a: os.path.join(self.tmp.name, *a)  # noqa: E731
+        write_mp3(p("lib", "Acid", "Artist - Song.mp3"))
+        os.makedirs(p("cache", "discogs"))
+        self.collection = webapp.Collection(dict(library=p("lib"), review="", review_list="", inbox=[], log=p("log.csv"), cache=p("cache"), decisions=p("decisions.json")))
+        self.collection.refresh()
+        self.server = webapp.Server(("127.0.0.1", 0), webapp.Handler)
+        self.port = self.server.server_address[1]
+        self.lan_host = f"192.168.1.42:{self.port}"
+        self.server.collection, self.server.hosts = self.collection, {f"127.0.0.1:{self.port}", self.lan_host}
+        self.server.lan = dict(network=ipaddress.ip_network("192.168.1.0/24"), key=self.KEY)
+        self.from_ip = "192.168.1.50"
+        patcher = mock.patch.object(webapp.Handler, "_client_ip", lambda _: self.from_ip)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.addCleanup(self.server.server_close)
+        self.addCleanup(self.server.shutdown)
+
+    def ask(self, method, path, body=None, headers=None, cookie=True):
+        c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        c.request(method, path, body=body, headers={"Host": self.lan_host, **({"Cookie": f"{webapp.LAN_COOKIE}={self.KEY}"} if cookie else {}), **(headers or {})})
+        r = c.getresponse()
+        data = r.read()
+        c.close()
+        return r, data
+
+    def post(self, route, body="{}", cookie=True):
+        return self.ask("POST", route, body, {"Content-Type": "application/json"}, cookie)
+
+    def song_id(self):
+        return next(iter(self.collection.songs))
+
+    def test_it_is_off_unless_asked_for(self):
+        self.assertIsNone(webapp.Server.lan)
+
+    def test_without_the_link_there_is_nothing(self):
+        for path in ("/", "/app.js", "/api/all", f"/audio/{self.song_id()}", f"/cover/{self.song_id()}"):
+            self.assertEqual(self.ask("GET", path, cookie=False)[0].status, 403, path)
+        self.assertEqual(self.post("/api/played", json.dumps(dict(id=self.song_id())), cookie=False)[0].status, 403)
+
+    def test_the_wrong_key_is_no_use(self):
+        self.assertEqual(self.ask("GET", "/?key=nope", cookie=False)[0].status, 403)
+        self.assertEqual(self.ask("GET", "/", headers={"Cookie": f"{webapp.LAN_COOKIE}=nope"}, cookie=False)[0].status, 403)
+
+    def test_the_link_is_remembered_and_leaves_the_address_bar(self):
+        r, _ = self.ask("GET", f"/?key={self.KEY}", cookie=False)
+        self.assertEqual((r.status, r.getheader("Location")), (303, "/"))
+        cookie = r.getheader("Set-Cookie")
+        self.assertIn(f"{webapp.LAN_COOKIE}={self.KEY}", cookie)
+        for part in ("HttpOnly", "SameSite=Strict"):
+            self.assertIn(part, cookie)
+
+    def test_with_it_everything_is_there(self):
+        for path in ("/", "/api/all", f"/audio/{self.song_id()}"):
+            self.assertIn(self.ask("GET", path)[0].status, (200, 206), path)
+        self.assertEqual(self.post("/api/played", json.dumps(dict(id=self.song_id())))[0].status, 200)
+
+    def test_another_network_is_refused_even_with_the_key(self):
+        self.from_ip = "192.168.56.7"
+        self.assertEqual(self.ask("GET", "/")[0].status, 403)
+        self.assertEqual(self.ask("GET", f"/?key={self.KEY}", cookie=False)[0].status, 403)
+        self.from_ip = "8.8.8.8"
+        self.assertEqual(self.ask("GET", "/")[0].status, 403)
+
+    def test_this_computer_needs_no_key(self):
+        self.from_ip = "127.0.0.1"
+        self.assertEqual(self.ask("GET", "/", cookie=False)[0].status, 200)
+
+    def test_another_name_for_it_is_still_refused(self):
+        self.assertEqual(self.ask("GET", "/", headers={"Host": "evil.example"})[0].status, 403)
+
+    def test_a_form_on_another_site_gets_nowhere(self):
+        r, _ = self.ask("POST", "/api/played", "{}", {"Content-Type": "application/json", "Origin": "http://evil.example"})
+        self.assertEqual(r.status, 403)
+
+    def test_folders_and_copying_stay_on_the_computer(self):
+        for route in sorted(webapp.PC_ONLY):
+            r, data = self.post(route)
+            self.assertEqual(r.status, 403, route)
+            self.assertIn("computer", json.loads(data)["error"])
+
+    def test_the_computer_itself_can_still_do_those(self):
+        self.from_ip = "127.0.0.1"
+        self.assertNotEqual(self.post("/api/settings/check", json.dumps(dict(path=self.tmp.name)), cookie=False)[0].status, 403)
+
+    def test_it_only_opens_on_a_private_address(self):
+        class Probe:
+            def __init__(self, address):
+                self.address = address
+            def __enter__(self):
+                return self
+            def __exit__(self, *_):
+                return False
+            def connect(self, _):
+                pass
+            def getsockname(self):
+                return (self.address, 0)
+        for address, wanted in (("192.168.1.42", "192.168.1.42"), ("10.0.0.3", "10.0.0.3"), ("8.8.8.8", ""), ("127.0.0.1", ""), ("169.254.1.1", "")):
+            with mock.patch.object(webapp.socket, "socket", lambda *a: Probe(address)):
+                self.assertEqual(webapp.lan_address(), wanted, address)
+
+    def test_the_key_stays_the_same_between_runs(self):
+        with mock.patch.object(webapp.config, "env_file", lambda: os.path.join(self.tmp.name, ".env")):
+            first = webapp.lan_key()
+            self.assertRegex(first, r"^[0-9a-f]{10}$")
+            self.assertEqual(webapp.lan_key(), first)
 
 
 class App(unittest.TestCase):

@@ -991,7 +991,7 @@ window.Effects = (() => {
   }
   /* Every so often the ship does something: jumps ahead with the stars drawn out long, stops dead and floats, leaves trails, or holds still and turns while the stars draw circles, like a long exposure. Each step is a speed, a length of streak and how long it lasts; the last can wait for a kick. */
   const MOVES = { jump: [[5.5, 8, 1.8], [7, 11, 2.4], [1, 1, 1.5]], stop: [[0.02, 0.3, 1.4], [0.02, 0.3, 3.2, true], [4, 6, 0.6], [1, 1, 1.2]], trail: [[1, 3, 9], [1, 1, 1]], exposure: [[0.05, 0.3, 1.2], [0.05, 0.3, 8], [1, 1, 1.4]] };
-  const MOVE_ORDER = ["jump", "trail", "stop", "jump", "exposure", "trail"], MOVE_WORDS = { jump: "JUMPING", stop: "HANDBRAKE ON", trail: "LEAVING A TRAIL", exposure: "HOLD STILL. TAKING A PHOTO" };
+  const MOVE_ORDER = ["jump", "trail", "stop", "jump", "exposure", "trail"];
   function nextStep() {
     const [speedAim, streakAim, secs, waits] = sky.steps.shift();
     Object.assign(sky, { aimSpeed: speedAim, aimStreak: streakAim, stepEnd: sound.t + secs, waitKick: !!waits });
@@ -1000,7 +1000,7 @@ window.Effects = (() => {
     sky.move = move;
     sky.steps = [...MOVES[move]];
     nextStep();
-    sky.told = MOVE_WORDS[move];
+    sky.told = Packs.words().told[move];
   }
   function moves(trip) {
     const { t, dt, kickHit } = sound, ease = 1 - Math.exp(-dt / 0.4);
@@ -1453,9 +1453,8 @@ window.Effects = (() => {
     x.fill();
     return c;
   }
-  const SIGNS = [{ bg: "#f2f2ea", ink: "#121212", lines: ["SPEED", "LIMIT", "303"] }, { bg: "#0e6b3c", ink: "#ffffff", lines: ["NEXT RAVE", "2 LIGHT YEARS"] }, { bg: "#b3141a", ink: "#ffffff", lines: ["WRONG", "WAY"] }, { bg: "#f2c10e", ink: "#121212", lines: ["CAUTION", "BLACK HOLES"] }, { bg: "#f2f2ea", ink: "#b3141a", lines: ["NO PARKING", "ON THE EVENT", "HORIZON"] }];
   function paintSign() {
-    const W = 360, H = 280, sign = SIGNS[Math.floor(rnd(0, SIGNS.length))], [c, x] = paper(W, H), n = sign.lines.length, big = n === 3 ? 58 : 66;
+    const W = 360, H = 280, signs = Packs.words().signs, sign = signs[Math.floor(rnd(0, signs.length))], [c, x] = paper(W, H), n = sign.lines.length, big = n === 3 ? 58 : 66;
     x.fillStyle = "#9aa0a8";
     x.fillRect(W / 2 - 8, H * 0.62, 16, H * 0.38);
     x.fillStyle = sign.bg;
@@ -1468,12 +1467,11 @@ window.Effects = (() => {
     x.fillStyle = sign.ink;
     x.textAlign = "center";
     x.font = `800 ${big}px ui-sans-serif, system-ui, sans-serif`;
-    sign.lines.forEach((line, i) => { let size = big; while (x.measureText(line).width > W - 56 && size > 20) { size -= 2; x.font = `800 ${size}px ui-sans-serif, system-ui, sans-serif`; } x.fillText(line, W / 2, 10 + (H * 0.68 * (i + 0.72)) / n + (n === 3 ? 0 : 6)); x.font = `800 ${big}px ui-sans-serif, system-ui, sans-serif`; });
+    sign.lines.map((line) => line.toUpperCase()).forEach((line, i) => { let size = big; while (x.measureText(line).width > W - 56 && size > 20) { size -= 2; x.font = `800 ${size}px ui-sans-serif, system-ui, sans-serif`; } x.fillText(line, W / 2, 10 + (H * 0.68 * (i + 0.72)) / n + (n === 3 ? 0 : 6)); x.font = `800 ${big}px ui-sans-serif, system-ui, sans-serif`; });
     return c;
   }
-  const ODD_WORDS = { cow: "WAS THAT A COW", sign: "OBEY THE SIGNS", vinyl: "VERY LARGE RECORD AHEAD", astronaut: "IS THAT STEVE" };
   function oddity(kind, soon) {
-    sky.told = ODD_WORDS[kind];
+    sky.told = Packs.words().told[kind];
     if (kind === "astronaut") { sky.folk.push({ kind, born: sound.t, life: rnd(15, 22), side: Math.random() < 0.5 ? -1 : 1, y: rnd(0.16, 0.5) * h, size: Math.min(w, h) * rnd(0.09, 0.14), seed: rnd(0, TAU), beat: 0, arm: 0 }); return; }
     const side = Math.random() < 0.5 ? -1 : 1, art = kind === "cow" ? cowPicture() : kind === "vinyl" ? paintVinyl() : paintSign(), z = soon ? 16 : TRIPS[name] && TRIPS[name].pace < 0.6 ? 20 : FAR;
     sky.things.push({ kind, solid: true, art, tall: art.height / art.width, x: sky.x + sky.vx * z + side * rnd(2.2, 4.5), y: sky.y + sky.vy * z + rnd(-1.6, 1.6), z, size: kind === "vinyl" ? rnd(7, 10) : kind === "cow" ? rnd(2.6, 3.4) : rnd(3.6, 4.6), turn: kind === "sign" ? rnd(-0.18, 0.18) : rnd(0, TAU), spin: kind === "vinyl" ? 2.4 : kind === "cow" ? rnd(-0.7, 0.7) : rnd(-0.05, 0.05), squash: kind === "vinyl" ? rnd(0.55, 0.85) : 1, near: 2.2, nod: rnd(0.6, 1) * side });
@@ -1642,12 +1640,6 @@ window.Effects = (() => {
     }
   }
   /* The cockpit in Voyage: the frame is painted once for the size of the window, and only the instruments are drawn each frame. */
-  const BANTER = {
-    "": ["ARE WE THERE YET", "COFFEE LOW", "CHECK ENGINE. OR DON'T", "PLEASE KEEP YOUR ARMS INSIDE THE SHIP", "DO NOT FEED THE JELLYFISH", "LAST SERVICED: NEVER"],
-    euphoric: ["HANDS UP IN SECTOR 7", "BREAKDOWN AHEAD. HOLD ON", "FEELINGS AT 140 BPM", "THE WHALES APPROVE"],
-    acid: ["SQUELCH LEVELS RISING", "303 ON THE STARBOARD SIDE", "RESONANCE: YES", "SMILEYS OFF THE BOW"],
-    hard: ["BASS SHIELDS FAILING", "EARPLUGS RECOMMENDED", "HULL RATTLING AS INTENDED", "THEY ARE SHOOTING AT US. TURN IT UP"],
-  };
   const windscreen = () => {
     const X = (u) => u * w, Y = (v) => v * h, win = new Path2D();
     win.moveTo(X(0.13), Y(0.055));
@@ -1759,7 +1751,7 @@ window.Effects = (() => {
     if (T.folk && !sky.splats.length && sky.wipe < 0 && t > sky.splatAt && kickHit) {
       for (let i = Math.floor(rnd(1, 4)); i > 0; i--) sky.splats.push({ x: rnd(0.2, 0.8) * w, y: rnd(0.14, 0.6) * h, size: rnd(70, 130) * u, turn: rnd(-0.5, 0.5), gone: false });
       sky.wipeAt = t + rnd(2.5, 5);
-      sky.told = "SOMETHING HIT THE GLASS";
+      sky.told = Packs.words().told.glass;
       sky.splatAt = t + rnd(60, 150) / T.folk;
     }
     if (sky.wipeAt && t > sky.wipeAt) { sky.wipeAt = 0; sky.wipe = 0; }
@@ -1801,9 +1793,9 @@ window.Effects = (() => {
     const { t, dt } = sound, s = d.screen, u = d.u, size = Math.max(11, 17 * u), floorY = s.y + s.h - 12 * u;
     g.font = `700 ${size}px ui-monospace, Consolas, monospace`;
     if (!sky.tick || sky.tick.x + sky.tick.width < s.x) {
-      const list = BANTER[mood] || BANTER[""], text = sky.told || (sky.tickStep++ % 2 && nowSong ? `NOW PLAYING: ${nowSong.toUpperCase()}` : list[Math.floor(rnd(0, list.length))]);
+      const news = Packs.words().banter, list = mood ? [...news[mood], ...news[""]] : news[""], text = sky.told || (sky.tickStep++ % 2 && nowSong ? `NOW PLAYING: ${nowSong.toUpperCase()}` : list[Math.floor(rnd(0, list.length))]);
       sky.told = "";
-      sky.tick = { text, x: s.x + s.w, width: g.measureText(text).width + 12 * u };
+      sky.tick = { text: text.toUpperCase(), x: s.x + s.w, width: g.measureText(text.toUpperCase()).width + 12 * u };
     }
     sky.tick.x -= dt * 150 * u;
     g.save();

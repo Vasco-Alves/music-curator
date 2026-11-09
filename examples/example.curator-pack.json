@@ -1,0 +1,32 @@
+{
+  "curatorPack": 1,
+  "name": "Example pack",
+  "by": "Your name",
+  "about": "Copy this file, change what you like, and import it under Settings, Packs. Anything you leave out stays as it is.",
+  "words": {
+    "banter": {
+      "any": ["MIND THE GAP BETWEEN GALAXIES"],
+      "euphoric": ["ONE MORE BREAKDOWN"],
+      "acid": ["THE SQUELCH IS COMING FROM INSIDE THE SHIP"],
+      "hard": ["TOO FAST? NO SUCH THING"]
+    },
+    "signs": [
+      { "bg": "#0e6b3c", "ink": "#ffffff", "lines": ["RECORD SHOP", "NEXT EXIT"] }
+    ],
+    "told": { "jump": "HOLD ON TO YOUR RECORDS" },
+    "empty": { "songs": "Nothing here. Check the back of the crate." },
+    "notes": { "late": "It's 3 a.m. Your neighbours say hi." }
+  },
+  "genres": {
+    "Techno": "hard",
+    "Deep House": "euphoric",
+    "Video Game Music": "none"
+  },
+  "settings": {
+    "surprises": {
+      "bob": { "often": "often", "strength": 1.2 },
+      "logo": { "often": "some" }
+    },
+    "moodStrength": 0.8
+  }
+}

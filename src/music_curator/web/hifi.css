@@ -343,7 +343,7 @@ body.gentle .meter div::after { animation: meter-shine 4s steps(26, end) infinit
 .falling { position: fixed; top: 0; z-index: 60; border-radius: 50%; pointer-events: none; background: radial-gradient(circle, #14140f 0 8%, var(--accent) 9% 30%, transparent 31%), repeating-radial-gradient(circle, #14140f 0 1px, #24241c 1px 2.4px); box-shadow: 0 2px 6px rgba(0, 0, 0, .5); }
 
 /* ---------- the logo: the same glass as the orb ---------- */
-.logo { display: block; flex: none; width: 28px; height: 28px; border-radius: 50%; background:
+.logo { position: relative; display: block; flex: none; width: 28px; height: 28px; border-radius: 50%; background:
     radial-gradient(ellipse 62% 40% at 50% 22%, rgba(255, 255, 255, .72), rgba(255, 255, 255, .14) 62%, rgba(255, 255, 255, 0) 76%),
     radial-gradient(circle, #14140f 0 7%, var(--accent) 8% 26%, transparent 27%),
     repeating-radial-gradient(circle, #14140f 0 1px, #24241c 1px 2px);

@@ -32,7 +32,7 @@ const ICONS = {
   warn: "M12 4 2.5 20h19zM12 10v4.5M12 17.5h.01", sliders: "M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4", shuffle: "M16 4h5v5M4 20 21 4M21 15v5h-5M15 15l6 5M4 4l5 5",
   play: "M8 5v14l11-7z", pause: "M7 5h3.5v14H7zM13.5 5H17v14h-3.5z", prev: "M19 6v12l-9-6zM6 6h2.2v12H6z", next: "M5 6v12l9-6zM15.8 6H18v12h-2.2z",
   repeat: "M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3", upnext: "M4 6h16M4 12h9M4 18h9M16 12.500v7l5.500-3.500z",
-  kick: "M3 12h4l2.500-7 4 14 2.500-7h5", flash: "M13 3 5 14h6l-1 7 8-11h-6z", heart: "M12 20.500s-7.500-4.600-9.200-9.200C1.700 8.200 3.600 5 6.800 5c2.200 0 3.900 1.200 5.200 3 1.300-1.800 3-3 5.200-3 3.200 0 5.100 3.200 4 6.300-1.700 4.600-9.200 9.200-9.200 9.200z", sparkle: "M11 4l1.800 5.700L18.500 11.500l-5.700 1.800L11 19l-1.800-5.700L3.500 11.500l5.700-1.800zM19 3v4M17 5h4", grip: "M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01", fade: "M3 6c7 0 11 12 18 12M3 18c7 0 11-12 18-12", radio: "M12 13.5a1.500 1.500 0 1 0 0-3 1.500 1.500 0 0 0 0 3zM8.200 8a5.500 5.500 0 0 0 0 8M15.800 8a5.500 5.500 0 0 1 0 8M5.200 5a10 10 0 0 0 0 14M18.800 5a10 10 0 0 1 0 14", plus: "M12 5v14M5 12h14", import: "M12 4v11M8 11l4 4 4-4M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5", chevron: "M6 9l6 6 6-6", expand: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5", even: "M6 9v6M10 9v6M14 9v6M18 9v6M3 5h18M3 19h18", user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.500 20a7.500 7.500 0 0 1 15 0",
+  kick: "M3 12h4l2.500-7 4 14 2.500-7h5", flash: "M13 3 5 14h6l-1 7 8-11h-6z", screen: "M3 5h18v12H3zM8 21h8M12 17v4", heart: "M12 20.500s-7.500-4.600-9.200-9.200C1.700 8.200 3.600 5 6.800 5c2.200 0 3.900 1.200 5.200 3 1.300-1.800 3-3 5.200-3 3.200 0 5.100 3.200 4 6.300-1.700 4.600-9.200 9.200-9.200 9.200z", sparkle: "M11 4l1.800 5.700L18.500 11.500l-5.700 1.800L11 19l-1.800-5.700L3.500 11.500l5.700-1.800zM19 3v4M17 5h4", grip: "M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01", fade: "M3 6c7 0 11 12 18 12M3 18c7 0 11-12 18-12", radio: "M12 13.5a1.500 1.500 0 1 0 0-3 1.500 1.500 0 0 0 0 3zM8.200 8a5.500 5.500 0 0 0 0 8M15.800 8a5.500 5.500 0 0 1 0 8M5.200 5a10 10 0 0 0 0 14M18.800 5a10 10 0 0 1 0 14", plus: "M12 5v14M5 12h14", import: "M12 4v11M8 11l4 4 4-4M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5", chevron: "M6 9l6 6 6-6", expand: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5", even: "M6 9v6M10 9v6M14 9v6M18 9v6M3 5h18M3 19h18", user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.500 20a7.500 7.500 0 0 1 15 0",
   disc: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z", tag: "M4 4h7.5l8.500 8.500-7.500 7.500L4 11.500zM8 8h.01", export: "M12 15V4M8 8l4-4 4 4M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5",
 };
 const FILLED = new Set(["play", "pause", "prev", "next"]);
@@ -127,6 +127,16 @@ function indexLists() {
   S.inSpotify = whereIs(spotify);
   S.inOwn = whereIs(own);
   paintHearts();
+  paintRailLists();
+}
+function paintRailLists() { // the space under the menu: Favourites first, then the playlists made here, then Spotify's
+  const box = $("#rail-lists");
+  if (!box || !S.meta) return;
+  const here = new URLSearchParams(location.hash.split("?")[1] || "").get("playlist") || "";
+  const row = (key, name, count, mark) => el("a", { class: `rail-list${here === key ? " on" : ""}`, href: `#/songs?${q2({ playlist: key, area: "all" })}`, title: name }, mark || null, el("span", { class: "rail-name" }, name), el("span", { class: "rail-count" }, fmt(count)));
+  const own = [...(S.meta.own_playlists || [])].sort((a, b) => (b.name === FAVOURITES) - (a.name === FAVOURITES)), spotify = (S.meta.my_playlists || []).filter((p) => p.ids.length).sort((a, b) => a.name.localeCompare(b.name));
+  box.replaceChildren(...[own.length ? el("div", { class: "rail-head" }, "Local") : null, ...own.map((p) => row(OWN + p.id, p.name, p.ids.length, p.name === FAVOURITES ? icon("heart", 13, "rail-heart") : null)),
+    spotify.length ? el("div", { class: "rail-head" }, "On Spotify") : null, ...spotify.map((p) => row(p.name, p.name, p.ids.length))].filter(Boolean));
 }
 const playlistChores = () => waitingToAdd().reduce((n, [, d]) => n + lines(d.note).length, 0) + sum(((S.meta.spotify || {}).to_remove || []).map((r) => r.count));
 function badge() {
@@ -507,7 +517,7 @@ function pageSongs(params) {
       ...(f.from ? [chipOff(f.from === f.to ? `Year: ${f.from}` : `Years: ${f.from}–${f.to}`, () => { f.from = f.to = ""; update(); })] : []),
       ...(NEWEST_FIRST[S.sort.key] && S.sort.dir < 0 ? [chipOff(NEWEST_FIRST[S.sort.key], () => { S.sort = { key: "artist", dir: 1 }; update(); })] : []));
     const own = ownList(f.playlist);
-    if (!list.length) return results.replaceChildren(el("p", { class: "empty" }, own && !own.ids.length ? "Nothing in this playlist yet. Find a song and press + to add it." : "Nothing. Not even on a white label."));
+    if (!list.length) return results.replaceChildren(el("p", { class: "empty" }, own && !own.ids.length ? "Nothing in this playlist yet. Find a song and press + to add it." : Packs.words().empty.songs));
     S.songView === "grid" ? renderTiles(results, list) : renderTable(results, list, update, own ? takeOut : null, canMove(list) ? moveRow : null);
   }
   const chipOff = (text, off) => el("button", { class: "chip", type: "button", title: "Remove this filter", onclick: off }, text, " ", el("em", {}, "×"));
@@ -933,7 +943,7 @@ function pageShelf(params, o) {
     const words = fold(f.q).split(/\s+/).filter(Boolean);
     const list = all.filter((x) => (!f.many || x.songs.length > 1) && words.every((w) => x.hay.includes(w))).sort(sorters[f.sort] || sorters.most);
     countLine.textContent = o.count(list.length);
-    if (!list.length) return results.replaceChildren(el("p", { class: "empty" }, all.length ? "Nothing by that name in the crates." : o.none));
+    if (!list.length) return results.replaceChildren(el("p", { class: "empty" }, all.length ? Packs.words().empty.shelves : o.none));
     results.replaceChildren();
     for (const [title, has, none] of o.groups || [["", () => true]]) {
       const items = list.filter(has);
@@ -1144,7 +1154,7 @@ function pageCheck(params) {
       list.length ? el("button", { class: "btn small", type: "button", onclick: () => { S.listen = true; const q = queue(); if (q.length) playQueue(q, 0, "To check"); } }, icon("play", 14), "Listen through these") : null,
       queue().length ? el("a", { class: "btn small", href: `#/check?${q2({ kind: kind === "needs" ? "" : kind, quick: "1" })}`, title: "One song at a time, answered from the keyboard" }, icon("ears", 14), "Quick mode") : null,
       el("label", {}, el("input", { type: "checkbox", checked: showDone, onchange: (e) => { location.hash = link(kind, e.target.checked); } }), "Show what's decided")),
-    list.length ? box : el("p", { class: "empty" }, "Nothing left to check. Your ears can rest."), holder,
+    list.length ? box : el("p", { class: "empty" }, Packs.words().empty.check), holder,
     el("p", { class: "hintbar" }, "Your answers are saved as you go. Nothing in your music changes until you press Curate at the top of this page, or ask your AI app to apply them.")));
   paintMeter();
   lazy(box, list, (it) => itemCard(it, paintMeter), holder);
@@ -1186,7 +1196,7 @@ function pageQuick(params) {
     count.textContent = `${fmt(left)} of ${fmt(total)} left`;
     meter.style.width = `${total ? ((total - left) / total) * 100 : 0}%`;
     cards.clear();
-    if (!left || !it) return card.replaceChildren(el("div", { class: "quick-body" }, el("p", {}, total ? "All answered. Your ears can rest." : "Nothing left to check. Your ears can rest."), el("a", { class: "btn small", href: back }, "Back to the list")));
+    if (!left || !it) return card.replaceChildren(el("div", { class: "quick-body" }, el("p", {}, total ? Packs.words().empty.answered : Packs.words().empty.check), el("a", { class: "btn small", href: back }, "Back to the list")));
     cards.set(it.key, () => paint());
     const k = KINDS[it.c.kind], answers = controls(it.s, it.c, (advance) => {
       if (!advance) return paint();
@@ -1789,6 +1799,7 @@ async function pageSettings() {
     accentSetting(),
     vibeSetting(),
     surprisesSetting(),
+    packsSetting(),
     folderForm(st, { showReview: true, requireChange: true, button: "Save folders", saved: async () => {
       if (!(await safeLoad())) return;
       toast("Folders saved.");
@@ -2092,7 +2103,7 @@ function setFxEverywhere(on) {
 function setFx(name) {
   fxName = name;
   store("curator-fx", name);
-  if (name) store(`curator-fx-${familyOf(name)}`, name); // the style you come back to it with next time
+  if (name) { store(`curator-fx-${familyOf(name)}`, name); store("curator-fx-last", name); } // the style you come back to it with next time
   if (!name && fxFull) fullFx(false);
   paintFxBar();
   syncFx();
@@ -2103,6 +2114,7 @@ function wakeFx() { // in full view the controls and the pointer go away until t
   clearTimeout(fxIdle);
   fxIdle = setTimeout(() => document.body.classList.add("idle"), 3000);
 }
+let fullFromDeck = false, wantFull = false; // gone straight to the picture from another page, so leaving it goes back there
 function fullFx(on) {
   fxFull = on;
   FX.full(on);
@@ -2111,6 +2123,18 @@ function fullFx(on) {
   clearTimeout(fxIdle);
   wakeFx();
   paintFxBar();
+  $("#full-toggle").classList.toggle("active", on);
+  $("#full-toggle").setAttribute("aria-pressed", String(on));
+  if (!on && fullFromDeck) { fullFromDeck = false; if (onNowPage()) closeNow(); }
+}
+function goFull() { // just the picture, from any page
+  if (!FX || calm.matches) return;
+  if (fxFull) return fullFx(false);
+  if (!current()) return toast("Put a song on first.");
+  if (!fxName) setFx(store("curator-fx-last") || "trails");
+  if (onNowPage()) return fullFx(true);
+  fullFromDeck = wantFull = true;
+  openNow();
 }
 window.addEventListener("mousemove", wakeFx);
 
@@ -2305,8 +2329,8 @@ function countListening() {
     repeats = repeats.id === s.id ? { id: s.id, n: repeats.n + 1 } : { id: s.id, n: 1 };
     const now = new Date();
     if (s.plays === GOLD_PLAYS) toast(`${s.title || s.file} just went gold: ${GOLD_PLAYS} plays.`);
-    else if (surprises.notes && repeats.n === 5) toast("Still this one? Good.");
-    else if (surprises.notes && now.getHours() === 3 && store("curator-3am") !== now.toDateString()) { store("curator-3am", now.toDateString()); toast("3 a.m. Excellent choice."); } // once a night
+    else if (surprises.notes && repeats.n === 5) toast(Packs.words().notes.again);
+    else if (surprises.notes && now.getHours() === 3 && store("curator-3am") !== now.toDateString()) { store("curator-3am", now.toDateString()); toast(Packs.words().notes.late); } // once a night
     document.querySelectorAll(`td[data-plays="${s.id}"]`).forEach((n) => { n.textContent = fmt(s.plays); });
     document.querySelectorAll(`dd[data-plays="${s.id}"]`).forEach((n) => { n.textContent = playedWords(s); });
   });
@@ -2457,14 +2481,9 @@ async function wireSound() { // true once the sound is going through it and can 
   } catch { return false; }
 }
 /* The mood of what's playing. The genre says which, and it changes the background and how a kick lands, never what's on the page. */
-const VIBE_OF = new Map([
-  ["euphoric", ["Trance", "Hard Trance", "Goa Trance", "Psy-Trance", "Progressive Trance", "Nightcore", "Happy Hardcore", "Euro House", "Eurodance", "Italodance", "Progressive House", "Hard House"]],
-  ["acid", ["Acid", "Acid Techno", "Acid House"]],
-  ["hard", ["Hardcore", "Gabber", "Speedcore", "Frenchcore", "Terror", "Hardstyle", "Jumpstyle", "J-Core", "Breakcore", "Industrial", "Hard Techno", "Freetekno"]],
-].flatMap(([mood, genres]) => genres.map((genre) => [genre, mood])));
 const FEEL = { "": { ms: 240, lift: 0.1, blur: 7 }, euphoric: { ms: 430, lift: 0.08, blur: 13, flash: 480 }, acid: { ms: 320, lift: 0.1, blur: 8, wobble: true }, hard: { ms: 130, lift: 0.24, blur: 4, flash: 150 } }; // how long a kick lasts, how bright, how far the light spreads
 const DRIFT = { euphoric: 0.7, acid: 1.15, hard: 1.7 }; // how fast the background turns
-const moodOf = (s) => genresOf(s).map((g) => VIBE_OF.get(g)).find(Boolean) || ""; // the genre on the file first, then the others it's listed under
+const moodOf = (s) => genresOf(s).map((g) => Packs.moodOf(g)).find(Boolean) || ""; // the genre on the file first, then the others it's listed under
 let vibesOn = store("curator-vibes") !== "off", vibe = "", moodStrength = Number.isFinite(parseFloat(store("curator-mood"))) ? Math.min(1, Math.max(0, parseFloat(store("curator-mood")))) : 0.6;
 document.documentElement.style.setProperty("--mood", String(moodStrength));
 function setVibe(s) {
@@ -2474,9 +2493,84 @@ function setVibe(s) {
   document.querySelectorAll(".ambient canvas").forEach((c) => c.getAnimations().forEach((a) => { if (a.animationName === "ambient-turn") a.updatePlaybackRate(DRIFT[vibe] || 1); }));
   if (vibe !== "acid") $("#play").style.filter = "";
 }
+/* Packs: a way to share how you've set the app up, and try how others have. The rules are in packs.js. */
+const packSettingsNow = () => ({ surprises, tuning: fxTuning, accent: store("curator-accent") || "", moodStrength, vibes: vibesOn, glow: kickOn, flash: flashOn, sparkle: sparkleOn, effect: fxName });
+function usePackSettings(s) {
+  if (s.surprises) {
+    store("curator-surprises", JSON.stringify(s.surprises));
+    surprises = readSurprises();
+    danceAfter = performance.now() + waitFor("dance", true);
+    bobAfter = performance.now() + waitFor("bob", true);
+    logoAfter = performance.now() + waitFor("logo", true);
+  }
+  if (s.tuning) { fxTuning = s.tuning; saveTuning(); }
+  if (s.accent !== undefined) { store("curator-accent", s.accent); paintAccent(); }
+  if (s.moodStrength !== undefined) { moodStrength = s.moodStrength; store("curator-mood", String(moodStrength)); document.documentElement.style.setProperty("--mood", String(moodStrength)); }
+  if (s.vibes !== undefined) { vibesOn = s.vibes; store("curator-vibes", vibesOn ? "on" : "off"); }
+  if (s.glow !== undefined) setKick(s.glow);
+  if (s.flash !== undefined) setFlash(s.flash);
+  if (s.sparkle !== undefined) setSparkle(s.sparkle);
+  if (s.effect !== undefined && (s.effect === "" || familyOf(s.effect))) setFx(s.effect);
+  setVibe(current());
+  startSound();
+}
+function packsSetting() {
+  const box = el("div", { class: "card accent-setting" }), refresh = () => { setVibe(current()); paint(); };
+  const picker = el("input", { type: "file", accept: ".json,application/json", hidden: true, onchange: async (e) => {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+    if (file.size > Packs.FILE_LIMIT) return toast("That file is too big to be a pack.");
+    const r = Packs.add(await file.text());
+    if (r.error) return toast(r.error);
+    toast(`Added ${r.pack.name}.`);
+    refresh();
+  } });
+  const exportIt = () => modal("Export my setup", (m) => {
+    const name = el("input", { type: "text", maxlength: 60, placeholder: "Name for the pack", "aria-label": "Name for the pack", autocomplete: "off", spellcheck: "false" }), by = el("input", { type: "text", maxlength: 60, placeholder: "Your name (optional)", "aria-label": "Your name", autocomplete: "off", spellcheck: "false" });
+    const go = () => {
+      if (!name.value.trim()) return name.focus();
+      saveFile(`${name.value.trim().replace(/[^\w-]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase() || "my"}.curator-pack.json`, JSON.stringify(Packs.make(name.value, by.value, packSettingsNow()), null, 2), "application/json");
+      m.close();
+      toast("Saved. Anyone with the app can import that file.");
+    };
+    return [name, by, el("div", { class: "modal-go" }, el("button", { class: "linkish", type: "button", onclick: () => m.close() }, "Cancel"), el("button", { class: "btn primary small", type: "button", onclick: go }, "Export"))];
+  });
+  const row = (p) => el("div", { class: "pack-row" },
+    el("label", { class: "filter-check grow" }, el("input", { type: "checkbox", checked: p.on, "aria-label": `Use ${p.name}`, onchange: (e) => { Packs.toggle(p.id, e.target.checked); setVibe(current()); } }),
+      el("span", {}, el("strong", {}, p.name), p.by ? ` by ${p.by}` : "", el("span", { class: "note pack-holds" }, Packs.summary(p)))),
+    Object.keys(p.settings).length ? el("button", { class: "btn small", type: "button", title: "Replaces your settings with the ones in this pack", onclick: () => { usePackSettings(p.settings); toast(`Using the settings from ${p.name}.`); route(); } }, "Use its settings") : null,
+    el("button", { class: "btn small", type: "button", onclick: () => { Packs.remove(p.id); refresh(); } }, "Remove"));
+  function yourOwn() {
+    const mine = Packs.mine(), w = mine.words, names = [...new Set(S.songs.flatMap(genresOf))].sort((a, b) => a.localeCompare(b));
+    const news = el("textarea", { rows: 3, maxlength: 2000, "aria-label": "Your own cockpit news", placeholder: "One per line", spellcheck: "false" }, ((w.banter || {})[""] || []).join("\n"));
+    const signs = el("textarea", { rows: 2, maxlength: 800, "aria-label": "Your own road signs", placeholder: "One per line, with / for a new line on the sign", spellcheck: "false" }, (w.signs || []).map((s) => s.lines.join(" / ")).join("\n"));
+    const nothing = el("input", { type: "text", maxlength: 80, "aria-label": "When a search finds nothing", placeholder: Packs.words().empty.songs, value: (w.empty || {}).songs || "" });
+    const cleared = el("input", { type: "text", maxlength: 80, "aria-label": "When To check is empty", placeholder: Packs.words().empty.check, value: (w.empty || {}).check || "" });
+    const save = () => {
+      const was = Packs.mine().words;
+      Packs.setMine({ words: { ...was, banter: { ...(was.banter || {}), "": lines(news.value) }, signs: lines(signs.value).map((line) => ({ lines: line.split("/") })), empty: { ...(was.empty || {}), songs: nothing.value, check: cleared.value } }, genres: Packs.mine().genres });
+    };
+    [news, signs, nothing, cleared].forEach((field) => field.addEventListener("change", save));
+    const moodOptions = (genre) => [["", `As it comes (${Packs.builtInMood(genre) || "no mood"})`], ["euphoric", "Euphoric"], ["acid", "Acid"], ["hard", "Hard"], ["none", "No mood"]];
+    const genreRow = (genre) => el("label", { class: "pack-genre" }, el("span", {}, genre), el("select", { "aria-label": `Mood for ${genre}`, onchange: (e) => { const genres = { ...Packs.mine().genres }; if (e.target.value) genres[genre] = e.target.value; else delete genres[genre]; Packs.setMine({ words: Packs.mine().words, genres }); setVibe(current()); } }, moodOptions(genre).map(([value, word]) => el("option", { value, selected: (mine.genres[genre] || "") === value }, word))));
+    return [el("h3", { class: "pack-own" }, "Your own touches"), el("p", { class: "note" }, "These go into your export, and they stay yours when you remove a pack."),
+      el("label", { class: "pack-field" }, el("span", {}, "Cockpit news"), news), el("label", { class: "pack-field" }, el("span", {}, "Road signs"), signs),
+      el("label", { class: "pack-field" }, el("span", {}, "When a search finds nothing"), nothing), el("label", { class: "pack-field" }, el("span", {}, "When To check is empty"), cleared),
+      names.length ? el("details", { class: "pack-genres" }, el("summary", {}, "Which mood each genre gets"), names.map(genreRow)) : null];
+  }
+  function paint() {
+    const added = Packs.added();
+    box.replaceChildren(...[el("h2", {}, "Packs"), el("p", { class: "note" }, "Share how you've set the app up, or try someone else's. A pack is a small file of words, numbers and colors, so it can't run anything on your computer."),
+      el("div", { class: "actions pack-actions" }, el("button", { class: "btn small", type: "button", onclick: () => picker.click() }, icon("import", 14), "Import a pack"), el("button", { class: "btn small", type: "button", onclick: exportIt }, icon("export", 14), "Export my setup"), picker),
+      added.length ? added.map(row) : null, yourOwn()].flat(Infinity).filter(Boolean));
+  }
+  paint();
+  return box;
+}
 function surprisesSetting() {
   const box = el("div", { class: "card accent-setting" }), save = () => store("curator-surprises", JSON.stringify(surprises));
-  const soonest = { dance: () => { danceAfter = performance.now() + waitFor("dance", true); }, bob: () => { bobAfter = performance.now() + waitFor("bob", true); } };
+  const soonest = { dance: () => { danceAfter = performance.now() + waitFor("dance", true); }, bob: () => { bobAfter = performance.now() + waitFor("bob", true); }, logo: () => { logoAfter = performance.now() + waitFor("logo", true); } };
   const slider = (label, min, max, step, value, words, change) => {
     const shown = el("span", { class: "fx-value" }, words(value));
     return el("label", { class: "fx-knob surprise-knob" }, el("span", {}, label), el("input", { type: "range", min, max, step, value, oninput: (e) => { change(+e.target.value); shown.textContent = words(+e.target.value); save(); } }), shown);
@@ -2487,7 +2581,7 @@ function surprisesSetting() {
     return el("div", { class: "surprise" },
       el("div", { class: "surprise-head" }, el("div", { class: "grow" }, el("strong", {}, name), el("div", { class: "note" }, about)), el("button", { class: "btn small", type: "button", onclick: tryIt }, "Try it")),
       el("div", { class: "pills", role: "group", "aria-label": `How often: ${name}` }, [...OFTEN_WORDS, ...(key === "bob" ? [["always", "Always"]] : [])].map(([value, word]) => el("button", { class: `chip${how.often === value ? " on" : ""}`, type: "button", "aria-pressed": String(how.often === value), onclick: () => { how.often = value; soonest[key](); save(); startSound(); paint(); } }, word))),
-      how.often === "off" ? null : [slider("Strength", 0.3, 2, 0.05, how.strength, percent, (v) => { how.strength = v; }), how.often === "always" ? null : slider("Length", 2, 30, 0.5, how.secs, seconds, (v) => { how.secs = v; })]);
+      how.often === "off" || how.strength === undefined ? null : [slider("Strength", 0.3, 2, 0.05, how.strength, percent, (v) => { how.strength = v; }), how.often === "always" ? null : slider("Length", 2, 30, 0.5, how.secs, seconds, (v) => { how.secs = v; })]);
   };
   const tick = (key, words) => el("label", { class: "filter-check surprise-tick" }, el("input", { type: "checkbox", checked: surprises[key], onchange: (e) => { surprises[key] = e.target.checked; save(); } }), words);
   function paint() {
@@ -2496,11 +2590,12 @@ function surprisesSetting() {
     box.replaceChildren(el("h2", {}, "Surprises"), el("p", { class: "note" }, "Things that happen by themselves now and then, on the kick of whatever's playing."),
       one("dance", "The dance", "The whole app dances for a few seconds.", letsDance),
       one("bob", "Bobbing", "Everything nods to the kick for a few seconds.", letsBob),
+      one("logo", "The logo and name", "A spin, a scratch, a wave through the letters, a glint, a neon flicker, a shuffle.", logoTrick),
       tick("clock", "Jokes on the clock: 303 at 3:03 on acid tracks, and 11 at full volume"),
       tick("notes", "Small notes: late at night, or the same song over and over"),
       tick("falling", "Small records falling when To check is cleared"),
       el("p", { class: "note surprise-foot" }, "What flies past in Space is under Adjust, on Now Playing."),
-      el("button", { class: "btn small", type: "button", disabled: !changed, onclick: () => { surprises = JSON.parse(JSON.stringify(SURPRISE_DEFAULTS)); save(); soonest.dance(); soonest.bob(); startSound(); paint(); } }, "Back to default"));
+      el("button", { class: "btn small", type: "button", disabled: !changed, onclick: () => { surprises = JSON.parse(JSON.stringify(SURPRISE_DEFAULTS)); save(); soonest.dance(); soonest.bob(); soonest.logo(); startSound(); paint(); } }, "Back to default"));
   }
   paint();
   return box;
@@ -2537,17 +2632,18 @@ const DANCERS = [ // who joins in, how far each moves, how long each waits for t
   { who: ".rank .bar", grow: "{} 1", most: 30 },
   { who: ".gauge-ring", pump: 0.035 },
 ];
-const HOW_OFTEN = { dance: { rare: [25, 50], some: [10, 25], often: [4, 10] }, bob: { rare: [8, 15], some: [2, 6], often: [0.7, 2] } }; // minutes between them, at random within the range
+const HOW_OFTEN = { dance: { rare: [25, 50], some: [10, 25], often: [4, 10] }, bob: { rare: [8, 15], some: [2, 6], often: [0.7, 2] }, logo: { rare: [8, 20], some: [2.5, 7], often: [0.7, 2] } }; // minutes between them, at random within the range
 const OFTEN_WORDS = [["off", "Never"], ["rare", "Rarely"], ["some", "Sometimes"], ["often", "Often"]];
-const SURPRISE_DEFAULTS = { dance: { often: "rare", strength: 1, secs: 6.5 }, bob: { often: "some", strength: 1, secs: 8 }, clock: true, notes: true, falling: true };
+const SURPRISE_DEFAULTS = { dance: { often: "rare", strength: 1, secs: 6.5 }, bob: { often: "some", strength: 1, secs: 8 }, logo: { often: "some" }, clock: true, notes: true, falling: true };
 function readSurprises() { // Settings, under Surprises. Anything missing or odd is the default
   let saved;
   try { saved = JSON.parse(store("curator-surprises") || "{}"); } catch { saved = {}; }
   if (!saved || typeof saved !== "object") saved = {};
   const out = JSON.parse(JSON.stringify(SURPRISE_DEFAULTS));
-  for (const key of ["dance", "bob"]) {
+  for (const key of ["dance", "bob", "logo"]) {
     const one = saved[key] || {};
     if (one.often === "off" || HOW_OFTEN[key][one.often] || (key === "bob" && one.often === "always")) out[key].often = one.often;
+    if (key === "logo") continue;
     if (Number.isFinite(one.strength)) out[key].strength = Math.min(2, Math.max(0.3, one.strength));
     if (Number.isFinite(one.secs)) out[key].secs = Math.min(30, Math.max(2, one.secs));
   }
@@ -2561,7 +2657,7 @@ function waitFor(key, first) { // the first one of a visit comes sooner
   const [low, high] = first ? [range[0] * 0.25, range[1] * 0.4] : range;
   return (low + Math.random() * (high - low)) * 60000;
 }
-let danceAfter = performance.now() + waitFor("dance", true), bobAfter = performance.now() + waitFor("bob", true), bobUntil = 0, danceUntil = 0, danceBeat = 0, danceMoved = 0, danceTimer = 0;
+let danceAfter = performance.now() + waitFor("dance", true), bobAfter = performance.now() + waitFor("bob", true), logoAfter = performance.now() + waitFor("logo", true), logoTurn = Math.floor(Math.random() * 6), bobUntil = 0, danceUntil = 0, danceBeat = 0, danceMoved = 0, danceTimer = 0;
 const onScreen = (n) => { const r = n.getBoundingClientRect(); return r.width > 0 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth; };
 function danceTitle(on) { // the song's name comes apart into letters for the dance, and goes back together after
   const h = $(".now-info h1");
@@ -2629,6 +2725,38 @@ function letsBob() {
   bobUntil = performance.now() + surprises.bob.secs * 1000;
   startSound();
 }
+/* The logo and the name have tricks of their own: one at a time, every so often, and a different one each time. */
+const LOGO_TRICKS = [
+  () => $(".logo").animate({ rotate: ["0deg", "1080deg"] }, { duration: 1900, easing: "cubic-bezier(.12,.7,.25,1)" }), // a spin that slows down
+  () => $(".logo").animate({ rotate: ["0deg", "-42deg", "24deg", "-34deg", "12deg", "0deg"] }, { duration: 950, easing: "ease-in-out" }), // a scratch
+  () => document.querySelectorAll(".brand-letter").forEach((letter, i) => letter.animate({ translate: ["0 0", "0 -6px", "0 0"] }, { duration: 340, delay: i * 55, easing: "ease-out" })), // a wave through the name
+  () => { // a glint running along it
+    document.querySelectorAll(".brand-letter").forEach((letter, i) => letter.animate({ color: ["var(--ink)", "#fff", "var(--ink)"], textShadow: ["0 0 0 transparent", "0 0 9px var(--accent)", "0 0 0 transparent"] }, { duration: 320, delay: i * 45, easing: "ease-out" }));
+    glintOn($(".logo"), 32, 22, 20);
+  },
+  () => { // one letter going, like an old neon sign
+    const letters = document.querySelectorAll(".brand-letter");
+    letters[Math.floor(Math.random() * letters.length)].animate({ opacity: [1, 0.2, 1, 0.12, 0.85, 0.25, 1] }, { duration: 1000, easing: "steps(6, end)" });
+  },
+  () => { // the letters shuffle and settle, like a station board
+    const letters = [...document.querySelectorAll(".brand-letter")], word = letters.map((l) => l.textContent);
+    let step = 0;
+    const flip = setInterval(() => {
+      step++;
+      letters.forEach((l, i) => { l.textContent = i < step / 2 ? word[i] : String.fromCharCode(97 + Math.floor(Math.random() * 26)); });
+      if (step >= word.length * 2) { clearInterval(flip); letters.forEach((l, i) => { l.textContent = word[i]; }); }
+    }, 55);
+  },
+];
+function logoTrick() {
+  if (!calm.matches) LOGO_TRICKS[logoTurn++ % LOGO_TRICKS.length]();
+}
+function logoNow(now, hit) {
+  if (calm.matches || danceUntil || now < logoAfter || hit < 0.3) return;
+  logoAfter = now + waitFor("logo");
+  logoTrick();
+}
+setInterval(() => { if (audio.paused && !document.hidden) logoNow(performance.now(), 1); }, 15000); // with nothing playing there's no kick to wait for
 function bobbing(now, hit) { // every few minutes, for a few seconds, everything nods along with the kick. Not while the dance is on
   if (calm.matches || danceUntil) return;
   if (surprises.bob.often === "always") return bobToTheKick(hit);
@@ -2707,7 +2835,7 @@ function sparkle(now, strength) { // far too many of these for anything bigger: 
     glintOn($("#play"), 27 + Math.random() * 14, 18 + Math.random() * 8, 14 + 7 * strength);
   }
 }
-const glowing = () => (kickOn || flashOn || sparkleOn || surprises.dance.often !== "off" || surprises.bob.often !== "off" || danceUntil > performance.now() || bobUntil > performance.now()) && !calm.matches; // any of them needs to hear the music
+const glowing = () => (kickOn || flashOn || sparkleOn || surprises.dance.often !== "off" || surprises.bob.often !== "off" || surprises.logo.often !== "off" || danceUntil > performance.now() || bobUntil > performance.now()) && !calm.matches; // any of them needs to hear the music
 function soundFrame(now) {
   kickFrame = 0;
   const hearing = !!kickLevel && !audio.paused, picture = fxShowing() && (hearing || onNowPage()); // on the other pages it only moves while there's music
@@ -2722,6 +2850,7 @@ function soundFrame(now) {
   if (hit >= 0) dance(now, hit);
   else if (danceUntil && now - danceMoved > 640) dance(now, 0.4); // a quiet passage: it keeps time by itself
   if (hit >= 0) bobbing(now, hit);
+  if (hit >= 0) logoNow(now, hit);
   if (picture) FX.frame(now, hearing ? kickWide : null, hit, tick);
 }
 async function startSound() {
@@ -3005,6 +3134,9 @@ $("#next").addEventListener("click", () => step(1));
 $(".np").addEventListener("click", () => { if (current()) openDrawer(current().id); }); // the title inside is the keyboard's way in
 $("#np-cover").addEventListener("click", (e) => { e.stopPropagation(); if (current()) (onNowPage() ? closeNow() : openNow()); });
 $("#now-toggle").append(icon("expand", 17));
+$("#full-toggle").append(icon("screen", 17));
+$("#full-toggle").hidden = !FX || calm.matches;
+$("#full-toggle").addEventListener("click", goFull);
 $("#now-toggle").addEventListener("click", () => (onNowPage() ? closeNow() : openNow()));
 $("#panel-toggle").append(icon("panel", 18));
 $("#panel-toggle").addEventListener("click", () => setPanel(!panelShown()));
@@ -3092,6 +3224,11 @@ $("#np-heart").append(icon("heart", 17));
 $("#np-heart").addEventListener("click", (e) => { e.stopPropagation(); const s = current(); if (s) toggleFavourite(s, e.currentTarget); });
 $("#sparkle").addEventListener("click", () => setSparkle(!sparkleOn));
 paintKick();
+{ // the name, letter by letter, so it can do tricks
+  const name = $(".brand > span");
+  $(".brand").setAttribute("aria-label", name.textContent);
+  name.replaceChildren(...[...name.textContent].map((c) => el("span", { class: "brand-letter", "aria-hidden": "true" }, c)));
+}
 $(".brand").prepend(logo());
 $(".logo").addEventListener("click", (e) => { if (!calm.matches) e.currentTarget.animate({ rotate: ["0deg", "1440deg"] }, { duration: 2300, easing: "cubic-bezier(.12,.7,.25,1)" }); }); // given a push, it spins and slows down
 /* Type the word "acid" anywhere that isn't a text box: a smiley rolls along the deck, hopping over the orb, and the app goes acid yellow until the song ends. */
@@ -3272,6 +3409,7 @@ function route() {
   $("#now-toggle").setAttribute("aria-pressed", String(page === "now"));
   document.querySelectorAll(".nav").forEach((n) => { const on = n.dataset.page === page; n.classList.toggle("active", on); on ? n.setAttribute("aria-current", "page") : n.removeAttribute("aria-current"); });
   moveNav();
+  paintRailLists();
   const pages = { home: pageHome, songs: pageSongs, artists: pageArtists, albums: pageAlbums, labels: pageLabels, check: pageCheck, add: pageAdd, progress: pageProgress, settings: pageSettings, now: pageNow };
   (pages[page] || pageHome)(params);
   syncFx();
@@ -3280,6 +3418,7 @@ function route() {
   const open = params.get("open") || openNext;
   openNext = "";
   if (open) openDrawer(open); else if (roomy.matches) showPanel(); else closeDrawer();
+  if (wantFull && onNowPage()) { wantFull = false; fullFx(true); }
 }
 window.addEventListener("hashchange", route);
 window.addEventListener("keydown", (e) => {
@@ -3287,8 +3426,10 @@ window.addEventListener("keydown", (e) => {
   const typing = /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName);
   if (!typing && quickKeys && quickKeys(e)) return e.preventDefault();
   if (e.key === "Escape" && fxFull) return fullFx(false);
-  if (!typing && FX && onNowPage() && !e.ctrlKey && !e.altKey && !e.metaKey && (e.key === "v" || e.key === "f")) { // next effect, and just the picture
-    if (e.key === "v") { const all = ["", ...FX.names.flatMap(([k]) => fxStyles[k].map(([style]) => style))]; setFx(all[(all.indexOf(fxName) + 1) % all.length]); } else if (fxName) fullFx(!fxFull);
+  if (!typing && FX && !e.ctrlKey && !e.altKey && !e.metaKey && e.key === "f") { goFull(); return e.preventDefault(); } // just the picture, from anywhere
+  if (!typing && FX && onNowPage() && !e.ctrlKey && !e.altKey && !e.metaKey && e.key === "v") { // the next effect
+    const all = ["", ...FX.names.flatMap(([k]) => fxStyles[k].map(([style]) => style))];
+    setFx(all[(all.indexOf(fxName) + 1) % all.length]);
     return e.preventDefault();
   }
   if (e.key === "Escape") { if (onNowPage()) closeNow(); else if (!roomy.matches) closeDrawer(); }
