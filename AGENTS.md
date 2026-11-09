@@ -99,7 +99,7 @@ only what it's sure of, marks those notes `matched automatically`, and leaves th
 it found in `curated.json` next to the log. That's a first pass. These steps are how you finish the job: see **After Curate** below.
 
 1. **Parse** — `curator parse items.json` reads the inbox folders (filenames + existing tags) and prints one
-   line per file. Only MP3s can be curated: it names any other audio it skipped, so tell the person. Fix bad parses by editing `items.json` (fields: `artist`, `title`, `search_artist`,
+   line per file. Only MP3, FLAC and M4A can be curated: it names any other audio it skipped, so tell the person. Fix bad parses by editing `items.json` (fields: `artist`, `title`, `search_artist`,
    `search_title`, `mix`, `pos_hint`, `year_hint`, `cat`). Typical fixes: reversed "Title - Artist", labels or
    uploader names glued to the end, vinyl side codes ("B2 Untitled" → title `Untitled`, `pos_hint` `B2`),
    placeholder artists ("Trance - …", "Nightcore - …"). Categories: `candidate`, `mix`, `ost`, `nonmusic`,
@@ -188,7 +188,7 @@ is deleted: old copies go to a `Set aside` folder next to the log, and every cha
 
 - `genre`: `apply` does it. It changes the genre tag and nothing else, moves the song to the new genre's folder unless it's kept
   elsewhere (a soundtrack folder, say), and retires the question. Spotify matching doesn't depend on the genre or the folder. It works on
-  MP3s in the library; anything it can't do is reported as "not done" and stays on the list.
+  MP3, FLAC and M4A files in the library; anything it can't do is reported as "not done" and stays on the list.
 - `drop` (the page's "Not worth keeping"): `apply` moves these to `Set aside` only with `--set-aside`. Name the songs and ask first.
 - `keep`: nothing to do. The entry stays; it marks the question as answered.
 - `identify`: the person's note says what the song is. Research it like any other song; write it only once it's verified. `curator curate` also acts on a note written as `Artist - Title`.

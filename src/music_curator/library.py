@@ -1,7 +1,7 @@
 """Read a music collection for the browser app: tags, length, bitrate and cover.
 
-Pure Python for MP3s (ID3v2.2/2.3/2.4 plus the first MPEG frame), so a whole library is indexed in seconds instead of
-one ffprobe call per file. Other formats are listed from their filename and still play in the browser.
+Pure Python for MP3s (ID3v2.2/2.3/2.4 plus the first MPEG frame), FLAC and M4A, so a whole library is indexed in seconds
+instead of one ffprobe call per file. Other formats are listed from their filename and still play in the browser.
 """
 import os
 import re
@@ -14,6 +14,8 @@ AUDIO = {".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".aac": "audio/aac", ".flac"
 _TEXT_FRAMES = {"TIT2": "title", "TT2": "title", "TPE1": "artist", "TP1": "artist", "TALB": "album", "TAL": "album",
                 "TCON": "genre", "TCO": "genre", "TYER": "year", "TYE": "year", "TDRC": "year", "TDOR": "year"}
 _ENCODINGS = {0: "latin-1", 1: "utf-16", 2: "utf-16-be", 3: "utf-8"}
+_VORBIS_FIELDS = dict(title=("TITLE",), artist=("ARTIST",), album=("ALBUM",), year=("DATE", "YEAR", "ORIGINALDATE"), genre=("GENRE",), comment=("COMMENT", "DESCRIPTION"))
+_MP4_FIELDS = {b"\xa9nam": "title", b"\xa9ART": "artist", b"\xa9alb": "album", b"\xa9day": "year", b"\xa9gen": "genre", b"\xa9cmt": "comment"}
 
 
 def _syncsafe(b):
@@ -103,13 +105,174 @@ def _picture(fid, body):
         mime = raw_mime.decode("latin-1").lower()
         kind, rest = rest[0], rest[1:]
     _, image = _split_terminated(rest, enc)
+    return kind, _image_type(mime, image), image
+
+
+def _image_type(claimed, image):
+    """What an embedded picture really is, going by its first bytes: a tag can claim anything."""
     if image[:2] == b"\xff\xd8":
-        mime = "image/jpeg"
-    elif image[:4] == b"\x89PNG":
-        mime = "image/png"
-    elif mime not in ("image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"):  # a tag can claim anything
-        mime = "image/jpeg"
-    return kind, mime, image
+        return "image/jpeg"
+    if image[:4] == b"\x89PNG":
+        return "image/png"
+    return claimed if claimed in ("image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp") else "image/jpeg"
+
+
+# ---------------- FLAC ----------------
+
+def _flac_blocks(f, wanted=()):
+    """Yield (block type, contents) of a FLAC file's metadata, the contents only for the types asked for. Afterwards the file is at the first audio frame."""
+    head = f.read(4)
+    if head[:3] == b"ID3":  # some taggers put one in front
+        rest = f.read(6)
+        f.seek(10 + _syncsafe(rest[2:6]))
+        head = f.read(4)
+    if head != b"fLaC":
+        return
+    while True:
+        block = f.read(4)
+        if len(block) < 4:
+            return
+        kind, size = block[0] & 0x7F, int.from_bytes(block[1:4], "big")
+        body = f.read(size) if kind in wanted else None
+        if body is None:
+            f.seek(size, 1)
+        yield kind, body
+        if block[0] & 0x80:  # the last one
+            return
+
+
+def _vorbis(body):
+    """{FIELD: [values]} from a Vorbis comment block."""
+    found, pos = {}, 4 + int.from_bytes(body[:4], "little")  # past the name of whatever wrote it
+    count, pos = int.from_bytes(body[pos:pos + 4], "little"), pos + 4
+    for _ in range(count):
+        size, pos = int.from_bytes(body[pos:pos + 4], "little"), pos + 4
+        if pos + size > len(body):
+            break
+        field, _, value = body[pos:pos + size].decode("utf-8", "replace").partition("=")
+        pos += size
+        if value.strip():
+            found.setdefault(field.upper(), []).append(value.strip())
+    return found
+
+
+def _flac_info(path):
+    out = {}
+    with open(path, "rb") as f:
+        for kind, body in _flac_blocks(f, (0, 4)):
+            if kind == 0 and len(body) >= 18:
+                packed = int.from_bytes(body[10:18], "big")
+                rate, samples = packed >> 44, packed & ((1 << 36) - 1)
+                if rate and samples:
+                    out["secs"] = round(samples / rate, 2)
+            elif kind == 4:
+                tags = _vorbis(body)
+                for field, names in _VORBIS_FIELDS.items():
+                    values = next((tags[n] for n in names if n in tags), [])
+                    if values:
+                        out[field] = " & ".join(values) if field == "artist" else values[0]
+            elif kind == 6:
+                out["cover"] = True
+        if out.get("secs"):
+            out["kbps"] = round((os.fstat(f.fileno()).st_size - f.tell()) * 8 / out["secs"] / 1000)
+    return out
+
+
+def _flac_picture(body):
+    """(picture type, mime, image bytes) from a FLAC picture block."""
+    size = int.from_bytes(body[4:8], "big")
+    mime, pos = body[8:8 + size].decode("latin-1").lower(), 8 + size
+    pos += 4 + int.from_bytes(body[pos:pos + 4], "big") + 16  # past the description, then width, height, depth and colours
+    image = body[pos + 4:pos + 4 + int.from_bytes(body[pos:pos + 4], "big")]
+    return int.from_bytes(body[:4], "big"), _image_type(mime, image), image
+
+
+# ---------------- M4A ----------------
+
+def _boxes(f, end):
+    """Yield (name, where its contents start, where they end) of the MP4 boxes from here to `end`. The file can be moved around between them."""
+    while True:
+        at = f.tell()
+        if at + 8 > end:
+            return
+        head = f.read(8)
+        size, name, start = int.from_bytes(head[:4], "big"), head[4:], at + 8
+        if size == 1:  # too big for 32 bits
+            size, start = int.from_bytes(f.read(8), "big"), start + 8
+        elif size == 0:  # runs to the end of whatever holds it
+            size = end - at
+        if size < start - at or at + size > end:
+            return
+        yield name, start, at + size
+        f.seek(at + size)
+
+
+def _mp4_list(f, start, end):
+    """The tag entries in a song's udta box."""
+    f.seek(start)
+    for name, s, e in _boxes(f, end):
+        if name == b"meta":
+            f.seek(s + 4)
+            quicktime = f.read(4) == b"hdlr"  # QuickTime leaves out the four bytes of version that come first everywhere else
+            f.seek(s if quicktime else s + 4)
+            for inner, s2, e2 in _boxes(f, e):
+                if inner == b"ilst":
+                    f.seek(s2)
+                    yield from _boxes(f, e2)
+
+
+def _mp4_parts(f):
+    """(name, start, end) of the boxes that say something about a song: mdat, mvhd and each tag entry."""
+    for name, start, end in _boxes(f, os.fstat(f.fileno()).st_size):
+        if name == b"mdat":
+            yield name, start, end
+        elif name == b"moov":
+            f.seek(start)
+            for inner, s, e in _boxes(f, end):
+                if inner == b"mvhd":
+                    yield inner, s, e
+                elif inner == b"udta":
+                    yield from _mp4_list(f, s, e)
+
+
+def _mp4_value(f, start, end):
+    """The value inside a tag entry's data box, or None."""
+    f.seek(start)
+    for name, s, e in _boxes(f, end):
+        if name == b"data" and e - s >= 8:  # four bytes of type and four of locale come first
+            f.seek(s + 8)
+            return f.read(e - s - 8)
+    return None
+
+
+def _mp4_seconds(body):
+    if body[:1] == b"\x01":  # 64-bit times
+        scale, length = int.from_bytes(body[20:24], "big"), int.from_bytes(body[24:32], "big")
+    else:
+        scale, length = int.from_bytes(body[12:16], "big"), int.from_bytes(body[16:20], "big")
+    return round(length / scale, 2) if scale and length else None
+
+
+def _mp4_info(path):
+    out, audio = {}, 0
+    with open(path, "rb") as f:
+        for name, start, end in _mp4_parts(f):
+            if name == b"mdat":
+                audio += end - start
+            elif name == b"mvhd":
+                f.seek(start)
+                secs = _mp4_seconds(f.read(min(end - start, 32)))
+                if secs:
+                    out["secs"] = secs
+            elif name == b"covr":
+                out["cover"] = True
+            elif name in _MP4_FIELDS:
+                value = _mp4_value(f, start, end)
+                if value:
+                    out[_MP4_FIELDS[name]] = value.decode("utf-8", "replace").strip("\x00 \r\n\t")
+    if audio and out.get("secs"):
+        out["kbps"] = round(audio * 8 / out["secs"] / 1000)
+    return out
 
 
 def _mpeg_header(b, i):
@@ -180,7 +343,13 @@ def read_song(path, name=None):
     name = name or path
     stem = os.path.splitext(os.path.basename(name))[0]
     out = dict(title="", artist="", album="", year="", genre="", comment="", cover=False, secs=None, kbps=None)
-    if os.path.splitext(name)[1].lower() == ".mp3":
+    kind = os.path.splitext(name)[1].lower()
+    if kind in (".flac", ".m4a"):
+        try:
+            out.update(_flac_info(path) if kind == ".flac" else _mp4_info(path))
+        except (OSError, IndexError, KeyError, ValueError):
+            pass  # a damaged file is still listed by name
+    elif kind == ".mp3":
         start = 0
         try:
             for fid, body in _frames(path):
@@ -214,7 +383,12 @@ def read_song(path, name=None):
 
 def read_cover(path):
     """(image bytes, mime) of the front cover, else the first picture, else None."""
-    if os.path.splitext(path)[1].lower() != ".mp3":
+    kind = os.path.splitext(path)[1].lower()
+    if kind == ".flac":
+        return _flac_cover(path)
+    if kind == ".m4a":
+        return _mp4_cover(path)
+    if kind != ".mp3":
         return None
     best = None
     try:
@@ -228,3 +402,31 @@ def read_cover(path):
     except (OSError, IndexError):
         return None
     return best
+
+
+def _flac_cover(path):
+    best = None
+    try:
+        with open(path, "rb") as f:
+            for _, body in _flac_blocks(f, (6,)):
+                if body:
+                    kind, mime, image = _flac_picture(body)
+                    if image and (best is None or kind == 3):
+                        best = (image, mime)
+                        if kind == 3:
+                            break
+    except (OSError, IndexError, ValueError):
+        return None
+    return best
+
+
+def _mp4_cover(path):
+    try:
+        with open(path, "rb") as f:
+            for name, start, end in _mp4_parts(f):
+                if name == b"covr":
+                    image = _mp4_value(f, start, end)
+                    return (image, _image_type("", image)) if image else None
+    except (OSError, IndexError, ValueError):
+        pass
+    return None

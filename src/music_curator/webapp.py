@@ -782,7 +782,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self._host_ok():
             return self._reply(403, b"Forbidden")
         route = self._route()
-        if route not in ("/api/decision", "/api/played", "/api/settings", "/api/settings/compare", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/curate", "/api/curate/stop", "/api/export/list", "/api/export/copy", "/api/export/stop"):
+        if route not in ("/api/decision", "/api/played", "/api/settings", "/api/settings/compare", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/curate", "/api/curate/stop", "/api/export/list", "/api/export/copy", "/api/export/stop", "/api/export/playlists"):
             return self._reply(404, b"Not found")
         origin = self.headers.get("Origin")
         try:

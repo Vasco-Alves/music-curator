@@ -22,7 +22,7 @@ path = filedialog.askdirectory(parent=root, title=sys.argv[1], initialdir=sys.ar
 sys.stdout.write(path or '')
 """
 TITLES = dict(library="Choose your library folder", inbox="Choose a folder where you put downloaded songs",
-              review="Choose the folder of songs waiting for a decision", export="Choose where to copy the songs")
+              review="Choose the folder of songs waiting for a decision", export="Choose where to copy the songs", playlists="Choose where to save the playlists")
 NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0  # no console window behind the folder window
 COUNT_LIMIT_S = 1.5
 MAX_INBOX = 20
@@ -150,11 +150,20 @@ def _check_export(p):
     return _result(p, "good", "Songs will be copied here. Anything already in this folder stays.", True)
 
 
+def _check_playlists(p):
+    """Anywhere that exists will do. A playlist isn't a song, and some players look for them in the library."""
+    if not nearest_existing(p):
+        return _result(p, "bad", "Can't find that drive. If it's a USB drive, plug it in.", False)
+    if not os.path.exists(p):
+        return _result(p, "warn", "This folder doesn't exist yet. It'll be created.", True, create=True)
+    return _result(p, "good", "Playlists will be saved here. Nothing else in this folder changes.", True)
+
+
 def check(kind, value, library_value=""):
     """Is this folder usable for this role? Says why in plain words, for the line under the field."""
     p = clean(value)
     if not p:
-        needed = kind in ("library", "export")
+        needed = kind in ("library", "export", "playlists")
         return _result(p, "none", "Choose a folder to continue." if needed else "", not needed)
     try:
         p.encode("utf-8")
@@ -168,6 +177,8 @@ def check(kind, value, library_value=""):
         return _result(p, "bad", "The app isn't allowed to read that folder.", False)
     if kind == "export":
         return _check_export(p)
+    if kind == "playlists":
+        return _check_playlists(p)
     if kind == "library":
         current = config.path("library")
         is_current = bool(current) and _same(p, os.path.normpath(current))

@@ -304,13 +304,13 @@ class GenreAnswers(Base):
         write_mp3(os.path.join(self.review, "A - B.mp3"))
         self.answer("genre", "review/A - B.mp3", genre="Trance")
         self.assertIn("isn't in your library", self.run_apply()[1])
-        flac = os.path.join(self.lib, "Techno", "F.flac")
+        flac = os.path.join(self.lib, "Techno", "F.ogg")
         os.makedirs(os.path.dirname(flac))
         open(flac, "wb").close()
         if os.path.exists(self.answers):
             os.remove(self.answers)
-        self.answer("genre", "library/Techno/F.flac", genre="Acid")
-        self.assertIn("only MP3", self.run_apply()[1])
+        self.answer("genre", "library/Techno/F.ogg", genre="Acid")
+        self.assertIn("only MP3, FLAC and M4A", self.run_apply()[1])
 
     def test_a_locked_log_stops_before_anything_changes(self):
         path = self.song("Techno")
@@ -748,11 +748,11 @@ class TheCommandsAround(Base):
         self.assertIn("音楽 - 曲", raw.getvalue().decode("utf-8"))
 
     def test_parse_names_what_it_skipped(self):
-        open(os.path.join(self.inbox, "Lossless.flac"), "wb").close()
+        open(os.path.join(self.inbox, "Lossless.ogg"), "wb").close()
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             parse.main([os.path.join(self.root, "items.json"), self.log, self.inbox])
-        self.assertIn("Lossless.flac", out.getvalue())
+        self.assertIn("Lossless.ogg", out.getvalue())
         self.assertIn("Skipped 1 file", out.getvalue())
 
     def test_other_says_when_youtube_wasnt_checked(self):

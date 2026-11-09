@@ -522,10 +522,10 @@ class Running(WithDiscogs):
         self.assertIn("token", str(stopped.exception))
 
     def test_other_audio_is_listed_but_not_looked_up(self):
-        with open(os.path.join(self.inbox, "A - Song.flac"), "wb") as f:
-            f.write(b"fLaC")
+        with open(os.path.join(self.inbox, "A - Song.ogg"), "wb") as f:
+            f.write(b"OggS")
         self.run_it()
-        self.assertEqual(self.waiting()[KEY.format("A - Song").replace(".mp3", ".flac")]["why"], curate.ONLY_MP3)
+        self.assertEqual(self.waiting()[KEY.format("A - Song").replace(".mp3", ".ogg")]["why"], curate.NOT_CURATABLE)
 
     def test_an_answers_file_that_cannot_be_read_stops_it_before_anything_changes(self):
         self.file("A - One")

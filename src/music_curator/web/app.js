@@ -509,7 +509,37 @@ function saveFile(name, text, type) {
 }
 function exportWords(r) {
   return [r.copied ? `Copied ${plural(r.copied, "song")} to ${r.target}.` : `No new songs to copy to ${r.target}.`,
-    r.already ? `${plural(r.already, "song was", "songs were")} already there.` : "", r.stopped ? "Stopped before the end." : ""].filter(Boolean).join(" ");
+    r.already ? `${plural(r.already, "song was", "songs were")} already there.` : "", r.playlist ? `The playlist ${r.playlist} is in there too.` : "", r.stopped ? "Stopped before the end." : ""].filter(Boolean).join(" ");
+}
+function playlistSaver(count) { // every playlist at once, as files other players can open
+  const box = el("div", { class: "export-folder" }), said = el("div", { class: "export-said" });
+  let field = null;
+  const go = el("button", { class: "btn primary small", type: "button", disabled: true, onclick: async () => {
+    go.disabled = true;
+    const r = await post("/api/export/playlists", { folder: field.value() });
+    if (r.error) { go.disabled = false; return toast(r.error); }
+    store("curator-playlist-folder", field.value());
+    const words = `Saved ${plural(r.saved, "playlist")} to ${r.folder}.${r.left.length ? ` Left alone, because a different file already has that name: ${r.left.join(", ")}.` : ""}`;
+    said.replaceChildren(el("p", { class: "note" }, words));
+    toast(words);
+    field.check(); // the folder may exist by now
+  } }, `Save ${plural(count, "playlist")}`);
+  const changed = () => { go.disabled = !field || !field.ok; };
+  const panel = el("div", { class: "card export-panel", id: "playlist-saver", hidden: true }, el("h2", {}, "Save your playlists as files"),
+    el("p", { class: "note" }, "One .m3u8 file for each playlist, with the songs you have as files. Players like foobar2000, VLC, Plex and Navidrome can open them, and they keep working if that folder and your music move together."),
+    box, el("div", { class: "export-go" }, el("span", {}), go), said);
+  const toggle = el("button", { class: "btn small", type: "button", "aria-expanded": "false", "aria-controls": "playlist-saver", onclick: async () => {
+    panel.hidden = !panel.hidden;
+    toggle.setAttribute("aria-expanded", String(!panel.hidden));
+    if (panel.hidden || field) return;
+    let picker = false;
+    try { const r = await fetch("/api/settings", { cache: "no-store" }); if (r.ok) picker = !!(await r.json()).picker; } catch { picker = false; }
+    if (field) return; // pressed twice while that was being asked
+    field = folderField({ kind: "playlists", label: "Folder for the playlists", picker, value: store("curator-playlist-folder") || "", changed });
+    box.replaceChildren(field.node);
+    if (field.value()) field.check();
+  } }, icon("export", 14), "Save as files");
+  return { toggle, panel };
 }
 function exportControls(nameOf) { // works on whatever the Songs page is listing right now
   const heading = el("h2", {}), status = el("div"), folderBox = el("div", { class: "export-folder" });
@@ -526,7 +556,7 @@ function exportControls(nameOf) { // works on whatever the Songs page is listing
   } }, label);
   const copy = el("button", { class: "btn primary small", type: "button", disabled: true, onclick: async () => {
     copy.disabled = true;
-    const r = await post("/api/export/copy", { ids: S.list, folder: field.value(), keep: keep.checked });
+    const r = await post("/api/export/copy", { ids: S.list, folder: field.value(), keep: keep.checked, name: nameOf() });
     if (r.error) { toast(r.error); counted(); return; }
     store("curator-export-folder", field.value());
     S.meta.export = { running: true, stopping: false, done: 0, total: S.list.length, name: "", failed: "", result: null };
@@ -538,7 +568,7 @@ function exportControls(nameOf) { // works on whatever the Songs page is listing
       el("div", { class: "note" }, "Save a list of these songs. It goes to your browser's downloads."),
       el("div", { class: "actions" }, fileButton("M3U playlist", "m3u", "m3u8", "audio/x-mpegurl"), fileButton("Spreadsheet (CSV)", "csv", "csv", "text/csv;charset=utf-8"))),
     el("div", { class: "export-part" },
-      el("div", { class: "note" }, "Or copy the songs to a folder or USB drive. Your library stays as it is, and anything already in that folder is left alone."),
+      el("div", { class: "note" }, "Or copy the songs to a folder or USB drive, with a playlist of them. Your library stays as it is, and anything already in that folder is left alone."),
       folderBox,
       el("div", { class: "export-go" }, el("label", {}, keep, "Keep the genre folders"), copy)));
   const panel = el("div", { class: "card export-panel", id: "export-panel", hidden: true }, status, form);
@@ -994,8 +1024,11 @@ function pageAdd(params) {
     const r = await post("/api/spotify/check", {});
     if (await safeLoad()) { route(); toast(r.message || r.error || "Checked."); }
   } }, icon("refresh", 14), checking) : null;
-  if (listening) return pageShelf(params, { page: "add", title: "Playlists", items: () => shelves, mosaic: true, placeholder: "Search playlists, artists and genres…", none: "", tabs, tools: checker ? el("div", { class: "add-check" }, said, checker) : null,
-    count: (n) => `${plural(n, "playlist")} with songs you have as files` });
+  if (listening) {
+    const saver = playlistSaver(shelves.length);
+    return pageShelf(params, { page: "add", title: "Playlists", items: () => shelves, mosaic: true, placeholder: "Search playlists, artists and genres…", none: "", tabs: [tabs, saver.panel], tools: el("div", { class: "add-check" }, checker ? said : null, checker, saver.toggle),
+      count: (n) => `${plural(n, "playlist")} with songs you have as files` });
+  }
   const removing = (sp.to_remove || []).filter((r) => r.count), removeTotal = sum(removing.map((r) => r.count));
   const odd = (sp.to_remove || []).flatMap((r) => (r.odd || []).map((x) => [r.playlist, x.pos, x.song]));
   const moving = el("span", {}, "Move all to the bottom"), movingSaid = el("span", { class: "sub" }, "Asks Spotify for permission to reorder");
@@ -1031,7 +1064,7 @@ function pageAdd(params) {
 /* ---------- curate: what the app does with no AI ---------- */
 let curateTimer = null;
 const freshSongs = () => S.songs.filter((s) => s.area === "inbox" && !s.done && !s.looked && !S.decisions[`waiting:${s.key}`]).length;
-const answersToRun = () => Object.entries(S.decisions).filter(([k, d]) => k.startsWith("waiting:inbox/") && /\.mp3$/i.test(k) && S.songs.some((s) => `waiting:${s.key}` === k && !s.done) && (d.action === "pick" || (d.action === "identify" && /\s[-–—]\s/.test(d.note || "")))).length;
+const answersToRun = () => Object.entries(S.decisions).filter(([k, d]) => k.startsWith("waiting:inbox/") && /\.(mp3|flac|m4a)$/i.test(k) && S.songs.some((s) => `waiting:${s.key}` === k && !s.done) && (d.action === "pick" || (d.action === "identify" && /\s[-–—]\s/.test(d.note || "")))).length;
 function lastRunWords(r) {
   return `${r.stopped ? "Stopped early. " : ""}Added ${plural(r.added, "song")}${r.waiting ? `, ${fmt(r.waiting)} waiting for you` : ""}.${r.strong ? ` ${fmt(r.strong)} of those ${r.strong === 1 ? "has" : "have"} a strong audio match for you to confirm.` : ""}${r.said ? ` ${r.said}` : ""}`;
 }
@@ -1100,7 +1133,7 @@ function watchCurate() {
 const WHY_WAITING = [ // the reasons Curate and the lookup give, in the groups the chart shows
   [/\bdamaged\b/i, "Damaged file"], [/wasn't looked up/i, "Mixes, nightcore and the like"], [/longer|shorter/i, "Length doesn't match"], [/file says|only lists/i, "Mix name doesn't match"],
   [/versions on the record/i, "Several versions"], [/but not this track/i, "Artist found, not this song"], [/not found on discogs/i, "Not on Discogs"],
-  [/already in your library/i, "Already in your library"], [/only mp3/i, "Not an MP3"], [/discogs (couldn't|answered)/i, "Couldn't reach Discogs"],
+  [/already in your library/i, "Already in your library"], [/only mp3/i, "File type not supported"], [/discogs (couldn't|answered)/i, "Couldn't reach Discogs"],
 ];
 const STATES = [[/^ok$/, "Written", "tick", "good-i"], [/^removed/, "Removed", "dash", "mute-i"], [/^check/, "Needs a look", "warn", "warn-i"], [/^skipped/, "Skipped", "dash", "mute-i"], [/^error/, "Failed", "x", "bad-i"]];
 function stateTag(status) {
@@ -1430,7 +1463,7 @@ function paintPanel() {
   const isNow = now && now.id === s.id;
   const t = TRUST[s.trust] || TRUST.unknown;
   const facts = [["Album", s.album], ["Year", s.year], ["Genre", s.genre], ["Label", s.label], ["Country", s.country], ["Length", clock(s.secs)],
-    ["Quality", s.kbps ? `${s.kbps} kbps` : ""], ["Size", `${(s.bytes / 1e6).toFixed(1)} MB`],
+    ["Quality", [(/\.(flac|m4a|aac|ogg|opus|wav)$/i.exec(s.file) || [])[1]?.toUpperCase(), s.kbps ? `${s.kbps} kbps` : ""].filter(Boolean).join(" · ")], ["Size", `${(s.bytes / 1e6).toFixed(1)} MB`],
     ["Where", s.area === "library" ? [S.meta.library, s.folder].filter(Boolean).join(" / ") : s.area === "review" ? ["Review", s.folder].filter(Boolean).join(" / ") : s.where],
     ["File", s.file], ["Added", s.added ? s.added.replace("T", " ").slice(0, 16) : ""], ["Played", playedWords(s)], ["Playlists", (S.inLists.get(s.id) || []).join(", ")], ["Loudness", typeof s.lufs === "number" ? `${s.lufs.toFixed(1)} LUFS` : ""]].filter(([, v]) => v);
   const linkName = sourceName(s.link);

@@ -13,6 +13,7 @@ import sys
 import unicodedata
 
 from .library import AUDIO
+from .tagwriter import KINDS
 
 LOOKALIKES = {"＂": '"', "：": ":", "｜": "|", "⧸": "/", "⁄": "/", "–": "-",
               "—": "-", "’": "'", "‘": "'", "“": '"', "”": '"', "【": "[", "】": "]"}
@@ -116,7 +117,7 @@ def read_inbox(dirs, log_path):
     for d in dirs:
         for fn in sorted(os.listdir(d)):
             p = os.path.join(d, fn)
-            if not (os.path.isfile(p) and fn.lower().endswith(".mp3")):
+            if not (os.path.isfile(p) and os.path.splitext(fn)[1].lower() in KINDS):
                 if os.path.splitext(fn)[1].lower() in AUDIO and os.path.isfile(p):
                     skipped.append(p)
                 continue
@@ -157,7 +158,7 @@ def main(argv=None):
               + (f" || y={y}" if y else "") + (f" || extra={it['extra']}" if it["extra"] else "")
               + (f" || up={it['uploader']}" if it["uploader"] else ""))
     if skipped:
-        print(f"Skipped {len(skipped)} file{'' if len(skipped) == 1 else 's'} that aren't MP3 (only MP3s can be curated): " + ", ".join(os.path.basename(p) for p in skipped[:20]) + (", ..." if len(skipped) > 20 else ""))
+        print(f"Skipped {len(skipped)} file{'' if len(skipped) == 1 else 's'} that can't be curated (only MP3, FLAC and M4A can): " + ", ".join(os.path.basename(p) for p in skipped[:20]) + (", ..." if len(skipped) > 20 else ""))
 
 
 if __name__ == "__main__":

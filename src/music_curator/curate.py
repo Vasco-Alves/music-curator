@@ -32,7 +32,7 @@ AUTO_NOTE, PICK_NOTE = "matched automatically", "picked by you"  # in the log's 
 SAVE_EVERY = 10  # songs between saves of what's waiting, so a run that's cut off loses little
 GIVE_UP_AFTER = 3  # lookups failing in a row before the network is assumed to be down
 STOP_FETCHING_AFTER = 5  # videos failing in a row before comparing is given up for the run
-ONLY_MP3 = "Only MP3 files can be curated for now."
+NOT_CURATABLE = "Only MP3, FLAC and M4A files can be curated for now."
 NOT_LOOKED_UP = {
     "mix": "Looks like a DJ mix or a full album, so it wasn't looked up.",
     "ost": "Looks like game or film music, which Discogs rarely lists by track, so it wasn't looked up.",
@@ -58,6 +58,12 @@ def missing(paths):
             return str(ex)
         return f"Curate looks songs up on Discogs, which needs a free token. Create one at discogs.com/settings/developers, then save a text file called .env in {os.path.dirname(config.env_file())} with one line: DISCOGS_TOKEN=your token. Then refresh this page."
     return ""
+
+
+def _wrong_name(named, really):
+    """What to say about a file whose ending doesn't match what's inside it."""
+    right = next((ending for ending, inside in tagwriter.KINDS.items() if really in inside), "")
+    return f"It's named .{named}, but it's really {really}. " + (f"Rename it to {right} and press Curate again." if right else NOT_CURATABLE)
 
 
 def _no_token_in(text):
@@ -382,8 +388,8 @@ class Run:
             self.say(f"  added    {name}  ({tags['genre']})")
             return True
         m = re.match(r"skipped: already in library \((.+)\)$", status)
-        codec = re.match(r"skipped: source is (\w+), not mp3", status)
-        self.hold(key, f"Already in your library: {os.path.basename(m[1])}" if m else f"It's named .mp3, but it's really {codec[1]}. {ONLY_MP3}" if codec else status)
+        codec = re.match(r"skipped: source is (\w+), not (\w+)", status)
+        self.hold(key, f"Already in your library: {os.path.basename(m[1])}" if m else _wrong_name(codec[2], codec[1]) if codec else status)
         return False
 
     def _compare(self, key, item, found):
@@ -520,7 +526,7 @@ class Run:
             self.songs = {k: v for k, v in self._read_waiting().items() if k in still_here or (k.count("/") >= 2 and k.split("/", 2)[1] not in read_now)}
             self.loaded = True
             for key in other_keys:
-                self.songs[key] = {"why": ONLY_MP3}
+                self.songs[key] = {"why": NOT_CURATABLE}
             self.history, self.library_keys = resolve.load_history(paths["log"], settled_only=True), resolve.load_library_keys([paths["library"]])
             fails = 0
             for n, item in enumerate(todo):

@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Copy source MP3s into the library with clean ID3v2.3 tags and an embedded front cover.
+"""Copy source songs into the library with clean tags and an embedded front cover.
 
-Originals are never modified. For each plan entry the audio bytes of the source are copied
-unchanged (old ID3v2 / ID3v1 / APEv2 tags stripped), a fresh ID3v2.3 tag is prepended
-(TIT2, TPE1, TALB, TCON, TYER, COMM = Discogs link, APIC = front cover), and the result
-is written to <library>/<genre>/<Artist> - <Title>.mp3. One row per track goes to the log CSV.
+Originals are never modified. For an MP3 the audio bytes of the source are copied unchanged
+(old ID3v2 / ID3v1 / APEv2 tags stripped), a fresh ID3v2.3 tag is prepended (TIT2, TPE1, TALB,
+TCON, TYER, COMM = Discogs link, APIC = front cover). FLAC and M4A go through ffmpeg with the
+audio stream copied, never re-encoded. Each is written to <library>/<genre>/<Artist> - <Title>,
+keeping its file type, and checked packet by packet against the source. One row per track goes
+to the log CSV.
 
 Usage: curator write <plan.json> [--dry-run]
 
@@ -26,6 +28,8 @@ FORBIDDEN = {"/": "-", "\\": "-", ":": " -", "*": "", "?": "", '"': "'", "<": ""
 LOG_FIELDS = ["date", "status", "src", "src_artist", "src_album", "src_title", "src_secs",
               "dest", "artist", "title", "album", "year", "genre", "discogs", "cover", "notes"]
 PADDING = 2048  # spare room so later tag edits don't have to rewrite the file
+KINDS = {".mp3": ("mp3",), ".flac": ("flac",), ".m4a": ("aac", "alac")}  # what can go in the library, and the audio each kind of file may hold
+REMUX_TIMEOUT_S = 300  # no decoding, so even a long file takes seconds
 
 
 # ---------------- filenames ----------------
@@ -194,10 +198,47 @@ def compare_audio(dest, audio_src, payload):
     if a == b:
         return True, ""
     same = next((i for i, (x, y) in enumerate(zip(a, b)) if x != y), min(len(a), len(b)))
-    frag = tail_fragment(payload)
+    frag = tail_fragment(payload) if payload else None
     if frag and abs(len(a) - len(b)) <= 1 and same >= min(len(a), len(b)) - 1:
         return True, f"audio identical except the cut-off scrap at the very end ({frag} bytes)"
     return False, f"audio differs from source (from packet {same} of {len(a)})"
+
+
+# ---------------- FLAC and M4A ----------------
+
+def remux(src, dst, tags, cover=None, keep=False):
+    """Put a FLAC or M4A file's audio, untouched, into `dst` with these tags. ffmpeg only rewrites what's around the audio: nothing is re-encoded.
+    With `keep`, the tags and cover the file already has stay, apart from the ones named here. Raises ValueError if ffmpeg can't do it."""
+    cmd = ["ffmpeg", "-hide_banner", "-nostdin", "-v", "error", "-y", "-i", src]
+    if cover:
+        cmd += ["-f", "image2", "-pattern_type", "none", "-i", cover]  # so a % in the path isn't read as a numbered series of images
+    cmd += ["-map", "0:a:0"] + (["-map", "0:v?"] if keep else ["-map_metadata", "-1", "-map_chapters", "-1"])
+    if cover:
+        cmd += ["-map", "1:v:0", "-disposition:v:0", "attached_pic"]
+    cmd += ["-c", "copy", "-fflags", "+bitexact"]
+    for name, value in tags.items():
+        cmd += ["-metadata", f"{name}={value}"]
+    if dst.lower().endswith(".m4a"):
+        cmd += ["-movflags", "+faststart"]  # so a player can start it before it has read the whole file
+    done = subprocess.run([*cmd, dst], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=REMUX_TIMEOUT_S)
+    if done.returncode:
+        raise ValueError((done.stderr or "ffmpeg couldn't write it").strip()[-300:])
+
+
+def _write_remuxed(src, tmp, e, cover):
+    """The temporary file for a FLAC or M4A entry. If the cover is what ffmpeg can't take, the song goes without it, and the check afterwards says so."""
+    tags = dict(title=e["title"], artist=e["artist"], album=e.get("album", ""), genre=e["genre"], date=str(e.get("year") or ""), comment=e.get("discogs", ""))
+    try:
+        try:
+            remux(src, tmp, tags, cover)
+        except ValueError:
+            if not cover:
+                raise
+            remux(src, tmp, tags)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise
 
 
 # ---------------- main ----------------
@@ -210,7 +251,7 @@ class Writer:
         self.existing = {}
         for dp, _, fns in os.walk(lib):
             for fn in fns:
-                if fn.lower().endswith(".mp3"):
+                if os.path.splitext(fn)[1].lower() in KINDS:
                     self.existing.setdefault(norm_key(os.path.splitext(fn)[0]), os.path.join(dp, fn))
         new_log = not dry and (not os.path.exists(log_path) or os.path.getsize(log_path) == 0)
         unfinished = False
@@ -242,8 +283,10 @@ class Writer:
         # folder may be nested, e.g. "Game OST\Re-Volt"; each part is made filename-safe
         folder = e.get("folder") or config.rule("folder").format(**fields)
         dest_dir = os.path.join(lib, *[safe_filename(p) for p in re.split(r"[\\/]", folder) if p])
-        dest = os.path.join(dest_dir, base + ".mp3")
         audio_src = e.get("audio") or e["src"]  # "audio": a verified better copy replacing the original's sound
+        kind = os.path.splitext(audio_src)[1].lower()
+        ending = kind if kind in KINDS else ".mp3"  # the song stays the type of file it is
+        dest = os.path.join(dest_dir, base + ending)
         src = probe(audio_src)
         # the log keeps the ORIGINAL's tags and length (what playlists know), even when a better copy supplies the sound
         orig = src if audio_src == e["src"] else probe(e["src"])
@@ -263,8 +306,8 @@ class Writer:
             row["status"] = "skipped: already in library (" + (dup or dest) + ")"
             say(f"[{e['key']}] SKIP  {base}  -> already at {dup or dest}")
             return self._logged(row)
-        if src["codec"] != "mp3":
-            row["status"] = f"skipped: source is {src['codec']}, not mp3"
+        if src["codec"] not in KINDS[ending]:
+            row["status"] = f"skipped: source is {src['codec']}, not {ending[1:]}"
             say(f"[{e['key']}] SKIP  {base}: {row['status']}")
             return self._logged(row)
         if dry:
@@ -273,14 +316,19 @@ class Writer:
             return row
 
         try:
-            with open(audio_src, "rb") as f:
-                payload = audio_payload(f.read())
+            payload = None
+            if ending == ".mp3":
+                with open(audio_src, "rb") as f:
+                    payload = audio_payload(f.read())
             cover = open(e["cover"], "rb").read() if e.get("cover") and os.path.exists(e["cover"]) else None
             os.makedirs(dest_dir, exist_ok=True)
-            tmp = os.path.join(dest_dir, f".tmp_{e['key']}.mp3")
-            with open(tmp, "wb") as f:
-                f.write(build_tag(e, cover))
-                f.write(payload)
+            tmp = os.path.join(dest_dir, f".tmp_{e['key']}{ending}")
+            if ending == ".mp3":
+                with open(tmp, "wb") as f:
+                    f.write(build_tag(e, cover))
+                    f.write(payload)
+            else:
+                _write_remuxed(audio_src, tmp, e, e["cover"] if cover else None)
             os.replace(tmp, dest)
         except Exception as ex:  # noqa: BLE001
             row["status"] = f"error: {ex}"

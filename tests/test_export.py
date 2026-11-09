@@ -36,6 +36,51 @@ class Files(unittest.TestCase):
     def test_a_path_with_a_line_break_is_left_out(self):
         self.assertEqual(export.to_m3u([song(_path="/music/a\nb.mp3")]), "#EXTM3U\n")
 
+    def test_a_playlist_can_say_where_each_song_is_another_way(self):
+        self.assertEqual(export.to_m3u([song()], lambda s: "../" + s["file"]).splitlines()[-1], "../A - Song.mp3")
+
+    def test_a_path_given_another_way_is_checked_too(self):
+        self.assertEqual(export.to_m3u([song()], lambda s: "a\nb.mp3"), "#EXTM3U\n")
+
+    def test_a_playlist_from_here_says_so_where_players_ignore_it(self):
+        lines = export.to_m3u([song()], made_here=True).splitlines()
+        self.assertEqual(lines[:2], ["#EXTM3U", export.MADE_HERE])
+        self.assertTrue(lines[1].startswith("# "))
+
+    def test_paths_go_from_the_playlists_folder(self):
+        self.assertEqual(export._from_folder(os.path.join(os.sep, "music", "Acid", "a.mp3"), os.path.join(os.sep, "music", "Lists")), "../Acid/a.mp3")
+
+    def test_on_another_drive_the_full_path_is_all_there_is(self):
+        with mock.patch.object(export.os.path, "relpath", side_effect=ValueError("different drives")):
+            self.assertEqual(export._from_folder("D:/a.mp3", "E:/Lists"), "D:/a.mp3")
+
+
+class PlaylistNames(unittest.TestCase):
+    def name(self, text):
+        return export._playlist_file(text, set())
+
+    def test_an_ordinary_name(self):
+        self.assertEqual(self.name("Late Shift"), "Late Shift.m3u8")
+
+    def test_emoji_stay(self):
+        self.assertEqual(self.name("💊 Rave Master Mix 💊"), "💊 Rave Master Mix 💊.m3u8")
+
+    def test_characters_a_file_cant_have_are_replaced(self):
+        self.assertEqual(self.name('A/B: "C"?'), "A-B - 'C'.m3u8")
+
+    def test_spaces_around_the_name_go(self):
+        self.assertEqual(self.name(" Psytrance "), "Psytrance.m3u8")
+
+    def test_nothing_left_of_the_name(self):
+        self.assertEqual(self.name("???"), "Playlist.m3u8")
+
+    def test_a_name_windows_keeps_for_itself(self):
+        self.assertEqual(self.name("Con"), "Con playlist.m3u8")
+
+    def test_two_that_come_out_the_same_stay_apart(self):
+        taken = set()
+        self.assertEqual([export._playlist_file(n, taken) for n in ("A/B", "A-B", "a-b")], ["A-B.m3u8", "A-B (2).m3u8", "a-b (3).m3u8"])
+
     def rows(self, *songs):
         text = export.to_csv(list(songs))
         self.assertTrue(text.startswith("﻿"), "Excel needs the mark to read UTF-8")
@@ -105,6 +150,20 @@ class Where(Base):
     def test_a_file_or_a_relative_path_is_refused(self):
         self.assertFalse(self.verdict(self.log if os.path.exists(self.log) else __file__)["ok"])
         self.assertIn("full path", self.verdict("relative/folder")["message"])
+
+    def test_playlists_can_go_in_the_library(self):  # they aren't songs, and some players look for them there
+        self.assertTrue(folders.check("playlists", self.lib)["ok"])
+
+    def test_playlists_can_go_in_a_new_folder(self):
+        answer = folders.check("playlists", os.path.join(self.root, "New"))
+        self.assertTrue(answer["ok"] and answer["create"])
+
+    def test_playlists_need_somewhere_to_go(self):
+        self.assertFalse(folders.check("playlists", "")["ok"])
+
+    def test_playlists_need_a_drive_that_is_there(self):
+        with mock.patch.object(folders, "nearest_existing", return_value=None):
+            self.assertIn("plug it in", folders.check("playlists", os.path.join(self.root, "x"))["message"])
 
 
 class FromThePage(Base):
@@ -300,6 +359,155 @@ class FromThePage(Base):
             self.server.export_lock.release()
         self.assertEqual(status, 400)
         self.assertIn("Already copying", answer["error"])
+
+    def lines_of(self, *parts):
+        with open(os.path.join(self.out, *parts), encoding="utf-8") as f:
+            return f.read().splitlines()
+
+    def test_copies_come_with_a_playlist_of_them(self):
+        state = self.copy(name="Late Shift")
+        self.assertEqual(state["result"]["playlist"], "Late Shift.m3u8")
+        lines = self.lines_of("Late Shift.m3u8")
+        self.assertEqual(sorted(x for x in lines if not x.startswith("#")), ["Acid/A - One.mp3", "Techno/B - Two.mp3"])
+
+    def test_in_one_folder_the_playlist_says_so_too(self):
+        self.copy(name="Late Shift", keep=False)
+        self.assertEqual(sorted(x for x in self.lines_of("Late Shift.m3u8") if not x.startswith("#")), ["A - One.mp3", "B - Two.mp3"])
+
+    def test_the_playlist_keeps_the_lists_order(self):
+        ids = list(reversed(self.ids()))
+        self.ask("POST", "/api/export/copy", dict(ids=ids, folder=self.out, name="Mine"))
+        self.wait()
+        self.assertEqual([x for x in self.lines_of("Mine.m3u8") if not x.startswith("#")], ["Techno/B - Two.mp3", "Acid/A - One.mp3"])
+
+    def test_with_no_name_there_is_no_playlist(self):
+        self.assertEqual(self.copy()["result"]["playlist"], "")
+        self.assertEqual(self.files(), ["Acid/A - One.mp3", "Techno/B - Two.mp3"])
+
+    def test_a_song_that_could_not_be_copied_is_not_in_it(self):
+        theirs = os.path.join(self.out, "Acid", "A - One.mp3")
+        os.makedirs(os.path.dirname(theirs))
+        with open(theirs, "wb") as f:
+            f.write(b"someone else's file")
+        self.copy(name="Mine")
+        self.assertEqual([x for x in self.lines_of("Mine.m3u8") if not x.startswith("#")], ["Techno/B - Two.mp3"])
+
+    def test_a_song_already_there_is_in_it(self):
+        self.copy()
+        self.copy(name="Mine")
+        self.assertEqual(sorted(x for x in self.lines_of("Mine.m3u8") if not x.startswith("#")), ["Acid/A - One.mp3", "Techno/B - Two.mp3"])
+
+    def test_copying_again_updates_its_own_playlist(self):
+        self.copy(name="Mine")
+        first = self.lines_of("Mine.m3u8")
+        self.assertEqual(self.copy(name="Mine")["result"]["playlist"], "Mine.m3u8")
+        self.assertEqual(self.lines_of("Mine.m3u8"), first)
+
+    def test_a_file_of_that_name_that_isnt_ours_stays(self):
+        os.makedirs(self.out)
+        theirs = os.path.join(self.out, "Mine.m3u8")
+        with open(theirs, "w", encoding="utf-8") as f:
+            f.write("#EXTM3U\nmy own playlist.mp3\n")
+        self.assertEqual(self.copy(name="Mine")["result"]["playlist"], "")
+        self.assertEqual(self.lines_of("Mine.m3u8"), ["#EXTM3U", "my own playlist.mp3"])
+
+    def test_nothing_copied_means_no_playlist(self):
+        with mock.patch.object(export.shutil, "copy2", side_effect=OSError(5, "Input/output error")):
+            state = self.copy(name="Mine")
+        self.assertEqual((state["result"]["playlist"], self.files()), ("", []))
+
+    def lists(self, *playlists):
+        with open(os.path.join(self.app, "spotify_playlists.json"), "w", encoding="utf-8") as f:
+            json.dump({str(n): dict(name=name, entries=[dict(name=t, artists=[a], album="", secs=5, local=True, uri="x") for a, t in members]) for n, (name, members) in enumerate(playlists)}, f)
+
+    def save(self, folder=None):
+        return self.ask("POST", "/api/export/playlists", dict(folder=folder or self.out))
+
+    def test_all_the_playlists_are_saved_at_once(self):
+        self.lists(("Late Shift", [("A", "One")]), ("Sunrise", [("B", "Two"), ("A", "One")]))
+        status, answer = self.save()
+        self.assertEqual((status, answer["saved"], answer["left"]), (200, 2, []))
+        self.assertEqual(self.files(), ["Late Shift.m3u8", "Sunrise.m3u8"])
+
+    def test_songs_are_in_the_playlists_order_with_paths_from_that_folder(self):
+        self.lists(("Sunrise", [("B", "Two"), ("A", "One")]))
+        self.save()
+        rel = os.path.relpath(self.lib, self.out).replace(os.sep, "/")
+        self.assertEqual([x for x in self.lines_of("Sunrise.m3u8") if not x.startswith("#")], [f"{rel}/Techno/B - Two.mp3", f"{rel}/Acid/A - One.mp3"])
+
+    def test_they_really_lead_to_the_songs(self):
+        self.lists(("Sunrise", [("B", "Two")]))
+        self.save()
+        path = next(x for x in self.lines_of("Sunrise.m3u8") if not x.startswith("#"))
+        self.assertTrue(os.path.samefile(os.path.join(self.out, path), self.two))
+
+    def test_the_library_is_left_as_it_was(self):
+        self.lists(("Sunrise", [("B", "Two")]))
+        before = sorted(os.path.join(w, n) for w, _, ns in os.walk(self.lib) for n in ns)
+        self.save()
+        self.assertEqual(sorted(os.path.join(w, n) for w, _, ns in os.walk(self.lib) for n in ns), before)
+
+    def test_saving_again_replaces_them(self):
+        self.lists(("Sunrise", [("B", "Two")]))
+        self.save()
+        self.lists(("Sunrise", [("A", "One")]))
+        status, answer = self.save()
+        self.assertEqual((status, answer["saved"]), (200, 1))
+        self.assertIn("One", "\n".join(self.lines_of("Sunrise.m3u8")))
+        self.assertNotIn("Two", "\n".join(self.lines_of("Sunrise.m3u8")))
+
+    def test_a_file_of_that_name_that_isnt_ours_stays_and_is_named(self):
+        self.lists(("Sunrise", [("B", "Two")]), ("Late Shift", [("A", "One")]))
+        os.makedirs(self.out)
+        with open(os.path.join(self.out, "Sunrise.m3u8"), "w", encoding="utf-8") as f:
+            f.write("mine\n")
+        _, answer = self.save()
+        self.assertEqual((answer["saved"], answer["left"]), (1, ["Sunrise.m3u8"]))
+        self.assertEqual(self.lines_of("Sunrise.m3u8"), ["mine"])
+
+    def test_a_folder_that_is_not_there_is_made(self):
+        self.lists(("Sunrise", [("B", "Two")]))
+        self.assertEqual(self.save(os.path.join(self.out, "deep", "er"))[0], 200)
+        self.assertEqual(self.files(), ["deep/er/Sunrise.m3u8"])
+
+    def test_no_playlists_is_refused(self):
+        status, answer = self.save()
+        self.assertEqual(status, 400)
+        self.assertIn("Check Spotify", answer["error"])
+
+    def test_no_folder_is_refused(self):
+        self.lists(("Sunrise", [("B", "Two")]))
+        self.assertEqual(self.ask("POST", "/api/export/playlists", dict(folder=""))[0], 400)
+
+    def test_a_problem_part_way_says_how_far_it_got(self):
+        self.lists(("A", [("A", "One")]), ("B", [("B", "Two")]))
+        real, calls = export._save_playlist, []
+
+        def second_fails(path, text):
+            calls.append(path)
+            if len(calls) == 2:
+                raise OSError(28, "No space left on device")
+            return real(path, text)
+
+        with mock.patch.object(export, "_save_playlist", second_fails):
+            status, answer = self.save()
+        self.assertEqual(status, 400)
+        self.assertIn("Saved 1 of 2", answer["error"])
+        self.assertIn("No space left", answer["error"])
+
+    def test_nothing_half_written_is_left(self):
+        self.lists(("Sunrise", [("B", "Two")]))
+        self.save()
+        self.assertEqual([f for f in self.files() if f.endswith(export.PART)], [])
+
+    def test_another_site_cannot_save_them(self):
+        self.lists(("Sunrise", [("B", "Two")]))
+        self.assertEqual(self.ask("POST", "/api/export/playlists", dict(folder=self.out), headers={"Origin": "http://evil.example"})[0], 403)
+        self.assertFalse(os.path.exists(self.out))
+
+    def test_the_page_can_check_a_folder_for_playlists(self):
+        status, answer = self.ask("POST", "/api/settings/check", dict(kind="playlists", path=self.lib))
+        self.assertEqual((status, answer["ok"]), (200, True))
 
     def test_the_page_is_not_given_the_songs_paths_until_someone_exports(self):
         self.assertNotIn(json.dumps(self.root)[1:-1], json.dumps(self.ask("GET", "/api/all")[1]["songs"]))  # as JSON writes it: Windows paths have their backslashes doubled

@@ -73,7 +73,7 @@ The Curate button runs the plain version of these steps by itself. An AI agent r
   [below](#your-discogs-token)
 - Optional: [yt-dlp](https://github.com/yt-dlp/yt-dlp), to compare your files with videos online and find official YouTube uploads. Whatever it fetches is deleted right after the comparison
 
-It curates MP3 files. Other formats still show up and play on the page, but they're skipped when curating.
+It curates MP3, FLAC and M4A files. Each stays the type of file it is, and the audio is copied as it is, never re-encoded. Other formats still show up and play on the page, but they're skipped when curating.
 
 ## Set it up by hand
 
@@ -128,9 +128,9 @@ do: reading odd names, settling versions from the audio, checking other sources,
 ![To check: songs waiting for your ears, with the versions found](docs/img/check.jpg)
 
 - **Overview**: a wall of your covers, what you added last, your peak years, top genres, artists, labels and countries. Once you've played a few songs it also shows what you listen to most. A song counts as played once you've heard half of it, or 4 minutes if that comes first.
-- **Songs**: search and filter everything, play it, see how each song was verified and what the file used to be called, and jump to its Discogs page to check it or buy the record. **Export** takes whatever you've filtered: an M3U playlist, a spreadsheet, or copies in a folder or on a USB drive, for your phone, car or another player.
+- **Songs**: search and filter everything, play it, see how each song was verified and what the file used to be called, and jump to its Discogs page to check it or buy the record. **Export** takes whatever you've filtered: an M3U playlist, a spreadsheet, or copies in a folder or on a USB drive, with a playlist that goes along with them, for your phone, car or another player.
 - **Artists**, **Albums** and **Labels**: browse your library by cover, play a whole record, and click through to its songs.
-- **Playlists**: once you've pressed Check Spotify, your Spotify playlists play here, as far as you have the songs as files. Streamed songs you don't have are left out.
+- **Playlists**: once you've pressed Check Spotify, your Spotify playlists play here, as far as you have the songs as files. Streamed songs you don't have are left out. **Save as files** writes them all as `.m3u8` playlists that other players can open.
 - **Now Playing**: click the cover in the play bar for the big view, with what's up next.
 - **Even volume**: a button on the play bar that turns loud songs down to match the rest. It never raises a song, because nearly every file already reaches full scale and raising it would distort it, so quieter songs stay as they are. Each song is measured with ffmpeg the first time it's needed, and the file isn't changed.
 - **To check**: the questions only ears can answer (genre toss-ups, songs that couldn't be verified), with the audio right there.

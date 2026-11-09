@@ -10,7 +10,9 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
+import tempfile
 
 from . import config, folders, library, tagwriter, webapp
 
@@ -78,14 +80,41 @@ def with_genre(data, genre):
     return b"ID3" + bytes([version, data[4], 0]) + tagwriter._syncsafe(size) + body.ljust(size, b"\x00") + data[end:]
 
 
+def other_with_genre(path, genre):
+    """A FLAC or M4A file's bytes with its genre replaced. Its other tags and cover stay, and the audio has to come out packet for packet the same."""
+    with tempfile.TemporaryDirectory() as folder:
+        out = os.path.join(folder, "song" + os.path.splitext(path)[1].lower())
+        try:
+            tagwriter.remux(path, out, dict(genre=genre), keep=True)
+        except (OSError, ValueError, subprocess.SubprocessError) as ex:
+            raise Skip("its tags couldn't be rewritten, so the song was left as it was") from ex
+        if tagwriter.audio_packets(path) != tagwriter.audio_packets(out):
+            raise Skip("the new copy didn't check out, so the song was left as it was")
+        with open(out, "rb") as f:
+            return f.read()
+
+
+def _same_song(now, was):
+    """A rewritten FLAC or M4A can state its length a hair differently (the audio has already been compared packet by packet)."""
+    close = abs((now["secs"] or 0) - (was["secs"] or 0)) <= .2
+    return close and {k: v for k, v in now.items() if k not in ("secs", "kbps")} == {k: v for k, v in was.items() if k not in ("secs", "kbps")}
+
+
 def _check(path, name, old, new, song, genre):
     """Read back what was written (a temporary copy of the file called `name`): only the genre may differ from the original."""
     with open(path, "rb") as f:
         written = f.read()
+    if written != new:
+        raise Skip("the new copy didn't check out, so the song was left as it was")
+    now, wanted = library.read_song(path, name), dict(song, genre=genre)
+    if os.path.splitext(name)[1].lower() != ".mp3":
+        if not _same_song(now, wanted):
+            raise Skip("the new copy didn't check out, so the song was left as it was")
+        return
     _, before, old_end = _tag_frames(old)
     _, after, new_end = _tag_frames(written)
     others = lambda frames: [f for f in frames if f[0] != b"TCON"]  # noqa: E731
-    if written != new or others(before) != others(after) or old[old_end:] != written[new_end:] or library.read_song(path, name) != dict(song, genre=genre):
+    if others(before) != others(after) or old[old_end:] != written[new_end:] or now != wanted:
         raise Skip("the new copy didn't check out, so the song was left as it was")
 
 
@@ -380,8 +409,9 @@ class Run:
         area, root, path = _locate(answer.get("file"), self.paths)
         if area != "library":
             raise Skip("it isn't in your library yet, so this one is for your AI app")
-        if os.path.splitext(path)[1].lower() != ".mp3":
-            raise Skip("only MP3 files can be changed this way for now")
+        kind = os.path.splitext(path)[1].lower()
+        if kind not in tagwriter.KINDS:
+            raise Skip("only MP3, FLAC and M4A files can be changed this way for now")
         genre, song = _clean_answer(answer.get("genre")), library.read_song(path)
         if song["genre"] == genre:
             print(f"  {name}: already {genre}, nothing to change")
@@ -390,7 +420,7 @@ class Run:
             return
         with open(path, "rb") as f:
             old = f.read()
-        new = with_genre(old, genre)
+        new = with_genre(old, genre) if kind == ".mp3" else other_with_genre(path, genre)
         dest = _destination(self.paths["library"], path, song, genre)
         moving, already_placed = webapp.norm(dest) != webapp.norm(path), False
         folder = os.path.dirname(dest)
