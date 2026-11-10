@@ -1,15 +1,30 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "music-curator"
 version = "0.1.0"
-description = "Curate a local music library: verify songs against Discogs and other sources, settle versions by length and audio fingerprints, write clean tags and covers."
+description = "Pressling: a player for your own music files with a curator built in. It checks songs against Discogs, settles the exact version, and writes clean tags and covers."
 readme = "README.md"
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.11"
 dependencies = []          # standard library only; ffmpeg (with chromaprint) must be on PATH
+keywords = ["music", "player", "music library", "tags", "discogs", "mp3", "flac"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Web Environment",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Multimedia :: Sound/Audio :: Players",
+]
+
+[project.urls]
+Homepage = "https://github.com/Vasco-Alves/music-curator"
+Issues = "https://github.com/Vasco-Alves/music-curator/issues"
 
 [project.optional-dependencies]
 compare = ["yt-dlp"]       # only to compare your files with videos online; nothing it fetches is kept

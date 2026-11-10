@@ -30,3 +30,44 @@ jobs:
         run: python -X utf8 -W ignore -m unittest discover -s tests
         env:
           PYTHONPATH: src
+
+  install:
+    # What someone new does, following the README's Try it: install with uv, start it, and get the first-run screen.
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Get uv
+        run: python -m pip install uv
+      - name: Build it, and check the page is in the package
+        run: |
+          uv build
+          python - <<'EOF'
+          import glob, zipfile
+          names = zipfile.ZipFile(glob.glob("dist/*.whl")[0]).namelist()
+          missing = [f for f in ("index.html", "app.js", "effects.js", "packs.js", "style.css", "glass.css", "hifi.css", "favicon.svg") if f"music_curator/web/{f}" not in names]
+          assert not missing, f"left out of the package: {missing}"
+          print(len(names), "files in the package")
+          EOF
+      - name: Install it from GitHub, the way the README says
+        run: |
+          uv tool install "music-curator @ https://github.com/${{ github.repository }}/archive/${{ github.sha }}.zip"
+          uv tool dir --bin >> "$GITHUB_PATH"
+      - name: Start it and open the page
+        run: |
+          curator --help > /dev/null
+          curator serve --no-browser --port 8799 > serve.log 2>&1 &
+          for i in $(seq 1 60); do curl -fsS -o all.json http://127.0.0.1:8799/api/all && break; sleep 1; done
+          cat serve.log
+          curl -fsS -o index.html http://127.0.0.1:8799/ && grep -q "<title>Pressling</title>" index.html
+          curl -fsS -o /dev/null http://127.0.0.1:8799/app.js
+          python -c "import json; d = json.load(open('all.json')); assert 'setup' in d, d; print('first-run screen is up')"
