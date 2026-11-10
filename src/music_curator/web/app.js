@@ -3075,14 +3075,27 @@ const SEGMENT_SHAPES = (() => {
 })();
 const digitCell = () => svg("svg", { class: "digit", viewBox: "0 0 17 24", "aria-hidden": "true" }, svg("g", { transform: "translate(3 0) skewX(-7)" }, Object.entries(SEGMENT_SHAPES).map(([seg, points]) => svg("polygon", { points, dataset: { seg } }))));
 const colonCell = () => svg("svg", { class: "digit colon", viewBox: "0 0 6 24", "aria-hidden": "true" }, svg("circle", { class: "on", cx: 3.6, cy: 8, r: 1.4 }), svg("circle", { class: "on", cx: 2.6, cy: 16, r: 1.4 }));
+const faceCell = () => { // the acid smiley as the display would draw it: a ring in six pieces, two eyes and a smile, each a segment of its own
+  const ring = Array.from({ length: 6 }, (_, i) => { const at = (a) => `${(7 + Math.cos(a) * 5.6).toFixed(2)} ${(12 + Math.sin(a) * 9.4).toFixed(2)}`, from = ((i * 60 - 82) * Math.PI) / 180, to = ((i * 60 - 38) * Math.PI) / 180; return svg("path", { d: `M${at(from)} A5.6 9.4 0 0 1 ${at(to)}`, dataset: { seg: `r${i}` } }); });
+  return svg("svg", { class: "digit face", viewBox: "0 0 17 24", "aria-hidden": "true" }, svg("g", { transform: "translate(3 0) skewX(-7)" }, ring,
+    svg("ellipse", { cx: 5, cy: 9.3, rx: 0.95, ry: 1.9, dataset: { seg: "left" } }), svg("ellipse", { cx: 9, cy: 9.3, rx: 0.95, ry: 1.9, dataset: { seg: "right" } }), svg("path", { d: "M3.9 14.3 Q7 18.7 10.1 14.3", dataset: { seg: "smile" } })));
+};
+function smileOn(face) { // it lights up a segment at a time, like the display testing itself, and winks once before it goes
+  if (!face) return;
+  face.querySelectorAll("[data-seg]").forEach((part, i) => setTimeout(() => part.classList.add("on"), 140 + i * 50));
+  const eye = face.querySelector('[data-seg="right"]');
+  setTimeout(() => eye.classList.remove("on"), 1950);
+  setTimeout(() => eye.classList.add("on"), 2150);
+}
 let clockJokeUntil = 0, clockJokeOn = "";
 function showClock() {
   const s = current(), box = $("#cur");
-  if (surprises.clock && s && Math.floor(audio.currentTime) === 183 && moodOf(s) === "acid" && clockJokeOn !== s.id) { // 3:03 into an acid track: the clock tips its hat to the 303
+  if (surprises.clock && s && Math.floor(audio.currentTime) === 183 && moodOf(s) === "acid" && clockJokeOn !== s.id) { // 3:03 into an acid track: the clock tips its hat to the 303, and a smiley comes on beside it
     clockJokeOn = s.id;
-    clockJokeUntil = performance.now() + 1600;
-    showTime(box, "303");
+    clockJokeUntil = performance.now() + 2800;
+    showTime(box, "☺ 303");
     box.classList.add("flicker");
+    smileOn(box.querySelector(".face"));
   }
   if (performance.now() < clockJokeUntil) return;
   box.classList.remove("flicker");
@@ -3098,10 +3111,10 @@ function counter(value, places = 3) { // a number on the same digits as the deck
 function showTime(box, text) {
   if (box.dataset.shows === text) return;
   box.dataset.shows = text;
-  const known = text !== "–", shown = [...(known ? text.padStart(5) : "--:--")]; // a blank place for the tens of minutes, like a real display
-  box.setAttribute("aria-label", known ? text : "Not known yet");
-  if (box.children.length !== shown.length || shown.some((c, i) => (c === ":") !== box.children[i].classList.contains("colon"))) box.replaceChildren(...shown.map((c) => (c === ":" ? colonCell() : digitCell())));
-  shown.forEach((c, i) => { if (c !== ":") box.children[i].querySelectorAll("polygon").forEach((p) => p.classList.toggle("on", SEGMENTS[c].includes(p.dataset.seg))); });
+  const known = text !== "–", shown = [...(known ? text.padStart(5) : "--:--")], kind = (c) => (c === ":" ? "colon" : c === "☺" ? "face" : "digit"); // a blank place for the tens of minutes, like a real display
+  box.setAttribute("aria-label", known ? text.replace("☺", "").trim() : "Not known yet");
+  if (box.children.length !== shown.length || shown.some((c, i) => kind(c) !== (["colon", "face"].find((k) => box.children[i].classList.contains(k)) || "digit"))) box.replaceChildren(...shown.map((c) => ({ colon: colonCell, face: faceCell, digit: digitCell })[kind(c)]()));
+  shown.forEach((c, i) => { if (kind(c) === "digit") box.children[i].querySelectorAll("polygon").forEach((p) => p.classList.toggle("on", SEGMENTS[c].includes(p.dataset.seg))); });
 }
 function fillRange(input) {
   const part =`${((input.value - input.min) / (input.max - input.min)) * 100}%`, box = input.closest(".wave-box");

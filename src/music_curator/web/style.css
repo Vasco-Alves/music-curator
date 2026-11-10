@@ -515,7 +515,8 @@ input[type="range"] { accent-color: var(--accent); height: 16px; cursor: pointer
 .seek .time { display: inline-flex; flex: none; align-items: center; min-width: 0; color: var(--accent); }
 .digit { display: block; width: 11.3px; height: 16px; fill: currentColor; } /* drawn in app.js: the segments that are off are still faintly there */
 .digit.colon { width: 4px; }
-.digit polygon, .digit circle { opacity: .08; }
+.digit polygon, .digit circle, .digit ellipse, .digit path { opacity: .08; }
+.digit path { fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; } /* the smiley's ring and mouth, as thick as the digits' segments */
 .digit .on { opacity: 1; }
 .vol { display: flex; align-items: center; justify-content: flex-end; gap: 12px; color: var(--ink-3); }
 #vol-icon { display: inline-grid; }
