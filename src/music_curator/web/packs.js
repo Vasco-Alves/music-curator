@@ -44,7 +44,7 @@ window.Packs = (() => {
   function cleanGenres(raw) {
     return Object.fromEntries(Object.entries(object(raw)).slice(0, 400).map(([genre, mood]) => [text(genre, 60), mood]).filter(([genre, mood]) => genre && (MOODS.includes(mood) || mood === "none")));
   }
-  const KNOBS = new Set(["light", "react", "speed", "drag", "spark", "nod", "turns", "moves", "shots", "folk", "pit"]);
+  const KNOBS = new Set(["light", "react", "speed", "drag", "spark", "nod", "turns", "moves", "shots", "folk", "pit", "tilt"]);
   function cleanSurprise(raw, sized) {
     const s = object(raw), out = {};
     if (["off", "rare", "some", "often", "always"].includes(s.often)) out.often = s.often;
@@ -54,14 +54,14 @@ window.Packs = (() => {
   function cleanSettings(raw) { // the numbers still get limited where they're used. This only decides what's allowed in at all
     const s = object(raw), out = {}, surprises = object(s.surprises), tuning = object(s.tuning);
     if (Object.keys(surprises).length) {
-      out.surprises = { dance: cleanSurprise(surprises.dance, true), bob: cleanSurprise(surprises.bob, true), logo: cleanSurprise(surprises.logo, false) };
+      out.surprises = { dance: cleanSurprise(surprises.dance, true), bob: cleanSurprise(surprises.bob, true), logo: cleanSurprise(surprises.logo, false), visitors: cleanSurprise(surprises.visitors, false) };
       for (const key of ["clock", "notes", "falling"]) if (flag(surprises[key]) !== undefined) out.surprises[key] = surprises[key];
     }
     const styles = Object.entries(tuning).slice(0, 60).filter(([style]) => /^[a-z]{2,20}$/.test(style)).map(([style, knobs]) => [style, Object.fromEntries(Object.entries(object(knobs)).filter(([k, v]) => KNOBS.has(k) && number(v) !== undefined))]).filter(([, knobs]) => Object.keys(knobs).length);
     if (styles.length) out.tuning = Object.fromEntries(styles);
     if (s.accent === "" || s.accent === "cover" || color(s.accent, "")) out.accent = s.accent;
     if (number(s.moodStrength) !== undefined) out.moodStrength = Math.min(1, Math.max(0, s.moodStrength));
-    for (const key of ["vibes", "glow", "flash", "sparkle"]) if (flag(s[key]) !== undefined) out[key] = s[key];
+    for (const key of ["vibes", "glow", "flash", "sparkle", "morph"]) if (flag(s[key]) !== undefined) out[key] = s[key];
     if (s.effect === "" || (typeof s.effect === "string" && /^[a-z]{2,20}$/.test(s.effect))) out.effect = s.effect;
     return out;
   }

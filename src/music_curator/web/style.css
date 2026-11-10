@@ -329,6 +329,8 @@ body.now-view .shell, body.now-view.drawer-open:not(.setup) .shell { grid-templa
 #fx { position: fixed; inset: 0; z-index: -1; display: block; width: 100%; height: 100%; opacity: .5; transition: opacity .4s ease; } /* behind the page it stays out of the way: Full view is where it's the main thing */
 body.fx-full #fx { opacity: 1; }
 body.fx-around #fx { opacity: .3; }
+#guests { position: fixed; inset: 0; z-index: 38; display: block; width: 100%; height: 100%; pointer-events: none; } /* visitors on the app itself: over the page and the play bar, under tips, notes and menus, and clicks go through */
+body.fx-full #guests { visibility: hidden; }
 @media (max-width: 1400px), (max-height: 1060px) { /* not enough room for the buttons beside the record and its tonearm, so they get a row of their own */
   .fx-bar { position: relative !important; top: auto !important; right: auto !important; grid-column: 1 / -1; justify-content: center !important; }
   .fx-bar ~ .now-queue { padding-top: 6px !important; }

@@ -33,7 +33,7 @@ const ICONS = {
   play: "M8 5v14l11-7z", pause: "M7 5h3.5v14H7zM13.5 5H17v14h-3.5z", prev: "M19 6v12l-9-6zM6 6h2.2v12H6z", next: "M5 6v12l9-6zM15.8 6H18v12h-2.2z",
   repeat: "M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3", upnext: "M4 6h16M4 12h9M4 18h9M16 12.500v7l5.500-3.500z",
   kick: "M3 12h4l2.500-7 4 14 2.500-7h5", flash: "M13 3 5 14h6l-1 7 8-11h-6z", screen: "M3 5h18v12H3zM8 21h8M12 17v4", heart: "M12 20.500s-7.500-4.600-9.200-9.200C1.700 8.200 3.600 5 6.800 5c2.200 0 3.900 1.200 5.200 3 1.300-1.800 3-3 5.200-3 3.200 0 5.100 3.200 4 6.300-1.700 4.600-9.200 9.200-9.200 9.200z", sparkle: "M11 4l1.800 5.700L18.500 11.500l-5.700 1.800L11 19l-1.800-5.700L3.500 11.500l5.700-1.800zM19 3v4M17 5h4", grip: "M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01", fade: "M3 6c7 0 11 12 18 12M3 18c7 0 11-12 18-12", radio: "M12 13.5a1.500 1.500 0 1 0 0-3 1.500 1.500 0 0 0 0 3zM8.200 8a5.500 5.500 0 0 0 0 8M15.800 8a5.500 5.500 0 0 1 0 8M5.200 5a10 10 0 0 0 0 14M18.800 5a10 10 0 0 1 0 14", plus: "M12 5v14M5 12h14", import: "M12 4v11M8 11l4 4 4-4M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5", chevron: "M6 9l6 6 6-6", expand: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5", even: "M6 9v6M10 9v6M14 9v6M18 9v6M3 5h18M3 19h18", user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.500 20a7.500 7.500 0 0 1 15 0",
-  disc: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z", tag: "M4 4h7.5l8.500 8.500-7.500 7.500L4 11.500zM8 8h.01", export: "M12 15V4M8 8l4-4 4 4M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5",
+  morph: "M4 12a8 8 0 0 1 8-8h8v8a8 8 0 0 1-8 8H4zM9 12h6", disc: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z", tag: "M4 4h7.5l8.500 8.500-7.500 7.500L4 11.500zM8 8h.01", export: "M12 15V4M8 8l4-4 4 4M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5",
 };
 const FILLED = new Set(["play", "pause", "prev", "next"]);
 function icon(name, size = 18, cls) {
@@ -2048,7 +2048,7 @@ function accentSetting() {
 
 /* ---------- effects: pictures from the sound on Now Playing, drawn by effects.js ---------- */
 const FX = window.Effects || null, fxStyles = FX ? FX.styles : {}, familyOf = (name) => Object.keys(fxStyles).find((k) => fxStyles[k].some(([style]) => style === name)) || ""; // each effect is one choice with several styles
-let fxName = familyOf(store("curator-fx")) ? store("curator-fx") : "", fxEverywhere = store("curator-fx-all") === "1", fxFull = false, fxIdle = 0;
+let fxName = familyOf(store("curator-fx")) ? store("curator-fx") : "", fxEverywhere = store("curator-fx-all") === "1", fxFull = false, fxIdle = 0, fxMorph = store("curator-fx-morph") === "1", fxSeen = [];
 const fxShowing = () => !!FX && !!fxName && !calm.matches && (fxEverywhere || onNowPage());
 /* Sliders for the effect showing. 100% is how it was designed, each style remembers its own, and only what's been moved is saved. */
 let fxTuning = {}, fxAdjusting = false;
@@ -2076,6 +2076,7 @@ const fxBar = () => (FX && !calm.matches ? el("div", { class: "fx-bar" },
     const on = familyOf(fxName) === k;
     return el("button", { class: `chip${on ? " on" : ""}`, type: "button", "aria-pressed": String(on), onclick: () => setFx(k && familyOf(store(`curator-fx-${k}`)) === k ? store(`curator-fx-${k}`) : k) }, t);
   }), fxName ? el("select", { class: "fx-style", "aria-label": "Style", title: "Style", onchange: (e) => setFx(e.target.value) }, fxStyles[familyOf(fxName)].map(([k, t]) => el("option", { value: k, selected: fxName === k }, t))) : null),
+  el("button", { class: `btn small${fxMorph ? " on" : ""}`, type: "button", "aria-pressed": String(fxMorph), title: fxMorph ? "Changes into another effect now and then, on the beat. Click to stay on this one" : "Change into another effect now and then, on the beat: any style of any of them", onclick: () => setMorph(!fxMorph) }, icon("morph", 14), "Morph"),
   fxName ? el("button", { class: `btn small${fxAdjusting ? " on" : ""}`, type: "button", "aria-pressed": String(fxAdjusting), title: "Adjust this effect", onclick: () => { fxAdjusting = !fxAdjusting; paintFxBar(); } }, icon("sliders", 14), "Adjust") : null,
   el("button", { class: `btn small${kickOn ? " on" : ""}`, type: "button", "aria-pressed": String(kickOn), title: kickOn ? "The buttons glow on each kick. Click to stop it" : "Make the buttons glow on each kick", onclick: () => setKick(!kickOn) }, icon("kick", 14), "Glow"),
   el("button", { class: `btn small${flashOn ? " on" : ""}`, type: "button", "aria-pressed": String(flashOn), title: flashOn ? "The background flashes on each kick. Click to stop it" : "Make the background flash on each kick", onclick: () => setFlash(!flashOn) }, icon("flash", 14), "Flash"),
@@ -2101,6 +2102,7 @@ function setFxEverywhere(on) {
   syncFx();
 }
 function setFx(name) {
+  if (fxName && fxName !== name) fxSeen = [...fxSeen.filter((s) => s !== fxName), fxName].slice(-6); // so Morph doesn't go straight back to one
   fxName = name;
   store("curator-fx", name);
   if (name) { store(`curator-fx-${familyOf(name)}`, name); store("curator-fx-last", name); } // the style you come back to it with next time
@@ -2108,6 +2110,20 @@ function setFx(name) {
   paintFxBar();
   syncFx();
 }
+/* Morph: the effect changes into another by itself now and then, on the beat. effects.js says when; this picks which, from any style of any effect, and not one just seen. */
+function morphFx() {
+  const all = FX.names.flatMap(([k]) => fxStyles[k].map(([style]) => style)), fresh = all.filter((s) => s !== fxName && !fxSeen.includes(s));
+  FX.slow();
+  setFx(fresh[Math.floor(Math.random() * fresh.length)] || all.find((s) => s !== fxName));
+}
+function setMorph(on, now = true) {
+  fxMorph = on;
+  store("curator-fx-morph", on ? "1" : "");
+  if (FX) FX.wander(on ? morphFx : null);
+  if (on && now && FX) morphFx(); // straight away, so you see what it does
+  else paintFxBar();
+}
+if (FX && fxMorph) FX.wander(morphFx);
 function wakeFx() { // in full view the controls and the pointer go away until the mouse moves
   if (!fxFull) return;
   document.body.classList.remove("idle");
@@ -2494,7 +2510,7 @@ function setVibe(s) {
   if (vibe !== "acid") $("#play").style.filter = "";
 }
 /* Packs: a way to share how you've set the app up, and try how others have. The rules are in packs.js. */
-const packSettingsNow = () => ({ surprises, tuning: fxTuning, accent: store("curator-accent") || "", moodStrength, vibes: vibesOn, glow: kickOn, flash: flashOn, sparkle: sparkleOn, effect: fxName });
+const packSettingsNow = () => ({ surprises, tuning: fxTuning, accent: store("curator-accent") || "", moodStrength, vibes: vibesOn, glow: kickOn, flash: flashOn, sparkle: sparkleOn, effect: fxName, morph: fxMorph });
 function usePackSettings(s) {
   if (s.surprises) {
     store("curator-surprises", JSON.stringify(s.surprises));
@@ -2502,6 +2518,7 @@ function usePackSettings(s) {
     danceAfter = performance.now() + waitFor("dance", true);
     bobAfter = performance.now() + waitFor("bob", true);
     logoAfter = performance.now() + waitFor("logo", true);
+    visitAfter = performance.now() + waitFor("visitors", true);
   }
   if (s.tuning) { fxTuning = s.tuning; saveTuning(); }
   if (s.accent !== undefined) { store("curator-accent", s.accent); paintAccent(); }
@@ -2511,6 +2528,7 @@ function usePackSettings(s) {
   if (s.flash !== undefined) setFlash(s.flash);
   if (s.sparkle !== undefined) setSparkle(s.sparkle);
   if (s.effect !== undefined && (s.effect === "" || familyOf(s.effect))) setFx(s.effect);
+  if (s.morph !== undefined) setMorph(s.morph, false);
   setVibe(current());
   startSound();
 }
@@ -2570,7 +2588,7 @@ function packsSetting() {
 }
 function surprisesSetting() {
   const box = el("div", { class: "card accent-setting" }), save = () => store("curator-surprises", JSON.stringify(surprises));
-  const soonest = { dance: () => { danceAfter = performance.now() + waitFor("dance", true); }, bob: () => { bobAfter = performance.now() + waitFor("bob", true); }, logo: () => { logoAfter = performance.now() + waitFor("logo", true); } };
+  const soonest = { dance: () => { danceAfter = performance.now() + waitFor("dance", true); }, bob: () => { bobAfter = performance.now() + waitFor("bob", true); }, logo: () => { logoAfter = performance.now() + waitFor("logo", true); }, visitors: () => { visitAfter = performance.now() + waitFor("visitors", true); } };
   const slider = (label, min, max, step, value, words, change) => {
     const shown = el("span", { class: "fx-value" }, words(value));
     return el("label", { class: "fx-knob surprise-knob" }, el("span", {}, label), el("input", { type: "range", min, max, step, value, oninput: (e) => { change(+e.target.value); shown.textContent = words(+e.target.value); save(); } }), shown);
@@ -2591,17 +2609,18 @@ function surprisesSetting() {
       one("dance", "The dance", "The whole app dances for a few seconds.", letsDance),
       one("bob", "Bobbing", "Everything nods to the kick for a few seconds.", letsBob),
       one("logo", "The logo and name", "A spin, a scratch, a wave through the letters, a glint, a neon flicker, a shuffle.", logoTrick),
+      one("visitors", "Visitors", "Somebody drops by the app itself: a saucer borrows a cover and gives it back, a face peeks over the play bar, a cow gets taken from it, a little one hangs on a thread from the top, an astronaut or a jellyfish floats past.", tryVisit),
       tick("clock", "Jokes on the clock: 303 at 3:03 on acid tracks, and 11 at full volume"),
       tick("notes", "Small notes: late at night, or the same song over and over"),
       tick("falling", "Small records falling when To check is cleared"),
-      el("p", { class: "note surprise-foot" }, "What flies past in Space is under Adjust, on Now Playing."),
-      el("button", { class: "btn small", type: "button", disabled: !changed, onclick: () => { surprises = JSON.parse(JSON.stringify(SURPRISE_DEFAULTS)); save(); soonest.dance(); soonest.bob(); soonest.logo(); startSound(); paint(); } }, "Back to default"));
+      el("p", { class: "note surprise-foot" }, "Who visits the effects themselves is under Adjust, on Now Playing, for each one."),
+      el("button", { class: "btn small", type: "button", disabled: !changed, onclick: () => { surprises = JSON.parse(JSON.stringify(SURPRISE_DEFAULTS)); save(); soonest.dance(); soonest.bob(); soonest.logo(); soonest.visitors(); startSound(); paint(); } }, "Back to default"));
   }
   paint();
   return box;
 }
 function vibeSetting() {
-  return el("div", { class: "card accent-setting" }, el("h2", {}, "Mood"), el("p", { class: "note" }, "The background, the way a kick lands and who visits in Space change with the genre of what's playing: softer for trance, yellow for acid, darker and quicker for hardcore. An effect covers the background, so it shows best with no effect on."),
+  return el("div", { class: "card accent-setting" }, el("h2", {}, "Mood"), el("p", { class: "note" }, "The background, the way a kick lands and who visits change with the genre of what's playing: softer for trance, yellow for acid, darker and quicker for hardcore. An effect covers the background, so it shows best with no effect on."),
     el("label", { class: "filter-check vibe-note" }, el("input", { type: "checkbox", checked: vibesOn, onchange: (e) => { vibesOn = e.target.checked; store("curator-vibes", vibesOn ? "on" : "off"); setVibe(current()); } }), "Let the look follow the music"),
     (() => { const shown = el("span", { class: "fx-value" }, `${Math.round(moodStrength * 100)}%`); return el("label", { class: "fx-knob vibe-note" }, el("span", {}, "Strength of the background"), el("input", { type: "range", min: 0, max: 1, step: 0.05, value: moodStrength, oninput: (e) => { moodStrength = +e.target.value; store("curator-mood", String(moodStrength)); document.documentElement.style.setProperty("--mood", String(moodStrength)); shown.textContent = `${Math.round(moodStrength * 100)}%`; } }), shown); })());
 }
@@ -2632,18 +2651,18 @@ const DANCERS = [ // who joins in, how far each moves, how long each waits for t
   { who: ".rank .bar", grow: "{} 1", most: 30 },
   { who: ".gauge-ring", pump: 0.035 },
 ];
-const HOW_OFTEN = { dance: { rare: [25, 50], some: [10, 25], often: [4, 10] }, bob: { rare: [8, 15], some: [2, 6], often: [0.7, 2] }, logo: { rare: [8, 20], some: [2.5, 7], often: [0.7, 2] } }; // minutes between them, at random within the range
+const HOW_OFTEN = { dance: { rare: [25, 50], some: [10, 25], often: [4, 10] }, bob: { rare: [8, 15], some: [2, 6], often: [0.7, 2] }, logo: { rare: [8, 20], some: [2.5, 7], often: [0.7, 2] }, visitors: { rare: [12, 30], some: [4, 10], often: [1.5, 4] } }; // minutes between them, at random within the range
 const OFTEN_WORDS = [["off", "Never"], ["rare", "Rarely"], ["some", "Sometimes"], ["often", "Often"]];
-const SURPRISE_DEFAULTS = { dance: { often: "rare", strength: 1, secs: 6.5 }, bob: { often: "some", strength: 1, secs: 8 }, logo: { often: "some" }, clock: true, notes: true, falling: true };
+const SURPRISE_DEFAULTS = { dance: { often: "rare", strength: 1, secs: 6.5 }, bob: { often: "some", strength: 1, secs: 8 }, logo: { often: "some" }, visitors: { often: "some" }, clock: true, notes: true, falling: true };
 function readSurprises() { // Settings, under Surprises. Anything missing or odd is the default
   let saved;
   try { saved = JSON.parse(store("curator-surprises") || "{}"); } catch { saved = {}; }
   if (!saved || typeof saved !== "object") saved = {};
   const out = JSON.parse(JSON.stringify(SURPRISE_DEFAULTS));
-  for (const key of ["dance", "bob", "logo"]) {
+  for (const key of ["dance", "bob", "logo", "visitors"]) {
     const one = saved[key] || {};
     if (one.often === "off" || HOW_OFTEN[key][one.often] || (key === "bob" && one.often === "always")) out[key].often = one.often;
-    if (key === "logo") continue;
+    if (key === "logo" || key === "visitors") continue;
     if (Number.isFinite(one.strength)) out[key].strength = Math.min(2, Math.max(0.3, one.strength));
     if (Number.isFinite(one.secs)) out[key].secs = Math.min(30, Math.max(2, one.secs));
   }
@@ -2658,6 +2677,7 @@ function waitFor(key, first) { // the first one of a visit comes sooner
   return (low + Math.random() * (high - low)) * 60000;
 }
 let danceAfter = performance.now() + waitFor("dance", true), bobAfter = performance.now() + waitFor("bob", true), logoAfter = performance.now() + waitFor("logo", true), logoTurn = Math.floor(Math.random() * 6), bobUntil = 0, danceUntil = 0, danceBeat = 0, danceMoved = 0, danceTimer = 0;
+let visitAfter = performance.now() + waitFor("visitors", true), visitTurn = Math.floor(Math.random() * 6);
 const onScreen = (n) => { const r = n.getBoundingClientRect(); return r.width > 0 && r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth; };
 function danceTitle(on) { // the song's name comes apart into letters for the dance, and goes back together after
   const h = $(".now-info h1");
@@ -2835,11 +2855,12 @@ function sparkle(now, strength) { // far too many of these for anything bigger: 
     glintOn($("#play"), 27 + Math.random() * 14, 18 + Math.random() * 8, 14 + 7 * strength);
   }
 }
-const glowing = () => (kickOn || flashOn || sparkleOn || surprises.dance.often !== "off" || surprises.bob.often !== "off" || surprises.logo.often !== "off" || danceUntil > performance.now() || bobUntil > performance.now()) && !calm.matches; // any of them needs to hear the music
+const glowing = () => (kickOn || flashOn || sparkleOn || surprises.dance.often !== "off" || surprises.bob.often !== "off" || surprises.logo.often !== "off" || surprises.visitors.often !== "off" || danceUntil > performance.now() || bobUntil > performance.now()) && !calm.matches; // any of them needs to hear the music
+const visiting = () => !!FX && FX.visiting(); // somebody on the app itself, who keeps moving even with the music stopped
 function soundFrame(now) {
   kickFrame = 0;
-  const hearing = !!kickLevel && !audio.paused, picture = fxShowing() && (hearing || onNowPage()); // on the other pages it only moves while there's music
-  if (document.hidden || !((glowing() && hearing) || picture)) return;
+  const hearing = !!kickLevel && !audio.paused, picture = fxShowing() && (hearing || onNowPage()), guests = visiting(); // on the other pages it only moves while there's music
+  if (document.hidden || !((glowing() && hearing) || picture || guests)) return;
   kickFrame = requestAnimationFrame(soundFrame);
   const hit = hearing ? findKick(now) : -1, tick = hearing ? findHat(now) : -1;
   if (hit >= 0 && glowing()) {
@@ -2851,12 +2872,41 @@ function soundFrame(now) {
   else if (danceUntil && now - danceMoved > 640) dance(now, 0.4); // a quiet passage: it keeps time by itself
   if (hit >= 0) bobbing(now, hit);
   if (hit >= 0) logoNow(now, hit);
-  if (picture) FX.frame(now, hearing ? kickWide : null, hit, tick);
+  if (hit >= 0) visitNow(now, hit);
+  if (picture || guests) FX.frame(now, hearing ? kickWide : null, hit, tick, picture);
 }
 async function startSound() {
-  if (!glowing() && !fxShowing()) return;
+  if (!glowing() && !fxShowing() && !visiting()) return;
   if (!audio.paused) await wireSound(); // only with the music playing: a picture can draw without it, and a browser won't start sound by itself
-  if (!kickFrame && ((glowing() && kickLevel && !audio.paused) || fxShowing())) kickFrame = requestAnimationFrame(soundFrame);
+  if (!kickFrame && ((glowing() && kickLevel && !audio.paused) || fxShowing() || visiting())) kickFrame = requestAnimationFrame(soundFrame);
+}
+/* Visitors on the app itself, drawn by effects.js: this says who can come, given what's on the page, and where. */
+function coverToBorrow() { // a cover that can be seen whole and isn't tiny, best of all with room above it for a saucer
+  const seen = [...document.querySelectorAll("#np-cover, #view .cover, .drawer .cover")].map((c) => [c, c.getBoundingClientRect()]).filter(([c, r]) => r.width >= 56 && r.height >= 56 && r.top > 120 && r.bottom < innerHeight && r.left >= 0 && r.right <= innerWidth && !c.closest("dialog") && (c.id !== "np-cover" || current()));
+  const roomy = seen.filter(([, r]) => r.top > 240), from = roomy.length ? roomy : seen;
+  return from.length ? from[Math.floor(Math.random() * from.length)][0] : null;
+}
+function visitApp(kind) { // says whether somebody came
+  if (!FX || calm.matches || fxFull || document.hidden || S.setup || $("dialog[open]") || visiting()) return false;
+  const deck = $(".player").getBoundingClientRect(), page = view.getBoundingClientRect(), cover = coverToBorrow();
+  const can = { borrow: !!cover, peek: deck.top > 260, abduct: deck.top > 320, dangle: page.width > 260, astronaut: true, jelly: true, smiley: vibe === "acid" };
+  const order = vibe === "euphoric" ? ["jelly", "borrow", "dangle", "jelly", "peek", "astronaut", "abduct"] : vibe === "acid" ? ["smiley", "borrow", "peek", "smiley", "dangle", "abduct", "astronaut"] : ["borrow", "peek", "dangle", "abduct", "astronaut", "jelly"];
+  let pick = kind && can[kind] ? kind : "";
+  for (let i = 0; !pick && i < order.length; i++) { const k = order[(visitTurn + i) % order.length]; if (can[k]) { pick = k; visitTurn += i + 1; } }
+  if (!pick) return false;
+  if (pick === "smiley") { rollSmiley(); return true; } // acid's own: it rolls along the play bar
+  const places = { borrow: { element: cover }, peek: { floor: deck.top, left: page.left, right: page.right }, abduct: { floor: deck.top, left: page.left, right: page.right }, dangle: { left: page.left, right: page.right } }, came = FX.visit(pick, places[pick]);
+  if (came) startSound();
+  return came;
+}
+function visitNow(now, hit) { // on a kick, once it's time
+  if (calm.matches || danceUntil || now < visitAfter || hit < 0.3) return;
+  visitAfter = now + waitFor("visitors");
+  visitApp();
+}
+function tryVisit() {
+  if (calm.matches) return;
+  if (!visitApp()) toast(visiting() ? "Somebody's already here." : "Nobody can come just now.");
 }
 function paintKick() {
   for (const [id, on, title] of [["#kick", kickOn, kickOn ? "The buttons glow on each kick" : "Make the buttons glow on each kick"], ["#flash", flashOn, flashOn ? "The background flashes on each kick" : "Make the background flash on each kick"], ["#sparkle", sparkleOn, sparkleOn ? "Small lights tick on the hi-hats" : "Make small lights tick on the hi-hats"]]) {
@@ -3244,7 +3294,12 @@ window.addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.altKey || e.metaKey || e.key.length !== 1 || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
   typedLately = (typedLately + e.key.toLowerCase()).slice(-6);
   const word = FX && FX.words.find((w) => typedLately.endsWith(w));
-  if (word) { typedLately = ""; return FX.word(word); }
+  if (word) { // in the picture if there is one, or else on the app itself
+    typedLately = "";
+    if (fxShowing()) return FX.word(word);
+    if (word === "aliens" || word === "moo") visitApp(word === "moo" ? "abduct" : "borrow") || visitApp();
+    return;
+  }
   if (typedLately.endsWith("dance")) { typedLately = ""; return letsDance(); }
   if (typedLately.endsWith("bob")) { typedLately = ""; return letsBob(); }
   if (!typedLately.endsWith("acid")) return;
