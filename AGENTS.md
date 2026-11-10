@@ -82,8 +82,8 @@ in a few plain words, skip whatever is already there, and get their OK before in
 8. **Finish.** Run `curator doctor` again; it should end with `OK`. Then tell them it's ready, give them the exact command that
    opens their library later (the full path to `curator serve` in `.venv`), and say what they can ask for next.
 
-By hand: `pip install -e .`, then `curator init` writes a `curator.toml` in the current folder to edit, or `curator serve`
-asks for the folders. Without installing: `python -m music_curator ...` with `src` on `PYTHONPATH`. To keep yt-dlp in a
+By hand: the same virtual environment as step 2 (a plain `pip install` is refused on recent Linux and with Homebrew's Python),
+then `curator init` writes a `curator.toml` in the current folder to edit, or `curator serve` asks for the folders. Without installing: `python -m music_curator ...` with `src` on `PYTHONPATH`. To keep yt-dlp in a
 separate Python, set `[ytdlp] python`.
 
 ## What the person might ask

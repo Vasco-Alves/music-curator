@@ -77,11 +77,28 @@ It curates MP3, FLAC and M4A files. Each stays the type of file it is, and the a
 
 ## Set it up by hand
 
-```bash
-pip install -e .
-curator serve         # opens your browser: pick your library and downloads folders
-curator doctor        # checks everything is in place
+Install it into a virtual environment: a private copy of Python just for this app, so nothing else on your computer changes.
+(On recent Linux, and with Homebrew's Python on macOS, a plain `pip install` is refused anyway.) In this repository's folder:
+
+Windows:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\python -m pip install -e .
+.venv\Scripts\curator serve
 ```
+
+macOS and Linux (on Debian and Ubuntu, `sudo apt install python3-venv` first if `venv` isn't there):
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -e .
+.venv/bin/curator serve
+```
+
+`curator serve` opens your browser, where you pick your library and downloads folders. `curator doctor`, run the same way,
+checks that everything is in place. From then on, that full path is how you start the app. If you'd rather type just `curator`,
+activate the environment first in each new terminal: `.venv\Scripts\activate` on Windows, `source .venv/bin/activate` on macOS and Linux.
 
 Prefer a config file? `curator init` writes a `curator.toml` in the current folder.
 

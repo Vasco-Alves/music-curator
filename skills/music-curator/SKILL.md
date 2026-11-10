@@ -5,7 +5,7 @@ description: Curate a local music library with the music-curator CLI — verify 
 
 # Music curator
 
-Requires the `music-curator` package (`pip install -e <repo>`; command `curator`), ffmpeg with chromaprint,
+Requires the `music-curator` package (installed from the repo into a virtual environment, as "First-time setup" in `AGENTS.md` shows; command `curator`), ffmpeg with chromaprint,
 and a Discogs token (in `DISCOGS_TOKEN`, or a `.env` file the person keeps next to their settings: don't read it). Run `curator doctor` first. If it isn't set up yet, follow "First-time setup" in `AGENTS.md`.
 
 ## Ground rules
