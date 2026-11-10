@@ -66,7 +66,7 @@ window.Packs = (() => {
     return out;
   }
   function clean(raw) {
-    if (!raw || typeof raw !== "object" || Array.isArray(raw) || raw.curatorPack !== VERSION) return { error: "That file isn't a Curator pack, or it's for a newer version of the app." };
+    if (!raw || typeof raw !== "object" || Array.isArray(raw) || raw.curatorPack !== VERSION) return { error: "That file isn't a Pressling pack, or it's for a newer version of the app." }; // the files still say curatorPack inside, so packs made before the name keep working
     const name = text(raw.name, 60);
     if (!name) return { error: "That pack has no name." };
     const pack = { name, by: text(raw.by, 60), about: text(raw.about, 200), words: cleanWords(raw.words), genres: cleanGenres(raw.genres), settings: cleanSettings(raw.settings) };
@@ -116,7 +116,7 @@ window.Packs = (() => {
     add(fileText) {
       if (fileText.length > FILE_LIMIT) return { error: "That file is too big to be a pack." };
       let raw;
-      try { raw = JSON.parse(fileText); } catch { return { error: "That file isn't a Curator pack." }; }
+      try { raw = JSON.parse(fileText); } catch { return { error: "That file isn't a Pressling pack." }; }
       const made = clean(raw);
       if (made.error) return made;
       const same = saved.added.findIndex((p) => p.name.toLowerCase() === made.pack.name.toLowerCase()), pack = { ...made.pack, id: same >= 0 ? saved.added[same].id : newId(), on: true }; // a new version of one you have replaces it

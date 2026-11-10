@@ -288,7 +288,7 @@ class App(unittest.TestCase):
         sid = self.by_title["Song"]["id"]
         r, body = self.request(port, "GET", "/")
         self.assertEqual(r.status, 200)
-        self.assertIn(b"Curator", body)
+        self.assertIn(b"<title>Pressling</title>", body)
         self.assertIn("default-src 'none'", r.getheader("Content-Security-Policy"))
         r, body = self.request(port, "GET", f"/audio/{sid}", headers={"Range": "bytes=0-9"})
         self.assertEqual((r.status, r.getheader("Content-Range"), len(body)), (206, f"bytes 0-9/{os.path.getsize(self.song)}", 10))

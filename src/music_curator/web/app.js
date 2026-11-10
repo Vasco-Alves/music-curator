@@ -1763,7 +1763,7 @@ function folderForm(st, opts) {
 function pageSetup() {
   const st = S.setup, missing = st.reason === "missing";
   view.replaceChildren(el("div", { class: "setup-wrap" },
-    el("div", { class: "setup-brand" }, logo(), "Curator"),
+    el("div", { class: "setup-brand" }, logo(), "Pressling"),
     el("h1", {}, missing ? "Where did your library go?" : "Where does your music live?"),
     el("p", { class: "lead" }, missing ? `Couldn't find it at ${st.library}. If it's on a drive, plug it in and reload this page. If it moved, pick its new location.`
       : "Pick two folders to get started. You can change them later."),
@@ -2078,11 +2078,7 @@ const fxBar = () => (FX && !calm.matches ? el("div", { class: "fx-bar" },
   }), fxName ? el("select", { class: "fx-style", "aria-label": "Style", title: "Style", onchange: (e) => setFx(e.target.value) }, fxStyles[familyOf(fxName)].map(([k, t]) => el("option", { value: k, selected: fxName === k }, t))) : null),
   el("button", { class: `btn small${fxMorph ? " on" : ""}`, type: "button", "aria-pressed": String(fxMorph), title: fxMorph ? "Changes into another effect now and then, on the beat. Click to stay on this one" : "Change into another effect now and then, on the beat: any style of any of them", onclick: () => setMorph(!fxMorph) }, icon("morph", 14), "Morph"),
   fxName ? el("button", { class: `btn small${fxAdjusting ? " on" : ""}`, type: "button", "aria-pressed": String(fxAdjusting), title: "Adjust this effect", onclick: () => { fxAdjusting = !fxAdjusting; paintFxBar(); } }, icon("sliders", 14), "Adjust") : null,
-  el("button", { class: `btn small${kickOn ? " on" : ""}`, type: "button", "aria-pressed": String(kickOn), title: kickOn ? "The buttons glow on each kick. Click to stop it" : "Make the buttons glow on each kick", onclick: () => setKick(!kickOn) }, icon("kick", 14), "Glow"),
-  el("button", { class: `btn small${flashOn ? " on" : ""}`, type: "button", "aria-pressed": String(flashOn), title: flashOn ? "The background flashes on each kick. Click to stop it" : "Make the background flash on each kick", onclick: () => setFlash(!flashOn) }, icon("flash", 14), "Flash"),
-  el("button", { class: `btn small${sparkleOn ? " on" : ""}`, type: "button", "aria-pressed": String(sparkleOn), title: sparkleOn ? "Small lights tick on the hi-hats. Click to stop it" : "Make small lights tick on the hi-hats", onclick: () => setSparkle(!sparkleOn) }, icon("sparkle", 14), "Sparkle"),
-  fxName ? [el("button", { class: `btn small${fxEverywhere ? " on" : ""}`, type: "button", "aria-pressed": String(fxEverywhere), title: fxEverywhere ? "Showing behind every page. Click to keep it to Now Playing" : "Show it behind every page", onclick: () => setFxEverywhere(!fxEverywhere) }, icon("grid", 14), "All pages"),
-    el("button", { class: "btn small", type: "button", title: "Just the picture (F)", onclick: () => fullFx(!fxFull) }, icon("expand", 14), fxFull ? "Exit full view" : "Full view")] : null,
+  fxName ? el("button", { class: `btn small${fxEverywhere ? " on" : ""}`, type: "button", "aria-pressed": String(fxEverywhere), title: fxEverywhere ? "Showing behind every page. Click to keep it to Now Playing" : "Show it behind every page", onclick: () => setFxEverywhere(!fxEverywhere) }, icon("grid", 14), "All pages") : null, // Glow, Flash, Sparkle and Full view are on the play bar, so they aren't here as well
   fxName && fxAdjusting ? fxAdjust() : null) : null);
 const paintFxBar = () => { const b = $(".fx-bar"); if (b) b.replaceWith(fxBar()); };
 function syncFx() { // after anything that changes whether a picture should be showing
@@ -2138,7 +2134,6 @@ function fullFx(on) {
   document.body.classList.remove("idle");
   clearTimeout(fxIdle);
   wakeFx();
-  paintFxBar();
   $("#full-toggle").classList.toggle("active", on);
   $("#full-toggle").setAttribute("aria-pressed", String(on));
   if (!on && fullFromDeck) { fullFromDeck = false; if (onNowPage()) closeNow(); }
@@ -2800,25 +2795,22 @@ function bobToTheKick(strength) { // everything nods together, a little. The con
     if (onScreen(it)) { it.animate(moves, time); covers--; }
   }
 }
-function setKick(on) { // from the play bar or from Now Playing
+function setKick(on) { // from the play bar, or a pack
   kickOn = on;
   store("curator-kick", on ? "on" : "off");
   paintKick();
-  paintFxBar();
   startSound();
 }
 function setFlash(on) {
   flashOn = on;
   store("curator-flash", on ? "on" : "off");
   paintKick();
-  paintFxBar();
   startSound();
 }
 function setSparkle(on) {
   sparkleOn = on;
   store("curator-sparkle", on ? "on" : "off");
   paintKick();
-  paintFxBar();
   startSound();
 }
 function findKick(now) { // how strong, 0 to 1, or -1 if this moment isn't a kick

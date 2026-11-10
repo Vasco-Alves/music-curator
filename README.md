@@ -1,4 +1,7 @@
-# music-curator
+# Pressling
+
+A free, open-source companion for your own music files: a player with a curator built in, which checks every song
+like a test pressing before it goes on the shelf. The package is `music-curator` and the command is `curator`.
 
 Curate a local music library, on its own or with an AI agent: every song is checked against
 [Discogs](https://www.discogs.com), the exact version is settled by track length (and, with an agent, audio
