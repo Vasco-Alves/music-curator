@@ -139,7 +139,7 @@ function paintRailLists() { // the space under the menu: Favourites first, then 
   const row = (key, name, count, mark) => el("a", { class: `rail-list${here === key ? " on" : ""}`, href: `#/songs?${q2({ playlist: key, area: "all" })}`, title: name }, mark || null, el("span", { class: "rail-name" }, name), el("span", { class: "rail-count" }, fmt(count)));
   const own = [...(S.meta.own_playlists || [])].sort((a, b) => (b.name === FAVOURITES) - (a.name === FAVOURITES)), spotify = (S.meta.my_playlists || []).filter((p) => p.ids.length).sort((a, b) => a.name.localeCompare(b.name));
   box.replaceChildren(...[own.length ? el("div", { class: "rail-head" }, "Local") : null, ...own.map((p) => row(OWN + p.id, p.name, p.ids.length, p.name === FAVOURITES ? icon("heart", 13, "rail-heart") : null)),
-    spotify.length ? el("div", { class: "rail-head" }, "On Spotify") : null, ...spotify.map((p) => row(p.name, p.name, p.ids.length))].filter(Boolean));
+    spotify.length ? el("div", { class: "rail-head", title: "Your Spotify playlists, with only the songs you have as files" }, "On Spotify") : null, ...spotify.map((p) => row(p.name, p.name, p.ids.length))].filter(Boolean));
 }
 const playlistChores = () => waitingToAdd().reduce((n, [, d]) => n + lines(d.note).length, 0) + sum(((S.meta.spotify || {}).to_remove || []).map((r) => r.count));
 function badge() {
@@ -948,11 +948,12 @@ function pageShelf(params, o) {
     countLine.textContent = o.count(list.length);
     if (!list.length) return results.replaceChildren(el("p", { class: "empty" }, all.length ? Packs.words().empty.shelves : o.none));
     results.replaceChildren();
-    for (const [title, has, none] of o.groups || [["", () => true]]) {
+    for (const [title, has, none, note] of o.groups || [["", () => true]]) {
       const items = list.filter(has);
       if (!items.length && (f.q || !none)) continue; // a search with nothing in this group doesn't need its heading
       if (title) results.append(el("h2", { class: "section" }, title));
       if (!items.length) { results.append(el("p", { class: "note" }, none)); continue; }
+      if (note) results.append(el("p", { class: "note section-note" }, note));
       const glass = o.page === "albums", grid = el("div", { class: `grid${glass ? " on-shelf" : ""}` }), holder = el("div");
       results.append(grid, holder);
       lazy(grid, items, (x) => shelfTile(x, o.mosaic, glass), holder);
@@ -1484,7 +1485,8 @@ function pageAdd(params) {
   } }, icon("refresh", 14), checking) : null;
   if (listening) {
     const filled = shelves.filter((x) => x.songs.length).length, saver = playlistSaver(filled), importer = playlistImporter();
-    return pageShelf(params, { page: "add", title: "Playlists", items: () => shelves, groups: [["Local playlists", (x) => x.own, "None yet. Press New playlist, or Import one from another player."], ["Spotify playlists", (x) => !x.own, sp.ready ? "None yet. Press Check Spotify to see yours here." : ""]], mosaic: true, placeholder: "Search playlists, artists and genres…", none: sp.ready ? "No playlists yet. Make one, import one from another player, or press Check Spotify to bring yours in." : "No playlists yet. Make one, or import one from another player.", tabs: [tabs, saver.panel, importer.said],
+    return pageShelf(params, { page: "add", title: "Playlists", items: () => shelves, groups: [["Local playlists", (x) => x.own, "None yet. Press New playlist, or Import one from another player."], ["Spotify playlists", (x) => !x.own, sp.ready ? "None yet. Press Check Spotify to see yours here." : "",
+      `Your Spotify playlists, but only the songs you have as files, so you can play them here. The rest stay on Spotify.${sp.ready ? " Check Spotify brings in any changes." : ""}`]], mosaic: true, placeholder: "Search playlists, artists and genres…", none: sp.ready ? "No playlists yet. Make one, import one from another player, or press Check Spotify to bring yours in." : "No playlists yet. Make one, or import one from another player.", tabs: [tabs, saver.panel, importer.said],
       tools: el("div", { class: "add-check" }, checker ? said : null, checker, filled ? saver.toggle : null, importer.input, importer.button, newListButton()), count: (n) => plural(n, "playlist") });
   }
   const removing = (sp.to_remove || []).filter((r) => r.count), removeTotal = sum(removing.map((r) => r.count));
@@ -1912,7 +1914,7 @@ const trackRow = (x, number, on, mixed, go, remove) => el("div", { class: `track
     el("span", { class: "track-name" }, (mixed ? songName(x) : x.title) || x.file),
     el("span", { class: "track-len" }, clock(x.secs))),
   remove ? el("button", { class: "track-x", type: "button", title: "Remove from the queue", "aria-label": `Remove ${x.title || x.file} from the queue`, onclick: remove }, icon("x", 13)) : null);
-function queueList(s) { // what's playing and what's coming, only on the panel of the song that's playing
+function queueList(s, tabbed) { // what's playing and what's coming, only on the panel of the song that's playing, and on Now Playing under Up next
   const now = current();
   if (!now || now.id !== s.id || P.queue.length < 2) return null;
   const big = P.queue.length > 60, from = big ? Math.max(0, P.i - 1) : 0, to = big ? Math.min(P.queue.length, P.i + 40) : P.queue.length; // a whole library is too long to list
@@ -1928,7 +1930,8 @@ function queueList(s) { // what's playing and what's coming, only on the panel o
   }
   const tracks = el("div", { class: "tracks" }, rows);
   sortable(tracks, ".track", (row, before) => moveInQueue(+row.dataset.at, before ? +before.dataset.at : +tracks.lastElementChild.dataset.at + 1));
-  return [el("h3", { class: "queue-head" }, `${P.label && P.label !== "Shuffle" ? P.label : "Up next"} · ${plural(P.queue.length, "song")}`,
+  const named = P.label && P.label !== "Shuffle" ? P.label : ""; // under the Up next tab, the heading needn't say Up next again
+  return [el("h3", { class: `queue-head${tabbed ? " tabbed" : ""}` }, tabbed ? [named, plural(P.queue.length, "song")].filter(Boolean).join(" · ") : `${named || "Up next"} · ${plural(P.queue.length, "song")}`,
     P.i < P.queue.length - 1 ? el("button", { class: "linkish", type: "button", onclick: clearUpcoming }, "Clear what's next") : null),
   tracks];
 }
@@ -1942,6 +1945,17 @@ function recordList(s) { // the album this song is on, unless that's already wha
 const queueButtons = (ids) => [
   el("button", { class: "btn small", type: "button", onclick: () => enqueue(ids, true) }, icon("upnext", 14), "Play next"),
   el("button", { class: "btn small", type: "button", onclick: () => enqueue(ids) }, icon("listadd", 14), "Add to queue")];
+function songFacts(s) { // what's known about a song: in its panel, and on Now Playing under About this song
+  const genres = s.wide ? [s.genre].filter(Boolean) : [...new Set(genresOf(s))]; // the one on the file first, then the others Discogs lists for the record
+  const facts = [["Album", s.album], ["Year", s.year],
+    [genres.length > 1 ? "Genres" : "Genre", genres.flatMap((g, i) => [i ? ", " : "", el("a", { class: "fact-link", href: `#/songs?${q2({ genre: g })}`, title: g === s.genre ? "The genre on the file, and the folder it's in" : "Discogs lists this for the record too" }, g)])],
+    ["On this album", s.wide && (s.also || []).length ? s.also.join(", ") : ""], // a compilation's genres are the whole album's, not this song's
+    ["Label", s.label], ["Country", s.country], ["Length", clock(s.secs)],
+    ["Quality", [(/\.(flac|m4a|aac|ogg|opus|wav)$/i.exec(s.file) || [])[1]?.toUpperCase(), s.kbps ? `${s.kbps} kbps` : ""].filter(Boolean).join(" · ")], ["Size", `${(s.bytes / 1e6).toFixed(1)} MB`],
+    ["Where", s.area === "library" ? [S.meta.library, s.folder].filter(Boolean).join(" / ") : s.area === "review" ? ["Review", s.folder].filter(Boolean).join(" / ") : s.where],
+    ["File", s.file], ["Added", s.added ? s.added.replace("T", " ").slice(0, 16) : ""], ["Played", playedWords(s)], ["Local playlists", (S.meta.own_playlists || []).length ? (S.inOwn.get(s.id) || []).join(", ") || "None" : ""], ["Spotify playlists", (S.meta.my_playlists || []).length ? (S.inSpotify.get(s.id) || []).join(", ") || "None" : ""], ["Loudness", typeof s.lufs === "number" ? `${s.lufs.toFixed(1)} LUFS` : ""]];
+  return el("dl", { class: "facts-list" }, facts.filter(([, v]) => v && v.length !== 0).map(([k, v]) => [el("dt", {}, k), el("dd", k === "Played" ? { dataset: { plays: s.id } } : {}, k === "Album" || k === "Label" ? el("a", { class: "fact-link", href: `#/songs?${q2({ [k.toLowerCase()]: v })}` }, v) : v)]));
+}
 function paintPanel() {
   paintNowQueue();
   const s = drawerSong && S.byId.get(drawerSong), now = current();
@@ -1953,10 +1967,6 @@ function paintPanel() {
   }
   const isNow = now && now.id === s.id;
   const t = TRUST[s.trust] || TRUST.unknown;
-  const facts = [["Album", s.album], ["Year", s.year], ["Genre", s.genre], [s.wide ? "On this album" : "Also", (s.also || []).length ? (s.wide ? s.also.join(", ") : s.also.flatMap((g, i) => [i ? ", " : "", el("a", { class: "fact-link", href: `#/songs?${q2({ genre: g })}` }, g)])) : ""], ["Label", s.label], ["Country", s.country], ["Length", clock(s.secs)],
-    ["Quality", [(/\.(flac|m4a|aac|ogg|opus|wav)$/i.exec(s.file) || [])[1]?.toUpperCase(), s.kbps ? `${s.kbps} kbps` : ""].filter(Boolean).join(" · ")], ["Size", `${(s.bytes / 1e6).toFixed(1)} MB`],
-    ["Where", s.area === "library" ? [S.meta.library, s.folder].filter(Boolean).join(" / ") : s.area === "review" ? ["Review", s.folder].filter(Boolean).join(" / ") : s.where],
-    ["File", s.file], ["Added", s.added ? s.added.replace("T", " ").slice(0, 16) : ""], ["Played", playedWords(s)], ["Local playlists", (S.meta.own_playlists || []).length ? (S.inOwn.get(s.id) || []).join(", ") || "None" : ""], ["Spotify playlists", (S.meta.my_playlists || []).length ? (S.inSpotify.get(s.id) || []).join(", ") || "None" : ""], ["Loudness", typeof s.lufs === "number" ? `${s.lufs.toFixed(1)} LUFS` : ""]].filter(([, v]) => v);
   const linkName = sourceName(s.link);
   const shop = shopLink(s), flagBox = el("div");
   const paint = () => {
@@ -1984,8 +1994,7 @@ function paintPanel() {
       favButton(s), listButton([s.id], songName(s) || s.file), spotifyButton(s), radioButton(s),
       s.link ? el("a", { class: "btn small", href: s.link, target: "_blank", rel: "noreferrer noopener" }, icon("link", 14), linkName) : null,
       shop ? el("a", { class: "btn small", href: shop.href, target: "_blank", rel: "noreferrer noopener" }, icon(shop.icon, 14), shop.label) : null),
-    queueList(s), recordList(s),
-    el("dl", { class: "facts-list" }, facts.map(([k, v]) => [el("dt", {}, k), el("dd", k === "Played" ? { dataset: { plays: s.id } } : {}, k === "Album" || k === "Label" ? el("a", { class: "fact-link", href: `#/songs?${q2({ [k.toLowerCase()]: v })}` }, v) : v)])),
+    queueList(s), recordList(s), songFacts(s),
     s.area === "library" ? [el("h3", {}, "How sure"), el("div", { class: "box" }, trustTag(s), el("div", { class: "note" }, t.long), s.notes ? el("div", { class: "item-why" }, s.notes) : null)] : null,
     s.was && s.was !== s.file ? [el("h3", {}, "Your file was called"), el("div", { class: "box" }, s.was)] : null,
     checks.length ? [el("h3", {}, "To check"), checks.map((c) => el("div", { class: "box" }, el("strong", {}, KINDS[c.kind].label), el("div", { class: "item-why" }, c.why), doubleLines(s, c, true), alreadyIn(c), recordLine(c), audioLine(c), spotifyLine(c), betterLine(c),
@@ -2002,12 +2011,21 @@ let beforeNow = "#/", openNext = ""; // openNext is a song for the panel once th
 const onNowPage = () => location.hash.replace(/^#\/?/, "").split("?")[0] === "now";
 function openNow() { if (!onNowPage()) { beforeNow = location.hash || "#/"; location.hash = "#/now"; } }
 const closeNow = () => { location.hash = beforeNow; };
+/* Now Playing's side: what's coming up, or more about the song, or nothing at all so the record has the page. Remembered in the browser. */
 function paintNowQueue() { // on its own, so changing the queue doesn't pull the record back into its sleeve
   const box = $("#now-queue"), s = current();
   if (!box) return;
-  box.replaceChildren(...[(s && queueList(s)) || el("p", { class: "note" }, "Nothing after this song.")].flat().filter(Boolean));
+  const hidden = store("curator-now-hidden") === "1", about = store("curator-now-side") === "about", page = box.closest(".now-page");
+  if (page) page.classList.toggle("side-off", hidden);
+  const set = (key, value) => { store(key, value); paintNowQueue(); };
+  if (hidden) return box.replaceChildren(el("button", { class: "btn small now-side-show", type: "button", title: "Show Up next and About this song again", onclick: () => set("curator-now-hidden", "") }, icon(about ? "tag" : "upnext", 14), about ? "About this song" : "Up next"));
+  const tab = (on, label, value) => el("button", { class: `pill${on ? " on" : ""}`, type: "button", "aria-pressed": String(on), onclick: () => set("curator-now-side", value) }, label);
+  const body = !s ? [] : about ? el("div", { class: "now-about-song" }, songFacts(s), s.area === "library" ? el("div", { class: "now-sure" }, trustTag(s), el("span", { class: "note" }, (TRUST[s.trust] || TRUST.unknown).long)) : null, recordList(s))
+    : queueList(s, true) || el("p", { class: "note" }, "Nothing after this song.");
+  box.replaceChildren(el("div", { class: "now-side-head" }, el("div", { class: "pills now-side-tabs", role: "group", "aria-label": "Show" }, tab(!about, "Up next", ""), tab(about, "About this song", "about")),
+    el("button", { class: "icon-btn now-side-hide", type: "button", title: "Hide this side", "aria-label": "Hide this side", onclick: () => set("curator-now-hidden", "1") }, icon("x", 16))), ...[body].flat().filter(Boolean));
   const on = box.querySelector(".track.on");
-  if (on) on.parentElement.scrollTop = on.offsetTop - on.parentElement.offsetTop - 8;
+  if (on && !about) on.parentElement.scrollTop = on.offsetTop - on.parentElement.offsetTop - 8;
 }
 function pageNow() {
   const s = current(), close = el("button", { class: "icon-btn now-close", type: "button", title: "Close (Esc)", "aria-label": "Close Now Playing", onclick: closeNow }, icon("chevron", 22));

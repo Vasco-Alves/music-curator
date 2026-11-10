@@ -106,6 +106,7 @@ main > * { max-width: 1240px; margin-inline: auto; }
 .btn.primary:hover { filter: brightness(1.06); }
 .btn.small { padding: 4px 10px; font-size: 13px; font-weight: 550; }
 .section { margin: 30px 0 12px; }
+.section-note { margin: -6px 0 14px; }
 .facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .fact { display: block; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px 15px; min-width: 0; }
 a.fact:hover { background: var(--surface-2); }
@@ -334,6 +335,16 @@ body.now-view .shell, body.now-view.drawer-open:not(.setup) .shell { grid-templa
 .now-info .actions { justify-content: center; margin-top: 14px; }
 .now-queue { align-self: stretch; display: flex; flex-direction: column; min-height: 0; padding-top: 6px; }
 .now-queue .tracks { flex: 1; max-height: none; min-height: 0; }
+.now-side-head { display: flex; align-items: center; gap: 8px; }
+.now-side-tabs { flex: 1; margin: 0 0 4px; }
+.now-side-hide { flex: none; width: 30px; height: 30px; }
+.queue-head.tabbed { margin: 8px 0 6px; font-size: 13.5px; color: var(--ink-2); }
+.now-about-song { flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.now-about-song .facts-list { grid-template-columns: 116px minmax(0, 1fr); margin-top: 10px; }
+.now-sure { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 16px; }
+body.fx-on .now-about-song { padding: 2px 12px 12px; border-radius: 12px; background: rgba(8, 9, 12, .62); }
+.now-page.side-off { grid-template-columns: minmax(0, 1fr); } /* the side folded away: the record has the page, and a button at the edge brings the side back */
+.now-page.side-off .now-queue { position: absolute; top: 50%; right: 0; padding: 0; transform: translateY(-50%); }
 .now-nothing { grid-template-columns: minmax(0, 1fr); justify-items: center; align-content: center; text-align: center; }
 #np-cover { transition: transform .15s; }
 .np.ready #np-cover:hover { transform: scale(1.06); }
@@ -342,6 +353,7 @@ body.now-view .shell, body.now-view.drawer-open:not(.setup) .shell { grid-templa
   .now-stage .sleeve { width: min(40vh, 56vw); }
   .now-queue { padding-top: 0; }
   .now-queue .tracks { max-height: 320px; }
+  .now-page.side-off .now-queue { position: static; align-self: center; transform: none; }
 }
 .pick-form { display: flex; flex-direction: column; gap: 8px; width: 100%; margin-top: 2px; }
 .pick-form input[type="search"] { padding: 5px 9px; }
