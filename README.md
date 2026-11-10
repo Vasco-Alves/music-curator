@@ -11,19 +11,81 @@ changed in place, and every change is logged.
 Built for people who keep their own files — vinyl-era electronic music, rips, rare tracks — and play them in
 Spotify (local files), Plex, Navidrome, foobar2000, a phone, …
 
-> Status: early (0.1). The workflow was developed on a real library of 90s acid/trance. Only Windows has been tried so far.
+> Status: early (0.1). The workflow was developed on a real library of 90s acid/trance. Only Windows has had real use so far; the tests pass on macOS and Linux too.
 
-![The library overview, with a song open in the side panel](docs/img/overview.jpg)
+![The library overview, with a song open in the side panel](https://raw.githubusercontent.com/Vasco-Alves/music-curator/main/docs/img/overview.jpg)
 
 <sub>The screenshots show a made-up library.</sub>
 
-## Get started
+## Try it
 
-There are two ways to use it, and you can mix them:
+No programming needed: three commands, about ten minutes.
+
+1. **Install uv**, a small free tool that installs Python apps, and Python itself if you don't have it. Open a terminal
+   (on Windows, PowerShell from the Start menu) and paste the line for your computer:
+
+   Windows:
+
+   ```powershell
+   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+   ```
+
+   macOS and Linux:
+
+   ```bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```
+
+   Then close the terminal and open a new one.
+
+2. **Install Pressling:**
+
+   ```
+   uv tool install music-curator
+   ```
+
+   If uv says it can't find it, it isn't on PyPI yet, so get it straight from GitHub instead:
+   `uv tool install "music-curator @ https://github.com/Vasco-Alves/music-curator/archive/refs/heads/main.zip"`.
+   To update a copy installed that way, run the same line with `--reinstall` added after `install`.
+
+3. **Start it:**
+
+   ```
+   curator serve
+   ```
+
+   Your browser opens. Pick the folder your music is in, and it plays your music straight away (a downloads folder is
+   optional, for the Curator). Keep the terminal open while you use it. If it says `curator` isn't found, run `uv tool update-shell`
+   and open a new terminal.
+
+Next time, only step 3. `uv tool upgrade music-curator` gets the newest version, and `uv tool uninstall music-curator`
+removes it. Your music and settings stay where they are.
+
+It's a music player first. The **Curator**, which looks up new downloads and files them into your library, and **Spotify**
+are extras: they're on once you give them what they need, and **Settings → Extras** turns either off again (that only hides
+it). **To let it curate**, tick Curator under Settings → Extras, pick a downloads folder further down the same page, and
+give it two more things:
+
+- **ffmpeg**, to check that each song plays all the way through and to draw its waveform: `winget install Gyan.FFmpeg`
+  on Windows, `brew install ffmpeg` on macOS, `sudo apt install ffmpeg` on Debian and Ubuntu.
+- **A free Discogs token**, for the lookups. Sign in at <https://www.discogs.com/settings/developers>, press
+  **Generate new token** and copy it. On Windows, save it with this command, then reload the page:
+
+  ```powershell
+  setx DISCOGS_TOKEN "paste your token here"
+  ```
+
+  On macOS and Linux, see [Your Discogs token](#your-discogs-token).
+
+`curator doctor` says what's still missing.
+
+## Two ways to use it
+
+You can mix them:
 
 - **On its own.** Press **Curate** on the page. The app looks up each song and adds the ones it's sure of, and you settle the rest by ear.
   Then **Double-check** what it added, if you like: listen, look over what it wrote, and say whether it's right.
-  See [Set it up by hand](#set-it-up-by-hand) and [Curate with no AI](#curate-with-no-ai).
+  See [Try it](#try-it) and [Curate with no AI](#curate-with-no-ai).
 - **With an AI app** that can run commands on your computer, such as Claude Code, Codex, Cursor or Gemini CLI. It does the hard
   cases too, and it can do the whole setup for you:
 
@@ -67,7 +129,7 @@ inbox files ──parse──▶ items.json ──resolve──▶ ready / revie
 ```
 
 The Curate button runs the plain version of these steps by itself. An AI agent runs all of them and talks to you; see
-[AGENTS.md](AGENTS.md) for the full workflow it follows. You can also run every step by hand.
+[AGENTS.md](https://github.com/Vasco-Alves/music-curator/blob/main/AGENTS.md) for the full workflow it follows. You can also run every step by hand.
 
 ## Requirements
 
@@ -79,9 +141,10 @@ The Curate button runs the plain version of these steps by itself. An AI agent r
 
 It curates MP3, FLAC and M4A files. Each stays the type of file it is, and the audio is copied as it is, never re-encoded. Other formats still show up and play on the page, but they're skipped when curating.
 
-## Set it up by hand
+## Install from the source code
 
-Install it into a virtual environment: a private copy of Python just for this app, so nothing else on your computer changes.
+For changing the code, or if you'd rather not use uv. Install it into a virtual environment: a private copy of Python just for
+this app, so nothing else on your computer changes.
 (On recent Linux, and with Homebrew's Python on macOS, a plain `pip install` is refused anyway.) In this repository's folder:
 
 Windows:
@@ -155,30 +218,31 @@ do: reading odd names, settling versions from the audio, checking other sources,
 
 `curator serve` opens a small local page (127.0.0.1 only, nothing to install):
 
-![To check: songs waiting for your ears, with the versions found](docs/img/check.jpg)
+![To check: songs waiting for your ears, with the versions found](https://raw.githubusercontent.com/Vasco-Alves/music-curator/main/docs/img/check.jpg)
 
 - **Overview**: a wall of your covers, what you added last, your peak years, top genres, artists, labels and countries. Once you've played a few songs it also shows what you listen to most. A song counts as played once you've heard half of it, or 4 minutes if that comes first.
 - **Songs**: search and filter everything, play it, see how each song was verified and what the file used to be called, and jump to its Discogs page to check it or buy the record. **Export** takes whatever you've filtered: an M3U playlist, a spreadsheet, or copies in a folder or on a USB drive, with a playlist that goes along with them, for your phone, car or another player.
 - **Artists**, **Albums** and **Labels**: browse your library by cover, play a whole record, and click through to its songs.
 - **Playlists**: make your own, add songs to them from anywhere in the app and drag them into the order you want, or **Import** `.m3u` and `.m3u8` files from another player. Each line of a file is matched to a song you already have, and you're told which ones it couldn't find. Once you've pressed Check Spotify, your Spotify playlists play here too, as far as you have the songs as files. Each song's details say which of them it's on, and the Songs page can show just the songs that are on none. Streamed songs you don't have are left out. **Save as files** writes them all as `.m3u8` playlists that other players can open.
-- **Now Playing**: click the cover in the play bar for the big view. Beside the record is what's up next, which you can drag into another order, or **About this song** with everything known about it; the x folds that side away and leaves the record the whole page. The seek bar shows the shape of the song, so you can jump straight to a breakdown or a drop.
+- **Now Playing**: click the cover in the play bar for the big view. Beside the record is what's up next, which you can drag into another order, or **About this song** with everything known about it; the x folds that side away and leaves the record the whole page. A song that came out on CD shows as a CD in its case,
+read by a laser that moves out from the middle as the song plays, instead of a record and its tonearm. The seek bar shows the shape of the song, so you can jump straight to a breakdown or a drop.
 - **Crossfade**: a button on the play bar blends each song into the next over 3, 6 or 10 seconds. It leaves songs from the same record alone, since they may run into each other on purpose.
-- **Effects**: pictures made from the sound on Now Playing, in the colors of the record: Ribbon, Bars, Trails, Stars, Halo and Space, each with its own list of styles, from LEDs and an oscilloscope to fireworks, and sliders under **Adjust** for each one, with 100% as the default. Space is a flight past nebulas, galaxies, planets and black holes that changes course on the beat, with shooting stars on the hi-hats. Visitors come by in any of them now and then (saucers, jellyfish, a face peeking up, an astronaut, a cow) and stay when the picture changes, and one effect turns into the next in a fade, a spin, a melt or like an old TV switching off. **Morph** makes that happen by itself every minute or so, into any style of any effect, best of all when the beat comes back after a break. **V** picks the next one and **F** shows just the picture, with the controls coming back when you move the mouse. **All pages** keeps it going faintly behind the rest of the app.
+- **Effects**: pictures made from the sound on Now Playing, in the colors of the record: Ribbon, Bars, Trails, Stars, Halo and Space, each with its own list of styles, from LEDs and an oscilloscope to fireworks, and sliders under **Adjust** for each one, with 100% as the default. Space is a flight past nebulas, galaxies, planets and black holes that changes course on the beat, with shooting stars on the hi-hats. Visitors come by in any of them now and then (saucers, jellyfish, a face peeking up, an astronaut, a cow) and stay when the picture changes, and one effect turns into the next in a fade, a spin, a melt or like an old TV switching off. **Morph** makes that happen by itself every minute or so, into any style of any effect, best of all when the beat comes back after a break. **V** picks the next one and **F** shows just the picture, with the controls coming back when you move the mouse. **All pages** keeps it going faintly behind the rest of the app. The pictures follow how the song goes, too: a calm part slows them down, a build sends sparks up faster and faster, and the drop lands with a flash and a wave. The glow and flash on the app get softer or harder with it, and the play button jumps when the beat comes back.
 - **Your color**: Settings changes the green of the buttons to another color, or to the strongest color on the record that's playing.
 - **Favourites**: the heart on the play bar, Now Playing, the song panel and song rows adds to a local playlist called Favourites, which sits first on the Playlists page and works like any other.
 - **More than one genre**: a file keeps the one genre you settled on, but the app also shows every style Discogs lists for its record, after the file's own (Genres: Acid, Acid House, Techno), and finds the song under any of them. On a compilation those are the whole album's, so they're only shown, on a line of their own. Kept in `styles.json` next to the log; Curate fills it in.
 - **Glow, Flash and Sparkle**: separate switches, on the play bar and on Now Playing. Glow makes the buttons light up softly on each kick, and Flash does the same to the background. Sparkle follows the hi-hats instead: the dots in the clock tick and now and then a glint catches the record or the play button. All three are off until you turn them on.
 - **On your phone**: `curator serve --lan` also opens the app on your home network and prints a private link. Open it once on the phone and it remembers. Only devices on that network with the link get in, and choosing folders, copying files and Spotify sign-in stay on the computer. It's plain HTTP, so keep it to a network you trust.
 - **Packs**: under Settings you can export how you've set the app up as a small file, and import someone else's: jokes, road signs, which genre gets which mood, sliders and surprises. A pack only holds words, numbers and colors, so it can't run anything. See `examples/example.curator-pack.json` to write one by hand.
-- **Surprises**: now and then the app nods along to the kick, and once in a while it dances. Visitors drop by the app itself too: a saucer borrows a cover and gives it back, a face peeks over the play bar, a cow gets taken from it, a little one hangs on a thread from the top. Settings says how often, how strong and how long, or turns them off, and the nodding can stay on all the time.
-- **Mood**: the background and the way a kick lands change a little with the genre of what's playing: softer for trance, yellow for acid, darker and quicker for hardcore. Settings turns it off.
+- **Surprises**: now and then the app nods along to the kick, and once in a while it dances. Visitors drop by the app itself too: a saucer borrows a cover and gives it back, a face peeks over the play bar, a cow gets taken from it, a little one hangs on a thread from the top. On acid the smileys come out, and now and then one trips: it sticks its tongue out, melts and drips, or runs through the rainbow. Settings says how often, how strong and how long, or turns them off, and the nodding can stay on all the time.
+- **Mood**: the background and the way a kick lands change a little with the genre of what's playing: softer for trance, yellow for acid, darker and quicker for hardcore, and for goa and psytrance every color at once, slowly going round, with each kick landing in the next one. Who visits follows the mood too: on psytrance a great eye opens and looks about, kaleidoscope flowers bloom, and toadstools hop across to the kick. Settings turns it off.
 - **White labels and stickers**: a song with no verified cover shows as a blank promo record with its name stamped on it. Sleeves carry small stickers for what the curator knows: a seal when every song on the record is verified, a yellow label when something waits for you on To check, and an orange one when a better copy may exist.
 - **Radio**: Start radio on any song and it keeps playing others like it from your library, going by genre, label, year, artist and the playlists they share. Clear what's next to stop it.
 - **Even volume**: a button on the play bar that turns loud songs down to match the rest. It never raises a song, because nearly every file already reaches full scale and raising it would distort it, so quieter songs stay as they are. Each song is measured with ffmpeg the first time it's needed, and the file isn't changed.
 - **To check**: the questions only ears can answer (genre toss-ups, songs that couldn't be verified), with the audio right there. **Quick mode** takes them one at a time: press a number to answer and the next song starts. **Double-check** has the songs Curate added with nobody checking, for you to confirm or take back out (see [Curate with no AI](#curate-with-no-ai)).
 - **Progress**: what's waiting in the inbox, how sure each song is, library growth, latest changes.
 
-![Progress: how sure each song is, library growth, what's left to check](docs/img/progress.jpg)
+![Progress: how sure each song is, library growth, what's left to check](https://raw.githubusercontent.com/Vasco-Alves/music-curator/main/docs/img/progress.jpg)
 
 The first time it asks where your library and downloads live, and you can change them later under Settings. Picking a
 folder never moves any music. The app keeps its log, answers and cache in a `_curation` folder next to the library, and its
@@ -238,14 +302,14 @@ client_id = "your client id"
 ## Your rules
 
 The defaults follow one person's taste; change them in `curator.toml` (`[rules]`) and
-[docs/RULES.md](docs/RULES.md): filename pattern, folder layout, artist joiner, album for singles, keeping your
+[docs/RULES.md](https://github.com/Vasco-Alves/music-curator/blob/main/docs/RULES.md): filename pattern, folder layout, artist joiner, album for singles, keeping your
 existing genres, game/TV soundtrack folders.
 
 ## Using it with AI agents
 
-- **Any agent:** point it at [AGENTS.md](AGENTS.md).
+- **Any agent:** point it at [AGENTS.md](https://github.com/Vasco-Alves/music-curator/blob/main/AGENTS.md).
 - **An app with its own browser**, like the Claude desktop app: open the page right beside the chat, so you and the agent are looking at the same thing. This is the best way to use the two together.
-- **Claude Code:** [CLAUDE.md](CLAUDE.md) imports AGENTS.md; a skill is in [skills/music-curator](skills/music-curator).
+- **Claude Code:** [CLAUDE.md](https://github.com/Vasco-Alves/music-curator/blob/main/CLAUDE.md) imports AGENTS.md; a skill is in [skills/music-curator](https://github.com/Vasco-Alves/music-curator/tree/main/skills/music-curator).
 
 ## Notes and limits
 
@@ -260,4 +324,4 @@ existing genres, game/TV soundtrack folders.
 
 ## License
 
-[MIT](LICENSE). Data from Discogs, MusicBrainz and Spotify stays under their own terms.
+[MIT](https://github.com/Vasco-Alves/music-curator/blob/main/LICENSE). Data from Discogs, MusicBrainz and Spotify stays under their own terms.

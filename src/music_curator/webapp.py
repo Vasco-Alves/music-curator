@@ -32,7 +32,7 @@ STATIC = {"/": ("index.html", "text/html; charset=utf-8"), "/style.css": ("style
 CSP = ("default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; media-src 'self'; "
        "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 LAN_COOKIE = "curator_lan"
-PC_ONLY = {"/api/settings", "/api/settings/compare", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/spotify/send", "/api/export/copy", "/api/export/playlists"}  # choosing folders, writing files elsewhere and signing in to Spotify all happen on the computer
+PC_ONLY = {"/api/settings", "/api/settings/compare", "/api/settings/extras", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/spotify/send", "/api/export/copy", "/api/export/playlists"}  # choosing folders, writing files elsewhere and signing in to Spotify all happen on the computer
 ACTIONS = {"keep", "genre", "identify", "drop", "recheck", "better", "cover", "flag", "add", "added", "pick", "stream", "wrong"}
 WORDS = dict(keep="keep as it is", genre="change the genre", identify="identify it", drop="not worth keeping",
              recheck="look at it again", better="find a better copy", cover="find a cover", flag="flagged", add="add it to a playlist", added="added to a playlist",
@@ -239,6 +239,32 @@ def discogs_index(cache_dir):
         except (AttributeError, TypeError, KeyError, IndexError):  # one odd saved answer is simply skipped
             continue
     return releases, masters
+
+
+EXTRAS = ("curator", "spotify")
+
+
+def extras_state(collection):
+    """Which extras are on. The app is a music player; the Curator (looking up downloads, To check, Progress) and Spotify are extras.
+    A choice made in Settings stands. Until there is one, the Curator is on when there's a downloads folder or a log to go on, and
+    Spotify when it's been set up or checked before."""
+    saved = config.cfg().get("extras")
+    saved = saved if isinstance(saved, dict) else {}
+    auto = dict(curator=bool(collection.paths.get("inbox") or collection.log_rows), spotify=bool(config.get("spotify", "client_id") or collection.saved_lists))
+    return {k: saved[k] if isinstance(saved.get(k), bool) else auto[k] for k in EXTRAS}
+
+
+def save_extras(body):
+    """Turn extras on or off: {"curator": true, "spotify": false}, either or both. Returns an error, or None once it's saved."""
+    changes = {k: body[k] for k in EXTRAS if k in body}
+    if not changes or set(body) - set(EXTRAS) or any(not isinstance(v, bool) for v in changes.values()):
+        return "bad request"
+    try:
+        config.save_table(config.target_path(), "extras", changes)
+        config.load(config.target_path())
+    except (OSError, ValueError) as ex:
+        return f"Couldn't save that: {ex}"
+    return None
 
 
 class Collection:
@@ -699,7 +725,7 @@ class Collection:
             from . import own_playlists, spotify  # here because they need this module loaded first
             return dict(songs=songs, decisions=self.decisions, progress=self.progress(),
                         meta=dict(library=os.path.basename(os.path.normpath(self.paths["library"])), spotify=spotify.status(self.paths),
-                                  has_log=bool(self.log_rows), has_review=bool(self.paths["review"]), playlists=self.ideas_names, my_playlists=spotify.playable(self.songs.values(), self.saved_lists), own_playlists=own_playlists.listed(self),
+                                  has_log=bool(self.log_rows), has_review=bool(self.paths["review"]), playlists=self.ideas_names, my_playlists=spotify.playable(self.songs.values(), self.saved_lists), own_playlists=own_playlists.listed(self), extras=extras_state(self),
                                   decisions_file=os.path.basename(self.paths["decisions"])))
 
     def decide(self, body):
@@ -992,7 +1018,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self._let_in():
             return None
         route = self._route()
-        if route not in ("/api/decision", "/api/played", "/api/verified", "/api/settings", "/api/settings/compare", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/spotify/send", "/api/curate", "/api/curate/stop", "/api/export/list", "/api/export/copy", "/api/export/stop", "/api/export/playlists",
+        if route not in ("/api/decision", "/api/played", "/api/verified", "/api/settings", "/api/settings/compare", "/api/settings/extras", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/spotify/send", "/api/curate", "/api/curate/stop", "/api/export/list", "/api/export/copy", "/api/export/stop", "/api/export/playlists",
                          "/api/playlists/new", "/api/playlists/add", "/api/playlists/remove", "/api/playlists/move", "/api/playlists/rename", "/api/playlists/delete", "/api/playlists/import"):
             return self._reply(404, b"Not found")
         if self.server.lan and route in PC_ONLY and not self._on_this_computer():
@@ -1049,6 +1075,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
             from . import curate
             answer = curate.set_compare(self.server, body.get("on"))
             return self._json(answer, 400 if answer.get("error") else 200)
+        if route == "/api/settings/extras":
+            with self.server.settings_lock:
+                problem = save_extras(body)
+            return self._json(dict(error=problem), 400) if problem else self._json(dict(extras=extras_state(self.server.collection)))
         if route in ("/api/curate", "/api/curate/stop"):
             from . import curate
             answer = curate.start(self.server, body.get("set_aside") is True) if route == "/api/curate" else curate.stop(self.server)

@@ -182,6 +182,33 @@ body.gentle .sleeve.now .disc-label { animation: none; }
 .shelf:hover .disc { visibility: visible; transform: translateX(18%); box-shadow: 0 5px 16px rgba(0, 0, 0, .6), inset 0 0 0 1px rgba(255, 255, 255, .24); }
 .disc-label.blank { background: radial-gradient(circle at 42% 32%, #fbf8ef, #e6e0cf); }
 
+/* ---------- a CD in its jewel case: the shiny side slides out, its rainbow stays where the light is while it spins, and a laser reads it from the middle out ---------- */
+.disc.cd {
+  left: 7%; top: 7%; width: 86%;
+  background:
+    conic-gradient(from 205deg, rgba(255, 60, 170, 0), rgba(255, 70, 170, .26) 5%, rgba(255, 225, 70, .3) 9%, rgba(70, 255, 170, .26) 13%, rgba(70, 160, 255, .3) 17%, rgba(185, 95, 255, .22) 21%, rgba(255, 60, 170, 0) 26% 50%,
+      rgba(255, 70, 170, .22) 55%, rgba(255, 225, 70, .26) 59%, rgba(70, 255, 170, .22) 63%, rgba(70, 160, 255, .26) 67%, rgba(185, 95, 255, .18) 71%, rgba(255, 60, 170, 0) 76%),
+    radial-gradient(circle closest-side, #eef1f5 0 40%, #c7cdd6 56%, #e6e9ee 78%, #b3bac4 96%, #8d949e 100%);
+  box-shadow: 0 5px 16px rgba(0, 0, 0, .45), inset 0 0 0 1px rgba(255, 255, 255, .55);
+}
+.disc.cd .disc-label { inset: 31%; box-shadow: none; background: radial-gradient(circle closest-side, rgba(6, 8, 10, .9) 0 31%, rgba(255, 255, 255, .6) 33% 35%, rgba(225, 232, 242, .26) 37% 70%, rgba(255, 255, 255, .5) 73% 96%, rgba(140, 148, 160, .9) 99%); } /* the hole, the clear hub, the mirror band */
+.disc.cd .disc-label::after { display: none; }
+.disc.cd .disc-label::before { content: ""; position: absolute; inset: 22%; border-radius: 50%; border: 1.5px solid transparent; border-top-color: rgba(255, 255, 255, .75); border-right-color: rgba(255, 255, 255, .25); } /* a ring moulded in the hub, so you can see it turn */
+.sleeve.now .disc.cd .disc-label { animation-duration: .75s; } /* far quicker than 33⅓ */
+.sleeve.cd .cover { border-radius: 3px; }
+.sleeve.cd .cover::after { border-radius: 3px; background: linear-gradient(115deg, rgba(255, 255, 255, .32), rgba(255, 255, 255, .05) 34%, rgba(255, 255, 255, 0) 52%, rgba(255, 255, 255, .08) 82%); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .4), inset 0 0 0 4px rgba(255, 255, 255, .06); } /* clear plastic over the cover */
+.case-hinge { position: absolute; z-index: 2; left: 0; top: 0; bottom: 0; width: 7%; border-radius: 3px 0 0 3px; pointer-events: none;
+  background: linear-gradient(90deg, rgba(255, 255, 255, .34), rgba(255, 255, 255, .08) 45%, rgba(0, 0, 0, .3) 62%, rgba(255, 255, 255, .16)), repeating-linear-gradient(180deg, rgba(255, 255, 255, .16) 0 2px, rgba(255, 255, 255, 0) 2px 7px);
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, .3), 1px 0 0 rgba(0, 0, 0, .25); }
+.laser { position: absolute; inset: 0; pointer-events: none; --reach: 0; }
+.laser-rail { position: absolute; left: 62%; right: -3%; top: 47.8%; height: 4.4%; border-radius: 999px; background: linear-gradient(180deg, rgba(48, 52, 60, .94), rgba(14, 16, 20, .96)); box-shadow: 0 2px 6px rgba(0, 0, 0, .5), inset 0 1px 0 rgba(255, 255, 255, .25); }
+.laser-sled { position: absolute; top: 45.5%; left: calc(64.5% + var(--reach) * 28.5%); width: 9%; height: 9%; border-radius: 22%; pointer-events: auto; cursor: pointer; transition: left .6s linear;
+  background: linear-gradient(180deg, #4d535e, #22262d); box-shadow: 0 3px 8px rgba(0, 0, 0, .55), inset 0 1px 0 rgba(255, 255, 255, .35); }
+.laser-lens { position: absolute; inset: 26%; border-radius: 50%; background: radial-gradient(circle, #ffd6d6 0 16%, #ff3046 42%, #7a0010 78%); box-shadow: 0 0 0 1px rgba(0, 0, 0, .6); opacity: .45; transition: opacity .3s, box-shadow .3s; }
+body.is-playing .laser-lens { opacity: 1; box-shadow: 0 0 0 1px rgba(0, 0, 0, .6), 0 0 10px 3px rgba(255, 40, 60, .55); animation: laser-read 1.6s ease-in-out infinite; }
+body.gentle .laser-lens { animation: none; }
+@keyframes laser-read { 50% { box-shadow: 0 0 0 1px rgba(0, 0, 0, .6), 0 0 15px 5px rgba(255, 40, 60, .75); } }
+
 /* ---------- the other panes are the same glass as the deck ---------- */
 .rail, .drawer { background: var(--streaks), var(--panel-light), var(--glass); box-shadow: var(--deck-edge), var(--glass-shadow); }
 body.drawer-open .drawer { box-shadow: var(--deck-edge), var(--glass-shadow); }
@@ -286,7 +313,7 @@ body.drawer-open .drawer { box-shadow: var(--deck-edge), var(--glass-shadow); }
 
 /* ---------- the mood of what's playing: a little more light for trance, yellow for acid, darker for hardcore. It only touches the background: the page stays as it is ---------- */
 .vibe { position: absolute; inset: 0; opacity: 0; transition: opacity 1.8s ease; }
-body[data-vibe="euphoric"] .vibe-euphoric, body[data-vibe="acid"] .vibe-acid, body[data-vibe="hard"] .vibe-hard { opacity: var(--mood, .6); } /* Settings, under Mood: the colours below are as strong as it can go */
+body[data-vibe="euphoric"] .vibe-euphoric, body[data-vibe="acid"] .vibe-acid, body[data-vibe="hard"] .vibe-hard, body[data-vibe="psy"] .vibe-psy { opacity: var(--mood, .6); } /* Settings, under Mood: the colours below are as strong as it can go */
 .vibe-euphoric { background: radial-gradient(90% 60% at 50% -6%, rgba(255, 255, 255, .45), transparent 70%), radial-gradient(60% 50% at 14% 100%, rgba(140, 200, 255, .23), transparent 70%), radial-gradient(50% 45% at 90% 92%, rgba(255, 170, 230, .18), transparent 70%); }
 .vibe-acid { background: radial-gradient(75% 62% at 50% 102%, rgba(228, 238, 40, .47), transparent 72%), radial-gradient(45% 40% at 92% 8%, rgba(190, 240, 40, .23), transparent 70%); }
 .vibe-hard { background: radial-gradient(62% 44% at 50% 106%, rgba(232, 40, 30, .6), transparent 72%), radial-gradient(120% 90% at 50% 50%, transparent 38%, rgba(0, 0, 0, .92) 100%), rgba(0, 0, 0, .33); }
@@ -294,6 +321,15 @@ body[data-vibe="euphoric"] .vibe-euphoric, body[data-vibe="acid"] .vibe-acid, bo
 :root[data-theme="light"] .vibe-hard { background: radial-gradient(120% 90% at 50% 50%, transparent 40%, rgba(50, 20, 30, .37) 100%), radial-gradient(62% 40% at 50% 106%, rgba(222, 40, 30, .27), transparent 72%); }
 body[data-vibe="acid"].is-playing:not(.gentle) .play-btn { animation: acid-wobble 2.3s ease-in-out infinite; }
 @keyframes acid-wobble { 0%, 100% { filter: hue-rotate(0deg) brightness(1); } 30% { filter: hue-rotate(-9deg) brightness(1.08); } 65% { filter: hue-rotate(11deg) brightness(.96); } }
+/* psychedelic, for goa and psytrance: light of every color rising from below and pouring in from above, slowly going round the wheel, and the orb with it */
+.vibe-psy { background: conic-gradient(from 210deg at 50% 118%, rgba(255, 60, 200, .34), rgba(120, 80, 255, .3), rgba(40, 200, 255, .28), rgba(40, 255, 160, .26), rgba(255, 230, 60, .26), rgba(255, 110, 60, .3), rgba(255, 60, 200, .34)),
+  radial-gradient(70% 55% at 50% -4%, rgba(150, 60, 255, .38), transparent 72%), radial-gradient(40% 36% at 8% 50%, rgba(40, 255, 200, .16), transparent 70%), radial-gradient(40% 36% at 92% 50%, rgba(255, 60, 160, .16), transparent 70%);
+  animation: psy-turn 48s linear infinite; }
+:root[data-theme="light"] .vibe-psy { background: conic-gradient(from 210deg at 50% 118%, rgba(255, 60, 200, .2), rgba(120, 80, 255, .18), rgba(40, 200, 255, .16), rgba(40, 255, 160, .16), rgba(255, 230, 60, .18), rgba(255, 110, 60, .18), rgba(255, 60, 200, .2)), radial-gradient(70% 55% at 50% -4%, rgba(150, 60, 255, .2), transparent 72%); }
+body.gentle .vibe-psy { animation: none; } /* a slow machine can't afford the whole window changing color */
+@keyframes psy-turn { to { filter: hue-rotate(360deg); } }
+body[data-vibe="psy"].is-playing:not(.gentle) .play-btn { animation: psy-orb 9s linear infinite; }
+@keyframes psy-orb { to { filter: hue-rotate(360deg); } }
 .vibe-note { margin-top: 10px; }
 
 /* ---------- a few small surprises ---------- */
@@ -301,6 +337,8 @@ body[data-vibe="acid"].is-playing:not(.gentle) .play-btn { animation: acid-wobbl
 @keyframes flicker-303 { 0%, 22%, 48%, 74% { opacity: 1; } 11%, 35%, 61% { opacity: .25; } }
 .sticker.gold { position: absolute; left: 5%; top: 5%; z-index: 1; display: block; width: clamp(18px, 12cqw, 36px); aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #6d5213 0 8%, #f7dc7c 9% 24%, #a67c20 25% 28%, #e8c45a 29% 42%, #a67c20 43% 46%, #f0d06a 47% 60%, #b88f2b 61% 64%, #f7dc7c 65% 100%); box-shadow: 0 1px 3px rgba(0, 0, 0, .6), inset 0 1px 1px rgba(255, 255, 255, .7); }
 .smiley { position: absolute; left: 0; top: -38px; z-index: 5; width: 38px; height: 38px; pointer-events: none; filter: drop-shadow(0 3px 3px rgba(0, 0, 0, .5)); }
+.smiley svg { display: block; overflow: visible; } /* drops run down below the face */
+.smiley-tongue, .smiley-drip { transform-box: fill-box; transform-origin: 50% 0; transform: scaleY(0); } /* they grow from where they start: the mouth, the chin */
 
 /* ---------- dropdowns, tick boxes and progress: nothing left that looks like a plain web page ---------- */
 select { appearance: none; -webkit-appearance: none; padding-right: 28px; cursor: pointer; background-color: var(--surface-2); background-image: linear-gradient(45deg, transparent 50%, var(--ink-3) 50%), linear-gradient(135deg, var(--ink-3) 50%, transparent 50%), var(--gloss); background-position: calc(100% - 15px) center, calc(100% - 10px) center, 0 0; background-size: 5px 5px, 5px 5px, 100% 100%; background-repeat: no-repeat; box-shadow: var(--raised); transition: box-shadow .7s ease; }

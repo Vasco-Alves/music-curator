@@ -101,6 +101,18 @@ const allItems = () => S.songs.flatMap((s) => s.checks.map((c) => ({ s, c, key: 
 const checkedNow = new Set(); // the Double-check songs you said look right since the page was loaded, so they show as answered, with Undo
 const isDone = (it) => it.c.kind !== "flag" && (!!S.decisions[it.key] || checkedNow.has(it.key));
 const needsYou = () => allItems().filter((it) => NEEDS.has(it.c.kind) && !isDone(it)).length;
+const extra = (name) => !S.meta || !S.meta.extras || S.meta.extras[name] !== false; // the Curator and Spotify are extras: on unless they're turned off in Settings
+const SPOTIFY_KINDS = new Set(["spotify", "playlist"]);
+function hideExtras(d) { // what an extra that's off would show isn't handed to the page at all
+  if (!extra("curator")) { d.songs.forEach((s) => { s.checks = []; }); d.meta.curate = null; } // nothing to check, and nothing to curate
+  if (!extra("spotify")) {
+    d.songs.forEach((s) => { s.checks = s.checks.filter((c) => !SPOTIFY_KINDS.has(c.kind)); });
+    Object.assign(d.meta, { my_playlists: [], spotify: { ready: false, playlists: [], to_remove: [] } });
+  }
+}
+function paintExtras() { // the menu shows the Curator's pages only while it's on
+  for (const page of ["check", "progress"]) { const n = $(`.nav[data-page="${page}"]`); if (n) n.hidden = !extra("curator"); }
+}
 
 async function load() {
   const r = await fetch("/api/all", { cache: "no-store" });
@@ -110,6 +122,8 @@ async function load() {
   document.body.classList.toggle("setup", !!S.setup);
   if (S.setup) return;
   S.songs = d.songs; S.decisions = d.decisions; S.progress = d.progress; S.meta = d.meta;
+  hideExtras(d);
+  paintExtras();
   checkedNow.clear(); // the songs come back verified now, with nothing left to double-check
   S.byId = new Map(d.songs.map((s) => [s.id, s]));
   S.lib = d.songs.filter((s) => s.area === "library");
@@ -141,7 +155,7 @@ function paintRailLists() { // the space under the menu: Favourites first, then 
   box.replaceChildren(...[own.length ? el("div", { class: "rail-head" }, "Local") : null, ...own.map((p) => row(OWN + p.id, p.name, p.ids.length, p.name === FAVOURITES ? icon("heart", 13, "rail-heart") : null)),
     spotify.length ? el("div", { class: "rail-head", title: "Your Spotify playlists, with only the songs you have as files" }, "On Spotify") : null, ...spotify.map((p) => row(p.name, p.name, p.ids.length))].filter(Boolean));
 }
-const playlistChores = () => waitingToAdd().reduce((n, [, d]) => n + lines(d.note).length, 0) + sum(((S.meta.spotify || {}).to_remove || []).map((r) => r.count));
+const playlistChores = () => !extra("spotify") ? 0 : waitingToAdd().reduce((n, [, d]) => n + lines(d.note).length, 0) + sum(((S.meta.spotify || {}).to_remove || []).map((r) => r.count));
 function badge() {
   const c = $("#check-count"), a = $("#add-count");
   if (c) c.textContent = needsYou() || "";
@@ -285,7 +299,7 @@ function stickers(songs) {
   return [toCheck || better ? el("span", { class: "stickers" },
     toCheck ? el("span", { class: "sticker to-check", title: "Waiting for you on To check" }, "To check") : null,
     better ? el("span", { class: "sticker better-copy", title: "A better copy may be out there. Yours stays unless you say otherwise." }, "Better copy") : null) : null,
-  songs.length && songs.every((s) => s.trust === "verified") ? el("span", { class: "sticker seal", title: TRUST.verified.long }, icon("shield", 13)) : null,
+  extra("curator") && songs.length && songs.every((s) => s.trust === "verified") ? el("span", { class: "sticker seal", title: TRUST.verified.long }, icon("shield", 13)) : null,
   songs.some((s) => (s.plays || 0) >= GOLD_PLAYS) ? el("span", { class: "sticker gold", title: `A gold record: played ${GOLD_PLAYS} times or more` }) : null].filter(Boolean);
 }
 const stuck = (cover, songs) => { cover.append(...stickers(songs)); return cover; };
@@ -379,7 +393,8 @@ function shuffled(a) {
 }
 function pageHome() {
   const lib = S.lib;
-  if (!lib.length) return view.replaceChildren(el("div", {}, curateBar(), el("p", { class: "empty" }, "No songs in your library yet. Put songs in your downloads folder and press Curate, or ask your AI app to curate them.")));
+  if (!lib.length) return view.replaceChildren(el("div", {}, curateBar(), el("p", { class: "empty" }, extra("curator") ? "No songs in your library yet. Put songs in your downloads folder and press Curate, or ask your AI app to curate them."
+    : "No songs in your library yet. Put some music in your library folder, then press the refresh button at the bottom of the menu.")));
   const st = stats(lib), left = needsYou();
   const hero = el("section", { class: "hero" },
     el("div", { class: "mosaic", "aria-hidden": "true" }, shuffled(lib.filter((s) => s.cover)).slice(0, 72).map((s) => el("img", { src: coverUrl(s), alt: "", loading: "lazy" }))),
@@ -429,7 +444,7 @@ function pageHome() {
 }
 
 /* ---------- songs ---------- */
-const AREAS = { library: "In your library", review: "Not in the library yet", inbox: "In the inbox", all: "Everything" };
+const AREAS = { library: "In your library", review: "Not in the library yet", inbox: "In your downloads", all: "Everything" };
 function matcher(f) {
   const words = fold(f.q).split(/\s+/).filter(Boolean);
   return (s) => {
@@ -468,6 +483,8 @@ function comparator({ key, dir }) {
 const NEWEST_FIRST = { plays: "Most played first", played: "Last played first", added: "Newest in your library first" };
 function pageSongs(params) {
   const f = {}; for (const k of ["q", "genre", "decade", "trust", "album", "artist", "label", "playlist", "country", "from", "to", "spotify"]) f[k] = params.get(k) || "";
+  if (!extra("curator")) f.trust = ""; // an old link can't filter by something that isn't shown
+  if (!extra("spotify")) f.spotify = "";
   f.area = params.get("area") || "library";
   if (NEWEST_FIRST[params.get("sort")]) S.sort = { key: params.get("sort"), dir: -1 };
   if (f.playlist) S.sort = { key: "playlist", dir: 1 };
@@ -542,7 +559,7 @@ function pageSongs(params) {
       pick("Where", "area", Object.entries(AREAS)),
       pick("Genre", "genre", [["", "All genres"], ...tally(S.songs.flatMap(genresOf)).sort((a, b) => a[0].localeCompare(b[0])).map(([g, c]) => [g, `${g} (${c})`])]),
       pick("Decade", "decade", [["", "All years"], ...decades.map(([d, c]) => [d, `${d}s (${c})`]), ["none", "No year"]]),
-      pick("How sure", "trust", [["", "How sure: any"], ...Object.entries(TRUST).map(([k, t]) => [k, t.label])]),
+      extra("curator") ? pick("How sure", "trust", [["", "How sure: any"], ...Object.entries(TRUST).map(([k, t]) => [k, t.label])]) : null,
       (S.meta.my_playlists || []).length ? pick("Spotify lists", "spotify", [["", "Spotify lists: any"], ["yes", `On a Spotify list (${fmt(onLists)})`], ["no", `On no Spotify list (${fmt(inScope().length - onLists)})`]]) : null,
       toggle),
     chips, head, el("div", { class: "list-head" }, countLine, el("div", { class: "actions" }, adder, exporter.button)), exporter.panel, results));
@@ -590,11 +607,11 @@ function renderTable(box, list, update, takeOut, moved) {
     S.sort = { key, dir: S.sort.key === key ? -S.sort.dir : NEWEST_FIRST[key] ? -1 : 1 }; update();
   } }, `${label}${S.sort.key === key ? (S.sort.dir > 0 ? " ↑" : " ↓") : ""}`));
   const body = el("tbody");
-  const holder = el("div");
+  const holder = el("div"), sure = extra("curator"); // how sure each song is only means something with the Curator on
   box.replaceChildren(el("table", { class: "table" },
-    el("colgroup", {}, ["c-cover", "", "c-album", "c-year", "c-genre", "c-len", "c-kbps", "c-plays", "c-trust"].map((c) => el("col", { class: c }))),
+    el("colgroup", {}, ["c-cover", "", "c-album", "c-year", "c-genre", "c-len", "c-kbps", "c-plays", ...(sure ? ["c-trust"] : [])].map((c) => el("col", { class: c }))),
     el("thead", {}, el("tr", {}, el("th", { class: "c-cover" }), el("th", {}, el("button", { type: "button", class: S.sort.key === "artist" ? "on" : "", onclick: () => { S.sort = { key: "artist", dir: S.sort.key === "artist" ? -S.sort.dir : 1 }; update(); } }, `Artist${S.sort.key === "artist" ? (S.sort.dir > 0 ? " ↑" : " ↓") : ""}`), " · ", el("button", { type: "button", class: S.sort.key === "title" ? "on" : "", onclick: () => { S.sort = { key: "title", dir: S.sort.key === "title" ? -S.sort.dir : 1 }; update(); } }, `Title${S.sort.key === "title" ? (S.sort.dir > 0 ? " ↑" : " ↓") : ""}`)),
-      head("Album", "album", "c-album"), head("Year", "year", "c-year"), head("Genre", "genre", "c-genre"), head("Length", "secs", "c-len num"), head("kbps", "kbps", "c-kbps num"), head("Plays", "plays", "c-plays num"), head("How sure", "trust", "c-trust"))),
+      head("Album", "album", "c-album"), head("Year", "year", "c-year"), head("Genre", "genre", "c-genre"), head("Length", "secs", "c-len num"), head("kbps", "kbps", "c-kbps num"), head("Plays", "plays", "c-plays num"), sure ? head("How sure", "trust", "c-trust") : null)),
     body), holder);
   if (moved) sortable(body, "tr", moved);
   lazy(body, list, (s) => el("tr", { class: `has-play${moved ? " can-move" : ""}${isFavourite(s) ? " fav" : ""}`, draggable: moved ? "true" : null, dataset: { song: s.id }, onclick: () => openDrawer(s.id) },
@@ -605,7 +622,7 @@ function renderTable(box, list, update, takeOut, moved) {
       el("button", { class: "row-add", type: "button", title: "Add to queue", "aria-label": `Add ${songName(s)} to the queue`, onclick: (e) => { e.stopPropagation(); enqueue([s.id]); } }, icon("listadd", 15)),
       el("button", { class: `row-add row-heart${isFavourite(s) ? " on" : ""}`, type: "button", title: heartTitle(isFavourite(s)), "aria-label": `Favourite ${songName(s)}`, "aria-pressed": String(isFavourite(s)), dataset: { heart: s.id }, onclick: heartClick(s) }, icon("heart", 15))),
     el("td", { class: "c-album", title: s.album }, s.album), el("td", { class: "c-year" }, s.year), el("td", { class: "c-genre", title: s.genre }, s.genre),
-    el("td", { class: "c-len num" }, clock(s.secs)), el("td", { class: "c-kbps num" }, s.kbps || "–"), el("td", { class: "c-plays num", dataset: { plays: s.id } }, s.plays ? fmt(s.plays) : "–"), el("td", { class: "c-trust" }, trustTag(s))), holder);
+    el("td", { class: "c-len num" }, clock(s.secs)), el("td", { class: "c-kbps num" }, s.kbps || "–"), el("td", { class: "c-plays num", dataset: { plays: s.id } }, s.plays ? fmt(s.plays) : "–"), sure ? el("td", { class: "c-trust" }, trustTag(s)) : null), holder);
 }
 function renderTiles(box, list) {
   const grid = el("div", { class: "grid" }), holder = el("div");
@@ -762,7 +779,16 @@ function shelfCover(item, mosaic) {
   c.append(el("button", { class: "over", type: "button", title: "Play", "aria-label": label, onclick: (e) => { e.stopPropagation(); play(); } }, icon("play", 20)));
   return c;
 }
-const disc = (art) => el("div", { class: "disc" }, el("div", { class: `disc-label${art && !art.cover ? " blank" : ""}` }, art && art.cover ? el("img", { src: coverUrl(art), alt: "", decoding: "async" }) : null));
+/* What a record came out on, as far as Discogs says: a CD looks like one, in its case, and anything else (vinyl, or not known) is a record in its sleeve. */
+const mediumOf = (songs) => { const list = [songs].flat().filter(Boolean), cds = list.filter((s) => /^cdr?\b/i.test(s.format || "")).length; return list.length && cds * 2 > list.length ? "cd" : "vinyl"; };
+const sleeveClass = (medium) => `sleeve${medium === "cd" ? " cd" : ""}`;
+const hinge = (medium) => (medium === "cd" ? el("span", { class: "case-hinge", "aria-hidden": "true" }) : null); // the ridged edge of a jewel case
+const disc = (art, medium = mediumOf(art)) => medium === "cd"
+  ? el("div", { class: "disc cd" }, el("div", { class: "disc-label" })) // the shiny side, with its clear hub: the cover is on the other side
+  : el("div", { class: "disc" }, el("div", { class: `disc-label${art && !art.cover ? " blank" : ""}` }, art && art.cover ? el("img", { src: coverUrl(art), alt: "", decoding: "async" }) : null));
+function laser() { // a CD player's pickup on its rail. It reads from the middle outwards, so it starts by the hub and works its way to the edge as the song goes on
+  return el("div", { class: "laser", "aria-hidden": "true" }, el("div", { class: "laser-rail" }), el("div", { class: "laser-sled", onclick: (e) => { e.stopPropagation(); togglePlay(); } }, el("span", { class: "laser-lens" })));
+}
 /* The reflection on the glass shelf: the bottom of the cover, turned over and faded out. It's drawn small and stretched back up, which is what makes it soft, and it costs nothing once it's drawn. */
 function reflection(cover) {
   const img = cover.querySelector("img");
@@ -790,14 +816,14 @@ function reflection(cover) {
   return c;
 }
 const shelfTile = (item, mosaic, glass) => { // glass: a record on its glass plate on the Albums page, with its stickers and its reflection
-  const cover = shelfCover(item, mosaic);
+  const cover = shelfCover(item, mosaic), medium = mosaic ? "vinyl" : mediumOf(item.songs); // an album that came out on CD is a CD on the shelf; an artist or a label is a pile of everything
   return el("div", { class: "tile has-play shelf", onclick: () => { location.hash = item.href; } },
-    el("div", { class: "sleeve" }, disc(), glass ? stuck(cover, item.songs) : cover, glass ? reflection(cover) : null),
+    el("div", { class: sleeveClass(medium) }, disc(null, medium), hinge(medium), glass ? stuck(cover, item.songs) : cover, glass ? reflection(cover) : null),
     el("a", { class: "t-main", href: item.href, title: item.name, onclick: (e) => e.stopPropagation() }, item.name),
     item.lines.map((line) => el("span", { class: "t-sub", title: line }, line)));
 };
 const songTile = (s, play) => el("div", { class: "tile has-play shelf", dataset: { song: s.id }, onclick: () => openDrawer(s.id) }, // like an album on the shelf: the record slides out, and play is its own button
-  el("div", { class: "sleeve" }, disc(), stuck(coverEl(s, play), [s])), el("span", { class: "t-main", title: s.title }, s.title), el("span", { class: "t-sub", title: s.artist }, s.artist));
+  el("div", { class: sleeveClass(mediumOf(s)) }, disc(null, mediumOf(s)), hinge(mediumOf(s)), stuck(coverEl(s, play), [s])), el("span", { class: "t-main", title: s.title }, s.title), el("span", { class: "t-sub", title: s.artist }, s.artist));
 const byTitle = (a, b) => fold(a.title).localeCompare(fold(b.title));
 const yearsOf = (songs) => songs.map((s) => +s.year).filter(Boolean);
 const artistsOf = (s) => (s.artist || "").split(" & ").map((a) => a.trim()).filter(Boolean);
@@ -875,7 +901,7 @@ function albumHead(songs) {
   const onRecord = Math.max(...songs.map((s) => s.tracks || 0)), years = yearsOf(songs), verified = songs.filter((s) => s.trust === "verified").length;
   return shelfHead({ name: songs[0].album, by: who.length === 1 ? who[0] : who.length ? "Various artists" : "", songs,
     facts: [["Format", record.format], ["Year", years.length ? String(Math.min(...years)) : ""], ["Label", namesIn(songs, "label", 3)], ["Country", namesIn(songs, "country", 3)], ["Genre", namesIn(songs, "genre", 3)],
-      ["You have", `${onRecord > songs.length ? `${songs.length} of ${onRecord} tracks` : plural(songs.length, "song")} · ${longTime(sum(songs.map((s) => s.secs)))}`], ["How sure", `${verified} of ${songs.length} verified`]],
+      ["You have", `${onRecord > songs.length ? `${songs.length} of ${onRecord} tracks` : plural(songs.length, "song")} · ${longTime(sum(songs.map((s) => s.secs)))}`], ["How sure", extra("curator") ? `${verified} of ${songs.length} verified` : ""]],
     links: [record.link ? el("a", { class: "btn small", href: record.link, target: "_blank", rel: "noreferrer noopener" }, icon("link", 14), sourceName(record.link)) : null,
       shop && /discogs\.com\/(sell)/.test(shop.href) ? el("a", { class: "btn small", href: shop.href, target: "_blank", rel: "noreferrer noopener" }, icon(shop.icon, 14), shop.label) : null] });
 }
@@ -1792,9 +1818,12 @@ function folderForm(st, opts) {
   (st.inbox.length ? st.inbox : [""]).forEach(addInbox);
   library.check();
   const section = (title, help, ...body) => el("section", { class: "field" }, el("h2", {}, title), el("p", { class: "note" }, help), body);
+  const downloads = opts.downloads || "shown"; // "optional" on the first run, "hidden" in Settings while the Curator is off
   const form = el("div", {},
-    section("Your library", "Where finished songs end up, sorted into genre folders. It can be empty, or a library you already have.", library.node),
-    section("Downloaded songs", "Where you put new downloads, ready to be curated. Subfolders are ignored. Originals stay here until you say they can go.", inboxBox,
+    section("Your library", "The folder your music is in. Your songs stay where they are, and with the Curator on, the songs it finishes go here too, sorted into genre folders.", library.node),
+    downloads === "hidden" ? null : section(downloads === "optional" ? "Downloaded songs, if you like" : "Downloaded songs",
+      downloads === "optional" ? "Optional, for the Curator: a folder of new downloads it can look up and file into your library. Leave it empty to just play your music."
+        : "Where you put new downloads, ready to be curated. Subfolders are ignored. Originals stay here until you say they can go.", inboxBox,
       el("button", { class: "linkish add-folder", type: "button", onclick: () => addInbox("") }, "Add another folder")));
   if (opts.showReview) {
     review = folderField({ ...shared, kind: "review", label: "Songs waiting for a decision", value: st.review });
@@ -1810,12 +1839,38 @@ function pageSetup() {
     el("div", { class: "setup-brand" }, logo(), "Pressling"),
     el("h1", {}, missing ? "Where did your library go?" : "Where does your music live?"),
     el("p", { class: "lead" }, missing ? `Couldn't find it at ${st.library}. If it's on a drive, plug it in and reload this page. If it moved, pick its new location.`
-      : "Pick two folders to get started. You can change them later."),
-    folderForm(st, { button: missing ? "Use this folder" : "Start", requireChange: missing, showReview: !!st.review, saved: async () => {
+      : "Pick the folder your music is in. You can change it later."),
+    folderForm(st, { button: missing ? "Use this folder" : "Start", requireChange: missing, showReview: !!st.review, downloads: missing ? "shown" : "optional", saved: async () => {
       if (!(await safeLoad())) return;
       if (location.hash === "#/") route(); else location.hash = "#/";
     } }),
-    missing ? null : el("p", { class: "note setup-note" }, "The app keeps its log, your answers and its cache in a _curation folder next to your library, so Spotify doesn't scan them.")));
+    missing ? null : el("p", { class: "note setup-note" }, "The app keeps its own files, like play counts and playlists, in a _curation folder next to your library, so music players don't scan them.")));
+}
+const GUIDE = "https://github.com/Vasco-Alves/music-curator#"; // the README, for what the page can't set up itself
+function extrasSetting() { // the app is a music player; the Curator and Spotify are extras that can be turned off, which only hides them
+  const box = el("div", { class: "card extras-setting" });
+  const row = (name, title, what, needs) => {
+    const input = el("input", { type: "checkbox", checked: extra(name), onchange: async () => {
+      input.disabled = true;
+      const r = await post("/api/settings/extras", { [name]: input.checked });
+      input.disabled = false;
+      if (r.error) { input.checked = !input.checked; return toast(r.error); }
+      if (await safeLoad()) { route(); toast(`${title} is ${input.checked ? "on" : "off"}.`); }
+    } });
+    return el("label", { class: "extra-row" }, input, el("span", { class: "grow" }, el("strong", {}, title), el("span", { class: "note" }, what), needs));
+  };
+  const curate = S.meta.curate || {}, noToken = extra("curator") && /DISCOGS_TOKEN|Discogs token/i.test(curate.problem || "");
+  box.append(el("h2", {}, "Extras"), el("p", { class: "note" }, "Pressling plays your music on its own. These add more. Turning one off only hides it: nothing is deleted."),
+    row("curator", "Curator", "Looks new downloads up on Discogs, then names, tags and files them into your library, and asks you about the rest. Adds To check and Progress.",
+      el("span", { class: "note extra-needs" }, noToken ? ["It needs a free Discogs token, and there isn't one yet: ", el("a", { href: "https://www.discogs.com/settings/developers", target: "_blank", rel: "noreferrer noopener" }, "get one"), ", then ", el("a", { href: `${GUIDE}your-discogs-token`, target: "_blank", rel: "noreferrer noopener" }, "save it like this"), "."] : "Needs a free Discogs token.")),
+    row("spotify", "Spotify", "Checks your Spotify playlists, so the ones with your songs play here, and keeps a to-do of what to drag into Spotify by hand.",
+      el("span", { class: "note extra-needs" }, (S.meta.spotify || {}).ready ? "Set up." : ["Needs a Spotify app ID in your settings file: ", el("a", { href: `${GUIDE}checking-spotify-optional`, target: "_blank", rel: "noreferrer noopener" }, "how to get one"), "."])));
+  return box;
+}
+function curatorOff() { // an old link to To check or Progress, with the Curator off
+  view.replaceChildren(el("div", {}, el("div", { class: "page-head" }, el("h1", {}, "The Curator is off")),
+    el("p", { class: "empty" }, "To check and Progress belong to the Curator. Turn it on in Settings, under Extras, to see them again."),
+    el("div", { class: "actions" }, el("a", { class: "btn small", href: "#/settings" }, icon("sliders", 14), "Settings"))));
 }
 function compareSetting() { // only there for people who have what it needs
   const box = el("div");
@@ -1840,16 +1895,17 @@ async function pageSettings() {
   if (!st) return view.replaceChildren(el("p", { class: "empty" }, "Couldn't read your settings. Is the app still running?"));
   view.replaceChildren(el("div", { class: "settings-wrap" },
     el("div", { class: "page-head" }, el("h1", {}, "Settings")),
+    extrasSetting(),
     accentSetting(),
     vibeSetting(),
     surprisesSetting(),
     packsSetting(),
-    folderForm(st, { showReview: true, requireChange: true, button: "Save folders", saved: async () => {
+    folderForm(st, { showReview: extra("curator"), requireChange: true, button: "Save folders", downloads: extra("curator") ? "shown" : "hidden", saved: async () => {
       if (!(await safeLoad())) return;
       toast("Folders saved.");
       if (location.hash === "#/") route(); else location.hash = "#/";
     } }),
-    compareSetting(),
+    extra("curator") ? compareSetting() : null,
     el("dl", { class: "facts-list about" },
       st.app_folder ? [el("dt", {}, "App files"), el("dd", {}, st.app_folder)] : null,
       el("dt", {}, "Settings file"), el("dd", {}, st.config_file))));
@@ -1987,7 +2043,7 @@ function paintPanel() {
   fill(drawer, {}, [
     close,
     isNow ? el("div", { class: "panel-tag" }, "Now playing") : now ? el("button", { class: "linkish panel-tag", type: "button", onclick: () => openDrawer(now.id) }, "Back to what's playing") : null,
-    el("div", { class: `sleeve${isNow ? " now" : ""}` }, disc(isNow ? s : null), stuck(coverEl(s), [s])), el("h2", {}, s.title), el("div", { class: "by" }, s.artist),
+    el("div", { class: `${sleeveClass(mediumOf(s))}${isNow ? " now" : ""}` }, disc(isNow ? s : null, mediumOf(s)), hinge(mediumOf(s)), stuck(coverEl(s), [s])), el("h2", {}, s.title), el("div", { class: "by" }, s.artist),
     el("div", { class: "actions" },
       isNow ? null : el("button", { class: "btn primary small", type: "button", onclick: () => (S.list.includes(s.id) ? playFrom(s.id) : playQueue([s.id], 0, "")) }, icon("play", 14), "Play"),
       isNow ? null : queueButtons([s.id]),
@@ -1995,11 +2051,11 @@ function paintPanel() {
       s.link ? el("a", { class: "btn small", href: s.link, target: "_blank", rel: "noreferrer noopener" }, icon("link", 14), linkName) : null,
       shop ? el("a", { class: "btn small", href: shop.href, target: "_blank", rel: "noreferrer noopener" }, icon(shop.icon, 14), shop.label) : null),
     queueList(s), recordList(s), songFacts(s),
-    s.area === "library" ? [el("h3", {}, "How sure"), el("div", { class: "box" }, trustTag(s), el("div", { class: "note" }, t.long), s.notes ? el("div", { class: "item-why" }, s.notes) : null)] : null,
-    s.was && s.was !== s.file ? [el("h3", {}, "Your file was called"), el("div", { class: "box" }, s.was)] : null,
+    s.area === "library" && extra("curator") ? [el("h3", {}, "How sure"), el("div", { class: "box" }, trustTag(s), el("div", { class: "note" }, t.long), s.notes ? el("div", { class: "item-why" }, s.notes) : null)] : null,
+    s.was && s.was !== s.file && extra("curator") ? [el("h3", {}, "Your file was called"), el("div", { class: "box" }, s.was)] : null,
     checks.length ? [el("h3", {}, "To check"), checks.map((c) => el("div", { class: "box" }, el("strong", {}, KINDS[c.kind].label), el("div", { class: "item-why" }, c.why), doubleLines(s, c, true), alreadyIn(c), recordLine(c), audioLine(c), spotifyLine(c), betterLine(c),
       controls(s, c, (advance) => { if (advance && S.listen && current() && current().id === s.id) step(1); })))] : null,
-    el("div", { class: "hintbar" }, flagBox)]);
+    extra("curator") ? el("div", { class: "hintbar" }, flagBox) : null]); // a flag is something for the Curator to look at again
   drawer.classList.toggle("fresh", paintedSong !== drawerSong); // only a new song arrives with motion, not a repaint of the same one
   if (paintedSong !== drawerSong) { drawer.scrollTop = 0; paintedSong = drawerSong; }
   const playingRow = drawer.querySelector(".track.on");
@@ -2020,7 +2076,7 @@ function paintNowQueue() { // on its own, so changing the queue doesn't pull the
   const set = (key, value) => { store(key, value); paintNowQueue(); };
   if (hidden) return box.replaceChildren(el("button", { class: "btn small now-side-show", type: "button", title: "Show Up next and About this song again", onclick: () => set("curator-now-hidden", "") }, icon(about ? "tag" : "upnext", 14), about ? "About this song" : "Up next"));
   const tab = (on, label, value) => el("button", { class: `pill${on ? " on" : ""}`, type: "button", "aria-pressed": String(on), onclick: () => set("curator-now-side", value) }, label);
-  const body = !s ? [] : about ? el("div", { class: "now-about-song" }, songFacts(s), s.area === "library" ? el("div", { class: "now-sure" }, trustTag(s), el("span", { class: "note" }, (TRUST[s.trust] || TRUST.unknown).long)) : null, recordList(s))
+  const body = !s ? [] : about ? el("div", { class: "now-about-song" }, songFacts(s), s.area === "library" && extra("curator") ? el("div", { class: "now-sure" }, trustTag(s), el("span", { class: "note" }, (TRUST[s.trust] || TRUST.unknown).long)) : null, recordList(s))
     : queueList(s, true) || el("p", { class: "note" }, "Nothing after this song.");
   box.replaceChildren(el("div", { class: "now-side-head" }, el("div", { class: "pills now-side-tabs", role: "group", "aria-label": "Show" }, tab(!about, "Up next", ""), tab(about, "About this song", "about")),
     el("button", { class: "icon-btn now-side-hide", type: "button", title: "Hide this side", "aria-label": "Hide this side", onclick: () => set("curator-now-hidden", "1") }, icon("x", 16))), ...[body].flat().filter(Boolean));
@@ -2036,7 +2092,8 @@ function pageNow() {
   const about = [s.album ? el("a", { href: songs({ album: s.album }) }, s.album) : null, s.year ? el("a", { href: songs({ from: s.year, to: s.year }) }, s.year) : null, s.genre ? el("a", { href: songs({ genre: s.genre }) }, s.genre) : null, s.label ? el("a", { href: songs({ label: s.label }) }, s.label) : null].filter(Boolean);
   view.replaceChildren(el("div", { class: "now-page" }, close, fxBar(), el("div", { class: "fx-title" }, el("strong", {}, s.title || s.file), el("span", {}, s.artist)),
     el("div", { class: "now-stage" },
-      el("div", { class: "sleeve now" }, tonearm(), disc(s), stuck(coverEl(s), [s])),
+      mediumOf(s) === "cd" ? el("div", { class: "sleeve cd now" }, fill(disc(s, "cd"), {}, [laser()]), hinge("cd"), stuck(coverEl(s), [s])) // no tonearm on a CD: a laser reads it
+        : el("div", { class: "sleeve now" }, tonearm(), disc(s), stuck(coverEl(s), [s])),
       el("div", { class: "now-info" },
         el("div", { class: "eyebrow" }, P.label && P.label !== "Shuffle" ? P.label : "Now playing"),
         el("h1", {}, s.title || s.file),
@@ -2060,6 +2117,12 @@ function tonearm() {
     svg("circle", { class: "arm-base", cx: 16, cy: 12, r: 7.5 }), svg("circle", { class: "arm-cap", cx: 16, cy: 12, r: 3.6 }), svg("ellipse", { class: "arm-gleam", cx: 16, cy: 10.5, rx: 2.3, ry: 1.25 }));
 }
 function moveArm() {
+  const pickup = $(".now-stage .laser");
+  if (pickup) { // a CD: the laser goes from the hub to the edge, and is lit while it's reading
+    const reach = audio.duration ? audio.currentTime / audio.duration : 0;
+    if (!pickup.dataset.reach || Math.abs(reach - +pickup.dataset.reach) >= 0.002) { pickup.dataset.reach = reach; pickup.style.setProperty("--reach", reach.toFixed(3)); }
+    return;
+  }
   const arm = $(".now-stage .tonearm");
   if (!arm) return;
   const angle = audio.paused || !audio.duration ? ARM_PARKED : ARM_START + (ARM_END - ARM_START) * (audio.currentTime / audio.duration);
@@ -2213,7 +2276,7 @@ window.addEventListener("mousemove", wakeFx);
 const ambient = (() => { // a tiny picture stretched over the window: it looks blurred, and moving it costs next to nothing, unlike a real blur
   const SIZE = 64, THUMB = 9, CAP = 112, FLOOR = 190; // how bright (dark theme) or how dark (light theme) it may get: the words on top have to stay readable
   const box = el("div", { class: "ambient", "aria-hidden": "true" }), layers = [0, 1].map(() => el("canvas", { width: SIZE, height: SIZE }));
-  box.append(...layers, el("div", { class: "ambient-scrim" }), el("div", { class: "ambient-flash" }), ...["euphoric", "acid", "hard"].map((mood) => el("div", { class: `vibe vibe-${mood}` })));
+  box.append(...layers, el("div", { class: "ambient-scrim" }), el("div", { class: "ambient-flash" }), ...["euphoric", "acid", "hard", "psy"].map((mood) => el("div", { class: `vibe vibe-${mood}` })));
   document.body.prepend(box);
   const thumb = el("canvas", { width: THUMB, height: THUMB });
   let front = 0, turn = 0;
@@ -2552,8 +2615,10 @@ async function wireSound() { // true once the sound is going through it and can 
   } catch { return false; }
 }
 /* The mood of what's playing. The genre says which, and it changes the background and how a kick lands, never what's on the page. */
-const FEEL = { "": { ms: 240, lift: 0.1, blur: 7 }, euphoric: { ms: 430, lift: 0.08, blur: 13, flash: 480 }, acid: { ms: 320, lift: 0.1, blur: 8, wobble: true }, hard: { ms: 130, lift: 0.24, blur: 4, flash: 150 } }; // how long a kick lasts, how bright, how far the light spreads
-const DRIFT = { euphoric: 0.7, acid: 1.15, hard: 1.7 }; // how fast the background turns
+const FEEL = { "": { ms: 240, lift: 0.1, blur: 7 }, euphoric: { ms: 430, lift: 0.08, blur: 13, flash: 480 }, acid: { ms: 320, lift: 0.1, blur: 8, wobble: true }, hard: { ms: 130, lift: 0.24, blur: 4, flash: 150 },
+  psy: { ms: 380, lift: 0.12, blur: 12, flash: 420, wobble: true, trip: true } }; // how long a kick lasts, how bright, how far the light spreads. On psy each kick lands in the next color round
+const DRIFT = { euphoric: 0.7, acid: 1.15, hard: 1.7, psy: 1.4 }; // how fast the background turns
+let tripHue = 280; // the color the next psychedelic kick lands in
 const moodOf = (s) => genresOf(s).map((g) => Packs.moodOf(g)).find(Boolean) || ""; // the genre on the file first, then the others it's listed under
 let vibesOn = store("curator-vibes") !== "off", vibe = "", moodStrength = Number.isFinite(parseFloat(store("curator-mood"))) ? Math.min(1, Math.max(0, parseFloat(store("curator-mood")))) : 0.6;
 document.documentElement.style.setProperty("--mood", String(moodStrength));
@@ -2562,7 +2627,7 @@ function setVibe(s) {
   document.body.dataset.vibe = vibe;
   if (FX) { FX.mood(vibe); FX.song(s ? songName(s) || s.file : ""); }
   document.querySelectorAll(".ambient canvas").forEach((c) => c.getAnimations().forEach((a) => { if (a.animationName === "ambient-turn") a.updatePlaybackRate(DRIFT[vibe] || 1); }));
-  if (vibe !== "acid") $("#play").style.filter = "";
+  if (vibe !== "acid" && vibe !== "psy") $("#play").style.filter = "";
 }
 /* Packs: a way to share how you've set the app up, and try how others have. The rules are in packs.js. */
 const packSettingsNow = () => ({ surprises, tuning: fxTuning, accent: store("curator-accent") || "", moodStrength, vibes: vibesOn, glow: kickOn, flash: flashOn, sparkle: sparkleOn, effect: fxName, morph: fxMorph });
@@ -2625,7 +2690,7 @@ function packsSetting() {
       Packs.setMine({ words: { ...was, banter: { ...(was.banter || {}), "": lines(news.value) }, signs: lines(signs.value).map((line) => ({ lines: line.split("/") })), empty: { ...(was.empty || {}), songs: nothing.value, check: cleared.value } }, genres: Packs.mine().genres });
     };
     [news, signs, nothing, cleared].forEach((field) => field.addEventListener("change", save));
-    const moodOptions = (genre) => [["", `As it comes (${Packs.builtInMood(genre) || "no mood"})`], ["euphoric", "Euphoric"], ["acid", "Acid"], ["hard", "Hard"], ["none", "No mood"]];
+    const moodOptions = (genre) => [["", `As it comes (${Packs.builtInMood(genre) || "no mood"})`], ["euphoric", "Euphoric"], ["acid", "Acid"], ["hard", "Hard"], ["psy", "Psychedelic"], ["none", "No mood"]];
     const genreRow = (genre) => el("label", { class: "pack-genre" }, el("span", {}, genre), el("select", { "aria-label": `Mood for ${genre}`, onchange: (e) => { const genres = { ...Packs.mine().genres }; if (e.target.value) genres[genre] = e.target.value; else delete genres[genre]; Packs.setMine({ words: Packs.mine().words, genres }); setVibe(current()); } }, moodOptions(genre).map(([value, word]) => el("option", { value, selected: (mine.genres[genre] || "") === value }, word))));
     return [el("h3", { class: "pack-own" }, "Your own touches"), el("p", { class: "note" }, "These go into your export, and they stay yours when you remove a pack."),
       el("label", { class: "pack-field" }, el("span", {}, "Cockpit news"), news), el("label", { class: "pack-field" }, el("span", {}, "Road signs"), signs),
@@ -2675,13 +2740,19 @@ function surprisesSetting() {
   return box;
 }
 function vibeSetting() {
-  return el("div", { class: "card accent-setting" }, el("h2", {}, "Mood"), el("p", { class: "note" }, "The background, the way a kick lands and who visits change with the genre of what's playing: softer for trance, yellow for acid, darker and quicker for hardcore. An effect covers the background, so it shows best with no effect on."),
+  return el("div", { class: "card accent-setting" }, el("h2", {}, "Mood"), el("p", { class: "note" }, "The background, the way a kick lands and who visits change with the genre of what's playing: softer for trance, yellow for acid, darker and quicker for hardcore, every color at once for goa and psytrance. An effect covers the background, so it shows best with no effect on."),
     el("label", { class: "filter-check vibe-note" }, el("input", { type: "checkbox", checked: vibesOn, onchange: (e) => { vibesOn = e.target.checked; store("curator-vibes", vibesOn ? "on" : "off"); setVibe(current()); } }), "Let the look follow the music"),
     (() => { const shown = el("span", { class: "fx-value" }, `${Math.round(moodStrength * 100)}%`); return el("label", { class: "fx-knob vibe-note" }, el("span", {}, "Strength of the background"), el("input", { type: "range", min: 0, max: 1, step: 0.05, value: moodStrength, oninput: (e) => { moodStrength = +e.target.value; store("curator-mood", String(moodStrength)); document.documentElement.style.setProperty("--mood", String(moodStrength)); shown.textContent = `${Math.round(moodStrength * 100)}%`; } }), shown); })());
 }
 function glow(strength) { // soft and over quickly. Each runs by itself, so nothing is redrawn between kicks
-  const feel = FEEL[vibe], rest = "brightness(1) drop-shadow(0 0 0 transparent)", peak = `brightness(${1 + feel.lift + 0.14 * strength}) drop-shadow(0 0 ${feel.blur}px var(--accent))`, again = `brightness(${1 + feel.lift / 2}) drop-shadow(0 0 ${feel.blur / 2}px var(--accent))`;
+  const feel = FEEL[vibe], light = feel.trip ? `hsl(${(tripHue = (tripHue + 47) % 360)} 95% 62%)` : "var(--accent)";
+  const rest = "brightness(1) drop-shadow(0 0 0 transparent)", peak = `brightness(${1 + feel.lift + 0.14 * strength}) drop-shadow(0 0 ${feel.blur}px ${light})`, again = `brightness(${1 + feel.lift / 2}) drop-shadow(0 0 ${feel.blur / 2}px ${light})`;
   document.querySelectorAll(GLOWING).forEach((n) => n.animate({ filter: feel.wobble ? [peak, rest, again, rest] : [peak, rest] }, { duration: feel.ms, easing: "ease-out" }));
+}
+function dropMoment() { // the beat's back after a break: one big one, and the orb jumps
+  if (kickOn) glow(1.6);
+  if (flashOn) flashBackground(1.6);
+  if (!calm.matches) $("#play").animate([{ transform: "scale(1)" }, { transform: "scale(1.18)", offset: 0.25 }, { transform: "scale(1)" }], { duration: 700, easing: "ease-out" });
 }
 function flashBackground(strength) { // its own switch, because the whole window moving is a lot more noticeable than a few buttons
   const time = { duration: FEEL[vibe].flash || 300, easing: document.body.classList.contains("gentle") ? "steps(4, end)" : "ease-out" }, scrim = $(".ambient.lit .ambient-scrim"); // a slow machine can only redraw the whole window a few times, so there it fades in steps
@@ -2915,10 +2986,13 @@ function soundFrame(now) {
   if (document.hidden || !((glowing() && hearing) || picture || guests)) return;
   kickFrame = requestAnimationFrame(soundFrame);
   const hit = hearing ? findKick(now) : -1, tick = hearing ? findHat(now) : -1;
+  if (FX && hearing && !(picture || guests)) FX.frame(now, kickWide, hit, tick, false); // no picture to draw, but it still follows how the song is going
+  const flow = FX && hearing ? FX.flow() : null, lift = flow ? 0.6 + 0.8 * flow.intensity : 1; // softer in a calm part, harder in a drop
   if (hit >= 0 && glowing()) {
-    if (kickOn) glow(hit);
-    if (flashOn) flashBackground(hit);
+    if (kickOn) glow(Math.min(1.5, hit * lift));
+    if (flashOn) flashBackground(Math.min(1.5, hit * lift));
   }
+  if (flow && flow.dropHit && glowing()) dropMoment();
   if (tick >= 0 && sparkleOn && !calm.matches) sparkle(now, tick);
   if (hit >= 0) dance(now, hit);
   else if (danceUntil && now - danceMoved > 640) dance(now, 0.4); // a quiet passage: it keeps time by itself
@@ -2941,13 +3015,14 @@ function coverToBorrow() { // a cover that can be seen whole and isn't tiny, bes
 function visitApp(kind) { // says whether somebody came
   if (!FX || calm.matches || fxFull || document.hidden || S.setup || $("dialog[open]") || visiting()) return false;
   const deck = $(".player").getBoundingClientRect(), page = view.getBoundingClientRect(), cover = coverToBorrow();
-  const can = { borrow: !!cover, peek: deck.top > 260, abduct: deck.top > 320, dangle: page.width > 260, astronaut: true, jelly: true, smiley: vibe === "acid" };
-  const order = vibe === "euphoric" ? ["jelly", "borrow", "dangle", "jelly", "peek", "astronaut", "abduct"] : vibe === "acid" ? ["smiley", "borrow", "peek", "smiley", "dangle", "abduct", "astronaut"] : ["borrow", "peek", "dangle", "abduct", "astronaut", "jelly"];
+  const can = { borrow: !!cover, peek: deck.top > 260, abduct: deck.top > 320, dangle: page.width > 260, astronaut: true, jelly: true, smiley: vibe === "acid", eye: vibe === "psy" && deck.top > 260 };
+  const order = vibe === "euphoric" ? ["jelly", "borrow", "dangle", "jelly", "peek", "astronaut", "abduct"] : vibe === "acid" ? ["smiley", "borrow", "peek", "smiley", "dangle", "abduct", "astronaut"]
+    : vibe === "psy" ? ["eye", "jelly", "borrow", "eye", "dangle", "astronaut", "abduct"] : ["borrow", "peek", "dangle", "abduct", "astronaut", "jelly"];
   let pick = kind && can[kind] ? kind : "";
   for (let i = 0; !pick && i < order.length; i++) { const k = order[(visitTurn + i) % order.length]; if (can[k]) { pick = k; visitTurn += i + 1; } }
   if (!pick) return false;
   if (pick === "smiley") { rollSmiley(); return true; } // acid's own: it rolls along the play bar
-  const places = { borrow: { element: cover }, peek: { floor: deck.top, left: page.left, right: page.right }, abduct: { floor: deck.top, left: page.left, right: page.right }, dangle: { left: page.left, right: page.right } }, came = FX.visit(pick, places[pick]);
+  const places = { borrow: { element: cover }, peek: { floor: deck.top, left: page.left, right: page.right }, eye: { floor: deck.top, left: page.left, right: page.right }, abduct: { floor: deck.top, left: page.left, right: page.right }, dangle: { left: page.left, right: page.right } }, came = FX.visit(pick, places[pick]);
   if (came) startSound();
   return came;
 }
@@ -3042,6 +3117,7 @@ function gentleMotion() { // a running CSS animation makes the browser redraw th
     if (performance.now() - lastScroll < 400) return; // scrolling comes first
     gentleTick++;
     if (vibe === "acid") $("#play").style.filter = `hue-rotate(${(Math.sin(gentleTick * 0.34) * 10).toFixed(1)}deg)`; // the wobble, a few times a second
+    else if (vibe === "psy") $("#play").style.filter = `hue-rotate(${(gentleTick * 9) % 360}deg)`; // round all the colors, a step at a time
     const label = $(".sleeve.now .disc-label");
     if (label) label.style.transform = `rotate(${(gentleTick * 16) % 360}deg)`;
     if (gentleTick % 2) return; // the background only needs half as many
@@ -3348,12 +3424,29 @@ $(".brand").prepend(logo());
 $(".logo").addEventListener("click", (e) => { if (!calm.matches) e.currentTarget.animate({ rotate: ["0deg", "1440deg"] }, { duration: 2300, easing: "cubic-bezier(.12,.7,.25,1)" }); }); // given a push, it spins and slows down
 /* Type the word "acid" anywhere that isn't a text box: a smiley rolls along the deck, hopping over the orb, and the app goes acid yellow until the song ends. */
 let typedLately = "";
-function rollSmiley() {
+function rollSmiley() { // now and then it trips on the way: sticks its tongue out over the orb, runs through the rainbow, or stops and melts into a puddle
   if (calm.matches) return;
-  const dot = (cx) => svg("ellipse", { cx, cy: 26, rx: 4.2, ry: 8, fill: "#16140a" }), face = el("div", { class: "smiley", "aria-hidden": "true" }, svg("svg", { viewBox: "0 0 64 64", width: 38, height: 38 }, svg("circle", { cx: 32, cy: 32, r: 30, fill: "#f7e11e", stroke: "#16140a", "stroke-width": 2.5 }), dot(22), dot(42), svg("path", { d: "M14 39a19 17 0 0 0 36 0", fill: "none", stroke: "#16140a", "stroke-width": 4, "stroke-linecap": "round" })));
+  const trick = Math.random() < 0.6 ? ["tongue", "rainbow", "melt"][Math.floor(Math.random() * 3)] : "";
+  const dot = (cx) => svg("ellipse", { cx, cy: 26, rx: 4.2, ry: 8, fill: "#16140a" });
+  const tongue = trick === "tongue" ? svg("path", { class: "smiley-tongue", d: "M32.5 50v6a4.5 4.5 0 0 0 9 0v-7.5", fill: "#ff5c8d", stroke: "#16140a", "stroke-width": 2 }) : null; // under the smile line, so it comes out of the mouth
+  const drips = trick === "melt" ? [[21, 7], [33, 10], [43, 6]].map(([x, long]) => svg("path", { class: "smiley-drip", d: `M${x} 56v${long}`, stroke: "#e8cb12", "stroke-width": 5, "stroke-linecap": "round" })) : [];
+  const pic = svg("svg", { viewBox: "0 0 64 64", width: 38, height: 38 }, drips, svg("circle", { cx: 32, cy: 32, r: 30, fill: "#f7e11e", stroke: "#16140a", "stroke-width": 2.5 }), dot(22), dot(42), tongue, svg("path", { d: "M14 39a19 17 0 0 0 36 0", fill: "none", stroke: "#16140a", "stroke-width": 4, "stroke-linecap": "round" }));
+  const face = el("div", { class: "smiley", "aria-hidden": "true" }, pic);
   $(".player").append(face);
-  const across = $(".player").clientWidth, at = (part, up, turns) => ({ transform: `translate(${(-60 + (across + 120) * part).toFixed(0)}px, ${up}px) rotate(${turns * 360}deg)`, offset: part });
-  face.animate([at(0, 0, 0), at(0.43, 0, 1.6), at(0.5, -26, 1.9), at(0.57, 0, 2.2), at(1, 0, 4)], { duration: 3800, easing: "linear" }).finished.then(() => face.remove(), () => face.remove());
+  const across = $(".player").clientWidth, x = (part) => (-60 + (across + 120) * part).toFixed(0);
+  const go = (part, up = 0) => ({ transform: `translate(${x(part)}px, ${up}px)` }), turn = (turns, sx = 1, sy = 1) => ({ transform: `translateY(19px) scale(${sx}, ${sy}) translateY(-19px) rotate(${turns * 360}deg)` }); // squashed from its bottom edge, so it melts onto the bar
+  const run = trick === "melt" ? 4600 : 3800, time = { duration: run, easing: "linear" };
+  if (trick === "melt") { // it rolls a little past the orb, stops upright, sags, drips and spreads into a puddle
+    face.animate([{ ...go(0), offset: 0 }, { ...go(0.43), offset: 0.34 }, { ...go(0.5, -26), offset: 0.4 }, { ...go(0.57), offset: 0.45 }, { ...go(0.7), offset: 0.56 }, { ...go(0.7), offset: 1, opacity: 1 }], time).finished.then(() => face.remove(), () => face.remove());
+    pic.animate([{ ...turn(0), offset: 0 }, { ...turn(1.6), offset: 0.34 }, { ...turn(1.9), offset: 0.4 }, { ...turn(2.2), offset: 0.45 }, { ...turn(3), offset: 0.56 }, { ...turn(3, 1.12, 0.78), offset: 0.7 }, { ...turn(3, 1.5, 0.4), offset: 0.85 }, { ...turn(3, 1.9, 0.12), offset: 1 }], time);
+    drips.forEach((d, i) => d.animate([{ transform: "scaleY(0)", offset: 0 }, { transform: "scaleY(0)", offset: 0.58 + i * 0.03 }, { transform: "scaleY(1)", offset: 0.82 }, { transform: "scaleY(0.4)", offset: 1 }], time));
+    face.animate([{ opacity: 1, offset: 0 }, { opacity: 1, offset: 0.86 }, { opacity: 0, offset: 1 }], time);
+    return;
+  }
+  face.animate([go(0), go(0.43), go(0.5, -26), go(0.57), go(1)].map((k, i) => ({ ...k, offset: [0, 0.43, 0.5, 0.57, 1][i] })), time).finished.then(() => face.remove(), () => face.remove());
+  pic.animate([turn(0), turn(1.6), turn(1.9), turn(2.2), turn(4)].map((k, i) => ({ ...k, offset: [0, 0.43, 0.5, 0.57, 1][i] })), time);
+  if (tongue) tongue.animate([{ transform: "scaleY(0)", offset: 0 }, { transform: "scaleY(0)", offset: 0.4 }, { transform: "scaleY(1)", offset: 0.47 }, { transform: "scaleY(1.2)", offset: 0.55 }, { transform: "scaleY(0)", offset: 0.66 }, { transform: "scaleY(0)", offset: 1 }], time); // blep, over the orb
+  if (trick === "rainbow") pic.animate([{ filter: "hue-rotate(0deg) saturate(1.5)" }, { filter: "hue-rotate(360deg) saturate(1.5)" }], { duration: 950, iterations: Math.ceil(run / 950) });
 }
 window.addEventListener("keydown", (e) => {
   if (e.ctrlKey || e.altKey || e.metaKey || e.key.length !== 1 || /^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName)) return;
@@ -3373,6 +3466,7 @@ window.addEventListener("keydown", (e) => {
   paintAccent();
   setVibe(current());
   rollSmiley();
+  if (FX && fxShowing()) FX.word("acid"); // and if a picture is showing, smileys float up through it
 });
 if (!calm.matches) { // switching on: about a second, once per visit
   document.body.classList.add("powering");
@@ -3531,6 +3625,7 @@ function route() {
   moveNav();
   paintRailLists();
   const pages = { home: pageHome, songs: pageSongs, artists: pageArtists, albums: pageAlbums, labels: pageLabels, check: pageCheck, add: pageAdd, progress: pageProgress, settings: pageSettings, now: pageNow };
+  if (!extra("curator")) Object.assign(pages, { check: curatorOff, progress: curatorOff });
   (pages[page] || pageHome)(params);
   syncFx();
   view.scrollTop = 0;

@@ -45,6 +45,7 @@ h2 { font-size: 15px; font-weight: 650; letter-spacing: -.005em; }
 .rail-links { display: flex; flex-direction: column; gap: 2px; }
 .nav { display: flex; align-items: center; gap: 11px; padding: 8px 10px; border-radius: 8px; color: var(--ink-2); font-weight: 550; white-space: nowrap; }
 .nav:hover { background: var(--surface-2); color: var(--ink); }
+.nav[hidden] { display: none; } /* a page of an extra that's off */
 .nav.active { background: var(--accent-soft); color: var(--ink); }
 .nav.active svg { color: var(--accent); }
 .nav .count { margin-left: auto; font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
@@ -316,6 +317,13 @@ td.num, th.num { text-align: right; }
 @media (max-width: 560px) { .double-version { grid-template-columns: 2.2em minmax(0, 1fr); } .double-version .len, .double-version em { grid-column: 2; text-align: left; } }
 .compare-setting { margin-top: 16px; }
 .compare-setting .note { margin-top: 6px; }
+.extras-setting { margin-bottom: 14px; }
+.extra-row { display: flex; align-items: flex-start; gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); cursor: pointer; }
+.extra-row input { flex: none; margin-top: 3px; }
+.extra-row strong { display: block; }
+.extra-row .note { display: block; margin-top: 3px; }
+.extra-needs { color: var(--ink-3); }
+.extra-needs a { color: var(--ink-2); text-decoration: underline; }
 
 /* ---------- now playing ---------- */
 body.now-view .rail, body.now-view .drawer { display: none; }

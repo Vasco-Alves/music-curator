@@ -97,6 +97,76 @@ window.Effects = (() => {
     s.hatHit = tick >= 0 ? 0.5 + 0.5 * tick : 0;
     s.kick = hit >= 0 ? Math.max(s.kick, s.kickHit) : s.kick * Math.exp(-dt / 0.14);
     s.hat = tick >= 0 ? Math.max(s.hat, s.hatHit) : s.hat * Math.exp(-dt / 0.06);
+    follow(!!analyser, hit, dt);
+  }
+
+  /* How the song is going, from the sound: in its groove, calm (no kick for a while), building (holding back while the highs climb) or dropping (the kick back after a break),
+     and how intense this moment is next to the rest of the song. Every effect follows it: calm slows things down, a build sends sparks up faster and faster, and a drop lands with a flash and a wave. */
+  const flow = { part: "groove", intensity: 0.5, build: 0, calm: 0, drop: 0, dropHit: 0, since: 9, fast: 0, slow: 0, hiFast: 0, hiSlow: 0, pace: 1 };
+  sound.flow = flow;
+  function follow(heard, hit, dt) {
+    flow.dropHit = 0;
+    if (!heard) return; // paused: it stays as it was
+    let all = 0, high = 0;
+    for (let b = 0; b < BANDS; b++) all += raw[b];
+    for (let b = 50; b < BANDS; b++) high += raw[b];
+    all /= BANDS;
+    high /= BANDS - 50;
+    const ease = (to, from, tau) => from + (to - from) * Math.min(1, dt / tau), back = hit >= 0 && flow.since > 2.6; // the kick coming back after a break
+    flow.since = hit >= 0 ? 0 : flow.since + dt;
+    flow.fast = ease(all, flow.fast, 1.2);
+    flow.slow = flow.slow ? ease(all, flow.slow, 24) : all; // the song's usual level, over the last half a minute or so
+    flow.hiFast = ease(high, flow.hiFast, 0.8);
+    flow.hiSlow = flow.hiSlow ? ease(high, flow.hiSlow, 6) : high;
+    const kicking = flow.since < 1.4, rising = flow.hiFast - flow.hiSlow;
+    if (back) { flow.drop = 1; flow.dropHit = 1; flow.build = 0; }
+    flow.drop = Math.max(0, flow.drop - dt / 12); // a drop is felt for about twelve seconds
+    flow.build = kicking && flow.drop > 0.2 ? Math.max(0, flow.build - dt) : clamp(flow.build + dt * (rising > 0.015 ? 0.14 + rising * 4 : flow.since > 2 ? 0.01 : -0.2));
+    flow.calm = ease(!kicking && rising <= 0.015 ? 1 : 0, flow.calm, 1.5);
+    flow.intensity = ease(clamp(0.5 + (flow.fast - flow.slow) * 4 + (kicking ? 0.15 : -0.15) + 0.3 * flow.drop), flow.intensity, 0.8);
+    flow.part = flow.drop > 0.35 ? "drop" : flow.build > 0.3 ? "build" : flow.calm > 0.6 ? "calm" : "groove";
+    flow.pace = ease(flow.part === "drop" ? 1.2 + 0.3 * flow.drop : flow.part === "build" ? 1 + 0.3 * flow.build : flow.part === "calm" ? 0.75 : 1, flow.pace, 0.6); // how fast the picture runs
+  }
+  const sparks = []; // rising through a build, thrown out by a drop
+  let wave = 0; // the drop's ring and flash, from 1 down to 0
+  function drawFlow(dt) {
+    const most = Math.max(w, h);
+    if (flow.dropHit) {
+      wave = 1;
+      for (let i = 0, n = Math.round(60 * T.shots); i < n; i++) { const a = rnd(0, TAU), v = rnd(0.25, 0.9) * most; sparks.push({ x: w / 2, y: h / 2, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: rnd(0.7, 1.4), age: 0, tone: around(rnd(0, 1)) }); }
+    }
+    if (flow.part === "build" && sparks.length < 160) for (let n = flow.build * T.shots * dt * 60; n > Math.random(); n--) sparks.push({ x: rnd(0, w), y: h + 5, vx: rnd(-0.02, 0.02) * w, vy: -h * (0.25 + 0.9 * flow.build), life: rnd(1.2, 2.2), age: 0, tone: around(rnd(0, 1)), rise: true });
+    if (!sparks.length && !wave) return;
+    g.save();
+    g.globalCompositeOperation = "lighter";
+    g.lineCap = "round";
+    g.lineWidth = Math.max(1, most * 0.0025);
+    for (let i = sparks.length - 1; i >= 0; i--) {
+      const p = sparks[i];
+      p.age += dt;
+      if (p.age > p.life || p.y < -20) { sparks.splice(i, 1); continue; }
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      if (!p.rise) { p.vx *= 0.97; p.vy *= 0.97; }
+      g.strokeStyle = rgba(mix(p.tone, [255, 255, 255], 0.4), 0.8 * (1 - p.age / p.life));
+      g.beginPath();
+      g.moveTo(p.x, p.y);
+      g.lineTo(p.x - p.vx * 0.03, p.y - p.vy * 0.03); // a short streak along its way
+      g.stroke();
+    }
+    if (wave > 0) {
+      g.globalAlpha = wave * 0.9;
+      g.strokeStyle = rgba(mix(colors[0], [255, 255, 255], 0.6), 1);
+      g.lineWidth = most * 0.012 * wave;
+      g.beginPath();
+      g.arc(w / 2, h / 2, (1 - wave) * most * 0.8, 0, TAU);
+      g.stroke();
+      g.globalAlpha = 1;
+      g.fillStyle = `rgba(255,255,255,${(0.3 * wave ** 3 * T.light).toFixed(3)})`;
+      g.fillRect(0, 0, w, h);
+      wave = Math.max(0, wave - dt / 0.9);
+    }
+    g.restore();
   }
 
   function backdrop() {
@@ -1074,8 +1144,10 @@ window.Effects = (() => {
     euphoric: { skin: [190, 224, 255], hull: ["#ffffff", "#e6dcf5", "#8d86b8", "#d8cdf0", "#6a648f"], belly: "#3a3558", rim: "rgba(255,240,255,.9)" },
     acid: { skin: [247, 225, 30], smiley: true, hull: ["#fbfdb0", "#d8e23c", "#5a6410", "#b9c52c", "#3d4408"], belly: "#23280a", rim: "rgba(255,255,190,.85)" },
     hard: { skin: [232, 58, 44], angry: true, hull: ["#6b6f78", "#2f3238", "#0c0d10", "#3a1a1a", "#060607"], belly: "#0a0606", rim: "rgba(255,70,50,.9)" },
+    psy: { skin: [176, 112, 255], hull: ["#f6e9ff", "#c9a6ff", "#5a2a8a", "#7fe8ff", "#2a1244"], belly: "#1d0f30", rim: "rgba(255,150,255,.9)" },
   };
-  const FOLK = { "": ["saucer", "jelly", "saucer", "peek", "jelly", "saucer"], euphoric: ["jelly", "whale", "saucer", "jelly", "peek", "whale"], acid: ["smiley", "saucer", "smiley", "peek", "smiley", "saucer"], hard: ["saucer", "saucer", "peek", "saucer", "saucer", "peek"] };
+  const FOLK = { "": ["saucer", "jelly", "saucer", "peek", "jelly", "saucer"], euphoric: ["jelly", "whale", "saucer", "jelly", "peek", "whale"], acid: ["smiley", "saucer", "smiley", "peek", "smiley", "saucer"], hard: ["saucer", "saucer", "peek", "saucer", "saucer", "peek"],
+    psy: ["eye", "mandala", "saucer", "toadstool", "jelly", "eye", "mandala", "peek"] }; // psychedelic: a great eye, kaleidoscope flowers, toadstools hopping to the kick, and violet visitors
   const painted = {};
   const artOf = (look) => painted[look] || (painted[look] = { hull: paintHull(LOOKS[look]), dome: paintDome(), pilot: paintFace(96, false, LOOKS[look]), head: paintFace(420, true, LOOKS[look]) });
   function alienFace(x, cx, cy, r, look) { // a big head, a small chin and huge tilted black eyes
@@ -1120,11 +1192,11 @@ window.Effects = (() => {
     }
     x.restore();
   }
-  function smileyFace(x, cx, cy, r) {
+  function smileyFace(x, cx, cy, r, tone) { // tone: the face's color, when it isn't the usual yellow
     const skin = x.createRadialGradient(cx - r * 0.3, cy - r * 0.4, r * 0.1, cx, cy, r);
-    skin.addColorStop(0, "#fff6a0");
-    skin.addColorStop(0.6, "#f7e11e");
-    skin.addColorStop(1, "#d6b900");
+    skin.addColorStop(0, tone ? rgba(mix(tone, [255, 255, 255], 0.55), 1) : "#fff6a0");
+    skin.addColorStop(0.6, tone ? rgba(tone, 1) : "#f7e11e");
+    skin.addColorStop(1, tone ? rgba(mix(tone, [0, 0, 0], 0.16), 1) : "#d6b900");
     x.fillStyle = skin;
     x.beginPath();
     x.arc(cx, cy, r, 0, TAU);
@@ -1139,6 +1211,93 @@ window.Effects = (() => {
     x.beginPath();
     x.arc(cx, cy + r * 0.02, r * 0.62, 0.22 * Math.PI, 0.78 * Math.PI);
     x.stroke();
+  }
+  /* Now and then a smiley trips: its tongue comes out, it melts and drips, or it runs through every color of the rainbow. Which one, if any, is settled when it arrives. */
+  const SMILEY = [247, 225, 30], TRICKS = ["tongue", "melt", "rainbow"];
+  function smileyTrick(chance, peek) { // the trick, and when it starts and ends, as parts of the visit
+    const trick = Math.random() < chance ? TRICKS[Math.floor(Math.random() * TRICKS.length)] : "";
+    if (!trick) return { trick };
+    if (peek) return trick === "tongue" ? { trick, from: 0.5, to: 0.72 } : trick === "melt" ? { trick, from: 0.68, to: 1 } : { trick, from: 0.1, to: 0.92 }; // a big face sticks it out as it winks, and melts as it sinks back
+    const from = rnd(0.2, 0.45);
+    return trick === "tongue" ? { trick, from, to: from + 0.3 } : trick === "melt" ? { trick, from: Math.max(0.4, from), to: 1 } : { trick, from, to: from + 0.45 };
+  }
+  function rainbowTone(t, seed) { // all the way round the colors in about three seconds
+    const at = ((((t * 0.33 + seed / TAU) % 1) + 1) % 1) * 6, i = Math.floor(at) % 6, f = at - Math.floor(at);
+    return [[1, f, 0], [1 - f, 1, 0], [0, 1, f], [0, 1 - f, 1], [f, 0, 1], [1, 0, 1 - f]][i].map((v) => 60 + v * 195);
+  }
+  function trickNow(o, part) { // how far into its trick a smiley is: up to 1 and back to 0, except melting, which only goes on
+    if (!o.trick || part < o.from) return null;
+    const k = clamp((part - o.from) / (o.to - o.from)), amount = o.trick === "melt" ? k ** 1.3 : Math.sin(Math.PI * k) ** 0.5;
+    if (amount <= 0.001) return null;
+    return { [o.trick]: amount, tone: o.trick === "rainbow" ? mix(SMILEY, rainbowTone(sound.t, o.seed), amount) : SMILEY };
+  }
+  function tongueOut(r, out, wag) { // from under the smile, a little to one side, wagging
+    const wide = r * 0.3, len = r * (0.15 + 0.38 * out);
+    g.save();
+    g.beginPath(); // only below the line of the smile, so it comes out of the mouth
+    g.rect(-r * 2, -r * 2, r * 4, r * 4);
+    g.moveTo(r * 0.62, r * 0.02);
+    g.arc(0, r * 0.02, r * 0.62, 0, TAU, true);
+    g.clip("evenodd");
+    g.translate(r * 0.17, r * 0.56);
+    g.rotate(-0.12 + wag * 0.2 * out);
+    g.beginPath();
+    g.moveTo(-wide / 2, 0);
+    g.lineTo(-wide / 2, len - wide / 2);
+    g.arc(0, len - wide / 2, wide / 2, Math.PI, 0, true);
+    g.lineTo(wide / 2, 0);
+    g.fillStyle = "#ff5c8d";
+    g.fill();
+    g.strokeStyle = "#16140a";
+    g.lineWidth = r * 0.06;
+    g.stroke();
+    g.strokeStyle = "rgba(170,24,72,.7)"; // the line down the middle
+    g.lineWidth = r * 0.035;
+    g.beginPath();
+    g.moveTo(0, len * 0.14);
+    g.lineTo(0, len * 0.6);
+    g.stroke();
+    g.restore();
+    g.strokeStyle = "#16140a"; // the lip over its root
+    g.lineWidth = r * 0.12;
+    g.lineCap = "round";
+    g.beginPath();
+    g.arc(0, r * 0.02, r * 0.62, 0.3 * Math.PI, 0.52 * Math.PI);
+    g.stroke();
+  }
+  function meltedSmiley(size, melt, seed) { // sliding down in slices, wider and wobblier the lower they are, with drops running off the bottom
+    const { t } = sound, art = artOf("acid").head, n = 30, sw = art.width, sh = art.height, slide = size * 0.55 * melt, r = size * 0.4;
+    const yAt = (a) => -size / 2 + a * size + slide * a ** 2.2, widen = (a) => 1 + melt * 0.3 * a ** 3;
+    g.lineCap = "round";
+    for (const [d, k] of [[-0.5, 0.8], [0.06, 1.3], [0.46, 1]]) { // three drops, the middle one the longest, drawn first so they come from under its edge
+      const edge = 0.5 + Math.sqrt(1 - d * d) * 0.4, x0 = d * r * widen(edge), y0 = yAt(edge) - r * 0.12, len = melt ** 1.5 * r * 0.8 * k, fat = r * (0.09 + 0.03 * k);
+      for (const [color, more] of [["#16140a", r * 0.07], ["#e8cb12", 0]]) {
+        g.strokeStyle = g.fillStyle = color;
+        g.lineWidth = fat + more;
+        g.beginPath();
+        g.moveTo(x0, y0);
+        g.lineTo(x0, y0 + len);
+        g.stroke();
+        g.beginPath();
+        g.arc(x0, y0 + len, fat * 0.8 + more / 2, 0, TAU);
+        g.fill();
+      }
+      g.fillStyle = "rgba(255,255,225,.6)"; // a glint on the drop
+      g.beginPath();
+      g.arc(x0 - fat * 0.25, y0 + len - fat * 0.25, fat * 0.24, 0, TAU);
+      g.fill();
+    }
+    for (let i = 0; i < n; i++) {
+      const a = i / n, top = yAt(a), wide = size * widen(a), wob = Math.sin(t * 2.3 + i * 0.55 + seed) * melt * a * size * 0.025;
+      g.drawImage(art, 0, a * sh, sw, sh / n, -wide / 2 + wob, top, wide, yAt((i + 1) / n) - top + 0.8);
+    }
+  }
+  function smileyNow(size, o, at) { // a smiley as its trick has it just now, round 0,0
+    const r = size * 0.4;
+    if (at.melt) meltedSmiley(size, at.melt, o.seed);
+    else if (at.rainbow) { softBlob(g, 0, 0, size * 0.5, at.tone, 0.3 + 0.2 * at.rainbow); smileyFace(g, 0, 0, r, at.tone); }
+    else g.drawImage(artOf("acid").head, -size / 2, -size / 2, size, size);
+    if (at.tongue) tongueOut(r, at.tongue, Math.sin(sound.t * 9 + o.seed));
   }
   function paintFace(S, glow, look) {
     const [c, x] = paper(S);
@@ -1232,13 +1391,16 @@ window.Effects = (() => {
     softBlob(x, 112, 126, 11, [255, 255, 255], 0.95);
     return c;
   }
-  const toneOf = (look) => (look === "hard" ? [255, 60, 44] : look === "acid" ? [246, 230, 50] : look === "euphoric" ? mix(around(rnd(0, 1)), [255, 255, 255], 0.35) : around(rnd(0, 1))); // a saucer's lights
+  const toneOf = (look) => (look === "hard" ? [255, 60, 44] : look === "acid" ? [246, 230, 50] : look === "euphoric" ? mix(around(rnd(0, 1)), [255, 255, 255], 0.35) : look === "psy" ? rainbowTone(rnd(0, 3), 0) : around(rnd(0, 1))); // a saucer's lights
   function meet(kind) {
     const { t } = sound, side = Math.random() < 0.5 ? -1 : 1, most = Math.max(w, h), look = mood, come = (o) => crowd.folk.push(o);
-    if (kind === "jelly") { const tone = mix(around(rnd(0, 1)), look === "euphoric" ? [230, 215, 255] : [120, 210, 255], 0.35); come({ kind, born: t, life: rnd(15, 24), x: rnd(0.12, 0.88) * w, y: h * 1.15, drift: side * rnd(0.004, 0.02) * w, rise: h * rnd(0.055, 0.09), size: most * rnd(0.12, 0.2), art: paintJelly(tone), tone, pulse: 0, seed: rnd(0, TAU) }); return; }
+    if (kind === "eye") { come({ kind, born: t, life: rnd(11, 16), x: rnd(0.2, 0.8) * w, y: rnd(0.28, 0.6) * h, size: Math.min(w, h) * rnd(0.2, 0.3), blink: t + rnd(1.5, 3), shut: 0, seed: rnd(0, TAU), drift: side * rnd(0.004, 0.012) * w }); return; }
+    if (kind === "mandala") { for (let i = 0; i < 2; i++) come({ kind, born: t + i * 2.5, life: rnd(10, 15), x: rnd(0.15, 0.85) * w, y: rnd(0.2, 0.75) * h, size: Math.min(w, h) * rnd(0.16, 0.3), petals: 6 + 2 * Math.floor(rnd(0, 4)), spin: rnd(0.15, 0.4) * (Math.random() < 0.5 ? -1 : 1), seed: rnd(0, TAU) }); return; }
+    if (kind === "toadstool") { const s = Math.min(w, h) * rnd(0.07, 0.11); for (let i = 0; i < 3; i++) come({ kind, born: t + i * 0.45, life: rnd(14, 18), side, x: side < 0 ? w + s * (1 + i * 1.6) : -s * (1 + i * 1.6), ground: h * rnd(0.86, 0.92), up: 0, vy: 0, size: s * rnd(0.85, 1.15), walk: w * rnd(0.05, 0.08), seed: rnd(0, TAU) }); return; }
+    if (kind === "jelly") { const tone = mix(look === "psy" ? rainbowTone(rnd(0, 3), 0) : around(rnd(0, 1)), look === "euphoric" ? [230, 215, 255] : look === "psy" ? [255, 255, 255] : [120, 210, 255], look === "psy" ? 0.15 : 0.35); come({ kind, born: t, life: rnd(15, 24), x: rnd(0.12, 0.88) * w, y: h * 1.15, drift: side * rnd(0.004, 0.02) * w, rise: h * rnd(0.055, 0.09), size: most * rnd(0.12, 0.2), art: paintJelly(tone), tone, pulse: 0, seed: rnd(0, TAU) }); return; }
     if (kind === "whale") { const tone = mix(around(rnd(0, 1)), [150, 200, 255], 0.5); come({ kind, born: t, life: rnd(18, 26), side, y: rnd(0.2, 0.55) * h, size: most * rnd(0.3, 0.45), art: paintWhale(tone), tone, seed: rnd(0, TAU) }); return; }
-    if (kind === "smiley") { for (let i = 0; i < 3; i++) come({ kind, born: t + i * 1.2, life: rnd(9, 14), x: rnd(0.1, 0.9) * w, y: h * 1.2, vx: rnd(-0.05, 0.05) * w, vy: -rnd(0.1, 0.16) * h, size: most * rnd(0.07, 0.13), turn: rnd(0, TAU), spin: rnd(-0.7, 0.7), nod: Math.random() < 0.5 ? -1 : 1 }); return; }
-    if (kind === "peek") { come({ kind, born: t, life: rnd(7, 11), x: rnd(0.16, 0.84) * w, size: Math.min(w, h) * rnd(0.34, 0.48), lean: side, blink: t + rnd(1, 3), shut: 0, seed: rnd(0, TAU), look }); return; }
+    if (kind === "smiley") { for (let i = 0; i < 3; i++) come({ kind, ...smileyTrick(0.45), born: t + i * 1.2, life: rnd(9, 14), x: rnd(0.1, 0.9) * w, y: h * 1.2, vx: rnd(-0.05, 0.05) * w, vy: -rnd(0.1, 0.16) * h, size: most * rnd(0.07, 0.13), turn: rnd(0, TAU), spin: rnd(-0.7, 0.7), nod: Math.random() < 0.5 ? -1 : 1, seed: rnd(0, TAU) }); return; }
+    if (kind === "peek") { come({ kind, born: t, life: rnd(7, 11), x: rnd(0.16, 0.84) * w, size: Math.min(w, h) * rnd(0.34, 0.48), lean: side, blink: t + rnd(1, 3), shut: 0, seed: rnd(0, TAU), look, ...(look === "acid" ? smileyTrick(0.6, true) : {}) }); return; }
     if (kind === "astronaut") { come({ kind, born: t, life: rnd(15, 22), side, y: rnd(0.16, 0.5) * h, size: Math.min(w, h) * rnd(0.09, 0.14), seed: rnd(0, TAU), beat: 0, arm: 0 }); return; }
     if (kind === "cow") { come({ kind, born: t, life: rnd(16, 22), side, y: rnd(0.18, 0.55) * h, size: Math.min(w, h) * rnd(0.13, 0.18), seed: rnd(0, TAU), turn: rnd(0, TAU), spin: rnd(-0.5, 0.5) }); return; }
     const angry = look === "hard";
@@ -1368,14 +1530,16 @@ window.Effects = (() => {
     g.fill();
   }
   function drawSmiley(o, part) {
-    const { t, dt, kick } = sound, size = o.size * (1 + 0.1 * kick);
-    o.x += o.vx * dt;
-    o.y += o.vy * dt;
+    const { t, dt, kick } = sound, size = o.size * (1 + 0.1 * kick), at = trickNow(o, part), melt = (at && at.melt) || 0;
+    o.x += o.vx * dt * (1 - melt);
+    o.y += o.vy * dt * (1 - 0.85 * melt); // a melting one stops rising
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = clamp(part / 0.08) * clamp((1 - part) / 0.12);
-    g.translate(o.x, o.y + sky.bob * o.size * 0.5 * o.nod);
-    g.rotate(o.turn + t * o.spin + sky.bob * 0.3 * o.nod);
-    g.drawImage(artOf("acid").head, -size / 2, -size / 2, size, size);
+    g.translate(o.x, o.y + sky.bob * o.size * 0.5 * o.nod * (1 - melt));
+    const turn = o.turn + t * o.spin + sky.bob * 0.3 * o.nod;
+    if (melt && o.upright === undefined) { o.tilt = turn; o.upright = Math.round(turn / TAU) * TAU; }
+    g.rotate(melt ? o.tilt + (o.upright - o.tilt) * clamp(melt * 4) : turn); // it rights itself first, so the drops run down
+    if (at) smileyNow(size, o, at); else g.drawImage(artOf("acid").head, -size / 2, -size / 2, size, size);
   }
   function drawPeek(o, part) { // a big face comes up from below, looks around, nods along, winks once and goes. The hardcore one only stares, and shakes
     const { t, kick } = sound, look = LOOKS[o.look], up = part < 0.14 ? 1 - (1 - part / 0.14) ** 3 : part > 0.86 ? 1 - ((part - 0.86) / 0.14) ** 2 : 1, size = o.size, r = size * 0.4, skin = rgba(mix(look.skin, [0, 50, 40], 0.12), 1), lookX = Math.sin(t * 0.9 + o.seed) * 0.1, wink = part > 0.58 && part < 0.65, shake = look.angry ? Math.sin(t * 41) * kick * size * 0.018 : 0;
@@ -1386,11 +1550,12 @@ window.Effects = (() => {
     g.rotate(Math.sin(t * 0.8 + o.seed) * 0.05 + sky.bob * 0.1 * o.lean);
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = 1;
-    g.drawImage(artOf(o.look).head, -size / 2, -size / 2, size, size);
+    const at = look.smiley ? trickNow(o, part) : null;
+    if (at) smileyNow(size, o, at); else g.drawImage(artOf(o.look).head, -size / 2, -size / 2, size, size);
     if (look.angry) return;
     if (look.smiley) {
-      if (!wink) return;
-      g.fillStyle = "#f7e11e";
+      if (!wink || (at && at.melt)) return; // a melting face's eyes have slid away
+      g.fillStyle = rgba(at ? at.tone : SMILEY, 1);
       g.beginPath();
       g.ellipse(r * 0.34, -r * 0.2, r * 0.17, r * 0.31, 0, 0, TAU);
       g.fill();
@@ -1556,7 +1721,122 @@ window.Effects = (() => {
     g.rotate(o.turn + t * o.spin);
     g.drawImage(art, -S / 2, -tall / 2, S, tall);
   }
-  const DRAWN_BY = { astronaut: drawAstronaut, saucer: drawSaucer, jelly: drawJelly, whale: drawWhale, smiley: drawSmiley, peek: drawPeek, cow: drawCow };
+  /* The psychedelic visitors, for goa and psytrance. */
+  function drawEye(o, part) { // a great eye opens in the sky, looks about, blinks, opens its pupil wide on the kick and closes again. Its iris runs through every color
+    const { t, kick } = sound, open = 1 - (1 - clamp(Math.min(part / 0.14, (1 - part) / 0.12))) ** 3;
+    if (t > o.blink) { o.blink = t + rnd(1.8, 4.5); o.shut = t + 0.14; }
+    if (o.drift) o.x += o.drift * sound.dt;
+    const W = o.size, lid = t < o.shut ? 0.05 : open, H = Math.max(W * 0.02, W * 0.5 * lid), R = W * 0.4, hue = rainbowTone(t * 0.4, o.seed);
+    const look = [Math.sin(t * 0.6 + o.seed) * W * 0.32, Math.sin(t * 0.43 + o.seed * 2) * W * 0.06];
+    g.globalCompositeOperation = "source-over";
+    g.globalAlpha = clamp(part / 0.05) * clamp((1 - part) / 0.05);
+    g.translate(o.x, o.y + sky.bob * W * 0.05);
+    softBlob(g, 0, 0, W * 1.7, hue, (0.22 + 0.25 * kick) * open);
+    g.lineCap = "round";
+    g.lineWidth = W * 0.035;
+    for (let i = 0; i < 14; i++) { // rays all round it, longer on a kick
+      const a = (i / 14) * TAU + t * 0.15, long = W * (1.12 + 0.25 * kick + 0.08 * Math.sin(t * 3 + i));
+      g.strokeStyle = rgba(rainbowTone(t * 0.4 + i / 14, o.seed), 0.35 * open);
+      g.beginPath();
+      g.moveTo(Math.cos(a) * W * 1.02, Math.sin(a) * W * 0.62);
+      g.lineTo(Math.cos(a) * long, Math.sin(a) * long * 0.62);
+      g.stroke();
+    }
+    const almond = () => { g.beginPath(); g.moveTo(-W, 0); g.quadraticCurveTo(0, -H * 2, W, 0); g.quadraticCurveTo(0, H * 2, -W, 0); g.closePath(); };
+    almond();
+    g.fillStyle = "#f6f2ea";
+    g.fill();
+    g.save();
+    almond();
+    g.clip();
+    let iris = null;
+    if (g.createConicGradient) { iris = g.createConicGradient(t * 0.7, look[0], look[1]); for (let i = 0; i <= 6; i++) iris.addColorStop(i / 6, rgba(rainbowTone(i / 2 + t * 0.15, 0), 1)); }
+    g.fillStyle = iris || rgba(hue, 1);
+    g.beginPath();
+    g.arc(look[0], look[1], R, 0, TAU);
+    g.fill();
+    g.strokeStyle = "rgba(20,8,30,.3)";
+    g.lineWidth = R * 0.06;
+    for (const k of [0.62, 0.86]) { g.beginPath(); g.arc(look[0], look[1], R * k, 0, TAU); g.stroke(); }
+    g.fillStyle = "#07040b";
+    g.beginPath();
+    g.arc(look[0], look[1], R * (0.3 + 0.24 * kick), 0, TAU); // the pupil opens wide on a kick
+    g.fill();
+    g.fillStyle = "rgba(255,255,255,.85)";
+    g.beginPath();
+    g.arc(look[0] - R * 0.28, look[1] - R * 0.3, R * 0.13, 0, TAU);
+    g.fill();
+    g.restore();
+    almond();
+    g.strokeStyle = "#1a0d26";
+    g.lineWidth = W * 0.045;
+    g.stroke();
+  }
+  function drawMandala(o, part) { // a kaleidoscope flower: it opens, its rings turn against each other, it breathes with the kick and folds away again
+    const { t, kick } = sound, R = o.size * Math.sin(Math.PI * clamp(part)) ** 0.7 * (1 + 0.1 * kick);
+    if (R < 1) return;
+    g.globalCompositeOperation = "lighter";
+    g.globalAlpha = 0.8;
+    g.translate(o.x, o.y + sky.bob * o.size * 0.05);
+    for (let ring = 0; ring < 4; ring++) {
+      const n = o.petals + ring * 4, r = R * (1 - ring * 0.21), turn = t * o.spin * (ring % 2 ? -1.3 : 1) + ring * 0.4;
+      g.fillStyle = rgba(rainbowTone(t * 0.2 + ring * 0.22, o.seed), 0.5 - ring * 0.07);
+      for (let i = 0; i < n; i++) {
+        g.save();
+        g.rotate(turn + (i / n) * TAU);
+        g.beginPath();
+        g.moveTo(0, 0);
+        g.quadraticCurveTo(r * 0.32, -r * 0.2, r, 0);
+        g.quadraticCurveTo(r * 0.32, r * 0.2, 0, 0);
+        g.fill();
+        g.restore();
+      }
+    }
+    softBlob(g, 0, 0, R * 0.32, [255, 255, 255], 0.45 + 0.4 * kick); // a bright heart
+  }
+  function drawToadstool(o, part) { // a toadstool walking along the bottom: it hops on the kick and squashes as it lands
+    const { t, dt, kickHit } = sound, s = o.size;
+    o.x += o.side * o.walk * dt;
+    if (kickHit && o.up <= 0.001) o.vy = s * rnd(5, 7);
+    o.vy -= s * 26 * dt;
+    o.up = Math.max(0, o.up + o.vy * dt);
+    if (o.up === 0 && o.vy < 0) { o.vy = 0; o.land = t; }
+    const squash = o.land ? Math.max(0, 1 - (t - o.land) / 0.18) : 0, sx = 1 + 0.2 * squash, sy = 1 - 0.2 * squash + Math.min(0.14, Math.max(0, o.vy) / (s * 50)), cap = rainbowTone(t * 0.25, o.seed);
+    g.globalCompositeOperation = "source-over";
+    g.globalAlpha = clamp(part / 0.04) * clamp((1 - part) / 0.06);
+    g.translate(o.x, o.ground - o.up);
+    g.scale(sx * (o.side < 0 ? -1 : 1), sy);
+    g.lineWidth = s * 0.06;
+    g.strokeStyle = "#1c1424";
+    g.fillStyle = "#f3ead6"; // the stem, with its face
+    g.beginPath();
+    g.moveTo(-s * 0.24, 0);
+    g.quadraticCurveTo(-s * 0.3, -s * 0.5, -s * 0.2, -s * 0.78);
+    g.lineTo(s * 0.2, -s * 0.78);
+    g.quadraticCurveTo(s * 0.3, -s * 0.5, s * 0.24, 0);
+    g.closePath();
+    g.fill();
+    g.stroke();
+    g.fillStyle = "#1c1424";
+    for (const side of [-1, 1]) { g.beginPath(); g.ellipse(side * s * 0.09 + s * 0.03, -s * 0.45, s * 0.035, s * 0.06, 0, 0, TAU); g.fill(); }
+    g.beginPath();
+    g.arc(s * 0.03, -s * 0.33, s * 0.07, 0.15 * Math.PI, 0.85 * Math.PI);
+    g.stroke();
+    const shine = g.createRadialGradient(-s * 0.2, -s * 1.1, s * 0.05, 0, -s * 0.85, s * 0.7); // the cap, in whatever color it's in just now, with white spots
+    shine.addColorStop(0, rgba(mix(cap, [255, 255, 255], 0.5), 1));
+    shine.addColorStop(1, rgba(mix(cap, [0, 0, 0], 0.25), 1));
+    g.fillStyle = shine;
+    g.beginPath();
+    g.moveTo(-s * 0.62, -s * 0.72);
+    g.bezierCurveTo(-s * 0.62, -s * 1.38, s * 0.62, -s * 1.38, s * 0.62, -s * 0.72);
+    g.quadraticCurveTo(0, -s * 0.84, -s * 0.62, -s * 0.72);
+    g.closePath();
+    g.fill();
+    g.stroke();
+    g.fillStyle = "rgba(255,255,250,.92)";
+    for (const [x, y, r] of [[-0.3, -1.0, 0.09], [0.05, -1.17, 0.11], [0.36, -0.96, 0.08], [-0.05, -0.9, 0.06]]) { g.beginPath(); g.arc(s * x, s * y, s * r, 0, TAU); g.fill(); }
+  }
+  const DRAWN_BY = { astronaut: drawAstronaut, saucer: drawSaucer, jelly: drawJelly, whale: drawWhale, smiley: drawSmiley, peek: drawPeek, cow: drawCow, eye: drawEye, mandala: drawMandala, toadstool: drawToadstool };
   function invite(trip) { // somebody new, when it's time: who depends on what's playing
     const { t } = sound, list = FOLK[mood] || FOLK[""];
     if (T.folk && t > crowd.at && crowd.folk.length < trip.crowd) { meet(list[crowd.step++ % list.length]); crowd.at = t + rnd(...trip.folk) / T.folk; }
@@ -2329,7 +2609,7 @@ window.Effects = (() => {
     g.rotate(o.neck * 0.5);
     g.drawImage(artOf(o.look).pilot, -S * 0.5, -S * 0.86, S, S);
   }
-  const GUESTS = { borrow: drawBorrow, abduct: drawAbduct, dangle: drawDangle, peek: drawPeek, astronaut: drawAstronaut, jelly: (o, part) => { drawJelly(o, part); if (o.y < -o.size * 1.4) o.done = true; } };
+  const GUESTS = { borrow: drawBorrow, abduct: drawAbduct, dangle: drawDangle, peek: drawPeek, astronaut: drawAstronaut, eye: drawEye, jelly: (o, part) => { drawJelly(o, part); if (o.y < -o.size * 1.4) o.done = true; } };
   function guests(real) {
     if (!guest.list.length) return;
     const W = innerWidth, H = innerHeight, k = document.body.classList.contains("gentle") ? 1 : Math.min(2, devicePixelRatio || 1), was = [g, w, h, sound.t, sound.dt];
@@ -2389,6 +2669,7 @@ window.Effects = (() => {
       if (!name) return;
       const aboard = TRIPS[name] && sky.far;
       if (what === "aliens") { meet("saucer"); meet("saucer"); }
+      else if (what === "acid") meet("smiley"); // typed while a picture is showing: smileys float up through it
       else if (what === "moo") { if (aboard) oddity("cow", true); else meet("cow"); }
       else if (aboard && (TRIPS[name].moves !== undefined || name === "space")) startMove(what === "warp" ? "jump" : "stop");
     },
@@ -2402,9 +2683,10 @@ window.Effects = (() => {
         Object.assign(o, { life: 11, el: place.element, size, x: Math.max(size * 0.55, Math.min(W - size * 0.55, r.left + r.width / 2)), y, top: r.top, bottom: r.bottom, middle: r.left + r.width / 2, wide: r.width, lifted: false });
       } else if (kind === "abduct") Object.assign(o, { life: 13, floor: place.floor ?? H, cow: Math.max(56, Math.min(96, W * 0.05)), size: Math.max(120, Math.min(190, W * 0.09)), x: left + (right - left) * rnd(0.3, 0.7), high: Math.max(150, Math.min(300, H * 0.32)) });
       else if (kind === "dangle") Object.assign(o, { life: rnd(10, 13), x: left + (right - left) * rnd(0.2, 0.8), reach: Math.max(130, Math.min(280, H * 0.28)), size: Math.max(46, Math.min(72, H * 0.07)), neck: 0, neckSpeed: 0, swing: rnd(-0.25, 0.25), swingSpeed: 0, wave: rnd(0.38, 0.55) });
-      else if (kind === "peek") { const size = Math.max(130, Math.min(220, Math.min(W, H) * 0.22)); Object.assign(o, { life: rnd(7, 10), floor: place.floor ?? H, size, x: left + size * 0.6 + Math.max(0, right - left - size * 1.2) * Math.random(), lean: side, blink: t + rnd(1, 3), shut: 0 }); }
+      else if (kind === "peek") { const size = Math.max(130, Math.min(220, Math.min(W, H) * 0.22)); Object.assign(o, { life: rnd(7, 10), floor: place.floor ?? H, size, x: left + size * 0.6 + Math.max(0, right - left - size * 1.2) * Math.random(), lean: side, blink: t + rnd(1, 3), shut: 0 }, look === "acid" ? smileyTrick(0.6, true) : {}); }
+      else if (kind === "eye") { const size = Math.max(60, Math.min(120, Math.min(W, H) * 0.1)), floor = place.floor ?? H; Object.assign(o, { life: rnd(8, 11), size, x: left + size * 1.5 + Math.max(0, right - left - size * 3) * Math.random(), y: floor - size * 1.15, blink: t + rnd(1.2, 2.5), shut: 0 }); } // it opens just over the play bar
       else if (kind === "astronaut") Object.assign(o, { life: rnd(14, 18), y: rnd(0.15, 0.5) * H, size: Math.max(56, Math.min(96, Math.min(W, H) * 0.085)), beat: 0, arm: 0 });
-      else { const tone = mix(around(rnd(0, 1)), look === "euphoric" ? [230, 215, 255] : [120, 210, 255], 0.35); Object.assign(o, { life: rnd(12, 16), x: rnd(0.15, 0.85) * W, y: H * 1.12, drift: side * rnd(0.004, 0.012) * W, rise: H * rnd(0.05, 0.065), size: Math.max(90, Math.min(160, Math.max(W, H) * 0.075)), art: paintJelly(tone), tone, pulse: 0 }); }
+      else { const tone = look === "psy" ? mix(rainbowTone(rnd(0, 3), 0), [255, 255, 255], 0.15) : mix(around(rnd(0, 1)), look === "euphoric" ? [230, 215, 255] : [120, 210, 255], 0.35); Object.assign(o, { life: rnd(12, 16), x: rnd(0.15, 0.85) * W, y: H * 1.12, drift: side * rnd(0.004, 0.012) * W, rise: H * rnd(0.05, 0.065), size: Math.max(90, Math.min(160, Math.max(W, H) * 0.075)), art: paintJelly(tone), tone, pulse: 0 }); }
       guest.list.push(o);
       return true;
     },
@@ -2428,7 +2710,7 @@ window.Effects = (() => {
     },
     vivid(img) { try { return vividColors(img)[0] || null; } catch { return null; } }, // the strongest color on any picture, without touching what's on screen
     frame(now, analyser, hit, tick, drawing = true) { // drawing: whether the picture moves on this frame. The visitors on the app move either way
-      const real = Math.min(0.1, last ? (now - last) / 1000 : 0.016), dt = real * T.speed, showing = !!name && drawing;
+      const real = Math.min(0.1, last ? (now - last) / 1000 : 0.016), dt = real * T.speed * flow.pace, showing = !!name && drawing; // slower in a calm part, quicker through a build and a drop
       last = now;
       realNow = now;
       hearing = !!analyser;
@@ -2440,9 +2722,11 @@ window.Effects = (() => {
         keepUp(real);
         if (pending) changeOver();
         drawFrame();
+        drawFlow(real);
         wander(real);
       }
       guests(real);
     },
+    flow: () => flow, // how the song is going, for the rest of the app: part (groove, calm, build or drop), intensity, and dropHit on the frame a drop lands
   };
 })();

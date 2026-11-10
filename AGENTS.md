@@ -178,8 +178,12 @@ Checking a song includes asking whether a better recording of it exists: first t
 
 If your AI app has its own browser (the Claude desktop app's Browser pane, for example), open the page there, beside the conversation. You and the person then look at the same cards, and you can check how a change really looks. Reading the page is fine. Answering on it is theirs: don't click their answers for them unless they ask.
 
-`curator serve` gives the person a local page to explore the library and answer what only ears can settle. With no config
-it opens on a first-run screen where they pick their library and downloads folders; that saves `curator.toml` to the per-user
+`curator serve` gives the person a local page to explore the library and answer what only ears can settle. It's a music player
+first: the Curator (Curate, To check, Progress, Double-check) and Spotify are extras, turned on or off under Settings → Extras
+(`[extras] curator` and `spotify` in `curator.toml`; with no choice made, the Curator is on when there's a downloads folder or a log,
+and Spotify once it's set up or has been checked). Off only hides that part of the page: the commands still work, so if the person
+asks you to curate with the Curator off, say they'll see the results once they turn it on. With no config
+it opens on a first-run screen where they pick their library folder and, if they like, a downloads folder; that saves `curator.toml` to the per-user
 location (`--config` or `$CURATOR_CONFIG` override it), and every command then finds it. To change folders, use its Settings page. It reads the
 library, the log and (optional `[paths]` keys) a `review` folder and a `review_list` Markdown file with one
 `- **Artist - Title**: reason` per song. The page never changes music (Looks right on Double-check only writes its check in the log); answers land in `decisions.json` next to the log, keyed

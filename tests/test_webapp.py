@@ -312,5 +312,76 @@ class App(unittest.TestCase):
         self.assertEqual(len(self.collection.decisions), 1)
 
 
+class Extras(unittest.TestCase):
+    """The app is a music player; the Curator and Spotify are extras. Until they're turned on or off in Settings, each is on only when there's something for it."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.addCleanup(webapp.config.load, None)
+        self.p = lambda *a: os.path.join(self.tmp.name, *a)
+        self.settings = self.p("settings", "curator.toml")
+        webapp.config.load(self.settings)
+        write_mp3(self.p("lib", "Acid", "Artist - Song.mp3"))
+        os.makedirs(self.p("cache", "discogs"))
+        os.makedirs(self.p("downloads"))
+
+    def collection(self, inbox=()):
+        c = webapp.Collection(dict(library=self.p("lib"), review="", review_list="", inbox=list(inbox), log=self.p("log.csv"), cache=self.p("cache"), decisions=self.p("decisions.json")))
+        c.refresh()
+        return c
+
+    def test_a_player_on_its_own_has_neither(self):
+        self.assertEqual(webapp.extras_state(self.collection()), dict(curator=False, spotify=False))
+        self.assertEqual(self.collection().snapshot()["meta"]["extras"], dict(curator=False, spotify=False))
+
+    def test_a_downloads_folder_or_a_log_brings_the_curator(self):
+        self.assertTrue(webapp.extras_state(self.collection([self.p("downloads")]))["curator"])
+        with open(self.p("log.csv"), "w", newline="", encoding="utf-8-sig") as f:
+            w = csv.DictWriter(f, fieldnames=tagwriter.LOG_FIELDS)
+            w.writeheader()
+            w.writerow(dict(date="2026-01-02T10:00:00", status="ok", src="x.mp3", dest=self.p("lib", "Acid", "Artist - Song.mp3"), artist="Artist", title="Song"))
+        self.assertTrue(webapp.extras_state(self.collection())["curator"])
+
+    def test_spotify_once_it_is_set_up_or_was_checked(self):
+        with open(self.p("spotify_playlists.json"), "w", encoding="utf-8") as f:
+            json.dump(dict(p1=dict(name="Mine", snapshot_id="s", entries=[])), f)
+        self.assertTrue(webapp.extras_state(self.collection())["spotify"])
+        os.remove(self.p("spotify_playlists.json"))
+        os.makedirs(os.path.dirname(self.settings))
+        with open(self.settings, "w", encoding="utf-8") as f:
+            f.write('[spotify]\nclient_id = "abc123"\n')
+        webapp.config.load(self.settings)
+        self.assertTrue(webapp.extras_state(self.collection())["spotify"])
+
+    def test_a_choice_in_settings_stands(self):
+        c = self.collection([self.p("downloads")])
+        self.assertIsNone(webapp.save_extras(dict(curator=False)))
+        self.assertEqual(webapp.extras_state(c), dict(curator=False, spotify=False))
+        with open(self.settings, encoding="utf-8") as f:
+            self.assertIn("[extras]\ncurator = false", f.read())
+        self.assertIsNone(webapp.save_extras(dict(curator=True, spotify=True)))
+        self.assertEqual(webapp.extras_state(self.collection()), dict(curator=True, spotify=True))
+
+    def test_only_true_or_false_for_the_two_of_them(self):
+        for body in ({}, dict(curator="no"), dict(curator=1), dict(curator=True, other=True)):
+            self.assertEqual(webapp.save_extras(body), "bad request", body)
+        self.assertFalse(os.path.exists(self.settings))
+
+    def test_through_the_page_and_only_from_the_computer(self):
+        self.assertIn("/api/settings/extras", webapp.PC_ONLY)
+        server = webapp.Server(("127.0.0.1", 0), webapp.Handler)
+        port = server.server_address[1]
+        server.collection, server.hosts = self.collection([self.p("downloads")]), {f"127.0.0.1:{port}"}
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.shutdown)
+        c = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+        c.request("POST", "/api/settings/extras", body=json.dumps(dict(curator=False)), headers={"Content-Type": "application/json"})
+        r = c.getresponse()
+        self.assertEqual((r.status, json.loads(r.read())), (200, dict(extras=dict(curator=False, spotify=False))))
+        c.close()
+
+
 if __name__ == "__main__":
     unittest.main()
