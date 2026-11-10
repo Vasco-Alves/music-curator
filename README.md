@@ -1,7 +1,8 @@
 # Pressling
 
 A free, open-source companion for your own music files: a player with a curator built in, which checks every song
-like a test pressing before it goes on the shelf. The package is `music-curator` and the command is `curator`.
+like a test pressing before it goes on the shelf. Install it as `pressling` and start it with `pressling`; the `curator`
+command does the same and more, for scripts and AI agents.
 
 Curate a local music library, on its own or with an AI agent: every song is checked against
 [Discogs](https://www.discogs.com), the exact version is settled by track length (and, with an agent, audio
@@ -13,7 +14,7 @@ Spotify (local files), Plex, Navidrome, foobar2000, a phone, …
 
 > Status: early (0.1). The workflow was developed on a real library of 90s acid/trance. Only Windows has had real use so far; the tests pass on macOS and Linux too.
 
-![The library overview, with a song open in the side panel](https://raw.githubusercontent.com/Vasco-Alves/music-curator/main/docs/img/overview.jpg)
+![The library overview, with a song open in the side panel](https://raw.githubusercontent.com/Vasco-Alves/pressling/main/docs/img/overview.jpg)
 
 <sub>The screenshots show a made-up library.</sub>
 
@@ -41,24 +42,24 @@ No programming needed: three commands, about ten minutes.
 2. **Install Pressling:**
 
    ```
-   uv tool install music-curator
+   uv tool install pressling
    ```
 
    If uv says it can't find it, it isn't on PyPI yet, so get it straight from GitHub instead:
-   `uv tool install "music-curator @ https://github.com/Vasco-Alves/music-curator/archive/refs/heads/main.zip"`.
+   `uv tool install "pressling @ https://github.com/Vasco-Alves/pressling/archive/refs/heads/main.zip"`.
    To update a copy installed that way, run the same line with `--reinstall` added after `install`.
 
 3. **Start it:**
 
    ```
-   curator serve
+   pressling
    ```
 
    Your browser opens. Pick the folder your music is in, and it plays your music straight away (a downloads folder is
-   optional, for the Curator). Keep the terminal open while you use it. If it says `curator` isn't found, run `uv tool update-shell`
+   optional, for the Curator). Keep the terminal open while you use it. If it says `pressling` isn't found, run `uv tool update-shell`
    and open a new terminal.
 
-Next time, only step 3. `uv tool upgrade music-curator` gets the newest version, and `uv tool uninstall music-curator`
+Next time, only step 3. `uv tool upgrade pressling` gets the newest version, and `uv tool uninstall pressling`
 removes it. Your music and settings stay where they are.
 
 It's a music player first. The **Curator**, which looks up new downloads and files them into your library, and **Spotify**
@@ -91,7 +92,7 @@ You can mix them:
 
 1. Download this repository and unzip it (or `git clone` it).
 2. Open the folder in your AI app.
-3. Say **"Set up music-curator for me."**
+3. Say **"Set up Pressling for me."**
 
 It checks what's missing and asks before installing anything. The one part only you can do is getting a free Discogs token, and
 it walks you through that. Then your library opens in your browser and you pick your folders.
@@ -129,7 +130,7 @@ inbox files ──parse──▶ items.json ──resolve──▶ ready / revie
 ```
 
 The Curate button runs the plain version of these steps by itself. An AI agent runs all of them and talks to you; see
-[AGENTS.md](https://github.com/Vasco-Alves/music-curator/blob/main/AGENTS.md) for the full workflow it follows. You can also run every step by hand.
+[AGENTS.md](https://github.com/Vasco-Alves/pressling/blob/main/AGENTS.md) for the full workflow it follows. You can also run every step by hand.
 
 ## Requirements
 
@@ -218,7 +219,7 @@ do: reading odd names, settling versions from the audio, checking other sources,
 
 `curator serve` opens a small local page (127.0.0.1 only, nothing to install):
 
-![To check: songs waiting for your ears, with the versions found](https://raw.githubusercontent.com/Vasco-Alves/music-curator/main/docs/img/check.jpg)
+![To check: songs waiting for your ears, with the versions found](https://raw.githubusercontent.com/Vasco-Alves/pressling/main/docs/img/check.jpg)
 
 - **Overview**: a wall of your covers, what you added last, your peak years, top genres, artists, labels and countries. Once you've played a few songs it also shows what you listen to most. A song counts as played once you've heard half of it, or 4 minutes if that comes first.
 - **Songs**: search and filter everything, play it, see how each song was verified and what the file used to be called, and jump to its Discogs page to check it or buy the record. **Export** takes whatever you've filtered: an M3U playlist, a spreadsheet, or copies in a folder or on a USB drive, with a playlist that goes along with them, for your phone, car or another player.
@@ -242,7 +243,7 @@ read by a laser that moves out from the middle as the song plays, instead of a r
 - **To check**: the questions only ears can answer (genre toss-ups, songs that couldn't be verified), with the audio right there. **Quick mode** takes them one at a time: press a number to answer and the next song starts. **Double-check** has the songs Curate added with nobody checking, for you to confirm or take back out (see [Curate with no AI](#curate-with-no-ai)).
 - **Progress**: what's waiting in the inbox, how sure each song is, library growth, latest changes.
 
-![Progress: how sure each song is, library growth, what's left to check](https://raw.githubusercontent.com/Vasco-Alves/music-curator/main/docs/img/progress.jpg)
+![Progress: how sure each song is, library growth, what's left to check](https://raw.githubusercontent.com/Vasco-Alves/pressling/main/docs/img/progress.jpg)
 
 The first time it asks where your library and downloads live, and you can change them later under Settings. Picking a
 folder never moves any music. The app keeps its log, answers and cache in a `_curation` folder next to the library, and its
@@ -302,14 +303,14 @@ client_id = "your client id"
 ## Your rules
 
 The defaults follow one person's taste; change them in `curator.toml` (`[rules]`) and
-[docs/RULES.md](https://github.com/Vasco-Alves/music-curator/blob/main/docs/RULES.md): filename pattern, folder layout, artist joiner, album for singles, keeping your
+[docs/RULES.md](https://github.com/Vasco-Alves/pressling/blob/main/docs/RULES.md): filename pattern, folder layout, artist joiner, album for singles, keeping your
 existing genres, game/TV soundtrack folders.
 
 ## Using it with AI agents
 
-- **Any agent:** point it at [AGENTS.md](https://github.com/Vasco-Alves/music-curator/blob/main/AGENTS.md).
+- **Any agent:** point it at [AGENTS.md](https://github.com/Vasco-Alves/pressling/blob/main/AGENTS.md).
 - **An app with its own browser**, like the Claude desktop app: open the page right beside the chat, so you and the agent are looking at the same thing. This is the best way to use the two together.
-- **Claude Code:** [CLAUDE.md](https://github.com/Vasco-Alves/music-curator/blob/main/CLAUDE.md) imports AGENTS.md; a skill is in [skills/music-curator](https://github.com/Vasco-Alves/music-curator/tree/main/skills/music-curator).
+- **Claude Code:** [CLAUDE.md](https://github.com/Vasco-Alves/pressling/blob/main/CLAUDE.md) imports AGENTS.md; a skill is in [skills/music-curator](https://github.com/Vasco-Alves/pressling/tree/main/skills/music-curator).
 
 ## Notes and limits
 
@@ -324,4 +325,4 @@ existing genres, game/TV soundtrack folders.
 
 ## License
 
-[MIT](https://github.com/Vasco-Alves/music-curator/blob/main/LICENSE). Data from Discogs, MusicBrainz and Spotify stays under their own terms.
+[MIT](https://github.com/Vasco-Alves/pressling/blob/main/LICENSE). Data from Discogs, MusicBrainz and Spotify stays under their own terms.

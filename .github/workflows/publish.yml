@@ -1,6 +1,6 @@
 name: publish
 
-# Puts a new version on PyPI when a release is published on GitHub, so `uv tool install music-curator` gets it.
+# Puts a new version on PyPI when a release is published on GitHub, so `uv tool install pressling` gets it.
 # It signs in to PyPI as this workflow (trusted publishing): no password or token is stored anywhere.
 
 on:

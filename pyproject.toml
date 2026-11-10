@@ -3,7 +3,7 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "music-curator"
+name = "pressling"
 version = "0.1.0"
 description = "Pressling: a player for your own music files with a curator built in. It checks songs against Discogs, settles the exact version, and writes clean tags and covers."
 readme = "README.md"
@@ -23,13 +23,14 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Vasco-Alves/music-curator"
-Issues = "https://github.com/Vasco-Alves/music-curator/issues"
+Homepage = "https://github.com/Vasco-Alves/pressling"
+Issues = "https://github.com/Vasco-Alves/pressling/issues"
 
 [project.optional-dependencies]
 compare = ["yt-dlp"]       # only to compare your files with videos online; nothing it fetches is kept
 
 [project.scripts]
+pressling = "music_curator.cli:pressling"   # on its own it opens the app
 curator = "music_curator.cli:main"
 
 [tool.setuptools.packages.find]

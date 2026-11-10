@@ -1,4 +1,4 @@
-# AGENTS.md — music-curator
+# AGENTS.md — Pressling
 
 Instructions for an AI agent (Claude Code, Codex, Cursor, Gemini CLI, …) helping a person curate their
 local music library with this toolkit. Humans: see `README.md`.

@@ -1,11 +1,11 @@
 ---
 name: music-curator
-description: Curate a local music library with the music-curator CLI — verify songs against Discogs (and MusicBrainz / official YouTube uploads), settle the exact version by track length and audio fingerprints, detect sped-up or cut rips, write clean tags, filenames and covers into a library folder, and report what needs a human decision. Use when the user wants to tag, verify, rename, organize or deduplicate music files, check whether a rip is the right version, or find a better copy of a song.
+description: Curate a local music library with Pressling's curator CLI — verify songs against Discogs (and MusicBrainz / official YouTube uploads), settle the exact version by track length and audio fingerprints, detect sped-up or cut rips, write clean tags, filenames and covers into a library folder, and report what needs a human decision. Use when the user wants to tag, verify, rename, organize or deduplicate music files, check whether a rip is the right version, or find a better copy of a song.
 ---
 
 # Music curator
 
-Requires the `music-curator` package (installed from the repo into a virtual environment, as "First-time setup" in `AGENTS.md` shows; command `curator`), ffmpeg with chromaprint,
+Requires Pressling, the `pressling` package (installed from the repo into a virtual environment, as "First-time setup" in `AGENTS.md` shows; command `curator`), ffmpeg with chromaprint,
 and a Discogs token (in `DISCOGS_TOKEN`, or a `.env` file the person keeps next to their settings: don't read it). Run `curator doctor` first. If it isn't set up yet, follow "First-time setup" in `AGENTS.md`.
 
 ## Ground rules

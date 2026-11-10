@@ -1846,7 +1846,7 @@ function pageSetup() {
     } }),
     missing ? null : el("p", { class: "note setup-note" }, "The app keeps its own files, like play counts and playlists, in a _curation folder next to your library, so music players don't scan them.")));
 }
-const GUIDE = "https://github.com/Vasco-Alves/music-curator#"; // the README, for what the page can't set up itself
+const GUIDE = "https://github.com/Vasco-Alves/pressling#"; // the README, for what the page can't set up itself
 function extrasSetting() { // the app is a music player; the Curator and Spotify are extras that can be turned off, which only hides them
   const box = el("div", { class: "card extras-setting" });
   const row = (name, title, what, needs) => {

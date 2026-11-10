@@ -60,10 +60,11 @@ jobs:
           EOF
       - name: Install it from GitHub, the way the README says
         run: |
-          uv tool install "music-curator @ https://github.com/${{ github.repository }}/archive/${{ github.sha }}.zip"
+          uv tool install "pressling @ https://github.com/${{ github.repository }}/archive/${{ github.sha }}.zip"
           uv tool dir --bin >> "$GITHUB_PATH"
       - name: Start it and open the page
         run: |
+          pressling --help > /dev/null
           curator --help > /dev/null
           curator serve --no-browser --port 8799 > serve.log 2>&1 &
           for i in $(seq 1 60); do curl -fsS -o all.json http://127.0.0.1:8799/api/all && break; sleep 1; done

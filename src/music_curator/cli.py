@@ -73,8 +73,8 @@ def cmd_doctor(args):
 
 
 def main(argv=None):
-    p = argparse.ArgumentParser(prog="curator", description="Curate a local music library: verify songs against Discogs "
-                                "(and fallbacks), settle versions by length and fingerprints, write clean tags + covers.")
+    p = argparse.ArgumentParser(prog="curator", description="Pressling: a player for your own music files with a curator built in. It verifies songs against "
+                                "Discogs (and fallbacks), settles versions by length and fingerprints, and writes clean tags + covers.")
     p.add_argument("--config", help="path to curator.toml (default: $CURATOR_CONFIG or ./curator.toml)")
     sub = p.add_subparsers(dest="cmd", required=True, metavar="<command>")
 
@@ -216,6 +216,12 @@ def main(argv=None):
     if args.cmd == "vgmdb":
         from . import vgmdb
         return vgmdb.main(args.rest)
+
+
+def pressling(argv=None):
+    """The `pressling` command: on its own it opens the app, and with a command it does what `curator` does."""
+    argv = sys.argv[1:] if argv is None else argv
+    return main(argv or ["serve"])
 
 
 if __name__ == "__main__":
