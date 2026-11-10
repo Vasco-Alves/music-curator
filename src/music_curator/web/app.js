@@ -85,6 +85,7 @@ const TRUST = {
 const KINDS = {
   genre: { label: "Genre by ear", hint: "Discogs lists more than one style." },
   waiting: { label: "Not in the library yet", hint: "Couldn't be verified." },
+  auto: { label: "Double-check", one: "Added by Curate", hint: "Curate added these with nobody checking. Listen, look, and say if it's right." },
   flag: { label: "Flagged by you", hint: "You marked this one." },
   problem: { label: "Something looked off", hint: "The last write needs a look." },
   quality: { label: "Low quality", hint: "A better copy might exist." },
@@ -97,7 +98,8 @@ const KINDS = {
 const ORDER = Object.keys(KINDS);
 const NEEDS = new Set(["genre", "waiting", "flag", "problem"]);
 const allItems = () => S.songs.flatMap((s) => s.checks.map((c) => ({ s, c, key: `${c.kind}:${s.key}` })));
-const isDone = (it) => it.c.kind !== "flag" && !!S.decisions[it.key];
+const checkedNow = new Set(); // the Double-check songs you said look right since the page was loaded, so they show as answered, with Undo
+const isDone = (it) => it.c.kind !== "flag" && (!!S.decisions[it.key] || checkedNow.has(it.key));
 const needsYou = () => allItems().filter((it) => NEEDS.has(it.c.kind) && !isDone(it)).length;
 
 async function load() {
@@ -108,6 +110,7 @@ async function load() {
   document.body.classList.toggle("setup", !!S.setup);
   if (S.setup) return;
   S.songs = d.songs; S.decisions = d.decisions; S.progress = d.progress; S.meta = d.meta;
+  checkedNow.clear(); // the songs come back verified now, with nothing left to double-check
   S.byId = new Map(d.songs.map((s) => [s.id, s]));
   S.lib = d.songs.filter((s) => s.area === "library");
   indexLists();
@@ -1008,7 +1011,32 @@ function recordsFall() { // the very last one answered: a few small records come
 }
 function decidedText(d) {
   return { keep: d.kind === "playlist" ? "Doesn't fit" : d.kind === "waiting" ? "Left for now" : d.kind === "spotify" ? "Not the same" : "Keep it as it is", genre: `Change the genre to ${d.genre}`, identify: `You said: ${d.note}`, drop: d.note === "On Spotify" ? "It's on Spotify, so your file isn't needed" : "Not worth keeping", stream: `On Spotify, in ${lines(d.note).join(", ")}`, pick: `It's ${(d.note || "").split("|").slice(1).join("|")}. Press Curate to add it.`,
-    recheck: `Look at it again${d.note ? `: ${d.note}` : ""}`, better: d.kind === "better" ? "Use the found version" : "Find a better copy", cover: "Find a cover", add: `Add it to ${lines(d.note).join(", ")}`, added: `Added to ${lines(d.note).join(", ")}` }[d.action] || d.action;
+    recheck: `Look at it again${d.note ? `: ${d.note}` : ""}`, better: d.kind === "better" ? "Use the found version" : "Find a better copy", cover: "Find a cover", add: `Add it to ${lines(d.note).join(", ")}`, added: `Added to ${lines(d.note).join(", ")}`,
+    right: "Looks right. It's marked verified.", wrong: `Not right${d.note ? `: ${d.note}` : ""}. Press Curate to take it out and look at it again.` }[d.action] || d.action;
+}
+async function looksRight(song, on) { // written down at once, like `curator verified`: no music changes
+  const key = `auto:${song.key}`, r = await post("/api/verified", on ? { id: song.id } : { id: song.id, undo: true });
+  if (r.error) { toast(r.error); return false; }
+  if (on) checkedNow.add(key); else checkedNow.delete(key);
+  song.trust = r.trust; song.notes = r.notes;
+  if (cards.has(key)) cards.get(key)(false);
+  if (drawerSong === song.id) paintPanel();
+  return true;
+}
+const undoAnswer = (song, kind, d) => (d && d.action === "right" ? looksRight(song, false) : decide(song, kind, null));
+const answerOf = (key) => S.decisions[key] || (checkedNow.has(key) ? { kind: "auto", action: "right" } : null);
+function doubleLines(s, c, inPanel) { // what to look at before saying it's right: the names, the tags, the cover, the record and how sure Curate was
+  if (c.kind !== "auto") return null;
+  const cover = ["Cover", c.px ? `${c.px[0]} × ${c.px[1]}` : s.cover ? "yes" : "none"]; // the panel lists the rest already
+  const tags = inPanel ? [cover] : [["Artist", s.artist], ["Title", s.title], ["Album", s.album || "none (a single)"], ["Year", s.year], ["Genre", s.genre], ["Label", s.label], cover];
+  const disc = c.disc ? [c.disc.title, [c.disc.label, c.disc.year].filter(Boolean).join(", ")].filter(Boolean) : [];
+  return el("div", { class: "double" },
+    s.was && s.was !== s.file ? el("div", { class: "item-also double-names" }, el("span", { class: "was" }, s.was), " → ", el("b", {}, s.file)) : null,
+    el("dl", { class: "double-tags" }, tags.filter(([, v]) => v).map(([k, v]) => el("div", {}, el("dt", {}, k), el("dd", {}, v)))),
+    s.link ? el("div", { class: "item-also" }, "On ", el("a", { href: s.link, target: "_blank", rel: "noreferrer noopener" }, disc[0] || "its record on Discogs"), disc[1] ? ` (${disc[1]})` : "") : null,
+    c.versions && c.versions.length ? el("div", { class: "double-versions" }, c.versions.map((v) => el("div", { class: `double-version${v.this ? " this" : ""}` },
+      el("span", { class: "pos" }, v.pos || "·"), el("span", { class: "name" }, v.title), el("span", { class: "len" }, versionNote(v) || "no length"), v.this ? el("em", {}, "this one") : null))) : null,
+    c.closer && c.closer.length ? el("div", { class: "double-closer" }, c.closer.map((w) => el("span", { class: "closer" }, icon("warn", 13), w))) : el("div", { class: "item-also double-calm" }, icon("tick", 13), "Nothing stood out to Curate."));
 }
 const alreadyIn = (c) => (c.also && c.also.length ? el("div", { class: "item-also" }, `Already in ${c.also.join(", ")}`) : null);
 const spotifyLine = (c) => (c.kind === "spotify" && c.link ? el("div", { class: "item-also" }, el("a", { href: c.link, target: "_blank", rel: "noreferrer noopener" }, "Open it on Spotify"), " to compare") : null);
@@ -1038,10 +1066,10 @@ function versionNote(o) { // how this version on the record compares with your f
   return off <= 6 ? `${o.dur}, same length as yours` : `${o.dur}, yours is ${off < 90 ? `${off} s` : clock(off)} ${o.gap > 0 ? "longer" : "shorter"}`;
 }
 function controls(song, check, after) {
-  const key = `${check.kind}:${song.key}`, d = S.decisions[key];
+  const key = `${check.kind}:${song.key}`, d = answerOf(key);
   if (d && check.kind !== "flag") {
     return el("div", { class: "decided" }, icon("tick", 15), el("span", {}, decidedText(d)),
-      el("button", { class: "linkish", type: "button", onclick: async () => { if (await decide(song, check.kind, null)) after(false); } }, "Undo"));
+      el("button", { class: "linkish", type: "button", onclick: async () => { if (await undoAnswer(song, check.kind, d)) after(false); } }, "Undo"));
   }
   const row = el("div", { class: "actions" });
   const act = (action, extra) => async () => { if (await decide(song, check.kind, action, extra)) after(true); };
@@ -1119,6 +1147,18 @@ function controls(song, check, after) {
     case "flag":
       row.append(chip("Done with this", async () => { if (await decide(song, "flag", null)) { song.checks = song.checks.filter((c) => c.kind !== "flag"); badge(); after(true); } }));
       break;
+    case "auto":
+      row.append(chip("Looks right", async () => { if (await looksRight(song, true)) after(true); }), chip("Not right…", () => {
+        const back = () => { if (cards.has(key)) cards.get(key)(false); if (drawerSong === song.id) paintPanel(); };
+        const input = el("input", { type: "text", placeholder: "What's wrong? (you can leave this empty)", "aria-label": "What's wrong with it", maxlength: 300 });
+        const save = () => act("wrong", { note: input.value.trim() })();
+        input.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); else if (e.key === "Escape") { e.stopPropagation(); back(); } });
+        row.replaceChildren(el("div", { class: "not-right" },
+          el("div", { class: "inline-form" }, input, el("button", { class: "btn small", type: "button", onclick: save }, "Take it out"), el("button", { class: "linkish", type: "button", onclick: back }, "Cancel")),
+          el("p", { class: "note" }, `When you press Curate, ${check.original ? "this copy goes to the Set aside folder and your original comes back on To check" : "this copy goes back to your downloads, under its old name, and waits on To check"}, with the versions on its record to pick from. Nothing is deleted.`)));
+        input.focus();
+      }));
+      break;
     default:
       row.append(chip("Fine as it is", act("keep")), chip("Look at it again", ask("What's off? (optional detail helps)", "recheck", "note")));
   }
@@ -1127,7 +1167,7 @@ function controls(song, check, after) {
 
 /* ---------- to check ---------- */
 const inCheckKind = (kind) => (it) => (kind === "needs" ? NEEDS.has(it.c.kind) : kind === "all" ? true : it.c.kind === kind);
-const checkOrder = (a, b) => ORDER.indexOf(a.c.kind) - ORDER.indexOf(b.c.kind) || fold(songName(a.s)).localeCompare(fold(songName(b.s)));
+const checkOrder = (a, b) => ORDER.indexOf(a.c.kind) - ORDER.indexOf(b.c.kind) || (b.c.closer || []).length - (a.c.closer || []).length || fold(songName(a.s)).localeCompare(fold(songName(b.s))); // on Double-check, the ones worth a closer look come first
 function pageCheck(params) {
   if (params.get("quick") === "1") return pageQuick(params);
   const kind = params.get("kind") || "needs", showDone = params.get("done") === "1", items = allItems(), inKind = inCheckKind(kind);
@@ -1168,7 +1208,7 @@ function itemCard(it, paintMeter) {
       el("div", { class: "item-body" },
         el("button", { class: "item-title", type: "button", onclick: () => openDrawer(it.s.id) }, songName(it.s) || it.s.file),
         el("div", { class: "item-kind" }, it.s.genre ? `${k.one || k.label} · filed under ${it.s.genre}${it.s.year ? `, ${it.s.year}` : ""}` : k.one || k.label),
-        el("div", { class: "item-why" }, it.c.why), alreadyIn(it.c), recordLine(it.c), audioLine(it.c), spotifyLine(it.c), betterLine(it.c),
+        el("div", { class: "item-why" }, it.c.why), doubleLines(it.s, it.c), alreadyIn(it.c), recordLine(it.c), audioLine(it.c), spotifyLine(it.c), betterLine(it.c),
         controls(it.s, it.c, paint)));
     if (paintMeter) paintMeter();
     if (advance && S.listen && current() && current().id === it.s.id) step(1);
@@ -1200,13 +1240,13 @@ function pageQuick(params) {
     cards.set(it.key, () => paint());
     const k = KINDS[it.c.kind], answers = controls(it.s, it.c, (advance) => {
       if (!advance) return paint();
-      if (S.decisions[it.key]) answered.push(it);
+      if (answerOf(it.key)) answered.push(it);
       go(1);
     });
     [...answers.querySelectorAll("button")].slice(0, 9).forEach((b, n) => { b.dataset.key = n + 1; b.prepend(el("kbd", {}, n + 1)); });
     card.replaceChildren(coverEl(it.s), el("div", { class: "quick-body" },
       el("div", { class: "item-kind" }, it.s.genre ? `${k.one || k.label} · filed under ${it.s.genre}${it.s.year ? `, ${it.s.year}` : ""}` : k.one || k.label),
-      el("h2", {}, songName(it.s) || it.s.file), el("div", { class: "item-why" }, it.c.why), alreadyIn(it.c), recordLine(it.c), audioLine(it.c), spotifyLine(it.c), betterLine(it.c), answers));
+      el("h2", {}, songName(it.s) || it.s.file), el("div", { class: "item-why" }, it.c.why), doubleLines(it.s, it.c), alreadyIn(it.c), recordLine(it.c), audioLine(it.c), spotifyLine(it.c), betterLine(it.c), answers));
   }
   function go(way) { // the next one still waiting for an answer, going round to the start if need be
     for (let n = 1; n <= items.length; n++) {
@@ -1219,7 +1259,7 @@ function pageQuick(params) {
   async function undo() {
     const it = answered.pop();
     if (!it) return toast("Nothing to undo.");
-    if (await decide(it.s, it.c.kind, null)) { at = items.indexOf(it); paint(); hear(); }
+    if (await undoAnswer(it.s, it.c.kind, answerOf(it.key))) { at = items.indexOf(it); paint(); hear(); }
   }
   quickFollow = (s) => { // the song changed some other way: it finished, or Next was pressed
     if (P.label !== "To check" || (items[at] && items[at].s.id === s.id && open(items[at]))) return;
@@ -1484,24 +1524,25 @@ let curateTimer = null;
 const freshSongs = () => S.songs.filter((s) => s.area === "inbox" && !s.done && !s.looked && !S.decisions[`waiting:${s.key}`]).length;
 const answersToRun = () => Object.entries(S.decisions).filter(([k, d]) => k.startsWith("waiting:inbox/") && /\.(mp3|flac|m4a)$/i.test(k) && S.songs.some((s) => `waiting:${s.key}` === k && !s.done) && (d.action === "pick" || (d.action === "identify" && /\s[-–—]\s/.test(d.note || "")))).length;
 function answersWaiting() { // what's been answered and not carried out yet, by who can do it
-  const out = { genres: 0, drops: 0, research: 0 }, songs = new Map(S.songs.map((s) => [s.key, s]));
+  const out = { genres: 0, drops: 0, wrong: 0, research: 0 }, songs = new Map(S.songs.map((s) => [s.key, s]));
   for (const [k, d] of Object.entries(S.decisions)) {
     const song = songs.get(k.slice(k.indexOf(":") + 1));
     if (!song || song.done) continue;
     if (d.action === "genre") { if (song.area === "library") out.genres++; else out.research++; }
     else if (d.action === "drop") out.drops++;
+    else if (d.action === "wrong") { if (song.area === "library") out.wrong++; }
     else if (["better", "cover", "flag", "recheck"].includes(d.action)) out.research++;
     else if ((d.action === "identify" || d.action === "pick") && !(k.startsWith("waiting:inbox/") && (d.action === "pick" || /\s[-–—]\s/.test(d.note || "")))) out.research++;
   }
   return out;
 }
 function lastRunWords(r) {
-  const did = [r.added || !(r.changed || r.aside) ? `Added ${plural(r.added, "song")}${r.waiting ? `, ${fmt(r.waiting)} waiting for you` : ""}` : "", r.changed ? `Changed ${plural(r.changed, "genre")}` : "", r.aside ? `Set ${fmt(r.aside)} aside` : ""].filter(Boolean).join(". "), left = r.not_done || [];
+  const did = [r.added || !(r.changed || r.aside || r.back) ? `Added ${plural(r.added, "song")}${r.waiting ? `, ${fmt(r.waiting)} waiting for you` : ""}` : "", r.back ? `Took ${plural(r.back, "song")} out of your library to look at again` : "", r.changed ? `Changed ${plural(r.changed, "genre")}` : "", r.aside ? `Set ${fmt(r.aside)} aside` : ""].filter(Boolean).join(". "), left = r.not_done || [];
   return `${r.stopped ? "Stopped early. " : ""}${did}.${r.strong ? ` ${fmt(r.strong)} of those ${r.strong === 1 ? "has" : "have"} a strong audio match for you to confirm.` : ""}${left.length ? ` ${plural(left.length, "answer")} couldn't be carried out. ${left[0]}` : ""}${r.said ? ` ${r.said}` : ""}`;
 }
 let curateAside = false; // the songs marked not worth keeping only leave if you tick the box
 function paintCurate(box) {
-  const c = S.meta.curate || {}, fresh = freshSongs(), answers = answersToRun(), w = answersWaiting(), records = c.styles_missing || 0, aside = curateAside ? w.drops : 0, lookups = fresh + answers + records, here = w.genres + aside, todo = lookups + here;
+  const c = S.meta.curate || {}, fresh = freshSongs(), answers = answersToRun(), w = answersWaiting(), records = c.styles_missing || 0, aside = curateAside ? w.drops : 0, lookups = fresh + answers + records, here = w.genres + w.wrong + aside, todo = lookups + here;
   if (c.running) {
     const fill = el("div");
     fill.style.width = c.total ? `${Math.round((c.done / c.total) * 100)}%` : "0";
@@ -1518,8 +1559,8 @@ function paintCurate(box) {
   const last = box.dataset.always ? c.result : null, research = box.dataset.check ? w.research : 0;
   box.hidden = !todo && !w.drops && !research && !last && !c.failed;
   if (box.hidden) { box.replaceChildren(); return; }
-  const words = [fresh ? plural(fresh, "new song") : "", answers ? plural(answers, "answer") : "", w.genres ? plural(w.genres, "genre change") : "", aside ? `${fmt(aside)} to set aside` : "", records ? `the genres of ${plural(records, "record")}` : ""].filter(Boolean).join(", ");
-  const blocked = lookups && !here && c.problem, says = [fresh + answers ? "Looks each song up on Discogs and adds the ones it's sure of. The rest wait for you on To check." : "", w.genres || aside ? "Anything replaced or taken out is kept in the Set aside folder." : "", records && !(fresh + answers) ? "Looks up every genre Discogs lists for your records. The files keep the one they have." : ""].filter(Boolean).join(" ");
+  const words = [fresh ? plural(fresh, "new song") : "", answers ? plural(answers, "answer") : "", w.wrong ? `${fmt(w.wrong)} to take out and look at again` : "", w.genres ? plural(w.genres, "genre change") : "", aside ? `${fmt(aside)} to set aside` : "", records ? `the genres of ${plural(records, "record")}` : ""].filter(Boolean).join(", ");
+  const blocked = lookups && !here && c.problem, says = [w.wrong ? `Songs you said aren't right leave your library first and wait on To check again${c.problem ? "" : ", looked up afresh"}.` : "", fresh + answers ? "Looks each song up on Discogs and adds the ones it's sure of. The rest wait for you on To check." : "", w.genres || aside ? "Anything replaced or taken out is kept in the Set aside folder." : "", records && !(fresh + answers) ? "Looks up every genre Discogs lists for your records. The files keep the one they have." : ""].filter(Boolean).join(" ");
   box.replaceChildren(...[
     el("div", { class: "curate-head" },
       el("div", { class: "grow" },
@@ -1530,7 +1571,8 @@ function paintCurate(box) {
     w.drops ? el("label", { class: "filter-check curate-aside" }, el("input", { type: "checkbox", checked: curateAside, onchange: (e) => { curateAside = e.target.checked; repaintCurate(); } }), `Also move the ${plural(w.drops, "song")} marked not worth keeping to the Set aside folder. Nothing is deleted.`) : null,
     research ? el("p", { class: "note curate-said" }, `${plural(research, "answer")} ${research === 1 ? "needs" : "need"} some research, like finding a better copy. Ask your AI app to apply your answers.`) : null,
     c.failed ? el("p", { class: "note curate-said" }, c.failed) : null,
-    last ? el("p", { class: "note curate-said" }, lastRunWords(last), last.waiting ? [" ", el("a", { href: "#/check" }, "See what's waiting")] : null) : null,
+    last ? el("p", { class: "note curate-said" }, lastRunWords(last), last.waiting ? [" ", el("a", { href: "#/check" }, "See what's waiting")] : null,
+      last.added && S.lib.some((s) => s.trust === "auto") ? [" ", el("a", { href: "#/check?kind=auto" }, "Double-check what went in")] : null) : null,
   ].filter(Boolean));
 }
 function curateBar(always, check) {
@@ -1946,7 +1988,7 @@ function paintPanel() {
     el("dl", { class: "facts-list" }, facts.map(([k, v]) => [el("dt", {}, k), el("dd", k === "Played" ? { dataset: { plays: s.id } } : {}, k === "Album" || k === "Label" ? el("a", { class: "fact-link", href: `#/songs?${q2({ [k.toLowerCase()]: v })}` }, v) : v)])),
     s.area === "library" ? [el("h3", {}, "How sure"), el("div", { class: "box" }, trustTag(s), el("div", { class: "note" }, t.long), s.notes ? el("div", { class: "item-why" }, s.notes) : null)] : null,
     s.was && s.was !== s.file ? [el("h3", {}, "Your file was called"), el("div", { class: "box" }, s.was)] : null,
-    checks.length ? [el("h3", {}, "To check"), checks.map((c) => el("div", { class: "box" }, el("strong", {}, KINDS[c.kind].label), el("div", { class: "item-why" }, c.why), alreadyIn(c), recordLine(c), audioLine(c), spotifyLine(c), betterLine(c),
+    checks.length ? [el("h3", {}, "To check"), checks.map((c) => el("div", { class: "box" }, el("strong", {}, KINDS[c.kind].label), el("div", { class: "item-why" }, c.why), doubleLines(s, c, true), alreadyIn(c), recordLine(c), audioLine(c), spotifyLine(c), betterLine(c),
       controls(s, c, (advance) => { if (advance && S.listen && current() && current().id === s.id) step(1); })))] : null,
     el("div", { class: "hintbar" }, flagBox)]);
   drawer.classList.toggle("fresh", paintedSong !== drawerSong); // only a new song arrives with motion, not a repaint of the same one

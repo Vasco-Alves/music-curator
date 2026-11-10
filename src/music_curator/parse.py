@@ -13,7 +13,7 @@ import sys
 import unicodedata
 
 from .library import AUDIO
-from .tagwriter import KINDS
+from .tagwriter import KINDS, written_sources
 
 LOOKALIKES = {"＂": '"', "：": ":", "｜": "|", "⧸": "/", "⁄": "/", "–": "-",
               "—": "-", "’": "'", "‘": "'", "“": '"', "”": '"', "【": "[", "】": "]"}
@@ -108,11 +108,12 @@ def norm(s):
 
 
 def read_inbox(dirs, log_path):
-    """(items, paths of other audio that can't be curated). An item's "done" category means the log already has it."""
-    done = set()
+    """(items, paths of other audio that can't be curated). An item's "done" category means the log already has it.
+    One whose copy you took back out of the library, because the match was wrong, has "back": what you said about it."""
+    done, back = set(), {}
     if os.path.exists(log_path):
         with open(log_path, encoding="utf-8-sig", errors="replace", newline="") as f:  # re-saved from Excel, say: one odd byte mustn't stop everything
-            done = {r.get("src") for r in csv.DictReader(f, restval="") if r.get("status") == "ok" or (r.get("status") or "").startswith("check")}  # "check": written, with something to look at
+            done, back = written_sources(csv.DictReader(f, restval=""))
     items, n, skipped = [], 0, []
     for d in dirs:
         for fn in sorted(os.listdir(d)):
@@ -144,6 +145,8 @@ def read_inbox(dirs, log_path):
                           "tag_artist": tags.get("artist", ""), "tag_title": tags.get("title", ""),
                           "tag_album": tags.get("album", ""), "tag_date": tags.get("date", ""), "tag_genre": tags.get("genre", ""),
                           "folder_genre": os.path.basename(os.path.normpath(d)), **info})
+            if p in back:
+                items[-1]["back"] = back[p]
     return items, skipped
 
 

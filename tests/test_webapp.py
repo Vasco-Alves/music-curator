@@ -69,6 +69,14 @@ class Reading(unittest.TestCase):
         info = library.read_song(write_mp3(self.path("Show Me.mp3"), title="(Unknown)", artist="<unknown>", year="0000"))
         self.assertEqual((info["title"], info["artist"], info["year"]), ("Show Me", "", ""))
 
+    def test_the_size_of_a_cover(self):
+        png = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR" + (600).to_bytes(4, "big") + (500).to_bytes(4, "big") + b"\x08\x02\x00\x00\x00"
+        jpeg = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00" + b"\x00" * 9 + b"\xff\xc0\x00\x11\x08" + (300).to_bytes(2, "big") + (400).to_bytes(2, "big") + b"\x03" + b"\x00" * 9
+        gif = b"GIF89a" + (32).to_bytes(2, "little") + (16).to_bytes(2, "little")
+        self.assertEqual([library.image_size(x) for x in (png, jpeg, gif)], [(600, 500), (400, 300), (32, 16)])
+        for junk in (JPEG, b"", None, b"\x89PNG", b"\xff\xd8\xff\xc0\x00\x11\x08\x00\x00\x00\x00"):
+            self.assertIsNone(library.image_size(junk), junk)
+
     def test_broken_file_is_still_listed(self):
         with open(self.path("broken.mp3"), "wb") as f:
             f.write(b"ID3\x03\x00\x00\x7f\x7f\x7f\x7f" + b"garbage")

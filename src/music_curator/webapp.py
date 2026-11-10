@@ -2,7 +2,8 @@
 
 Standard library only. It listens on 127.0.0.1, and with `--lan` on your home network too, behind a private link. Browsing only reads your music: your answers go to decisions.json (next to the log),
 which `curator apply` and your agent act on later. The one thing that adds to your library is the Curate button (see curate.py),
-and the one outside service it talks to is Discogs.
+and the one outside service it talks to is Discogs. Looks right, on Double-check, writes to the log straight away, the way `curator verified`
+does: it changes no music.
 """
 import collections
 import csv
@@ -23,7 +24,7 @@ import unicodedata
 import urllib.parse
 import webbrowser
 
-from . import config, folders, library
+from . import config, folders, library, tagwriter
 
 WEB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"), "/style.css": ("style.css", "text/css; charset=utf-8"), "/glass.css": ("glass.css", "text/css; charset=utf-8"), "/hifi.css": ("hifi.css", "text/css; charset=utf-8"),
@@ -32,11 +33,15 @@ CSP = ("default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline';
        "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 LAN_COOKIE = "curator_lan"
 PC_ONLY = {"/api/settings", "/api/settings/compare", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/spotify/send", "/api/export/copy", "/api/export/playlists"}  # choosing folders, writing files elsewhere and signing in to Spotify all happen on the computer
-ACTIONS = {"keep", "genre", "identify", "drop", "recheck", "better", "cover", "flag", "add", "added", "pick", "stream"}
+ACTIONS = {"keep", "genre", "identify", "drop", "recheck", "better", "cover", "flag", "add", "added", "pick", "stream", "wrong"}
 WORDS = dict(keep="keep as it is", genre="change the genre", identify="identify it", drop="not worth keeping",
              recheck="look at it again", better="find a better copy", cover="find a cover", flag="flagged", add="add it to a playlist", added="added to a playlist",
-             pick="use the version you picked", stream="it's on Spotify")
+             pick="use the version you picked", stream="it's on Spotify", wrong="take it out and look again")
 LOW_KBPS = 128  # below this a song is worth a better copy
+CLOSE_GAP_S = 6  # an Auto-matched song this far from the record's length is worth a closer listen (Curate lets in up to 20 s)
+SMALL_COVER_PX = 500  # a cover smaller than this on its short side is worth a look
+GOOD_KBPS = 192  # below this, worth knowing while you listen
+LENGTH_SAID = re.compile(r"(.*?),\s*(no length on the record|length matches the record|length within (\d+) s of the record)$")  # how Curate writes the length it went by
 DISCARD_S = 2  # how long a refused request's leftover body gets read before the connection closes
 BODY_TIMEOUT_S = 15  # how long to wait for a request body that was promised
 EXPORT_BODY_MAX = 1 << 20  # room for about 70,000 songs
@@ -136,6 +141,69 @@ def checks_for(song, row, reason, flagged):
     return checks
 
 
+def seconds(text):
+    """'6:32' -> 392, '1:02:03' -> 3723. None if it isn't a length."""
+    parts = str(text or "").strip().split(":")
+    if not 2 <= len(parts) <= 3 or not all(p.isdigit() for p in parts):
+        return None
+    total = 0
+    for p in parts:
+        total = total * 60 + int(p)
+    return total or None
+
+
+def bare_title(title):
+    """A title without what's in brackets: the versions of one song share it."""
+    return text_key(re.sub(r"[(\[][^)\]]*[)\]]", "", title or ""))
+
+
+def _no_featured(title):
+    return text_key(re.sub(r"[(\[]\s*(?:feat\.?|ft\.?|featuring)\s[^)\]]*[)\]]", "", title or "", flags=re.I))
+
+
+def double_check(song, row, record, tracks, px, original):
+    """What to look at in a song Curate added with nobody double-checking: how it got in, anything worth a closer listen, and the versions on its record.
+    record: what's known about the record (discogs_index), tracks: its tracklist, px: the cover's size, original: whether the downloaded file is still there."""
+    notes = [p.strip() for p in (row or {}).get("notes", "").split(";") if p.strip()]
+    said = next((p[len(tagwriter.AUTO_NOTE):].lstrip(" :") for p in notes if p.startswith(tagwriter.AUTO_NOTE)), None)
+    closer = []
+    if said is None:
+        why = "You picked the version on To check, and Curate added it."
+        closer.append("You picked the version yourself")
+    else:
+        why = f"Curate added it by itself: {said}." if said else "Curate added it by itself."
+        m = LENGTH_SAID.match(said)
+        how, length = (m[1], m[2]) if m else (said, "")
+        if how.startswith("length matches"):
+            closer.append("Chosen from several versions by its length")
+        elif how.startswith("untitled track"):
+            closer.append("An untitled side, chosen by your file's name")
+        elif re.match(r"\d+ tracks on the record share", how):
+            closer.append(f"{how.split()[0]} tracks on the record share its title")
+        if m and m[3] and int(m[3]) > CLOSE_GAP_S:
+            closer.append(f"{m[3]} s off the record's length")
+        elif length == "no length on the record":
+            closer.append("The record lists no length to compare")
+    if any(p.lower().startswith("genre toss-up") for p in notes):
+        closer.append("Its genre was a toss-up")
+    if song["kbps"] and song["kbps"] < GOOD_KBPS:
+        closer.append(f"Only {song['kbps']} kbps")
+    if not song["cover"]:
+        closer.append("No cover")
+    elif px and min(px) < SMALL_COVER_PX:
+        closer.append(f"Small cover, {px[0]} × {px[1]}")
+    if any(c["kind"] == "better" for c in song["checks"]):
+        closer.append("A better copy may exist")
+    title, versions = bare_title(song["title"]), []
+    for pos, name, dur in tracks or []:
+        if bare_title(name) == title and len(versions) < 12:
+            length = seconds(dur)
+            versions.append(dict(pos=pos, title=name, dur=dur, gap=round(song["secs"] - length) if length and song["secs"] else None, this=_no_featured(name) == _no_featured(song["title"])))
+    year = record.get("year") if record else None
+    disc = dict(title=record["title"], label=record["label"], year=year if type(year) is int and year < 9999 else "") if record and record.get("title") else None  # a hand-made answer can say anything
+    return dict(kind="auto", why=why, closer=closer, disc=disc, versions=versions, px=px, original=original)
+
+
 def release_format(j):
     """'Vinyl, 12", EP' from a Discogs release. The speed says nothing anyone browsing would want."""
     first = (j.get("formats") or [{}])[0]
@@ -162,7 +230,8 @@ def discogs_index(cache_dir):
                 continue
             label = re.sub(r"\s*\(\d+\)$", "", j["labels"][0].get("name") or "").strip()
             info = dict(label="" if label.lower().startswith("not on label") else label, country=j.get("country") or "", year=j.get("year") or 9999,
-                        format=release_format(j), tracks=sum(1 for t in j.get("tracklist") or [] if t.get("type_", "track") == "track"))
+                        format=release_format(j), tracks=sum(1 for t in j.get("tracklist") or [] if t.get("type_", "track") == "track"),
+                        title=str(j.get("title") or ""), file=name)  # the tracklist itself is read only when a song needs it
             releases[j["id"]] = info
             mid = j.get("master_id")
             if mid and (mid not in masters or info["year"] < masters[mid]["year"]):  # the earliest pressing
@@ -181,7 +250,7 @@ class Collection:
         self.parsed = {}
         self.songs = {}
         self.log_sig, self.log_rows, self.log_latest, self.log_moved, self.log_first = None, [], {}, {}, {}
-        self.log_done = set()
+        self.log_done, self.log_back = set(), {}
         self.list_sig, self.list_reasons = None, {}
         self.labels = None
         self.decisions, self.decisions_sig, self.decisions_broken = {}, None, False
@@ -195,6 +264,7 @@ class Collection:
         self.waves, self.waves_sig = {}, None
         self.own, self.own_sig = {}, None
         self.styles, self.styles_sig = {}, None
+        self.cover_px, self.tracklists = {}, {}  # only for the songs on Double-check
         self._read_decisions()
 
     def _watch(self, name, path, keep):
@@ -321,7 +391,7 @@ class Collection:
             st = os.stat(path)
         except (OSError, TypeError, ValueError):
             self.log_sig, self.log_rows, self.log_latest, self.log_moved, self.log_first = None, [], {}, {}, {}
-            self.log_done = set()
+            self.log_done, self.log_back = set(), {}
             return
         sig = (st.st_mtime_ns, st.st_size)
         if sig == self.log_sig:
@@ -332,7 +402,7 @@ class Collection:
         except (OSError, ValueError, csv.Error):  # open in Excel right now, say: keep what we have and try on the next load
             self.log_sig = None
             return
-        root, latest, moved, first, done = norm(self.paths["library"]) + os.sep, {}, {}, {}, set()
+        root, latest, moved, first = norm(self.paths["library"]) + os.sep, {}, {}, {}
         for r in rows:
             status = r.get("status") or ""
             d = norm(r["dest"]) if r.get("dest") and not status.startswith(("skipped", "error")) else ""  # a row that didn't write the file says nothing about the file there
@@ -341,13 +411,11 @@ class Collection:
                 if not d.startswith(root):
                     moved.setdefault(os.path.basename(d), []).append(r)
             src = norm(r["src"]) if r.get("src") else ""
-            if src and (status == "ok" or status.startswith("check")):
-                done.add(src)
             if status == "ok" and is_date(r.get("date", "")):  # when the song first arrived, whatever changed later: a better copy comes from somewhere else, so its name counts too
                 for known_as in filter(None, (src, log_name(r))):
                     first.setdefault(known_as, r["date"])
         self.log_sig, self.log_rows, self.log_latest, self.log_moved, self.log_first = sig, rows, latest, moved, first
-        self.log_done = done
+        self.log_done, self.log_back = tagwriter.written_sources(rows, key=lambda src: norm(src) if src else "")  # one taken back out because the match was wrong is waiting again
 
     def _first_seen(self, row, otherwise=""):
         if not row:
@@ -474,11 +542,11 @@ class Collection:
                     notes=(row or {}).get("notes", ""), trust=trust_of(row), label="", country="", format="", tracks=0, also=[], wide=False, _path=path, _rel=rel, _tagless=info.get("tagless", False))
         heard = self.plays.get(play_key(song))
         song.update(plays=heard["plays"] if heard else 0, played=str(heard.get("last") or "") if heard else "", lufs=self.levels.get(level_key(song)))
-        m = re.search(r"discogs\.com/(release|master)/(\d{1,12})(?!\d)", link)
+        m, record = re.search(r"discogs\.com/(release|master)/(\d{1,12})(?!\d)", link), None
         if m and self.labels:
-            found = self.labels[0 if m[1] == "release" else 1].get(int(m[2]))
-            if found:
-                song.update(label=found["label"], country=found["country"], format=found["format"], tracks=found["tracks"])
+            record = self.labels[0 if m[1] == "release" else 1].get(int(m[2]))
+            if record:
+                song.update(label=record["label"], country=record["country"], format=record["format"], tracks=record["tracks"])
         styles = self.styles.get(record_of(link))
         if styles:  # the file keeps its one genre: these are for finding it under the others
             song.update(also=[x for x in styles["styles"] if isinstance(x, str) and x and x != song["genre"]], wide=bool(styles.get("wide")))
@@ -486,6 +554,9 @@ class Collection:
         held = self.curated.get(key) if area == "inbox" and not song["done"] else None
         listed = self._reason(stem, song["artist"], song["title"]) if area != "library" else ""
         reason = held["why"] if held and (held.get("said") or not listed) else listed  # what someone found out says more than Curate's names and lengths, unless Curate is answering what you told it
+        back = self.log_back.get(norm(path)) if area == "inbox" and not song["done"] and not held else None
+        if back is not None and not reason:  # taken out of the library and not looked up again yet
+            reason = f"You said Curate's match wasn't right{f': {back}' if back else ''}. Press Curate to look it up again."
         flag = self.decisions.get(f"flag:{key}")
         song["checks"] = checks_for(song, row, reason, (flag or {}).get("note") or ("Flagged by you" if flag else ""))
         song["looked"] = bool(held) and not held.get("retry")  # one held back by a network blip is worth another go
@@ -510,7 +581,73 @@ class Collection:
             song["checks"].append(dict(kind="better", why=found["why"], link=found["url"], checked=bool(found.get("checked"))))
         if key in self.ideas:
             song["checks"].append(dict(kind="playlist", why=self.ideas[key]["why"], fits=self.ideas[key]["fits"], also=self.ideas[key].get("also", [])))
+        if song["trust"] == "auto":
+            song["checks"].append(double_check(song, row, record, self._tracks_of(record), self._cover_size(path, st) if song["cover"] else None, self._original(row)))
         return song
+
+    def _tracks_of(self, record):
+        """[(position, title, length)] on a record, from its saved Discogs answer."""
+        if not record:
+            return []
+        if record["file"] not in self.tracklists:
+            try:
+                with open(os.path.join(self.paths["cache"], "discogs", record["file"]), encoding="utf-8") as f:
+                    j = json.load(f)
+                self.tracklists[record["file"]] = [(str(t.get("position") or ""), str(t.get("title") or ""), str(t.get("duration") or ""))
+                                                   for t in j.get("tracklist") or [] if isinstance(t, dict) and t.get("type_", "track") == "track"]
+            except (OSError, ValueError, AttributeError, TypeError):
+                self.tracklists[record["file"]] = []
+        return self.tracklists[record["file"]]
+
+    def _cover_size(self, path, st):
+        """[width, height] of a song's cover, read again only when the file changes."""
+        n, sig = norm(path), (st.st_mtime_ns, st.st_size)
+        known = self.cover_px.get(n)
+        if not known or known[0] != sig:
+            found = library.read_cover(path)
+            known = self.cover_px[n] = (sig, library.image_size(found[0]) if found else None)
+        return list(known[1]) if known[1] else None
+
+    def _original(self, row):
+        """Whether the downloaded file a library song was made from is still in one of your downloads folders."""
+        src = (row or {}).get("src") or ""
+        return bool(src) and any(norm(os.path.dirname(src)) == norm(d) for d in self.paths["inbox"]) and os.path.isfile(src)
+
+    def _rows_of(self, path, rel):
+        """Every log row about the file at path, oldest first. After the whole library has moved, its old paths still end in the same folders and name."""
+        rows = [r for r in self.log_rows if r.get("dest") and not (r.get("status") or "").startswith(("skipped", "error"))]
+        mine = [r for r in rows if norm(r["dest"]) == norm(path)]
+        wanted = os.sep + norm(rel)
+        return mine or [r for r in rows if norm(r["dest"]).endswith(wanted)]
+
+    def checked(self, song_id, undo=False):
+        """Looks right, from the page: an Auto-matched song you checked is written down as verified, the way `curator verified` does it.
+        With undo, the notes from before come back. Returns what the page shows for the song now, or {error}."""
+        from . import apply, curate  # here because they need this module loaded first
+        with self.lock:
+            self._read_log()  # it may have been written to since the page was loaded
+            song = self.songs.get(str(song_id))
+            if not song or song["area"] != "library" or not os.path.exists(song["_path"]):
+                return dict(error="That song isn't in your library any more. Refresh the page.")
+            rows = self._rows_of(song["_path"], song["_rel"])
+            row = curate.unchecked_row(rows) if undo else curate.checked_row(rows[-1] if rows else None, curate.CHECKED_ON_THE_PAGE)
+            if not row:
+                return dict(error="That was changed somewhere else meanwhile. Refresh the page." if undo else "It isn't Auto-matched any more. Refresh the page.")
+            try:
+                with curate._OneAtATime(os.path.join(os.path.dirname(self.paths["log"]), "curate.lock")):  # Curate writes to the log too
+                    handle, writer = apply._open_log(self.paths["log"])
+                    try:
+                        writer.writerow(row)
+                    finally:
+                        handle.close()
+            except curate.Stop:
+                return dict(error="Curate is running. Try again when it's finished.")
+            except (OSError, SystemExit):
+                return dict(error="The log can't be written just now (is it open in another program?), so nothing changed.")
+            self._read_log()
+            latest = self._log_row(song["_path"], song["_rel"])
+            song.update(trust=trust_of(latest), notes=(latest or {}).get("notes", ""))
+            return dict(trust=song["trust"], notes=song["notes"])
 
     def progress(self):
         rows = self.log_rows
@@ -855,7 +992,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if not self._let_in():
             return None
         route = self._route()
-        if route not in ("/api/decision", "/api/played", "/api/settings", "/api/settings/compare", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/spotify/send", "/api/curate", "/api/curate/stop", "/api/export/list", "/api/export/copy", "/api/export/stop", "/api/export/playlists",
+        if route not in ("/api/decision", "/api/played", "/api/verified", "/api/settings", "/api/settings/compare", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/spotify/send", "/api/curate", "/api/curate/stop", "/api/export/list", "/api/export/copy", "/api/export/stop", "/api/export/playlists",
                          "/api/playlists/new", "/api/playlists/add", "/api/playlists/remove", "/api/playlists/move", "/api/playlists/rename", "/api/playlists/delete", "/api/playlists/import"):
             return self._reply(404, b"Not found")
         if self.server.lan and route in PC_ONLY and not self._on_this_computer():
@@ -902,6 +1039,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self._json(dict(error="choose your folders first"), 400)
         if route == "/api/played":
             answer = self.server.collection.played(body.get("id"))
+            return self._json(answer, 400 if answer.get("error") else 200)
+        if route == "/api/verified":
+            if self.server.curate_lock.locked():  # a run in progress is writing to the log
+                return self._json(dict(error="Curate is running. Try again when it's finished."), 409)
+            answer = self.server.collection.checked(body.get("id"), body.get("undo") is True)
             return self._json(answer, 400 if answer.get("error") else 200)
         if route == "/api/settings/compare":
             from . import curate

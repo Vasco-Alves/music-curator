@@ -155,6 +155,8 @@ Curate decides on names and lengths, and only checks that a file plays all the w
    Before saying a song is the same recording, compare it with the official upload ("Provided to YouTube by …"): `curator same YOUR_FILE "<its link>"`.
 6. **Record it.** `curator verified "Genre/Artist - Title.mp3" --how "what you checked"` turns it into Verified on the page. If something failed, don't mark it: tell the person what's wrong.
 
+The person can also check these themselves on the page's Double-check. **Looks right** writes the same log entry, with `verified: you checked it on the page`: that's their own check, so leave the song as it is unless they ask you to look too. **Not right** is a `wrong` answer (see **The browser app**).
+
 **Every song Curate left** (in `curated.json`, still in the downloads folder): take it through **The workflow**, starting from the reason Curate gave. That includes other sources when Discogs doesn't have the song (step 5). Whatever you can verify gets the same checks before you call it done.
 If the person turned on comparing audio (`[curate] compare_audio`), an entry may hold `audio`: how many videos on the record were compared and, under `match`, one that's the same recording from start to finish. Curate never adds a song because of it, and neither should you on that alone: a video can be mislabelled or be another mix from the same record. Use it as one piece of evidence.
 
@@ -180,7 +182,7 @@ If your AI app has its own browser (the Claude desktop app's Browser pane, for e
 it opens on a first-run screen where they pick their library and downloads folders; that saves `curator.toml` to the per-user
 location (`--config` or `$CURATOR_CONFIG` override it), and every command then finds it. To change folders, use its Settings page. It reads the
 library, the log and (optional `[paths]` keys) a `review` folder and a `review_list` Markdown file with one
-`- **Artist - Title**: reason` per song. The page never changes music; answers land in `decisions.json` next to the log, keyed
+`- **Artist - Title**: reason` per song. The page never changes music (Looks right on Double-check only writes its check in the log); answers land in `decisions.json` next to the log, keyed
 `<kind>:<area>/<relative path>`, and `curator decisions` lists them. Play counts land in `plays.json` beside it, keyed by artist and title, so a count follows a song to another folder or a better copy. Playlists made in the app are in `own_playlists.json`, keyed the same way: if you change a song's artist or title, it shows as not here in those playlists, so tell the person.
 
 To act on them, run `curator apply --dry-run`, show the person what it would do, and after their OK run `curator apply`. Nothing
@@ -192,6 +194,10 @@ Every style Discogs lists for a record is in `styles.json` next to the log, per 
   elsewhere (a soundtrack folder, say), and retires the question. Spotify matching doesn't depend on the genre or the folder. It works on
   MP3, FLAC and M4A files in the library; anything it can't do is reported as "not done" and stays on the list.
 - `drop` (the page's "Not worth keeping"): `apply` moves these to `Set aside` only with `--set-aside`. Name the songs and ask first.
+- `wrong` (kind `auto`, the page's "Not right" on Double-check): the person says Curate's match is wrong, and the note may say why. `apply` and the page's
+  Curate take the copy out of the library: to `Set aside` while the original is still in the downloads folder, or else back to that folder under its
+  old name. The log row says `removed: not right`, and from then on Curate holds the song on To check with the note. It's never added again by
+  itself, only by the person's pick or by your verified write. Treat it as a song Curate left.
 - `keep`: nothing to do. The entry stays; it marks the question as answered.
 - `identify`: the person's note says what the song is. Research it like any other song; write it only once it's verified. `curator curate` also acts on a note written as `Artist - Title`.
 - `stream` (kind `spotify`): the person listened and added Spotify's version to playlists, from the page. Nothing to do; a `drop` noted "On Spotify" says their file isn't needed, and it only moves with `apply --set-aside`, on their OK.

@@ -22,6 +22,7 @@ Spotify (local files), Plex, Navidrome, foobar2000, a phone, …
 There are two ways to use it, and you can mix them:
 
 - **On its own.** Press **Curate** on the page. The app looks up each song and adds the ones it's sure of, and you settle the rest by ear.
+  Then **Double-check** what it added, if you like: listen, look over what it wrote, and say whether it's right.
   See [Set it up by hand](#set-it-up-by-hand) and [Curate with no AI](#curate-with-no-ai).
 - **With an AI app** that can run commands on your computer, such as Claude Code, Codex, Cursor or Gemini CLI. It does the hard
   cases too, and it can do the whole setup for you:
@@ -134,6 +135,15 @@ With nobody double-checking, the rules are strict. A song goes in only when:
 Those songs are marked **Auto-matched**, so you can tell them from the ones checked more closely. Everything else waits on To check
 with the reason and the versions found: listen, then click the one it is, or type what it really is, and press Curate again.
 
+**Double-check** (on To check, and in each song's panel) is where you check the Auto-matched songs yourself. Each one shows what Curate
+wrote: the old and new file names, the tags, the cover and its size, the record it matched, and the versions on that record with their
+lengths next to yours. The ones worth a closer look come first, with the reason: a length further off, a version picked from several by
+length, one you picked yourself, a genre toss-up, a low bitrate, a small cover or a better copy found. **Looks right** marks the song
+Verified straight away, the way `curator verified` does, and only writes that in the log. **Not right**, with a note if you like, takes
+it out of your library the next time you press Curate. The copy goes to the Set aside folder while your original is still in your downloads,
+or back to your downloads under its old name if it isn't. Then the song is looked up again and waits on To check with your note, and only
+your answer puts it back. Quick mode works here too: 1 for Looks right, 2 for Not right, U to undo.
+
 On one real library of 518 songs, replayed from their original messy names, 55% went in by themselves and one disagreed with the
 verified answer, only in how the title was spelled. The rules were tuned on that same library, so expect a little less on yours.
 Files nobody can look up, like nightcore edits or unofficial remixes, always wait for you or an agent. An agent adds what Curate can't
@@ -165,7 +175,7 @@ do: reading odd names, settling versions from the audio, checking other sources,
 - **White labels and stickers**: a song with no verified cover shows as a blank promo record with its name stamped on it. Sleeves carry small stickers for what the curator knows: a seal when every song on the record is verified, a yellow label when something waits for you on To check, and an orange one when a better copy may exist.
 - **Radio**: Start radio on any song and it keeps playing others like it from your library, going by genre, label, year, artist and the playlists they share. Clear what's next to stop it.
 - **Even volume**: a button on the play bar that turns loud songs down to match the rest. It never raises a song, because nearly every file already reaches full scale and raising it would distort it, so quieter songs stay as they are. Each song is measured with ffmpeg the first time it's needed, and the file isn't changed.
-- **To check**: the questions only ears can answer (genre toss-ups, songs that couldn't be verified), with the audio right there. **Quick mode** takes them one at a time: press a number to answer and the next song starts.
+- **To check**: the questions only ears can answer (genre toss-ups, songs that couldn't be verified), with the audio right there. **Quick mode** takes them one at a time: press a number to answer and the next song starts. **Double-check** has the songs Curate added with nobody checking, for you to confirm or take back out (see [Curate with no AI](#curate-with-no-ai)).
 - **Progress**: what's waiting in the inbox, how sure each song is, library growth, latest changes.
 
 ![Progress: how sure each song is, library growth, what's left to check](docs/img/progress.jpg)
@@ -175,8 +185,8 @@ folder never moves any music. The app keeps its log, answers and cache in a `_cu
 settings in your user profile. Browsing only ever reads your music. Your answers go to `decisions.json` next to the log, with play counts in `plays.json` and the playlists you make in `own_playlists.json` beside it. The
 one thing on the page that changes your library is the Curate button, and the only outside service it talks to is Discogs (plus YouTube, if you turn on comparing audio). Export never changes your library, and copying only ever adds files to the folder you pick.
 
-When you've answered To check, press **Curate** at the top of that page. It adds the songs you identified and carries out your other answers that need no research: genre
-changes, which also move the song to the new genre's folder, and, if you tick the box, the songs you marked not worth keeping. `curator apply` does the same from a terminal (`--dry-run` to preview, `--set-aside` for those songs).
+When you've answered To check, press **Curate** at the top of that page. It adds the songs you identified and carries out your other answers that need no research: songs
+you said aren't right on Double-check, genre changes, which also move the song to the new genre's folder, and, if you tick the box, the songs you marked not worth keeping. `curator apply` does the same from a terminal (`--dry-run` to preview, `--set-aside` for those songs).
 Nothing is deleted: old copies go to a `Set aside` folder next to the log, which you can empty whenever you like. Answers that need
 research, like finding a better copy, stay on the list for your agent.
 
@@ -206,7 +216,7 @@ client_id = "your client id"
 |---|---|
 | `init`, `doctor` | starter config; environment check |
 | `curate [--dry-run]` | curate with no AI: add the songs the evidence settles, leave the rest on To check |
-| `verified SONG… --how TEXT` | record that Auto-matched songs were checked properly (for your agent, after Curate) |
+| `verified SONG… --how TEXT` | record that Auto-matched songs were checked properly, like Looks right on Double-check (for your agent, after Curate) |
 | `parse OUT [DIR…]` | read inbox folders (names + tags) into items |
 | `resolve ITEMS OUT` | Discogs match and tag decisions |
 | `scan ITEMS` | every pressing/version of a song with lengths |

@@ -1,8 +1,9 @@
 """`curator apply`: carry out the answers from the browser that need no research.
 
 A genre answer changes the genre tag and nothing else (checked byte by byte) and moves the song to the new genre's folder.
-With --set-aside, songs marked "not worth keeping" leave too. Nothing is ever deleted: what gets replaced or taken out goes to a
-"Set aside" folder next to the log, and every change is logged. Answers that need research stay on the list for the person's agent.
+A song you said Curate got wrong leaves the library, and waits on To check again. With --set-aside, songs marked "not worth keeping"
+leave too. Nothing is ever deleted: what gets replaced or taken out goes to a "Set aside" folder next to the log, and every change is
+logged. Answers that need research stay on the list for the person's agent.
 """
 import csv
 import datetime
@@ -268,7 +269,7 @@ class Run:
         self.collection = webapp.Collection(paths)
         self.collection._read_log()
         self.aside = os.path.join(_aside_folder(paths), datetime.datetime.now().strftime("%Y-%m-%d %H-%M-%S"))
-        self.changed, self.removed, self.cleared, self.problems = 0, 0, 0, 0
+        self.changed, self.removed, self.cleared, self.problems, self.back = 0, 0, 0, 0, 0
         self.log_file, self.log = None, None
         if needs_log and not dry_run:
             self.log_file, self.log = _open_log(paths["log"])
@@ -479,6 +480,45 @@ class Run:
         self.removed += 1
         self.retire(key)
 
+    def not_right(self, key, answer, name):
+        """Curate's match was wrong, so the copy leaves the library and the song waits on To check again. While its original is still in
+        your downloads the copy goes to the Set aside folder; if the original has gone, the copy goes back in its place, under its old name."""
+        area, root, path = _locate(answer.get("file"), self.paths)
+        if area != "library":
+            raise Skip("it isn't in your library")
+        logged = self.collection._log_row(path, os.path.relpath(path, root).replace(os.sep, "/"))
+        src = os.path.normpath(logged["src"]) if logged and logged.get("src") else ""
+        home = next((d for d in self.paths["inbox"] if src and webapp.norm(os.path.dirname(src)) == webapp.norm(d)), None)
+        if not home:
+            raise Skip("the log doesn't say it came from one of your downloads folders, so it stayed in your library")
+        if not os.path.isdir(home):
+            raise Skip("its downloads folder can't be found. Is the drive connected?")
+        original = os.path.isfile(src)
+        where = f"the {SET_ASIDE} folder" if original else "your downloads, under its old name"
+        if self.dry_run:
+            self.say(f"  {name}: would leave your library, to {where}")
+            self.back += 1
+            return
+        target = os.path.join(self.aside, *answer["file"].split("/")) if original else src
+        said = " ".join(str(answer.get("note") or "").split())[:300]
+        notes = [p.strip() for p in (logged.get("notes") or "").split(";") if p.strip() and not p.strip().startswith(tagwriter.NOT_RIGHT)]
+        row = dict(logged, date=_now(), status=f"{tagwriter.TAKEN_BACK} ({f'set aside in {target}' if original else 'back in your downloads'})",
+                   notes="; ".join(notes + [f"{tagwriter.NOT_RIGHT}: {said}" if said else tagwriter.NOT_RIGHT]))
+        mark = self.write_log(row)
+        try:
+            if original:
+                self.to_aside(_move, path, answer["file"])
+            else:
+                _move(path, target)
+        except BaseException:
+            self.take_back(mark)
+            raise
+        if webapp.norm(os.path.dirname(path)) != webapp.norm(self.paths["library"]):
+            _remove_if_empty(os.path.dirname(path))
+        self.say(f"  {name}: out of your library, to {where}. It waits on To check.")
+        self.back += 1
+        self.retire(key)
+
 
 def _listed(answers):
     """The answers that are in a usable shape, by song."""
@@ -493,33 +533,47 @@ def _for_the_page(paths, set_aside):
             pairs = _listed(json.load(f))
     except (OSError, ValueError):
         return []
-    return ([p for p in pairs if p[1]["action"] == "drop"] if set_aside else []) + [p for p in pairs if p[1]["action"] == "genre" and str(p[1].get("file") or "").startswith("library/")]
+    in_library = lambda p: str(p[1].get("file") or "").startswith("library/")  # noqa: E731
+    return ([p for p in pairs if p[1]["action"] == "wrong" and in_library(p)] + ([p for p in pairs if p[1]["action"] == "drop"] if set_aside else [])
+            + [p for p in pairs if p[1]["action"] == "genre" and in_library(p)])
 
 
-def any_for_the_page(paths, set_aside):
-    return bool(_for_the_page(paths, set_aside))
+def any_for_the_page(paths, set_aside, only=None):
+    return any(not only or answer["action"] in only for _, answer in _for_the_page(paths, set_aside))
 
 
-def carry_out(paths, set_aside=False, update=None, stopping=None, progress=None):
-    """What the page's Curate button does with your answers: the same work as the command, told back in numbers. Anything that can't be done is said and stays on the list."""
-    work = _for_the_page(paths, set_aside)
-    told = dict(changed=0, aside=0, cleared=0, not_done=[])
+def add_up(*told):
+    """Answers carried out in more than one go, told back as one."""
+    out = dict(changed=0, aside=0, cleared=0, back=0, not_done=[])
+    for t in filter(None, told):
+        for k in ("changed", "aside", "cleared", "back"):
+            out[k] += t.get(k, 0)
+        out["not_done"] = out["not_done"] + list(t.get("not_done") or [])
+    return out
+
+
+def carry_out(paths, set_aside=False, update=None, stopping=None, progress=None, only=None):
+    """What the page's Curate button does with your answers: the same work as the command, told back in numbers. Anything that can't be done is said and stays on the list.
+    only: just the answers with these actions."""
+    work = [p for p in _for_the_page(paths, set_aside) if not only or p[1]["action"] in only]
+    told = dict(changed=0, aside=0, cleared=0, back=0, not_done=[])
     if not work:
         return told
     try:
         run = Run(paths, False, True, say=lambda _: None, update=update)
     except SystemExit as ex:  # the log can't be written: better to find out before anything changes
         return dict(told, not_done=[str(ex)])
+    handlers = dict(wrong=run.not_right, drop=run.take_out, genre=run.change_genre)
     try:
         for n, (key, answer) in enumerate(work):
             if stopping and stopping.is_set():
                 break
             if progress:
                 progress(done=n, total=len(work), name=answer["song"])
-            run.attempt(key, answer, run.take_out if answer["action"] == "drop" else run.change_genre)
+            run.attempt(key, answer, handlers[answer["action"]])
     finally:
         run.close()
-    return dict(changed=run.changed, aside=run.removed, cleared=run.cleared, not_done=run.troubles)
+    return dict(changed=run.changed, aside=run.removed, cleared=run.cleared, back=run.back, not_done=run.troubles)
 
 
 def main(dry_run=False, set_aside=False):
@@ -536,15 +590,21 @@ def main(dry_run=False, set_aside=False):
     pairs = _listed(answers)
     genres = [p for p in pairs if p[1]["action"] == "genre"]
     drops = [p for p in pairs if p[1]["action"] == "drop"]
+    wrongs = [p for p in pairs if p[1]["action"] == "wrong"]
     adds = [p for p in pairs if p[1]["action"] == "add"]
-    others = [p for p in pairs if p[1]["action"] not in ("keep", "genre", "drop", "add", "added", "stream")]
-    if not (genres or drops or others or adds):
+    others = [p for p in pairs if p[1]["action"] not in ("keep", "genre", "drop", "wrong", "add", "added", "stream")]
+    if not (genres or drops or wrongs or others or adds):
         print("Nothing to apply: no genre changes or other requests are waiting.")
         return 0
     if dry_run:
         print("Preview only: nothing is being changed.\n")
-    run = Run(paths, dry_run, bool(genres or (drops and set_aside)))
+    run = Run(paths, dry_run, bool(genres or wrongs or (drops and set_aside)))
     try:
+        if wrongs:  # first of all: a song on its way out doesn't need anything else done to it
+            print("Not right (out of your library, to look at again on To check)")
+            for key, answer in wrongs:
+                run.attempt(key, answer, run.not_right)
+            print()
         if drops and set_aside:  # first: a song on its way out doesn't need its genre changed
             print("Not worth keeping")
             for key, answer in drops:
@@ -574,6 +634,8 @@ def main(dry_run=False, set_aside=False):
     finally:
         run.close()
     counts = [f"{run.changed} genre change{'' if run.changed == 1 else 's'}"] if genres else []
+    if wrongs:
+        counts.append(f"{run.back} out of your library to look at again")
     if drops and set_aside:
         counts.append(f"{run.removed} set aside")
     if run.cleared:
@@ -585,10 +647,12 @@ def main(dry_run=False, set_aside=False):
     if adds:
         counts.append(f"{len(adds)} to add by hand")
     print(("Would do: " if dry_run else "Done: ") + ", ".join(counts) + ".")
-    if dry_run and (genres or (drops and set_aside)):
+    if dry_run and (genres or wrongs or (drops and set_aside)):
         print(f"Run `curator apply{' --set-aside' if set_aside else ''}` to do this.")
     if not dry_run and os.path.isdir(run.aside):
         print(f"What was replaced or taken out is in {run.aside}\nNothing was deleted. Empty that folder whenever you're happy with the result.")
-    if run.changed + run.removed + run.cleared and not dry_run:
+    if run.back and not dry_run:
+        print("Run `curator curate`, or press Curate on the page, to look the songs you took out up again: they wait on To check with the versions on their record.")
+    if run.changed + run.removed + run.cleared + run.back and not dry_run:
         print("If your library is open in the browser, refresh the page.")
     return 1 if run.problems else 0

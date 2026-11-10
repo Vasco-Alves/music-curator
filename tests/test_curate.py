@@ -18,7 +18,7 @@ import urllib.error
 from unittest import mock
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src"))
-from music_curator import better_copies, cli, config, curate, discogs, fpdrift, library, parse, resolve, samerec, tagwriter, videos, webapp  # noqa: E402
+from music_curator import apply, better_copies, cli, config, curate, discogs, fpdrift, library, parse, resolve, samerec, tagwriter, videos, webapp  # noqa: E402
 from test_apply import Base  # noqa: E402
 from test_webapp import JPEG, write_mp3  # noqa: E402
 
@@ -1468,4 +1468,241 @@ class FromThePage(WithDiscogs):
         status, everything = self.call("GET", "/api/all")
         self.assertEqual(status, 200)
         self.assertFalse(next(s for s in everything["songs"] if s["area"] == "inbox")["looked"])
+
+    def added_by_the_button(self):
+        self.file("A - Song")
+        self.fake.add("A", "The Record", [("A1", "Song", LENGTH)])
+        self.post()
+        self.wait()
+        _, everything = self.call("GET", "/api/all")
+        return next(s for s in everything["songs"] if s["area"] == "library")
+
+    def test_what_the_button_added_waits_to_be_double_checked(self):
+        song = self.added_by_the_button()
+        self.assertEqual([c["kind"] for c in song["checks"]], ["auto"])
+
+    def test_looks_right_and_undo_from_the_page(self):
+        song = self.added_by_the_button()
+        status, answer = self.post("/api/verified", body=json.dumps(dict(id=song["id"])))
+        self.assertEqual((status, answer["trust"]), (200, "verified"))
+        _, everything = self.call("GET", "/api/all")
+        self.assertEqual(next(s for s in everything["songs"] if s["id"] == song["id"])["checks"], [])
+        status, answer = self.post("/api/verified", body=json.dumps(dict(id=song["id"], undo=True)))
+        self.assertEqual((status, answer["trust"]), (200, "auto"))
+
+    def test_looks_right_waits_for_a_run_to_finish(self):
+        song = self.added_by_the_button()
+        self.assertTrue(self.server.curate_lock.acquire(blocking=False))
+        self.addCleanup(self.server.curate_lock.release)
+        status, answer = self.post("/api/verified", body=json.dumps(dict(id=song["id"])))
+        self.assertEqual(status, 409)
+        self.assertIn("Curate is running", answer["error"])
+
+    def test_another_site_cannot_say_it_looks_right(self):
+        song = self.added_by_the_button()
+        status, _ = self.post("/api/verified", headers={"Origin": "https://evil.example"}, body=json.dumps(dict(id=song["id"])))
+        self.assertEqual(status, 403)
+        self.assertNotIn("verified:", self.log_rows()[-1]["notes"])
+
+    def test_the_button_takes_out_what_is_not_right_before_it_looks_up(self):
+        song = self.added_by_the_button()
+        status, _ = self.post("/api/decision", body=json.dumps(dict(id=song["id"], kind="auto", action="wrong", note="it's the dub")))
+        self.assertEqual(status, 200)
+        self.post()
+        state = self.wait()
+        result = state["result"]
+        self.assertEqual((result["back"], result["added"], result["waiting"], state["failed"]), (1, 0, 1, ""), "taken out, then looked up again in the same run")
+        self.assertEqual(self.in_library(), [])
+        self.assertEqual(self.saved(), {})
+        _, everything = self.call("GET", "/api/all")
+        waiting = next(s for s in everything["songs"] if s["area"] == "inbox")["checks"][0]
+        self.assertIn("wasn't right: it's the dub", waiting["why"])
+        self.assertEqual([o["title"] for o in waiting["options"]], ["Song"])
+
+
+class DoubleCheck(WithDiscogs):
+    """What Curate added with nobody checking: Looks right writes it down as verified, Not right takes it back out to look at again."""
+
+    def added(self, tracks=(("A1", "Song", LENGTH),), name="A - Song"):
+        original = self.file(name)
+        rid = self.fake.add("A", "The Record", list(tracks))
+        folder = os.path.join(self.paths["cache"], "discogs")  # the page reads what it knows about a record from the saved Discogs answers
+        os.makedirs(folder, exist_ok=True)
+        with open(os.path.join(folder, f"release-{rid}.json"), "w", encoding="utf-8") as f:
+            json.dump(self.fake.releases[rid], f)
+        _, done = self.run_it()
+        self.assertEqual(done["added"], 1)
+        return original
+
+    def check(self, name="A - Song.mp3"):
+        return next((c for c in self.page_song(name)["checks"] if c["kind"] == "auto"), None)
+
+    def page(self):
+        page = webapp.Collection(self.paths)
+        page.refresh()
+        return page, next(s["id"] for s in page.songs.values() if s["area"] == "library")
+
+    def wrong(self, note="it's the dub"):
+        self.answer("wrong", "library/Acid/A - Song.mp3", kind="auto", song="A - Song", note=note)
+
+    def test_it_says_how_curate_settled_it_and_shows_the_record(self):
+        self.added()
+        check = self.check()
+        self.assertEqual(check["why"], "Curate added it by itself: only version on the record, length matches the record.")
+        self.assertEqual(check["disc"], dict(title="The Record", label="Label", year=1996))
+        self.assertEqual([(v["pos"], v["title"], v["gap"], v["this"]) for v in check["versions"]], [("A1", "Song", 0, True)])
+        self.assertTrue(check["original"])
+        self.assertEqual(check["closer"], ["Only 128 kbps"], "the test files are 128 kbps, and nothing else stands out")
+
+    def test_the_other_versions_are_there_to_compare(self):
+        self.added(tracks=(("A1", "Song", LENGTH), ("B1", "Song (Dub)", "6:00")))
+        check = self.check()
+        self.assertEqual([(v["title"], v["this"]) for v in check["versions"]], [("Song", True), ("Song (Dub)", False)])
+        self.assertIn("Chosen from several versions by its length", check["closer"])
+
+    def test_a_version_you_picked_is_worth_a_closer_look_too(self):
+        self.file("A - Song")
+        self.fake.add("A", "The Record", [("A1", "Song (One Mix)", "0:30"), ("A2", "Song (Two Mix)", "0:50")])
+        self.run_it()
+        self.answer_for("A - Song", "pick", "A2|Song (Two Mix)")
+        self.run_it()
+        check = self.check("A - Song (Two Mix).mp3")
+        self.assertEqual(check["why"], "You picked the version on To check, and Curate added it.")
+        self.assertIn("You picked the version yourself", check["closer"])
+
+    def test_what_was_checked_properly_is_not_on_it(self):
+        self.song("Acid", "A - B", notes="")
+        self.assertEqual([c for c in self.page_song("A - B.mp3")["checks"] if c["kind"] == "auto"], [])
+
+    def test_looks_right_writes_it_down_as_verified(self):
+        self.added()
+        page, sid = self.page()
+        answer = page.checked(sid)
+        notes = self.log_rows()[-1]["notes"]
+        self.assertEqual(answer, dict(trust="verified", notes=notes))
+        self.assertIn(f"verified: {curate.CHECKED_ON_THE_PAGE}", notes)
+        self.assertNotIn(curate.AUTO_NOTE, notes)
+        self.assertIsNone(self.check())
+        self.assertEqual(self.in_library(), ["Acid/A - Song.mp3"], "no music changes")
+
+    def test_undo_brings_back_what_curate_said(self):
+        self.added()
+        before = self.log_rows()[-1]["notes"]
+        page, sid = self.page()
+        page.checked(sid)
+        self.assertEqual(page.checked(sid, undo=True)["trust"], "auto")
+        self.assertEqual(self.log_rows()[-1]["notes"], before)
+        self.assertIsNotNone(self.check())
+        self.assertIn("error", page.checked(sid, undo=True), "there's nothing left to undo")
+
+    def test_only_an_auto_matched_song_can_be_checked(self):
+        self.song("Acid", "A - B", notes="")
+        page, sid = self.page()
+        rows = len(self.log_rows())
+        self.assertIn("error", page.checked(sid))
+        self.assertEqual(len(self.log_rows()), rows)
+
+    def test_an_agents_check_is_not_undone_from_the_page(self):
+        self.song("Acid", "A - B", notes="matched automatically: only version on the record, length matches the record")
+        self.rows.append({**self.rows[-1], "notes": "verified: fingerprint matches the video", "date": "2026-01-03T00:00:00"})
+        self.save_log()
+        page, sid = self.page()
+        self.assertIn("error", page.checked(sid, undo=True))
+        self.assertEqual(len(self.log_rows()), 2)
+
+    def test_not_while_curate_is_running(self):
+        self.added()
+        page, sid = self.page()
+        with curate._OneAtATime(os.path.join(self.app, "curate.lock")):
+            self.assertIn("Curate is running", page.checked(sid)["error"])
+        self.assertEqual(page.checked(sid)["trust"], "verified")
+
+    def test_not_right_takes_the_copy_out_and_the_song_waits_again(self):
+        original = self.added()
+        self.wrong()
+        told = apply.carry_out(self.paths, only=("wrong",))
+        self.assertEqual((told["back"], told["not_done"]), (1, []))
+        self.assertEqual(self.in_library(), [])
+        self.assertTrue(os.path.exists(original), "the original stays where it was")
+        self.assertEqual([n for _, _, names in os.walk(os.path.join(self.app, apply.SET_ASIDE)) for n in names], ["A - Song.mp3"])
+        row = self.log_rows()[-1]
+        self.assertTrue(row["status"].startswith(tagwriter.TAKEN_BACK))
+        self.assertIn(f"{tagwriter.NOT_RIGHT}: it's the dub", row["notes"])
+        self.assertEqual(self.saved(), {})
+        _, done = self.run_it()
+        self.assertEqual((done["added"], done["waiting"]), (0, 1), "it isn't added again by itself")
+        held = self.waiting()[KEY.format("A - Song")]
+        self.assertEqual(held["why"], "You said Curate's match wasn't right: it's the dub. Pick the version it is, or say what it really is.")
+        self.assertEqual([o["title"] for o in held["options"]], ["Song"])
+
+    def test_before_it_is_looked_up_again_to_check_already_says_why(self):
+        self.added()
+        self.wrong()
+        apply.carry_out(self.paths, only=("wrong",))
+        waiting = next(c for c in self.page_song("A - Song.mp3")["checks"] if c["kind"] == "waiting")
+        self.assertEqual(waiting["why"], "You said Curate's match wasn't right: it's the dub. Press Curate to look it up again.")
+
+    def test_with_nothing_found_there_is_nothing_to_pick(self):
+        self.added()
+        self.wrong()
+        apply.carry_out(self.paths, only=("wrong",))
+        self.fake.releases.clear()
+        self.run_it()
+        self.assertEqual(self.waiting()[KEY.format("A - Song")]["why"], "You said Curate's match wasn't right: it's the dub. Say what it really is.")
+
+    def test_picking_the_version_then_puts_it_back(self):
+        self.added()
+        self.wrong()
+        apply.carry_out(self.paths, only=("wrong",))
+        self.run_it()
+        self.answer_for("A - Song", "pick", self.waiting()[KEY.format("A - Song")]["options"][0]["id"])
+        _, done = self.run_it()
+        self.assertEqual(done["added"], 1)
+        self.assertEqual(self.in_library(), ["Acid/A - Song.mp3"])
+        self.assertEqual(self.page_song("A - Song.mp3")["trust"], "auto")
+        _, again = self.run_it()
+        self.assertEqual((again["added"], again["waiting"]), (0, 0), "once it's back it counts as done")
+
+    def test_with_the_original_gone_the_copy_goes_back_in_its_place(self):
+        original = self.added()
+        os.remove(original)
+        self.assertFalse(self.check()["original"])
+        self.wrong(note="")
+        self.assertEqual(apply.carry_out(self.paths, only=("wrong",))["back"], 1)
+        self.assertEqual(self.in_library(), [])
+        self.assertEqual(library.read_song(original)["title"], "Song", "it's the copy, under the old name")
+        self.assertFalse(os.path.isdir(os.path.join(self.app, apply.SET_ASIDE)))
+        _, done = self.run_it()
+        self.assertEqual(done["waiting"], 1)
+        self.assertEqual(self.waiting()[KEY.format("A - Song")]["why"], "You said Curate's match wasn't right. Pick the version it is, or say what it really is.")
+
+    def test_a_song_that_did_not_come_from_your_downloads_stays(self):
+        self.song("Acid", "A - B", notes="matched automatically: only version on the record, length matches the record")  # the log says it came from C:/old
+        self.answer("wrong", "library/Acid/A - B.mp3", kind="auto")
+        told = apply.carry_out(self.paths, only=("wrong",))
+        self.assertEqual(told["back"], 0)
+        self.assertIn("downloads folders", told["not_done"][0])
+        self.assertEqual(self.in_library(), ["Acid/A - B.mp3"])
+        self.assertIn("auto:library/Acid/A - B.mp3", self.saved(), "the answer stays for another go")
+
+    def test_the_command_does_it_too(self):
+        self.added()
+        self.wrong()
+        code, out = self.run_apply()
+        self.assertEqual(code, 0)
+        self.assertIn("Not right", out)
+        self.assertIn("1 out of your library", out)
+        self.assertEqual(self.in_library(), [])
+
+    def test_a_wrong_match_says_nothing_about_the_artists_genre(self):
+        self.added()
+        self.assertEqual(resolve.load_history(self.log, settled_only=True), {resolve.norm("A"): "Acid"})
+        self.wrong()
+        apply.carry_out(self.paths, only=("wrong",))
+        self.assertEqual(resolve.load_history(self.log, settled_only=True), {})
+
+    def test_the_log_goes_by_each_songs_latest_word(self):
+        rows = [dict(src="a", status="ok"), dict(src="a", status=f"{tagwriter.TAKEN_BACK} (back in your downloads)", notes=f"x; {tagwriter.NOT_RIGHT}: the dub"), dict(src="b", status="check: cover missing")]
+        self.assertEqual(tagwriter.written_sources(rows), ({"b"}, {"a": "the dub"}))
+        self.assertEqual(tagwriter.written_sources(rows + [dict(src="a", status="ok")]), ({"a", "b"}, {}))
 

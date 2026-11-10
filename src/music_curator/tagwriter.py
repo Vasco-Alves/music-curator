@@ -30,6 +30,29 @@ LOG_FIELDS = ["date", "status", "src", "src_artist", "src_album", "src_title", "
 PADDING = 2048  # spare room so later tag edits don't have to rewrite the file
 KINDS = {".mp3": ("mp3",), ".flac": ("flac",), ".m4a": ("aac", "alac")}  # what can go in the library, and the audio each kind of file may hold
 REMUX_TIMEOUT_S = 300  # no decoding, so even a long file takes seconds
+AUTO_NOTE, PICK_NOTE = "matched automatically", "picked by you"  # in the log's notes of what Curate added with nobody double-checking: the page shows these songs as Auto-matched
+TAKEN_BACK = "removed: not right"  # a log status: Curate's match was wrong, so the copy left the library and the song is to be looked at again
+NOT_RIGHT = "you said it wasn't right"  # in that row's notes, with whatever you said after it
+
+
+# ---------------- what the log says ----------------
+
+def written_sources(rows, key=lambda src: src):
+    """(the sources the log has written into the library, {source: what you said} for the ones taken back out since because the match was wrong).
+    A source goes by its latest word, so one that's added again after being taken back counts as written."""
+    done, back = set(), {}
+    for r in rows:
+        src, status = key(r.get("src") or ""), r.get("status") or ""
+        if not src:
+            continue
+        if status == "ok" or status.startswith("check"):  # "check": written, with something to look at
+            done.add(src)
+            back.pop(src, None)
+        elif status.startswith(TAKEN_BACK):
+            done.discard(src)
+            said = next((p.strip()[len(NOT_RIGHT):].lstrip(" :") for p in (r.get("notes") or "").split(";") if p.strip().startswith(NOT_RIGHT)), "")
+            back[src] = said
+    return done, back
 
 
 # ---------------- filenames ----------------

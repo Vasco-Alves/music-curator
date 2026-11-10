@@ -157,7 +157,7 @@ class CarryingOut(WithDiscogs):
 
     def test_a_song_that_is_not_in_the_library_yet_is_left_for_the_agent(self):
         self.answer("genre", "review/A - B.mp3", genre="Acid")
-        self.assertEqual(apply.carry_out(self.paths), dict(changed=0, aside=0, cleared=0, not_done=[]))
+        self.assertEqual(apply.carry_out(self.paths), dict(changed=0, aside=0, cleared=0, back=0, not_done=[]))
         self.assertIn("genre:review/A - B.mp3", self.saved())
 
     def test_what_cannot_be_done_is_said_and_stays(self):

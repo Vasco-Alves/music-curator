@@ -381,6 +381,32 @@ def read_song(path, name=None):
     return out
 
 
+def image_size(data):
+    """(width, height) of a JPEG, PNG or GIF from its own bytes, or None if they don't say."""
+    data = data or b""
+    if data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) >= 24:
+        size = int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
+    elif data[:6] in (b"GIF87a", b"GIF89a") and len(data) >= 10:
+        size = int.from_bytes(data[6:8], "little"), int.from_bytes(data[8:10], "little")
+    elif data[:2] == b"\xff\xd8":
+        i, size = 2, None
+        while i + 9 <= len(data) and data[i] == 0xFF:
+            marker = data[i + 1]
+            if marker == 0xFF:  # padding before a marker
+                i += 1
+                continue
+            if 0xC0 <= marker <= 0xCF and marker not in (0xC4, 0xC8, 0xCC):  # a start of frame says how big the picture is
+                size = int.from_bytes(data[i + 7:i + 9], "big"), int.from_bytes(data[i + 5:i + 7], "big")
+                break
+            length = int.from_bytes(data[i + 2:i + 4], "big")
+            if length < 2:
+                break
+            i += 2 + length
+    else:
+        size = None
+    return size if size and size[0] and size[1] else None
+
+
 def read_cover(path):
     """(image bytes, mime) of the front cover, else the first picture, else None."""
     kind = os.path.splitext(path)[1].lower()

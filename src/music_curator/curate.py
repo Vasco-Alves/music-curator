@@ -28,7 +28,8 @@ MAX_GAP_S = 20  # how far a file's length may be from the record's. Past it the 
 DECODE_TIMEOUT_S = 120  # a song takes about a second to play through
 MOST_LOST_S = 1  # how far what really plays may fall short of the length a file states. On 588 real songs the most was 0.07 s; two seconds of noise lose 1.8
 MOST_DECODE_ERRORS = 10  # on those songs the most was 2 (old rips have the odd one); two seconds of noise make 12 to 32
-AUTO_NOTE, PICK_NOTE = "matched automatically", "picked by you"  # in the log's notes; the page shows these songs as Auto-matched
+AUTO_NOTE, PICK_NOTE = tagwriter.AUTO_NOTE, tagwriter.PICK_NOTE  # in the log's notes; the page shows these songs as Auto-matched
+CHECKED_ON_THE_PAGE = "you checked it on the page"  # how the page's Looks right is written in the log, after "verified: "
 SAVE_EVERY = 10  # songs between saves of what's waiting, so a run that's cut off loses little
 GIVE_UP_AFTER = 3  # lookups failing in a row before the network is assumed to be down
 STOP_FETCHING_AFTER = 5  # videos failing in a row before comparing is given up for the run
@@ -268,6 +269,11 @@ def fetch_cover(url, folder):
     return path
 
 
+def _versions_to_pick(found):
+    """Whether a lookup found versions on a record that a waiting song can be picked from (not when it's only what's in the library already)."""
+    return bool(found.get("options") and found.get("genre") and (found["status"] != "dup" or "probably" in " ".join(found.get("reasons") or [])))
+
+
 def key_of(item):
     """The page's name for a song in a downloads folder."""
     return f"inbox/{item['dir']}/{item['file']}"
@@ -352,7 +358,7 @@ class Run:
             entry["audio"] = audio
         if found is None:  # a blip or a failed write says nothing about the song: what was found before still stands
             entry.update({k: old[k] for k in ("options", "record", "said", "audio") if k in old})
-        elif found.get("options") and found.get("genre") and (found["status"] != "dup" or "probably" in " ".join(found.get("reasons") or [])):
+        elif _versions_to_pick(found):
             entry["options"] = [dict(o, id=option_id(o)) for o in found["options"]]
             entry["record"] = {k: found.get(k) or "" for k in ("discogs", "release_title", "labels", "album", "year", "genre", "cover_url")}
             entry["record"]["toss"] = " / ".join(found.get("genre_options") or []) if found.get("toss_up") else ""
@@ -451,10 +457,24 @@ class Run:
         if remembered:
             self._judged(key, with_names(item, *remembered), " - ".join(remembered))
             return
+        if "back" in item:
+            self._taken_back(key, item)
+            return
         if item["cat"] != "candidate":
             self.hold(key, NOT_LOOKED_UP[item["cat"]])
             return
         self._judged(key, item)
+
+    def _taken_back(self, key, item):
+        """You said Curate's match was wrong and its copy left the library. The song is looked up again for the versions on the record, but only your answer puts it back."""
+        said = item["back"]
+        why = f"You said Curate's match wasn't right{f': {said}' if said else ''}."
+        if item["cat"] != "candidate":
+            self.hold(key, f"{why} Say what it really is.")
+            return
+        used, found = lookup(item, self.history, self.library_keys)
+        self.looked += 1
+        self.hold(key, f"{why} {'Pick the version it is, or say what it really is.' if _versions_to_pick(found) else 'Say what it really is.'}", found, audio=self._compare(key, used, found))
 
     def _pick(self, key, item, answer):
         """You said which version on the record this is. True once the answer has been dealt with."""
@@ -575,8 +595,12 @@ def status(server):
 def _work(server, run, lookups, set_aside):
     """All of it, in order: what's waiting in your downloads, then your other answers, then the genres the records list."""
     state, paths, collection = server.curate_state, run.paths, server.collection
-    failed, result = "", None
+    failed, result, first = "", None, None
     try:
+        if apply.any_for_the_page(paths, set_aside, ("wrong",)):  # before the lookups, so the songs you said aren't right are looked at again in this same run
+            state.update(step="Taking out what you said isn't right", done=0, total=0, name="")
+            with _OneAtATime(os.path.join(os.path.dirname(paths["log"]), "curate.lock")):
+                first = apply.carry_out(paths, set_aside, collection.update_answers, run.stopping, state.update, only=("wrong",))
         try:
             result = run.go() if lookups else run.summary()
         except Stop as ex:
@@ -584,7 +608,9 @@ def _work(server, run, lookups, set_aside):
         if not run.stopping.is_set():
             state.update(step="Carrying out your answers", done=0, total=0, name="")
             with _OneAtATime(os.path.join(os.path.dirname(paths["log"]), "curate.lock")):
-                result.update(apply.carry_out(paths, set_aside, collection.update_answers, run.stopping, state.update))
+                result.update(apply.add_up(first, apply.carry_out(paths, set_aside, collection.update_answers, run.stopping, state.update)))
+        elif first:
+            result.update(first)
         if lookups and not failed and not run.stopping.is_set():
             state.update(step="Getting every genre Discogs lists", done=0, total=0, name="")
             collection.refresh()
@@ -598,7 +624,8 @@ def _work(server, run, lookups, set_aside):
     except (Exception, SystemExit) as ex:  # noqa: BLE001  the page must never be left saying "running" forever
         failed = f"Curate stopped unexpectedly ({type(ex).__name__}). Songs already added stay added."
     finally:
-        state.update(result=result or run.summary(), failed=failed, running=False)
+        collection.labels = None  # the records looked up in this run go into what the page knows about labels and tracks
+        state.update(result=result or (dict(run.summary(), **first) if first else run.summary()), failed=failed, running=False)
         server.curate_lock.release()
 
 
@@ -695,6 +722,26 @@ def leave_better_link(name, url, why, checked):
     return 0
 
 
+def _parts(row):
+    return [p.strip() for p in ((row or {}).get("notes") or "").split(";") if p.strip()]
+
+
+def checked_row(row, how):
+    """The log row that says an Auto-matched song was checked properly, or None if it wasn't Auto-matched."""
+    notes = _parts(row)
+    auto = [p for p in notes if p.startswith((AUTO_NOTE, PICK_NOTE))]
+    if not auto:
+        return None
+    return dict(row, date=datetime.datetime.now().isoformat(timespec="seconds"), notes="; ".join([p for p in notes if p not in auto] + [f"verified: {how}"]))
+
+
+def unchecked_row(rows):
+    """Taking back a Looks right from the page: the notes from before it come back. None if the song's latest row isn't that."""
+    if len(rows) < 2 or f"verified: {CHECKED_ON_THE_PAGE}" not in _parts(rows[-1]) or not any(p.startswith((AUTO_NOTE, PICK_NOTE)) for p in _parts(rows[-2])):
+        return None
+    return dict(rows[-1], date=datetime.datetime.now().isoformat(timespec="seconds"), notes=rows[-2].get("notes") or "")
+
+
 def mark_verified(names, how):
     """Record that these Auto-matched songs were checked properly, so the page stops calling them Auto-matched. The log keeps what was checked."""
     from . import apply
@@ -710,13 +757,11 @@ def mark_verified(names, how):
             if not song:
                 problems += 1
                 continue
-            row = collection._log_row(song["_path"], song["_rel"])
-            notes = [p.strip() for p in ((row or {}).get("notes") or "").split(";") if p.strip()]
-            auto = [p for p in notes if p.startswith((AUTO_NOTE, PICK_NOTE))]
-            if not auto:
+            row = checked_row(collection._log_row(song["_path"], song["_rel"]), how)
+            if not row:
                 print(f"  {name}: wasn't Auto-matched, so there's nothing to change")
                 continue
-            writer.writerow(dict(row, date=datetime.datetime.now().isoformat(timespec="seconds"), notes="; ".join([p for p in notes if p not in auto] + [f"verified: {how}"])))
+            writer.writerow(row)
             handle.flush()
             print(f"  {name}: verified")
             done += 1

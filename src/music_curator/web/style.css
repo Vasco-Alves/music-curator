@@ -288,6 +288,31 @@ td.num, th.num { text-align: right; }
 .audio-sure b { color: var(--readout, var(--accent)); }
 .chip.sure { border-color: var(--readout, var(--accent)); }
 .chip.sure svg { margin-right: 4px; vertical-align: -2px; color: var(--readout, var(--accent)); }
+/* Double-check: what Curate wrote, laid out to be looked over */
+.double { margin-top: 8px; }
+.double-names .was { text-decoration: line-through; text-decoration-color: var(--ink-3); }
+.double-names b { color: var(--ink-2); font-weight: 600; }
+.double-tags { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 2px 18px; margin: 6px 0 4px; font-size: 13px; }
+.double-tags div { display: flex; gap: 8px; min-width: 0; }
+.double-tags dt { flex: none; width: 46px; color: var(--ink-3); }
+.double-tags dd { margin: 0; min-width: 0; color: var(--ink); overflow-wrap: anywhere; }
+.double-versions { display: grid; gap: 2px; margin: 6px 0 2px; font-size: 13px; }
+.double-version { display: grid; grid-template-columns: 2.6em minmax(0, 1fr) auto auto; align-items: baseline; gap: 8px; padding: 2px 8px; border-radius: 6px; color: var(--ink-2); }
+.double-version .pos { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.double-version .name { overflow-wrap: anywhere; }
+.double-version .len { color: var(--ink-3); font-variant-numeric: tabular-nums; text-align: right; }
+.double-version em { font-style: normal; font-size: 12px; font-weight: 600; color: var(--readout, var(--accent)); }
+.double-version.this { background: var(--surface-2); color: var(--ink); }
+.double-closer { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.closer { display: inline-flex; align-items: center; gap: 5px; padding: 2px 9px; border-radius: 999px; font-size: 12.5px; color: var(--ink); background: color-mix(in srgb, var(--warn) 16%, transparent); border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); }
+.closer svg { color: var(--warn); flex: none; }
+.double-calm { display: flex; align-items: center; gap: 5px; margin-top: 6px; }
+.double-calm svg { color: var(--good); flex: none; }
+.not-right { width: 100%; }
+.not-right .note { margin: 6px 0 0; font-size: 12.5px; }
+.drawer .double-version { grid-template-columns: 2.2em minmax(0, 1fr); } /* the panel is narrow: the length goes under the name */
+.drawer .double-version .len, .drawer .double-version em { grid-column: 2; text-align: left; }
+@media (max-width: 560px) { .double-version { grid-template-columns: 2.2em minmax(0, 1fr); } .double-version .len, .double-version em { grid-column: 2; text-align: left; } }
 .compare-setting { margin-top: 16px; }
 .compare-setting .note { margin-top: 6px; }
 

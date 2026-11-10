@@ -11,7 +11,7 @@ import re
 import sys
 import unicodedata
 
-from . import config
+from . import config, tagwriter
 from . import discogs as d
 
 PARENTS = {
@@ -433,6 +433,8 @@ def load_history(log_path, settled_only=False):
             for n, r in enumerate(csv.DictReader(f, restval="")):
                 if r.get("status") == "ok":
                     newest[r.get("src") or n] = r
+                elif (r.get("status") or "").startswith(tagwriter.TAKEN_BACK):
+                    newest.pop(r.get("src"), None)  # the match was wrong, so what it said about the artist doesn't count
         for r in newest.values():
             if not (settled_only and "genre toss-up" in (r.get("notes") or "").lower()):
                 history.setdefault(norm(r.get("artist")), r.get("genre"))
