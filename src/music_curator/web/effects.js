@@ -9,7 +9,7 @@ window.Effects = (() => {
   const stage = canvas.getContext("2d", { alpha: false }), spare = document.createElement("canvas"), back = spare.getContext("2d", { alpha: false });
   let g = stage; // what's being drawn on: the picture, or for a moment the visitors' own layer over the app
   const sound = { bands: new Float32Array(BANDS), wave: new Float32Array(POINTS), bass: 0, mid: 0, treble: 0, level: 0, kick: 0, hat: 0, kickHit: 0, hatHit: 0, t: 0, dt: 0.016 };
-  const T = { light: 1, react: 1, speed: 1, drag: 1, spark: 1, nod: 1, turns: 1, moves: 1, shots: 1, folk: 1, pit: 1, tilt: 1, vary: 1, dream: 1, falls: 1, color: 1, echo: 1, breathe: 1, sounds: 1 }; // what's been adjusted for the effect showing: 1 is how it was designed
+  const T = { light: 1, react: 1, speed: 1, drag: 1, spark: 1, nod: 1, turns: 1, moves: 1, shots: 1, folk: 1, acid: 1, pit: 1, tilt: 1, vary: 1, dream: 1, falls: 1, color: 1, echo: 1, breathe: 1, sounds: 1 }; // what's been adjusted for the effect showing: 1 is how it was designed
   const STYLES = { // each effect and its styles, by the name a style goes by
     ribbon: [["ribbon", "Classic"], ["silk", "Silk"], ["helix", "Helix"], ["strings", "Strings"]],
     bars: [["bars", "Classic"], ["mirror", "Mirror"], ["leds", "LEDs"], ["terrain", "Landscape"], ["scope", "Scope"]],
@@ -26,7 +26,7 @@ window.Effects = (() => {
   const FOLK_OF = { arcade: ["astronaut", "shapes", "neon", "jelly"], ocean: ["jelly", "whale", "jelly", "shapes"], neonroad: ["neon", "shapes", "saucer", "neon"], aurora: ["saucer", "astronaut", "neon", "saucer"], // some places have their own visitors
     tube: ["shapes", "neon", "eye", "saucer"], heads: ["saucer", "eye", "shapes", "neon"], sphere: ["astronaut", "saucer", "shapes", "jelly"], solids: ["shapes", "saucer", "neon", "astronaut"], city: ["saucer", "neon", "saucer", "shapes"] };
   const FAMILY = Object.fromEntries(Object.entries(STYLES).flatMap(([family, list]) => list.map(([style]) => [style, family])));
-  const KNOBS = { light: ["Brightness", 0.3, 1.7], react: ["Reacts to the music", 0.2, 1.8], speed: ["Speed", 0.3, 2], spark: ["Glints on the hi-hats", 0, 2], drag: ["Length of the trails", 0.4, 2.5], nod: ["Nodding to the beat", 0, 2], turns: ["Changes of course", 0, 3], moves: ["Jumps and stops", 0, 3], pit: ["Cockpit", 0, 1], shots: ["Shooting stars", 0, 3], folk: ["Visitors", 0, 3], tilt: ["Turning now and then", 0, 3], vary: ["Changes by itself", 0, 3], dream: ["Dreamy lights", 0, 2], falls: ["Falling into planets", 0, 3], color: ["Colors that travel", 0, 1.5], echo: ["After-images", 0, 2], breathe: ["Breathing", 0, 2], sounds: ["Answers to sounds", 0, 2] };
+  const KNOBS = { light: ["Brightness", 0.3, 1.7], react: ["Reacts to the music", 0.2, 1.8], speed: ["Speed", 0.3, 2], spark: ["Glints on the hi-hats", 0, 2], drag: ["Length of the trails", 0.4, 2.5], nod: ["Nodding to the beat", 0, 2], turns: ["Changes of course", 0, 3], moves: ["Jumps and stops", 0, 3], pit: ["Cockpit", 0, 1], shots: ["Shooting stars", 0, 3], folk: ["Visitors", 0, 3], acid: ["Singing to the 303", 0, 2], tilt: ["Turning now and then", 0, 3], vary: ["Changes by itself", 0, 3], dream: ["Dreamy lights", 0, 2], falls: ["Falling into planets", 0, 3], color: ["Colors that travel", 0, 1.5], echo: ["After-images", 0, 2], breathe: ["Breathing", 0, 2], sounds: ["Answers to sounds", 0, 2] };
   const LEAVES_TRAILS = new Set(["trails", "tunnel", "vortex", "prism", "ripple", "comets", "stars", "whirl", "fireworks", "scope"]);
   const raw = new Float32Array(BANDS), leadHold = new Float32Array(BANDS), leadMid = new Float32Array(512), leadSum = new Float32Array(513), peaks = new Float32Array(160), stars = new Float32Array(STARS * 3), HEADS = 9, past = new Float32Array(HEADS * 2).fill(NaN), orbits = new Float32Array(HEADS);
   let nowSong = "", genre = "", mood = "", name = "", alone = false, w = 0, h = 0, quality = 1, colors = PLAIN, picture = null, last = 0, slowTime = 0, slowFrames = 0, top = 0.3, waveTop = 0.1, freq = null, time = null, binHz = 23.4;
@@ -159,8 +159,9 @@ window.Effects = (() => {
   }
   function follow(heard, hit, dt, low) {
     flow.dropHit = 0;
-    flow.leadHit = flow.tuneHit = 0;
+    flow.leadHit = flow.tuneHit = flow.acidHit = 0;
     if (!heard) return; // paused: it stays as it was
+    acidHear(dt); // whether a 303 line is squelching just now: flow.acid, acidAt and acidHit
     let all = 0, high = 0;
     for (let b = 0; b < BANDS; b++) all += raw[b];
     for (let b = 50; b < BANDS; b++) high += raw[b];
@@ -5085,6 +5086,7 @@ window.Effects = (() => {
     colors = turn || order ? base.map((_, i) => turnHue(part ? mix(base[(i + first) % n], base[(i + first + 1) % n], part) : base[(i + first) % n], turn)) : base;
     const pale = Math.min(0.4, dream.held * 0.25); // and paler while a big lead plays
     if (pale > 0.004) colors = colors.map((c) => mix(c, [255, 255, 255], pale));
+    colors = acidTint(colors); // and a little toward acid's yellow while the 303's singer sings
   }
   function fold(kind, amount = 1) { // the picture folded on itself: mirrored down the middle, top to bottom, both ways, or round and round like a kaleidoscope, slowly turning. Less than all of it shows while one fold goes over to another
     if (amount < 0.004) return;
@@ -8048,6 +8050,405 @@ window.Effects = (() => {
     };
   })();
   /* ==== beings: end ==== */
+  /* ==== acid: begin ==== */
+  /* The 303: the squelching bass synthesizer of acid house. First an ear for it, which tells from the spectrum whether one is playing a line just now. Then a small smiley that comes in when a line starts, over whatever effect is showing,
+     and sings it: its mouth is the filter, open when the squelch is high, its tongue comes out on an accent, and the line pours out of its mouth across the picture as a glowing ribbon. When the line stops it leaves again. */
+
+  /* The ear. Two ways of listening that look for the same thing differently, and BOTH must say yes, because each one alone is fooled by something the other is not:
+       the squelch  In four overlapping stretches of the middle of the spectrum: where is the loudest narrow place, and how does it move? On every note of a 303 it LEAPS up and GLIDES back down, several times a second.
+                    The glides must lean downward, add up to more than about an octave a second, and come with leaps. A plucked sound whose brightness falls away on every note fools it, because it never asks whether the bright place is one narrow peak.
+       the ridge    Follows the sharpest peak of the spectrum less its own half-second average (so whatever stands still fades away), and adds up how far that ridge glides DOWN after rising, less how far it glides UP.
+                    The dying tails of hats, stabs and kick rolls fool it, but a plucked sound does not, because it wants a peak that stands clear of its neighbours.
+     Its three answers. acid, from 0 to 1: how sure it is. That is the squelch's score, let through only while the ridge agrees; it comes up over 0.9 s and lets go over 0.4 s.
+     where, from 0 to 1: the place of the squelch, from 150 Hz to 6 kHz by octaves. It goes up at once and down over 40 ms, and holds still while the loudest place sits at the very top of its stretch (that is a hi-hat, not the line).
+     hit: true on the frame a note of the line lands.
+     Everything is differences between loudnesses, so the volume makes no difference, and everything goes by the clock. Nothing is made anew on a frame: the tables and the tallies are made once, here.
+     Every number in it was settled by trying it on stretches of real acid tracks, and on other music, where it never once said yes. They belong together and are not to be changed one at a time.
+     It expects the page's own analyser: 2048 samples, smoothed by 0.6, looked at about sixty times a second. */
+  function acidEarFor(binHz) { // binHz: how many Hz one place of the spectrum is wide. Gives back the ear itself: ear(freq, dt) with the spectrum and the seconds since it was last asked
+    const SPAN = Math.log2(40); // "where" runs from 150 Hz to 6 kHz
+    const unit = (x) => (x < 0 ? 0 : x > 1 ? 1 : x), ramp = (x, r) => unit((x - r[0]) / (r[1] - r[0]));
+    // the squelch's numbers
+    const STRETCHES = [[258, 5600], [258, 1600], [700, 5600], [1100, 5600]]; // Hz
+    const TILT = 10, WIN = 0.33, OUT = 0.9;                // loudness an octave that every place is lifted by before the loudest is chosen; octaves round it that count in full, and by which they have faded out
+    const SLOW = 0.9, FAST = 18, LEAP = 0.25;              // octaves a second: slower is standing still, faster is a jump; and octaves above its recent low that make a leap
+    const DEEP = [75, 115], EDGE = 0.12, ROOF_TOP_HZ = 5000; // how far under the loudest thing up to 5 kHz a glide counts in full, and not at all; octaves from the top of the stretch
+    const LONG = 2.5, SHORT = 0.8, IDLE = 0.45, CAP = 2.5; // seconds the tallies remember; seconds without a glide down before the line counts as stopped; the most fall a tally holds
+    const LEAN = [0.15, 0.35], FALL = [0.6, 1.2], PACE = [1.5, 2.5]; // from "no" to "yes": the lean (-1 to 1), the fall (octaves a second), the leaps a second (a quick one counts three times)
+    const UP = 0.9, DOWN = 0.4;                            // seconds for acid to come up and to let go
+    const STRIDE = 0.012, PAUSE = 1.5;                     // the shortest time between two looks (a very fast screen is looked at every other frame); a gap this long starts afresh
+    const HITCH = 0.12, HITCH_AS = 0.05;                   // a frame later than this measures nothing, and ages the tallies by only this much
+    const WHERE_ROOM = 0.25;                               // octaves from the top of the stretch inside which "where" holds still
+    // the ridge's numbers
+    const K = {
+      floor: 250, countFrom: 330, top: 6000,   // Hz: no ridge below floor or above top; glides below countFrom do not count (the tail of a kick)
+      alpha: 0.7, tau: 0.5,                    // how much of a band's own average is taken away, and how long that average remembers (s)
+      thrNew: 10, thrKeep: 6, keepShare: 0.5,  // how far a peak must stand above its neighbours to be taken up, and to be kept; and the share of the tallest peak it must keep
+      stick: 15, maxReach: 0.4,                // octaves a second the ridge may move and still be the same ridge; never more than this many octaves in one frame
+      leap: 0.2, slack: 0.1, appear: 1.0, maxFall: 3, fallTime: 0.8, // octaves a jump up must be to count as a note; credit beyond the rise; credit for a ridge out of nothing; the most one fall counts; s within which it must come
+      mem: 6, memFast: 2.5,                    // s: how long glides are remembered, and the quick memory
+      hi: 0.64, hiFast: 1.0, lo: 0.36,         // octaves a second of saw-tooth falling: open above hi (or the quick score above hiFast), shut below lo
+      cap: 0.95, wait: 1.6, letGo: 0.8,        // the score's ceiling; s without real falling before the score is let go; and how quickly then
+    };
+    const PER = 8, LOW_HZ = 75, TOP_HZ = 9000, NB = Math.floor(Math.log2(TOP_HZ / LOW_HZ) * PER) + 1, OFF = Math.log2(LOW_HZ / 150); // 56 bands, eight to the octave; band i is i / PER + OFF octaves above 150 Hz
+    // the squelch: its tables and what it keeps
+    const OCT = Float64Array.from({ length: 512 }, (_, k) => Math.log2((Math.max(1, k) * binHz) / 150)), LIFT = Float64Array.from(OCT, (v) => TILT * v);
+    const WEIGHT = Float64Array.from({ length: 512 }, (_, d) => 10 ** (-d * (75 / 255 / 10) * 2)); // how much a place counts that is d steps of loudness under the loudest (a step is 75/255 dB)
+    const ROOF_TOP = Math.min(511, Math.round(ROOF_TOP_HZ / binHz));
+    const bands = STRETCHES.map(([lo, hi]) => ({ a: Math.round(lo / binHz), b: Math.min(511, Math.round(hi / binHz)), x: 0, had: false, down: 0, up: 0, fall: 0, fallNow: 0, leaps: 0, quick: 0, low: 0, lowAge: 9, since: 9, idle: 9, score: 0, lean: 0, leap: false, room: 1 }));
+    let best = 0, roof = 0, where = 0.5;
+    // the ridge: its tables and what it keeps
+    const lo = new Int16Array(NB), hi = new Int16Array(NB);
+    for (let i = 0; i < NB; i++) { const c = (LOW_HZ * 2 ** (i / PER)) / binHz, h = Math.max(1, 0.045 * c); lo[i] = Math.max(1, Math.round(c - h)); hi[i] = Math.min(Math.floor(TOP_HZ / binHz), Math.round(c + h)); }
+    const FIRST = Math.ceil(Math.log2(K.floor / LOW_HZ) * PER), LAST = Math.floor(Math.log2(K.top / LOW_HZ) * PER), minPos = Math.log2(K.countFrom / 150);
+    const A = new Float32Array(NB), W = new Float32Array(NB), P = new Float32Array(NB); // A is kept from frame to frame; W and P are worked out afresh on every one
+    let started = false, p = -1, down = 0, up = 0, downF = 0, upF = 0, quick = 0, sinceFall = 9, credit = 0, sinceRise = 9, open = false;
+    const middle = (at) => { let s = 0, w = 0; for (let j = at - 2; j <= at + 2; j++) if (j >= FIRST && j <= LAST && P[j] > 0) { s += P[j] * j; w += P[j]; } return s / w / PER + OFF; };
+    // the two together
+    let acid = 0, wait = 0;
+    const out = { acid: 0, where: 0.5, hit: false };
+
+    function squelch(freq, dt) { // gives back the best stretch's score, 0 to 1; sets where and out.hit
+      if (dt > PAUSE) { roof = 0; for (let j = 0; j < bands.length; j++) { const B = bands[j]; B.down = B.up = B.fall = B.fallNow = B.leaps = B.quick = 0; B.had = false; } }
+      const stale = dt > HITCH; if (stale) dt = HITCH_AS;
+      const keep = Math.exp(-dt / LONG), keepNow = Math.exp(-dt / SHORT);
+      let top = -1, at = 0, peak = 0;
+      for (let k = 2; k < ROOF_TOP; k++) if (freq[k] > peak) peak = freq[k];
+      roof -= 60 * dt; if (peak > roof) roof = peak; // the loudest thing in the spectrum (the kick, mostly), held about a second
+      for (let j = 0; j < bands.length; j++) {
+        const B = bands[j], a = B.a, b = B.b;
+        let loud = -1, kt = a;
+        for (let k = a; k <= b; k++) { const v = freq[k] + LIFT[k]; if (v > loud) { loud = v; kt = k; } }
+        const ka = Math.max(a, Math.ceil(kt / 2 ** OUT)), kb = Math.min(b, Math.floor(kt * 2 ** OUT)), mid = OCT[kt];
+        let sum = 0, sumAt = 0;
+        for (let k = ka; k <= kb; k++) {
+          const d = (loud - freq[k] - LIFT[k]) | 0; if (d > 511) continue;
+          const far = OCT[k] > mid ? OCT[k] - mid : mid - OCT[k], w = far <= WIN ? WEIGHT[d] : (WEIGHT[d] * (OUT - far)) / (OUT - WIN);
+          sum += w; sumAt += w * OCT[k];
+        }
+        const heard = freq[kt] > 0, x = heard ? sumAt / sum : B.x;
+        const near = OCT[b] - OCT[kt] >= EDGE && kt > a + 1 ? 1 - ramp(roof - freq[kt], DEEP) : 0; // how much a glide counts now: 1 for a peak inside the stretch and loud enough
+        B.down *= keep; B.up *= keep; B.fall *= keep; B.leaps *= keep; B.quick *= keep; B.fallNow *= keepNow; B.since += dt; B.lowAge += dt; B.idle += dt; B.leap = false; B.room = OCT[b] - OCT[kt];
+        if (heard && B.had && !stale) {
+          const v = (x - B.x) / dt;
+          if (v > SLOW && v <= FAST) { B.up += dt * near; B.fall -= (near * (x - B.x)) / LONG; B.fallNow -= (near * (x - B.x)) / SHORT; }
+          else if (v < -SLOW && v >= -FAST) { if (near > 0.5) B.idle = 0; B.down += dt * near; B.fall += (near * (B.x - x)) / LONG; B.fallNow += (near * (B.x - x)) / SHORT; }
+          if (B.lowAge > 0.07 || x < B.low) { B.low = x; B.lowAge = 0; }
+          if (x - B.low > LEAP && B.since > 0.07) { B.leaps += 1 / LONG; if (B.since < 0.17) B.quick += 1 / LONG; B.since = 0; B.low = x; B.lowAge = 0; B.leap = true; }
+        } else { B.low = x; B.lowAge = 0; }
+        B.x = x; B.had = heard; if (B.fall > CAP) B.fall = CAP; if (B.fallNow > CAP) B.fallNow = CAP;
+        B.lean = (B.down - B.up) / (B.down + B.up + 0.15);
+        const fall = B.idle > IDLE ? 0 : B.fall < 2 * B.fallNow ? B.fall : 2 * B.fallNow; // stopped when no glide came lately, or when the last second fell less than half as far as the last few
+        B.score = Math.min(ramp(B.lean, LEAN), ramp(fall, FALL), ramp(B.leaps + 2 * B.quick, PACE));
+        const rank = B.score + 0.02 * (B.lean + (fall < 2 ? fall : 2)) + (j === best ? 0.1 : 0); // it stays with the stretch it is on unless another is clearly better
+        if (rank > top) { top = rank; at = j; }
+      }
+      best = at; const B = bands[best], goal = unit(B.x / SPAN);
+      if (B.room >= WHERE_ROOM) where += (goal - where) * Math.min(1, dt / (goal > where ? 0.01 : 0.04)); // up at once, down a little eased
+      out.hit = B.leap;
+      return B.score;
+    }
+
+    function ridge(freq, long) { // says whether its gate is open
+      if (long > 0.25) { started = false; p = -1; credit = 0; } // back from a pause: what the ridge did across the gap is not a glide
+      const dt = Math.min(long, 0.1);
+      for (let i = 0; i < NB; i++) { let m = 0; for (let k = lo[i]; k <= hi[i]; k++) if (freq[k] > m) m = freq[k]; if (!started) A[i] = m; A[i] += (m - A[i]) * Math.min(1, dt / K.tau); W[i] = m - K.alpha * A[i]; }
+      started = true;
+      let top = -1, topP = 0; // how far each band stands above its neighbours 3/8 of an octave to an octave away, on the louder side
+      for (let i = FIRST; i <= LAST; i++) {
+        let L = 0, R = 0, nl = 0, nr = 0;
+        for (let j = i - 8; j <= i - 3; j++) if (j >= 0) { L += W[j]; nl++; }
+        for (let j = i + 3; j <= i + 8; j++) if (j < NB) { R += W[j]; nr++; }
+        const v = W[i] - Math.max(L / nl, R / nr); P[i] = v;
+        if (v > topP) { topP = v; top = i; }
+      }
+      let np = -1, jumped = false; // the ridge: the same peak as on the last frame if it is still within reach and tall enough, or else the tallest (a jump)
+      if (p >= 0) {
+        const reach = Math.min(K.stick * dt, K.maxReach) * PER, at = (p - OFF) * PER; let near = -1, nearP = 0;
+        for (let i = Math.max(FIRST, Math.ceil(at - reach)); i <= Math.min(LAST, Math.floor(at + reach)); i++) if (P[i] > nearP) { nearP = P[i]; near = i; }
+        if (near >= 0 && nearP >= K.thrKeep && nearP >= K.keepShare * topP) np = middle(near);
+      }
+      if (np < 0 && top >= 0 && topP >= K.thrNew) { np = middle(top); jumped = p >= 0; }
+      const fade = Math.exp(-long / K.mem), fadeF = Math.exp(-long / K.memFast); down *= fade; up *= fade; downF *= fadeF; upF *= fadeF; quick *= Math.exp(-long / 0.5);
+      sinceFall += long; sinceRise += long;
+      if (np >= 0 && p >= 0) { // the saw-tooth: a glide down counts as far as the ridge rose just before it
+        const d = np - p;
+        if (jumped && d >= K.leap) { credit = Math.min(K.maxFall, d) + K.slack; sinceRise = 0; }
+        else if (!jumped && d > 0) { credit = Math.min(K.maxFall, credit + d); sinceRise = 0; }
+        if (sinceRise > K.fallTime) credit = 0;
+        if (!jumped && np >= minPos) {
+          if (d < 0) { const c = Math.min(-d, credit); credit -= c; down += c; downF += c; quick += c; }
+          else { up += d; upF += d; quick -= d; }
+        }
+      } else if (np >= 0) { credit = K.appear; sinceRise = 0; }
+      if (quick > 0.25) { sinceFall = 0; if (quick > 0.5) quick = 0.5; } else if (quick < -0.5) quick = -0.5;
+      if (sinceFall > K.wait) { const f = Math.exp(-long / K.letGo); down *= f; up *= f; downF *= f; upF *= f; }
+      if (down - up > K.cap * K.mem) down = up + K.cap * K.mem;
+      if (downF - upF > 2 * K.hiFast * K.memFast) downF = upF + 2 * K.hiFast * K.memFast;
+      const score = (down - up) / K.mem, fast = (downF - upF) / K.memFast;
+      if (!open && (score > K.hi || fast > K.hiFast)) open = true; else if (open && score < K.lo && fast < K.hiFast) open = false;
+      p = np;
+      return open;
+    }
+
+    return (freq, dt) => {
+      if (!(dt > 0)) dt = 1 / 60;
+      wait += dt; out.hit = false;
+      if (wait < STRIDE) return out; // too soon after the last look (a very fast screen): the same answer
+      dt = wait; wait = 0;
+      if (dt > PAUSE) acid = 0;      // the music was paused or the page hidden: what was tallied is about another moment
+      const s = squelch(freq, dt), gate = ridge(freq, dt), want = gate ? s : 0, step = dt > HITCH ? HITCH_AS : dt;
+      acid += (want - acid) * Math.min(1, step / (want > acid ? UP : DOWN));
+      out.acid = acid; out.where = where; out.hit = out.hit && acid > 0.4;
+      return out;
+    };
+  }
+  /* The ear in the song follower: follow() asks it on every frame the music is heard, and its answers go on flow beside the rest: flow.acid (how sure), flow.acidAt (where the squelch is) and flow.acidHit (1 on the frame a note lands).
+     It is told the time since it last heard anything by the clock on the wall. While the music is paused or the page hidden nobody asks it, so the first frame back comes with the whole gap,
+     and it knows not to take what it hears then for a glide from what it heard before: after a second and a half away it starts afresh. A new song makes it start afresh too. */
+  Object.assign(flow, { acid: 0, acidAt: 0.5, acidHit: 0 });
+  let acidEar = null, acidEarHz = 0, acidHeardAt = 0;
+  function acidHear(dt) {
+    if (!freq || freq.length < 512) return; // (it reads the lower 512 places of the spectrum)
+    if (acidEarHz !== binHz) { acidEar = acidEarFor(binHz); acidEarHz = binHz; } // made when the music is first heard, and again only if the sound comes at another rate
+    const gap = (realNow - acidHeardAt) / 1000, said = acidEar(freq, gap > 0 && gap < 1e9 ? gap : dt);
+    acidHeardAt = realNow;
+    flow.acid = said.acid;
+    flow.acidAt = said.where;
+    flow.acidHit = said.hit ? 1 : 0;
+  }
+  function acidNewSong() { acidHeardAt = realNow - 60000; acidSinger.tired = false; } // as if a minute had gone by: nothing of the last song's line is left when this one starts, and the last song's rest is not this one's: a new song may be sung at once
+
+  /* The singer. Whether it is there goes by a switch with a gap in it: it comes when the ear is more than half sure and goes when that falls under a quarter, so an ear that hovers at "fairly sure",
+     as it does for seconds on end in real tracks, shows all of it, steadily, or nothing: never a face that trembles. It comes and goes eased, over about a second.
+     And it is a visit, not a fixture: it stays for 24 seconds of a line that goes on, then keeps away for 40 before it may come back. A line that stops by itself needs no such rest.
+     The "Singing to the 303" slider stretches the stay and shortens the rest by as much (at 2 it stays 48 seconds and rests 20), and at 0 it never comes.
+     What it sings with is worked out here once a frame, from the ear's three answers; the drawing reads these and nothing else:
+       show    0 to 1, how much of it is there: it rises, fades and leaves with this
+       sq      where the squelch is, its leap softened to 30 ms so nothing jumps in one frame. The ear's place is believed only while the ear is sure: all of it from half sure, none of it under 0.4 or once the switch is off.
+               Then it sinks to the bottom: the singer keeps its place and hums, mouth nearly shut, until the ear is sure again or gives up
+       knob    sq averaged over a second and a half: the hand on the filter's knob
+       wah     sq between its own lowest and highest of the last moments, eased over 35 ms: the squelch itself, full range on every note however dark or bright the line is
+       v       0.4 of knob and 0.6 of wah: the height that is drawn
+       tongue  out for a fifth of a second when a note leaps clearly higher than the last few did (an accent), and then not again for a bar
+       punch   up on a note and gone in a tenth of a second: it only ever moves and swells the face a little, it never lights anything
+       nod     it rocks left and right, changing side on every note */
+  const ACID_ON = 0.5, ACID_OFF = 0.25, ACID_COME = 0.9, ACID_GO = 1.2, ACID_STAY = 24, ACID_REST = 40; // the switch, the seconds it takes to come and to go, and the visit
+  const ACID_KEEP = 256, ACID_TICK = 1 / 60, ACID_LINE = 109, ACID_DROPS = 4, ACID_INK = "#16140a", ACID_YELLOW = [246, 230, 50]; // the ribbon: how much is remembered, how often, and how much of it is drawn (a bar of music, 1.8 s)
+  const acidSinger = { sure: 0, on: false, tired: false, cameAt: 0, leftAt: 0, ramp: 0, show: 0, sq: 0, knob: 0, lo: 0, hi: 0, peak: 0, peaks: 0, since: 9, wah: 0, v: 0, tongue: 0, lickAt: -9, punch: 0, hitAt: -9, side: 1, nod: 0, t: 0, owed: 0, at: 0, drop: 0, dropAt: -9 };
+  const acidKept = { v: new Float32Array(ACID_KEEP), show: new Float32Array(ACID_KEEP) }; // the height and how much was there, sixty times a second, the newest at acidSinger.at
+  const acidLine = { across: new Float32Array(ACID_LINE), along: new Float32Array(ACID_LINE), thick: new Float32Array(ACID_LINE), taper: new Float32Array(ACID_LINE), bend: new Float32Array(ACID_LINE) }; // the ribbon's middle as it is drawn this frame, and two tables for its shape
+  const acidDrops = { born: new Float64Array(ACID_DROPS).fill(-9), fall: new Float32Array(ACID_DROPS), speed: new Float32Array(ACID_DROPS), size: new Float32Array(ACID_DROPS) }; // the few drops there can be at once
+  const acidTones = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  let acidArt = null;
+  const acidPart = (dt, secs) => 1 - Math.exp(-dt / secs); // how much of the way something eased over "secs" gets in this frame
+  const acidShows = () => acidSinger.show > 0;
+  function acidNow(dt) { // from frame(), before anything is drawn: the colors, and the keeping of a clean picture, need to know whether it is there
+    const S = acidSinger, sure = hearing && T.acid ? flow.acid : 0;
+    S.t += dt;
+    S.sure = T.acid ? S.sure + (sure - S.sure) * acidPart(dt, 0.2) : 0; // the ear's answer, steadied. With the slider at 0 it is nothing, and whoever is there leaves
+    if (!S.on && S.sure > ACID_ON && !(S.tired && S.t - S.leftAt < ACID_REST / T.acid)) {
+      if (S.ramp <= 0) { acidKept.show.fill(0); S.sq = S.knob = S.lo = S.hi = S.peak = S.peaks = flow.acidAt; S.wah = S.tongue = S.punch = S.nod = 0; S.cameAt = S.t; } // from nothing: no ribbon from the last visit, it starts where the line is, and its visit is counted from now
+      S.on = true; // (back before it had quite gone, it is the same visit and its clock runs on: a line that dips now and then does not keep it on screen for ever)
+      S.tired = false;
+    } else if (S.on && (S.sure < ACID_OFF || S.t - S.cameAt > ACID_STAY * T.acid)) {
+      S.on = false;
+      S.tired = S.sure >= ACID_OFF; // it left a line that goes on: that is what the rest is for
+      S.leftAt = S.t;
+    }
+    S.ramp = clamp(S.ramp + (S.on ? dt / ACID_COME : -dt / ACID_GO));
+    S.show = eased(S.ramp);
+    if (S.ramp <= 0) return; // not there: nothing more to work out
+    const trust = S.on ? clamp((sure - 0.4) / 0.1) : 0, where = flow.acidAt * trust, hit = trust > 0 && flow.acidHit > 0; // the ear's "where" means something only while it is sure: all of it from half sure, none of it under 0.4
+    S.sq += (where - S.sq) * acidPart(dt, trust < 1 ? 0.1 : where > S.sq ? 0.03 : 0.015);
+    S.knob += (S.sq - S.knob) * acidPart(dt, 1.5);
+    S.lo = S.sq < S.lo ? S.sq : S.lo + (S.sq - S.lo) * acidPart(dt, 0.8);
+    S.hi = S.sq > S.hi ? S.sq : S.hi + (S.sq - S.hi) * acidPart(dt, 0.8);
+    S.wah += (clamp((S.sq - S.lo) / Math.max(0.1, S.hi - S.lo)) - S.wah) * acidPart(dt, 0.035); // the mouth and the ribbon take two or three frames to get there
+    S.v = clamp(0.4 * S.knob + 0.6 * S.wah);
+    if (hit) { S.peaks += (S.peak - S.peaks) * 0.3; S.peak = S.sq; S.since = 0; S.hitAt = S.t; S.side = -S.side; } else S.since += dt; // peaks: how high the last few notes leapt
+    S.peak = Math.max(S.peak, S.sq);
+    const accent = S.show > 0.3 && S.since < 0.15 && S.sq > S.peaks + 0.3 * Math.max(0.05, S.peaks - S.lo), sinceHit = S.t - S.hitAt; // this note leaps clearly higher than the last few
+    if (accent && S.t - S.lickAt > 1.6) S.lickAt = S.t;
+    const licking = S.t - S.lickAt < 0.2;
+    S.tongue += ((licking ? 1 : 0) - S.tongue) * acidPart(dt, licking ? 0.04 : 0.08);
+    S.punch = sinceHit < 0.034 ? Math.max(S.punch, sinceHit / 0.034) : Math.exp(-(sinceHit - 0.034) / 0.09); // two frames up, then away
+    S.nod += (S.side * 0.08 * S.show - S.nod) * acidPart(dt, 0.07);
+    S.owed += dt; // the ribbon is written down sixty times a second whatever the screen does, so a bar is always as long on the picture
+    const due = Math.min(8, Math.floor(S.owed / ACID_TICK)), v0 = acidKept.v[S.at], show0 = acidKept.show[S.at];
+    for (let k = 1; k <= due; k++) { // a late frame owes several steps at once: they are filled in on a slope from where it was, not as a stair
+      S.at = (S.at + 1) % ACID_KEEP;
+      acidKept.v[S.at] = v0 + ((S.v - v0) * k) / due;
+      acidKept.show[S.at] = show0 + ((S.show - show0) * k) / due;
+    }
+    S.owed = due < 8 ? S.owed - due * ACID_TICK : 0; // after a long gap it does not catch up
+    const { born, fall, speed, size } = acidDrops;
+    if (accent && S.t - S.dropAt > 0.4 && S.show > 0.5) { S.dropAt = S.t; S.drop = (S.drop + 1) % ACID_DROPS; born[S.drop] = S.t; fall[S.drop] = speed[S.drop] = 0; size[S.drop] = rnd(0.7, 1.3); } // under an accent a drop forms on the ribbon
+    for (let i = 0; i < ACID_DROPS; i++) if (S.t - born[i] > 0.3 && fall[i] < 1) { speed[i] += dt * 2.6; fall[i] += speed[i] * dt; } // it hangs for a moment, then falls
+  }
+  function acidTint(from) { // while it sings, the picture's colors lean a little toward acid's yellow. The three leaning colors are kept and filled in again, not made anew
+    const lean = 0.2 * acidSinger.show;
+    if (lean < 0.004 || from.length !== 3) return from;
+    for (let i = 0; i < 3; i++) for (let c = 0; c < 3; c++) acidTones[i][c] = from[i][c] + (ACID_YELLOW[c] - from[i][c]) * lean;
+    return acidTones;
+  }
+  function acidPaints() { // its paints, made once: they are laid out for a face one unit across and a ribbon one unit high, and the drawing is stretched to fit, so the same ones serve at any size
+    const skin = stage.createRadialGradient(-0.3, -0.4, 0.1, 0, 0, 1), halo = stage.createRadialGradient(0, 0, 0.8, 0, 0, 1.7), heat = stage.createLinearGradient(0.15, 0, 0.9, 0);
+    skin.addColorStop(0, "#fff6a0"); skin.addColorStop(0.6, "#f7e11e"); skin.addColorStop(1, "#d6b900"); // the yellow of the page's other smileys
+    halo.addColorStop(0, "rgba(246,230,50,0.3)"); halo.addColorStop(1, "rgba(246,230,50,0)");
+    heat.addColorStop(0, "rgb(255,140,30)"); heat.addColorStop(0.5, "rgb(246,230,50)"); heat.addColorStop(1, "rgb(197,247,148)"); // the ribbon: orange where the filter is shut, yellow in the middle, a pale lime where it screams
+    for (let i = 0; i < ACID_LINE; i++) { acidLine.taper[i] = (1 - i / (ACID_LINE - 1)) ** 0.6; acidLine.bend[i] = eased(clamp(i / 12)); } // it thins to nothing at its far end, and leaves the mouth straight before it starts to wave
+    return { skin, halo, heat };
+  }
+  function acidBand(grow, lift) { // the ribbon as a closed shape and filled: its thickness times "grow", moved toward its open side by "lift" thicknesses
+    const { across, along, thick } = acidLine;
+    g.beginPath();
+    g.moveTo(across[0] + thick[0] * (grow + lift), along[0]);
+    for (let i = 1; i < ACID_LINE; i++) g.lineTo(across[i] + thick[i] * (grow + lift), along[i]);
+    for (let i = ACID_LINE - 1; i >= 0; i--) g.lineTo(across[i] - thick[i] * (grow - lift), along[i]);
+    g.closePath();
+    g.fill();
+  }
+  /* The ribbon: the last bar of the squelch, written out from the mouth like a seismograph. Thick where the filter was open and thin where it was shut, thinning to nothing at its far end; under an accent a drop forms, hangs and falls.
+     On a wide picture it runs to the left and waves up and down; on a tall one it hangs down from the mouth and swings left and right, and has no drops.
+     It is drawn in a frame of its own, laid from "shut" (0) to "open" (1) across it and in the picture's own steps along it, which is what lets one paint made once color it wherever it is. */
+  function acidRibbon(mouthX, mouthY, tall, m) {
+    const S = acidSinger, show = S.show, reach = (tall ? w * 0.5 : h * 0.46) * 0.8 * show; // how far an open filter is from a shut one on the picture
+    if (reach < 1) return;
+    const { across, along, thick, taper, bend } = acidLine, pen = tall ? mouthY : mouthX, run = ((tall ? h - pen : pen) + m * 0.05) / (ACID_LINE - 1), rest = tall ? 0.55 : 0.45, shut = tall ? mouthX - reach * rest : mouthY + reach * rest, part = Math.min(1, S.owed / ACID_TICK);
+    for (let i = 0; i < ACID_LINE; i++) { // 0 is now, at the mouth; the last is the oldest
+      const k = S.at - i + ACID_KEEP, v = i ? 0.25 * acidKept.v[(k + 1) % ACID_KEEP] + 0.5 * acidKept.v[k % ACID_KEEP] + 0.25 * acidKept.v[(k - 1) % ACID_KEEP] : S.v, life = i ? acidKept.show[k % ACID_KEEP] : show, far = (i ? i - 1 + part : 0) * run; // it moves with the frame, not in steps of its memory
+      across[i] = rest + (v - 0.45) * bend[i];
+      along[i] = tall ? pen + far : pen - far;
+      thick[i] = (m * (0.006 + 0.026 * v) * taper[i] * (0.3 + 0.7 * life) * clamp(life * 5)) / reach; // nothing is written for the time before the line was there
+    }
+    g.save();
+    if (tall) g.transform(reach, 0, 0, 1, shut, 0); else g.transform(0, -reach, 1, 0, 0, shut);
+    g.globalCompositeOperation = "source-over"; // a shadow first, so it reads over a bright picture; over black this does nothing
+    g.fillStyle = "#000";
+    g.globalAlpha = 0.5 * show; acidBand(4.2, 0);
+    g.globalAlpha = 0.7 * show; acidBand(2.4, 0);
+    g.globalCompositeOperation = "lighter";
+    g.fillStyle = acidArt.heat;
+    g.globalAlpha = 0.16 * show; acidBand(3.2, 0);
+    g.globalAlpha = 0.3 * show; acidBand(1.8, 0);
+    g.globalAlpha = 0.95 * show; acidBand(1, 0);
+    g.fillStyle = "#fff"; // the shine along its upper side: something liquid, not a graph
+    g.globalAlpha = 0.75 * show; acidBand(0.28, 0.45);
+    g.restore();
+    if (tall) return;
+    g.save();
+    g.globalCompositeOperation = "lighter";
+    g.lineCap = "round";
+    for (let d = 0; d < ACID_DROPS; d++) { // the drops ride along with the ribbon while they hang, then fall
+      const age = S.t - acidDrops.born[d], fall = acidDrops.fall[d], i = Math.min(ACID_LINE - 1, age * 60), at = Math.floor(i), fade = clamp(1 - fall * 1.6) * clamp((ACID_LINE - 1 - i) / 20) * show;
+      if (age < 0 || age > 1.5 || fade <= 0) continue;
+      const hang = clamp(age / 0.3), r = m * 0.015 * acidDrops.size[d] * (0.4 + 0.6 * hang), x = along[at], top = shut - reach * across[at], y = top + thick[at] * reach + r * (0.6 + 1.6 * hang) + fall * h;
+      g.strokeStyle = g.fillStyle = "rgb(246,230,50)";
+      g.globalAlpha = 0.5 * fade; // its neck while it hangs, a short streak while it falls
+      g.lineWidth = Math.max(1, r * 0.5);
+      g.beginPath(); g.moveTo(x, fall ? y - r * (2 + 14 * Math.min(0.25, acidDrops.speed[d])) : top); g.lineTo(x, y); g.stroke();
+      g.globalAlpha = 0.9 * fade;
+      g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
+      g.fillStyle = "#fff";
+      g.globalAlpha = 0.7 * fade;
+      g.beginPath(); g.arc(x - r * 0.25, y - r * 0.3, r * 0.4, 0, TAU); g.fill();
+    }
+    g.restore();
+  }
+  function acidLips(cornerX, cornerY, lipTop, lipLow) { // the mouth: two curves between the same two corners. With both at the same height it is the smile
+    g.beginPath();
+    g.moveTo(-cornerX, cornerY);
+    g.quadraticCurveTo(0, lipTop, cornerX, cornerY);
+    g.quadraticCurveTo(0, lipLow, -cornerX, cornerY);
+    g.closePath();
+  }
+  /* The face: the page's own smiley (the same yellow, the same dark line, the same eyes and smile as smileyFace), drawn afresh on every frame because its mouth moves.
+     open, from 0 to 1, is the mouth: the smile at 0, a wide-open shout at 1. tongue pushes the tongue out over the lip, and squint narrows the eyes as it shouts. It is drawn one unit across and stretched to r. */
+  function acidFace(cx, cy, r, open, tongue, squint, tilt, alpha) {
+    const cornerX = 0.48 + 0.03 * open, cornerY = 0.4 - 0.2 * open, lipTop = 0.88 - 0.7 * open, lipLow = lipTop + 1.12 * open, chin = 0.5 * cornerY + 0.5 * lipLow, eyeY = -0.2 - 0.06 * open;
+    g.save();
+    g.translate(cx, cy);
+    g.rotate(tilt);
+    g.scale(r, r);
+    g.lineCap = g.lineJoin = "round";
+    g.globalAlpha = alpha;
+    g.globalCompositeOperation = "lighter"; // a soft light round it, steady
+    g.fillStyle = acidArt.halo;
+    g.fillRect(-1.7, -1.7, 3.4, 3.4);
+    g.globalCompositeOperation = "source-over";
+    g.fillStyle = acidArt.skin;
+    g.beginPath();
+    g.arc(0, 0, 1, 0, TAU);
+    g.fill();
+    g.strokeStyle = ACID_INK;
+    g.lineWidth = 0.07;
+    g.stroke();
+    g.fillStyle = ACID_INK;
+    g.beginPath();
+    for (let side = -1; side <= 1; side += 2) { g.moveTo(side * 0.34 + 0.13, eyeY); g.ellipse(side * 0.34, eyeY, 0.13, 0.27 * (1 - 0.72 * squint), 0, 0, TAU); }
+    g.fill();
+    if (open < 0.06) { // shut: the smile, one line
+      g.lineWidth = 0.12;
+      g.beginPath();
+      g.moveTo(-cornerX, cornerY);
+      g.quadraticCurveTo(0, lipLow, cornerX, cornerY);
+      g.stroke();
+    } else {
+      g.save();
+      acidLips(cornerX, cornerY, lipTop, lipLow);
+      g.fillStyle = "#2a0a0e";
+      g.fill();
+      g.clip(); // what is inside the mouth stays inside it
+      g.strokeStyle = "#fffbe6"; // the upper teeth, along the lip
+      g.lineWidth = 0.3 * open;
+      g.lineCap = "butt";
+      g.beginPath();
+      g.moveTo(-cornerX, cornerY);
+      g.quadraticCurveTo(0, lipTop, cornerX, cornerY);
+      g.stroke();
+      g.fillStyle = "#ff5c8d"; // the tongue lying in it
+      g.beginPath();
+      g.ellipse(0, chin + 0.02, 0.3, 0.26 * open, 0, 0, TAU);
+      g.fill();
+      g.restore();
+      g.lineWidth = 0.09;
+      acidLips(cornerX, cornerY, lipTop, lipLow);
+      g.stroke();
+      if (tongue > 0.04) { // and out over the lower lip, on an accent
+        const tip = chin + 0.34 * tongue;
+        g.fillStyle = "#ff5c8d";
+        g.lineWidth = 0.05;
+        g.beginPath();
+        g.moveTo(-0.2, chin - 0.2);
+        g.lineTo(-0.2, tip - 0.2);
+        g.quadraticCurveTo(-0.2, tip, 0, tip);
+        g.quadraticCurveTo(0.2, tip, 0.2, tip - 0.2);
+        g.lineTo(0.2, chin - 0.2);
+        g.closePath();
+        g.fill();
+        g.stroke();
+        g.strokeStyle = "rgba(170,24,72,.7)"; // the line down its middle
+        g.lineWidth = 0.035;
+        g.beginPath();
+        g.moveTo(0, chin - 0.12);
+        g.lineTo(0, tip - 0.1);
+        g.stroke();
+      }
+    }
+    g.restore();
+  }
+  function acidSing() { // from drawFrame(), where the visitors are drawn. While it is there drawFrame keeps the picture as it was without it and puts that back before the next frame, so an effect that keeps part of its last frame gets no echoes of the singer
+    const S = acidSinger;
+    if (S.show <= 0) return;
+    if (!acidArt) acidArt = acidPaints();
+    const tall = h > w, m = Math.min(w, h), up = 1 - (1 - clamp(S.ramp / 0.8)) ** 3, r = m * (tall ? 0.14 : 0.13); // wide: at the right, up from below, singing to the left. Tall, as on a phone: at the top right, down from above, singing downwards and keeping to its side
+    const x = tall ? w * 0.74 : w * 0.87, y = tall ? h * 0.12 - (1 - up) * (h * 0.12 + r * 1.2) : h * 0.58 + (1 - up) * (h * 0.42 + r * 1.2);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    if (tall) acidRibbon(x, y + r * 0.55, true, m); else acidRibbon(x - r * 0.1, y + r * 0.5, false, m);
+    acidFace(x, y - r * 0.05 * S.punch, r * (1 + 0.04 * S.punch), clamp(0.2 + 0.25 * S.v + 0.6 * S.wah) * S.show, S.tongue * S.show, clamp(1.3 * S.wah - 0.35) * S.show, S.nod, clamp(S.ramp * 4));
+  }
+  /* ==== acid: end ==== */
   const DRAW = { beings: beingsFx, life: livingGrid, places: placesFx, arcade: arcadeFx, runner: runnerFx, forms: formsFx, faces, ribbon, silk, helix, strings, bars, mirror, leds, terrain, scope, trails, tunnel, vortex, prism, ripple, comets, stars: starfield, whirl, dust, links, fireworks, halo, sun, rings, mandala, rays, space, warp: space, drift: space, orbit: space, visitors: space, well,
     kaleido, plasma, fractal, julia, mandel, newton, ocean, neonroad, aurora, tube: tubeFx, heads: headsFx, sphere: sphereFx, solids: solidsFx, city: cityFx };
 
@@ -8203,9 +8604,10 @@ window.Effects = (() => {
     drawScene();
     drawTwinkles();
     if (!inScene) invite(TRIPS[name] || ROAM);
-    if (fadesInPlace() && (morph || (!inScene && crowd.folk.length) || dreaming())) { clean = copyOf(clean); dirty = true; }
+    if (acidShows() || (fadesInPlace() && (morph || (!inScene && crowd.folk.length) || dreaming()))) { clean = copyOf(clean); dirty = true; }
     if (morph) blend();
     if (!inScene) drawFolk();
+    acidSing(); // the 303's singer, over whoever else is visiting
   }
 
   /* Morph: the effect changes into another by itself now and then. It waits for a kick, and best of all for the beat coming back after a break. */
@@ -8361,7 +8763,7 @@ window.Effects = (() => {
     wander(pick) { wanders = pick || null; roam.on = 0; roam.due = rnd(40, 80); }, // Morph: what to call for the next effect now and then, or nothing to stay on this one
     full(on) { alone = on; },
     mood(next) { mood = next || ""; }, // what's playing decides who comes by
-    song(text, kind) { if ((text || "") !== nowSong) { flow.floor = 0.19; flow.bare = 0.13; flow.since = Math.max(flow.since, 1.4); flow.thump = 0; flow.spare = 0; } nowSong = text || ""; genre = typeof kind === "string" ? kind : ""; }, // kind: the song's genres in words ("Acid, Techno"), for the effects that go by the kind of music. The name is for the cockpit's news, and a new song's usual is learned afresh: the last song's kick isn't this one's
+    song(text, kind) { if ((text || "") !== nowSong) { flow.floor = 0.19; flow.bare = 0.13; flow.since = Math.max(flow.since, 1.4); flow.thump = 0; flow.spare = 0; acidNewSong(); } nowSong = text || ""; genre = typeof kind === "string" ? kind : ""; }, // kind: the song's genres in words ("Acid, Techno"), for the effects that go by the kind of music. The name is for the cockpit's news, and a new song's usual is learned afresh: the last song's kick isn't this one's
     words: ["warp", "stop", "moo", "aliens"],
     word(what) { // typed on the keyboard, while a picture is showing
       if (!name) return;
@@ -8389,7 +8791,7 @@ window.Effects = (() => {
       return true;
     },
     visiting: () => guest.list.length > 0,
-    knobs: (style) => { const trip = TRIPS[style]; return ["light", "react", "speed", "spark", ...(LEAVES_TRAILS.has(style) ? ["drag"] : []), ...(style === "ripple" ? ["tilt"] : []), ...(trip ? ["nod", ...(trip.steer ? ["turns"] : []), ...(trip.moves ? ["moves"] : []), "shots"] : []), ...(VERSIONS[style] ? ["vary"] : []), ...(FRACTALS.has(style) ? ["color", "echo", "breathe", "sounds"] : []), "dream", "folk", ...(trip && trip.falls ? ["falls"] : []), ...(trip && trip.cockpit ? ["pit"] : [])].map((key) => [key, ...KNOBS[key]]); },
+    knobs: (style) => { const trip = TRIPS[style]; return ["light", "react", "speed", "spark", ...(LEAVES_TRAILS.has(style) ? ["drag"] : []), ...(style === "ripple" ? ["tilt"] : []), ...(trip ? ["nod", ...(trip.steer ? ["turns"] : []), ...(trip.moves ? ["moves"] : []), "shots"] : []), ...(VERSIONS[style] ? ["vary"] : []), ...(FRACTALS.has(style) ? ["color", "echo", "breathe", "sounds"] : []), "dream", "folk", "acid", ...(trip && trip.falls ? ["falls"] : []), ...(trip && trip.cockpit ? ["pit"] : [])].map((key) => [key, ...KNOBS[key]]); },
     tuning(values) { // adjustments for the effect showing. Anything left out is back to how it was designed
       const was = T.vary;
       for (const key of Object.keys(T)) { const [, low, high] = KNOBS[key], v = Number(values[key]); T[key] = Number.isFinite(v) ? Math.min(high, Math.max(low, v)) : 1; }
@@ -8451,6 +8853,7 @@ window.Effects = (() => {
         if (pending) changeOver();
         evolve(real);
         dreamNow(real);
+        acidNow(real);
         tint();
         drawFrame();
         drawFlow(real);
