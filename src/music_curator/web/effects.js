@@ -5128,11 +5128,12 @@ window.Effects = (() => {
   }
   const PIXEL_DIGITS = { 0: "111101101101111", 1: "010110010010111", 2: "111001111100111", 3: "111001111001111", 4: "101101111001001", 5: "111100111001111", 6: "111100111101111", 7: "111001001001001", 8: "111101111101111", 9: "111101111001111" }; // each figure in 3 by 5 dots, for a score
   const pixelScreens = new Map();
+  let pixelLast = null; // the small screen the pixel effect showing asked for last: its visitors are drawn in its dots
   function pixelScreen(across = 320) { // the small screen for the picture's shape as it is now: so many dots across, and as many down as keeps the dots square. Made once for each size and kept, so what is drawn on it stays from frame to frame; ask for it again every frame (the window can change shape)
     across = Math.max(32, Math.min(Math.round(across), Math.floor(w / 2))); // (a dot is never smaller than two of the picture's own)
     const down = Math.max(2, Math.round((across * h) / w / 2) * 2), key = across + "x" + down;
     let S = pixelScreens.get(key);
-    if (S) return S;
+    if (S) return (pixelLast = S);
     if (pixelScreens.size > 8) pixelScreens.clear(); // (a window dragged through many shapes)
     const [c, x] = paper(across, down);
     x.imageSmoothingEnabled = false;
@@ -5147,7 +5148,7 @@ window.Effects = (() => {
     function show(alpha = 1) { g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.imageSmoothingEnabled = false; g.globalCompositeOperation = "source-over"; g.globalAlpha = alpha; g.drawImage(c, 0, 0, w, h); g.restore(); g.imageSmoothingEnabled = true; } // onto the picture, every dot a clean square
     S = { c, x, across, down, sprite: pixelSprite, put, rect, dot, digits, show, css: pixelCss };
     pixelScreens.set(key, S);
-    return S;
+    return (pixelLast = S);
   }
   function musicWorld() { // which kind of world the music playing belongs to: "acid", "psy", "hard", "trance", "techno", "house", "jungle", "ambient", "game", or "" when nothing says. The four the app has moods for go by the mood, which a pack can teach new genres; the rest, and everything while moods are switched off, go by words in the song's genres
     const byMood = { acid: "acid", psy: "psy", hard: "hard", euphoric: "trance" }[mood];
@@ -5164,6 +5165,25 @@ window.Effects = (() => {
     if (has("trance")) return "trance";
     if (has("techno", "minimal", "electro", "ebm", "idm", "detroit")) return "techno";
     return "";
+  }
+  const pixelFolk = { big: null, bigX: null, small: null, smallX: null, was: null }; // the visitors' own layer over a pixel world: at the picture's size, and at the world's (its dots are averaged from the big one, so an edge is a dot part see-through, never a fine line. Making every dot either there or not would mean reading the small one back from the graphics card every frame, which cost ten times as much)
+  function pixelOver() { // over a pixel world, what is laid over the picture (the visitors, the 303's singer) is drawn on a layer of its own, and pixelDone() puts it on in the world's own dots. Says whether it did
+    if (FAMILY[name] !== "pixel" || !pixelLast || !(crowd.folk.length || acidShows())) return false;
+    const P = pixelFolk;
+    if (!P.big || P.big.width !== w || P.big.height !== h) [P.big, P.bigX] = paper(w, h);
+    P.bigX.setTransform(1, 0, 0, 1, 0, 0); P.bigX.globalAlpha = 1; P.bigX.globalCompositeOperation = "source-over"; P.bigX.clearRect(0, 0, w, h);
+    P.was = g; g = P.bigX;
+    return true;
+  }
+  function pixelDone(on) { // the layer, shrunk to the world's small screen and shown with every dot a clean square
+    if (!on) return;
+    const P = pixelFolk, S = pixelLast;
+    g = P.was; P.was = null;
+    if (!P.small || P.small.width !== S.across || P.small.height !== S.down) [P.small, P.smallX] = paper(S.across, S.down);
+    const x = P.smallX, A = S.across, D = S.down;
+    x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.globalCompositeOperation = "source-over"; x.clearRect(0, 0, A, D); x.imageSmoothingEnabled = true; x.drawImage(P.big, 0, 0, A, D);
+    g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalAlpha = 1; g.globalCompositeOperation = "source-over"; g.imageSmoothingEnabled = false; g.drawImage(P.small, 0, 0, w, h); g.restore();
+    g.imageSmoothingEnabled = true;
   }
   /* ==== pixel: end ==== */
   /* ==== faces: begin ==== */
@@ -5670,7 +5690,7 @@ window.Effects = (() => {
       pal: { k: [14, 8, 30], a: [255, 70, 190], s: [168, 40, 150], b: [60, 230, 230], c: [255, 160, 50], l: [240, 230, 255], h: [170, 140, 240], m: [96, 64, 170], n: [44, 26, 96], g: [170, 255, 90], F: [30, 14, 66], E: [62, 32, 112], M: [22, 10, 50], I: [96, 56, 156], X: [60, 230, 230], Y: [24, 70, 110], Z: [14, 24, 60], u: [190, 96, 40], v: [30, 140, 170], w: [70, 150, 70], d: [30, 16, 70], t: [20, 90, 110] },
       skies: [[[14, 8, 40], [36, 16, 76], [76, 28, 116], [140, 44, 136]], [[6, 16, 36], [8, 44, 70], [16, 90, 100], [40, 150, 130]]],
       orb: [{ kind: "rings", x: 0.72, y: 0.3, r: 16, col: [255, 160, 50], dark: [255, 70, 190], stars: 1 }, { kind: "rings", x: 0.3, y: 0.34, r: 14, col: [170, 255, 90], dark: [60, 230, 230], stars: 1 }],
-      swell: "wave", float: "seed", weather: { up: 3, side: 7, tones: "abc" },
+      swell: "wave", float: "seed", weather: { up: 3, side: 7, tones: "abc" }, bob: 3, // bob: the middle distance, its mushrooms and ferns, goes up and down by this many dots on the kick
       low: [["...kkkkkk...", ".kkaalaaakk.", "kaalaaaalaak", "kaaaaalaaask", "kslaaaaaassk", ".kkkkkkkkkk.", "...khllnk...", "...khllnk...", "...khllnk...", "..khlllnnk..", "..kkkkkkkk.."],
         ["....k....", "...kck...", "..kcclk..", "..kccck..", "...kck...", "g...m...g", "mg..m..gm", ".mg.m.gm.", "..mgmgm..", "...mmm..."]],
       creature: [[["......kkkkk..", ".a.a.kbbbbbk.", ".l.lkbblbbmbk", ".llkkbbkkbbmk", "kllkkbbkbbmmk", "klllkkbbbbmkk", "khlllllllllhk", ".kkkkkkkkkkk."],
@@ -6037,8 +6057,9 @@ window.Effects = (() => {
     if (st.iris) { const cx = rd(runnerX(st.irisAt + (st.gate && st.gate.locked ? st.gate.slip : 0), K)), cy = rd(GY - st.lift - DN * 0.25), r = st.iris, other = skyOf(1 - st.zone);
       for (let y = Math.max(0, Math.ceil(cy - r)); y < Math.min(DN, cy + r); y++) { const half = Math.floor(Math.sqrt(r * r - (y - cy) ** 2)), x0 = Math.max(0, cx - half), x1 = Math.min(A, cx + half); if (x1 > x0) { X.drawImage(other, x0, y, x1 - x0, 1, x0, y, x1 - x0, 1); R("l", cx - half, y, 1, 1); R("l", cx + half - 1, y, 1, 1); } } }
     // the distance: two strips at a tenth and three tenths of the pace, sinking as it climbs; and the things in them that answer the music
-    slide(L.far, 0.1, st.sink * 0.25); slide(L.mid, 0.3, st.sink * 0.6);
-    for (const thing of L.hot) { let x = rd((((thing.x - st.along * thing.sp) % WL) + WL) % WL); const y = rd(thing.y + st.sink * (thing.sp < 0.2 ? 0.25 : 0.6)), level = st.bands[((thing.n || 0) * 5 + 2) & 15];
+    const bob = W.bob ? rd(kick * W.bob) : 0;
+    slide(L.far, 0.1, st.sink * 0.25); slide(L.mid, 0.3, st.sink * 0.6 - bob);
+    for (const thing of L.hot) { let x = rd((((thing.x - st.along * thing.sp) % WL) + WL) % WL); const y = rd(thing.y + st.sink * (thing.sp < 0.2 ? 0.25 : 0.6) - (thing.sp < 0.2 ? 0 : bob)), level = st.bands[((thing.n || 0) * 5 + 2) & 15];
       if (x > WL - 40) x -= WL;
       if (x > A + 40) continue;
       if (thing.kind === "lamp") { if ((t * 0.7 + thing.x) % 2 < 1) R("c", x, y, 2, 2); }
@@ -7029,10 +7050,11 @@ window.Effects = (() => {
         }, 50);
         // the wood: dark mushrooms behind, big spotted ones in front that sway with the bass
         const farCap = mixc(ink, air[2], 0.28), ground = H - Math.round(13 * TALL) + st.wide * H * 0.06;
-        each(0.22, 34, 44, (x, k, r) => shroom(x, HZ + 6, Math.round((16 + r * 30) * TALL), Math.round((6 + Math.floor(hash(k, 2) * 9)) * SC), caps[((k % 4) + 4) % 4], k, farCap, 0, glow), 30);
+        const hop = Math.min(1, st.kick), hopOf = (k, most) => Math.round(hop * most * TALL * ((k + st.beat) % 2 ? 0.35 : 1)); // on the kick the mushrooms stand up a little taller and sink back, every other one in turn
+        each(0.22, 34, 44, (x, k, r) => shroom(x, HZ + 6, Math.round((16 + r * 30) * TALL) + hopOf(k, 1.5), Math.round((6 + Math.floor(hash(k, 2) * 9)) * SC), caps[((k % 4) + 4) % 4], k, farCap, 0, glow), 30);
         ridge((x) => 3 + 7 * fbm(x * 0.015, land + 40), 0.35, HZ + 8, mixc(ink, air[2], 0.12), mixc(ink, air[2], 0.3), { litDeep: 1 });
         for (let y = HZ + 9; y < H; y++) for (let x = 0; x < W; x++) if (hash(x + st.cam * 0.6 * ((y - HZ) / (H - HZ)) | 0, y) < 0.04) dot(x, y, band(x) > hash(x * 31 + y, 8) ? mixc(moss, air[2], 0.3) : mixc(ink, moss, 0.22)); // moss lights: the spectrum picks which glow
-        each(0.55, WIDE ? 74 : 60, 55, (x, k, r) => { if (r < 0.8) shroom(x, ground + 6, Math.round((34 + r * 50) * TALL), Math.round((11 + Math.floor(hash(k, 2) * 12)) * (WIDE ? SC : 1)), caps[((k % 4) + 4) % 4], k, 0, Math.sin(t * 0.8 + k) * (1 + 4 * st.bs), glow); }, 40);
+        each(0.55, WIDE ? 74 : 60, 55, (x, k, r) => { if (r < 0.8) shroom(x, ground + 6, Math.round((34 + r * 50) * TALL) + hopOf(k, 3 + 3 * r), Math.round((11 + Math.floor(hash(k, 2) * 12)) * (WIDE ? SC : 1)), caps[((k % 4) + 4) % 4], k, 0, Math.sin(t * 0.8 + k) * (1 + 4 * st.bs), glow); }, 40);
         ridge((x) => 5 + 9 * fbm(x * 0.03, land + 30), 1, ground + 10, ink, null, { tex: (x, y, wx) => {
           if (wx % 7 === 0 && hash(wx, 2) < 0.6) { const fh = 5 + Math.floor(hash(wx, 3) * 7), sw = Math.round(Math.sin(t + wx) * st.bs * 2); for (let j = 0; j < fh; j++) dot(x + (j > fh - 3 ? sw : 0), y - j, ink); for (let i = 0; i < 7; i++) dot(x + sw + Math.cos(i * 0.9) * (2.5 - i * 0.3), y - fh + Math.sin(i * 0.9) * (2.5 - i * 0.3), i > 4 ? moss : ink); }
         } });
@@ -8606,8 +8628,10 @@ window.Effects = (() => {
     if (!inScene) invite(TRIPS[name] || ROAM);
     if (acidShows() || (fadesInPlace() && (morph || (!inScene && crowd.folk.length) || dreaming()))) { clean = copyOf(clean); dirty = true; }
     if (morph) blend();
+    const inPixels = pixelOver(); // over a pixel world, the visitors and the singer are drawn in its own big square dots
     if (!inScene) drawFolk();
     acidSing(); // the 303's singer, over whoever else is visiting
+    pixelDone(inPixels);
   }
 
   /* Morph: the effect changes into another by itself now and then. It waits for a kick, and best of all for the beat coming back after a break. */
