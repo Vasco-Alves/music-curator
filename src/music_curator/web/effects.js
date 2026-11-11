@@ -20,7 +20,7 @@ window.Effects = (() => {
     trip: [["kaleido", "Kaleidoscope"], ["plasma", "Plasma"], ["fractal", "Fractal"], ["julia", "Julia"], ["mandel", "Mandelbrot"], ["newton", "Newton"]],
     journey: [["ocean", "Under the sea"], ["neonroad", "Neon road"], ["aurora", "Northern lights"]],
     worlds: [["tube", "Energy tube"], ["heads", "Neon heads"], ["sphere", "Sound sphere"], ["solids", "Shapes in space"], ["city", "Neon city"]],
-    pixel: [["runner", "Runner"], ["arcade", "Arcade"], ["places", "Places"]],
+    pixel: [["runner", "Runner"], ["arcade", "Arcade"], ["places", "Places"], ["life", "Living grid"]],
     visions: [["faces", "Faces"], ["forms", "Forms"]],
   };
   const FOLK_OF = { arcade: ["astronaut", "shapes", "neon", "jelly"], ocean: ["jelly", "whale", "jelly", "shapes"], neonroad: ["neon", "shapes", "saucer", "neon"], aurora: ["saucer", "astronaut", "neon", "saucer"], // some places have their own visitors
@@ -4963,6 +4963,7 @@ window.Effects = (() => {
     runner: { gait: [1, 0.85, 1.12], kin: [0.5, 0, 1], wings: [2, 3, 4, 1], flair: [1, 0, 1], course: [0, 1, 2, 3] },
     arcade: { spin: [1, -1, 0, 1.8], rails: [1, 0.4, 0], hops: [0, 1, -1], foes: [16, 12, 20], scroll: [1, 0.6, 1.5] },
     places: { land: ["a", "b", "c", "d"], hour: [0, 0, 0.25, 0.5, 0.75], going: [1, 1, -1], weather: [1, 0.3, 1.8] },
+    life: { rule: [0, 0, 0, 1, 2], sym: [0, 0, 2, 4, 8], trail: [1, 0.7, 1.5], pace: [1, 1, 0.5, 2], bead: [1, 1, 0] },
     kaleido: { blobs: [5, 3, 8], line: ["wave", "ring", "none"], spin: [1, -1, 2] },
     plasma: { scale: [1, 0.55, 1.7], stripes: [2, 1, 4], swirl: [0, 1, 2] },
     fractal: { sides: [0, 3, 4, 5, 6, 8], child: [0.22, 0.32, 0.15], spin: [1, -1] },
@@ -7324,7 +7325,422 @@ window.Effects = (() => {
     S.show();
   }
   /* ==== places: end ==== */
-  const DRAW = { places: placesFx, arcade: arcadeFx, runner: runnerFx, forms: formsFx, faces, ribbon, silk, helix, strings, bars, mirror, leds, terrain, scope, trails, tunnel, vortex, prism, ripple, comets, stars: starfield, whirl, dust, links, fireworks, halo, sun, rings, mandala, rays, space, warp: space, drift: space, orbit: space, visitors: space, well,
+  /* ==== life: begin ==== */
+  /* ---------- Living grid: the pattern among the pixel effects. One grid of cells, each drawn as a bead of 2 by 2 dots from a fixed set of colors, run by one of nine rule-sets from the oldest
+     self-playing games (cells that live and die by their neighbours, crystals that grow, ants that turn, sand that falls) and fed by the song: a kick plants a shape, the bass feeds the floor,
+     a hi-hat sprinkles, a build raises the birth rate, a break slows it all to half, and a drop sends one ring out from the middle that clears the grid, with a new garden planted behind it.
+     The kind of music picks one of ten worlds, each with its own colors, backdrop and rule-set. Nothing here lights the whole picture: a cell comes on quickly and goes out slowly. ---------- */
+  const lifeCounts = (...counts) => counts.reduce((mask, n) => mask | (1 << n), 0); // several counts of neighbours kept as one number
+  /* The rule-sets. cells: a cell is born with so many live neighbours and stays with so many; states is how long a fading tail it leaves (2 is none); with fuel each birth passes on one less, so a family burns out.
+     bloom: a cell grows wherever exactly one neighbour is alive. pace is steps a beat, sym how many mirror images suit it, up and down the seconds a cell takes to light and to fade. */
+  const LIFE_RULES = {
+    comets: { kind: "cells", born: lifeCounts(2), stay: 0, states: 7, fuel: true, pace: 4, sym: 2, up: 0.05, down: 0.5 }, // pairs of cells that fly straight, with long tails
+    sparks: { kind: "cells", born: lifeCounts(2), stay: 0, states: 3, fuel: true, pace: 4, sym: 2, up: 0.04, down: 0.45 }, // the same without the tail: bursts and darts
+    maze: { kind: "cells", born: lifeCounts(3), stay: lifeCounts(1, 2, 3, 4, 5), states: 2, fuel: true, crumbles: 14, pace: 2, sym: 4, up: 0.16, down: 0.6 }, // corridors that crawl outward
+    classic: { kind: "cells", born: lifeCounts(3), stay: lifeCounts(2, 3), states: 2, pace: 2, sym: 2, up: 0.16, down: 0.7 }, // the first of them all
+    crystal: { kind: "bloom", near: 4, pace: 2, sym: 4, up: 0.07, down: 0.6 }, // snowflakes
+    coral: { kind: "bloom", near: 8, chance: 0.16, pace: 2, sym: 1, up: 0.2, down: 0.9 }, // the same by chance, and upward: branches
+    vines: { kind: "bloom", near: 8, chance: 0.24, both: true, pace: 4, sym: 2, up: 0.12, down: 0.7 }, // and the same hanging from the ceiling too, quicker: creepers
+    ants: { kind: "ants", pace: 1, sym: 2, up: 0.14, down: 0.7 }, // an ant turns right on an empty cell and left on a painted one, and repaints it
+    sand: { kind: "sand", pace: 1, sym: 2, up: 0.06, down: 0.28 }, // grains from the top, a column for each part of the spectrum
+  };
+  /* The worlds, one for each answer of musicWorld() and the dish for when nothing says. rule is its own rule-set and also the two a version can change it to. back: the backdrop's three colors, dark to light;
+     ember: a cell's last glow; inks: [dim, body, hot] for what the bass, the kick and the hi-hat plant (the hourglass has six sands of two shades). turns: how much of the version's turn of the colors it takes. */
+  const LIFE_WORLDS = {
+    acid: { rule: "ants", also: ["maze", "sand"], scene: "tiles", turns: 0.12, back: [[7, 11, 6], [13, 21, 9], [22, 34, 12]], ember: [44, 62, 16], // the vat
+      inks: [[[66, 104, 22], [150, 222, 44], [228, 255, 150]], [[124, 104, 12], [246, 228, 44], [255, 251, 196]], [[128, 60, 12], [255, 142, 32], [255, 216, 156]]] },
+    psy: { rule: "crystal", also: ["maze", "classic"], sym: 8, scene: "rings", turns: 1, back: [[13, 6, 26], [25, 9, 42], [42, 16, 60]], ember: [72, 24, 88], // the mandala
+      inks: [[[112, 24, 124], [232, 52, 204], [255, 176, 242]], [[14, 98, 124], [40, 222, 232], [196, 255, 250]], [[134, 86, 12], [255, 192, 42], [255, 242, 184]]] },
+    hard: { rule: "sparks", also: ["comets", "ants"], scene: "grate", turns: 0.12, back: [[9, 4, 4], [22, 6, 5], [38, 10, 7]], ember: [84, 16, 11], // the furnace
+      inks: [[[150, 26, 16], [240, 58, 34], [255, 140, 84]], [[144, 52, 10], [255, 134, 30], [255, 238, 172]], [[124, 112, 100], [238, 232, 220], [255, 255, 255]]] },
+    trance: { rule: "comets", also: ["crystal", "coral"], scene: "sky", turns: 0.5, back: [[6, 8, 26], [12, 20, 50], [26, 40, 86]], ember: [34, 48, 112], // the night sky
+      inks: [[[40, 62, 152], [92, 142, 255], [194, 222, 255]], [[132, 52, 122], [255, 132, 222], [255, 216, 246]], [[112, 122, 62], [227, 245, 128], [251, 255, 216]]] },
+    techno: { rule: "maze", also: ["ants", "crystal"], scene: "board", turns: 0.5, back: [[8, 10, 12], [15, 19, 23], [27, 34, 40]], ember: [40, 50, 58], // the board
+      inks: [[[60, 73, 84], [142, 162, 178], [216, 228, 238]], [[10, 92, 98], [30, 222, 212], [184, 255, 247]], [[112, 102, 40], [240, 222, 92], [255, 247, 192]]] },
+    house: { rule: "sand", also: ["coral", "comets"], scene: "dusk", turns: 0.5, back: [[18, 9, 14], [34, 15, 22], [96, 62, 74]], ember: [62, 26, 32], peg: [[96, 62, 74], [206, 164, 152]], glint: [255, 246, 220], // the hourglass
+      inks: [[[150, 40, 52], [236, 80, 82]], [[160, 86, 24], [250, 152, 50]], [[150, 132, 30], [250, 222, 82]], [[24, 122, 112], [60, 212, 182]], [[40, 82, 162], [92, 152, 250]], [[150, 62, 132], [250, 132, 212]]] },
+    jungle: { rule: "vines", also: ["ants", "sparks"], scene: "stems", turns: 0.5, back: [[4, 11, 9], [7, 23, 18], [13, 38, 28]], ember: [20, 62, 40], // the undergrowth
+      inks: [[[16, 102, 62], [42, 222, 122], [184, 255, 204]], [[132, 92, 12], [255, 198, 42], [255, 242, 184]], [[112, 40, 92], [240, 92, 182], [255, 194, 232]]] },
+    ambient: { rule: "crystal", also: ["coral", "sand"], sym: 2, slowly: 0.5, scene: "shafts", turns: 0.5, back: [[4, 13, 23], [7, 27, 40], [13, 43, 57]], ember: [20, 62, 78], // the reef: frost at half the pace
+      inks: [[[20, 92, 102], [62, 192, 192], [184, 246, 238]], [[132, 72, 72], [250, 152, 132], [255, 222, 204]], [[112, 112, 72], [236, 230, 162], [255, 252, 222]]] },
+    game: { rule: "classic", also: ["ants", "sand"], scene: "lattice", turns: 0.25, back: [[17, 32, 21], [23, 43, 26], [34, 60, 33]], ember: [50, 82, 40], // the pocket screen: four greens
+      inks: [[[70, 112, 48], [132, 174, 60], [204, 228, 124]], [[78, 122, 50], [156, 196, 72], [224, 242, 154]], [[96, 132, 70], [190, 214, 120], [240, 246, 206]]] },
+    dish: { rule: "crystal", also: ["classic", "comets"], scene: "vignette", turns: 1, back: [[7, 9, 15], [13, 17, 27], [22, 28, 44]], ember: [34, 42, 64], // the dish
+      inks: [[[86, 98, 26], [212, 240, 60], [240, 250, 176]], [[28, 82, 70], [70, 200, 170], [190, 240, 226]], [[50, 54, 106], [120, 130, 255], [206, 210, 255]]] },
+  };
+  const LIFE_SHAPES = { ship: ["##", "++"], side: ["+#", "+#"], dart: ["##"], pin: ["#", "#"], burst: ["##", "##"], glider: [".#.", "..#", "###"], bloom: [".##", "##.", ".#."], triple: ["###"], seed: ["#.#", ".#.", "###"], corner: ["##", "#."], one: ["#"] }; // what gets planted: "#" a live cell, "+" a fading one
+  const LIFE_ANT = [[".h.h.", "l.h.l", ".lbl.", "l.b.l", "..b.."], [".h.h.", "..h..", "llbll", "..b..", "l.b.l"]]; // the ant itself, 5 by 5 dots, in two steps of its legs: h its bright head, the rest dark
+  const LIFE_DITHER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]; // the order in which the dots of a 4 by 4 square come on, for blending two colors without a third
+  function lifeGrid(cols, rows, worldName, ruleName) { // one grid of so many cells, in one world, run by one rule-set. It keeps the cells, moves them on with the song, and paints them into its own picture of 2 by 2 dots a cell
+    const world = LIFE_WORLDS[worldName], home = ruleName === world.rule, R = LIFE_RULES[ruleName], kind = R.kind, sands = kind === "sand", coral = R.chance < 1, N = cols * rows, dotsW = cols * 2, dotsH = rows * 2;
+    const st = new Uint8Array(N), nx = new Uint8Array(N), ink = new Uint8Array(N), fuel = new Uint8Array(N), fuel2 = new Uint8Array(N), age = new Uint16Array(N), lum = new Float32Array(N), tgt = new Float32Array(N), far = new Float32Array(N); // each cell's state, its next state, which ink it is, how much it can still pass on, how old it is, how brightly it shows, how brightly it should, and how far from the middle it lies
+    const mark = new Int32Array(N), two = new Uint8Array(N), flips = new Uint8Array(N), jit = new Uint8Array(N), tired = new Float32Array(N), scenery = new Uint8Array(dotsW * dotsH), backdrop = new Uint32Array(dotsW * dotsH);
+    const img = new ImageData(dotsW, dotsH), out = new Uint32Array(img.data.buffer), ramp = new Uint32Array(8 * 5), pegTones = new Uint32Array(2); // ramp: for each ink five colors, [backdrop, ember, dim, body, hot]; a cell's light walks up and down them
+    const cx = (cols - 1) / 2, cy = (rows - 1) / 2, reach = Math.hypot(cx, cy) + 2, roll = () => Math.random(), int = (n) => Math.floor(Math.random() * n);
+    const K = { phase: 0, kicks: 0, planted: 0, ring: -1, sown: 0, sinceDrop: 9, gardens: 0, slow: 0, antSteps: 0, sandTicks: 0, heap: 0, hatch: 0, drain: 0.02, tick: 0, stamps: 0 }; // the song's place in it all, which goes along onto another grid: see adopt()
+    let sym = 2, share = 1, lean = 1, trail = 1, pace = R.pace, quicken = 1, bead = 1, turnNow = NaN, dark = 0, inkCount = 3, front = [], ants = [];
+    for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) { far[y * cols + x] = Math.hypot(x - cx, y - cy); const u = Math.abs(2 * x - cols + 1), v = Math.abs(2 * y - rows + 1); let n = (Math.min(u, v) * 374761393 + Math.max(u, v) * 668265263) | 0; n = Math.imul(n ^ (n >>> 13), 1274126177); jit[y * cols + x] = (n ^ (n >>> 16)) & 63; } // jit: a number 0..63 that is the same at every mirror image of a cell
+    const chanceAt = (x, y) => { let n = (x * 374761393 + y * 668265263) | 0; n = Math.imul(n ^ (n >>> 13), 1274126177); return ((n ^ (n >>> 16)) >>> 0) / 4294967296; }; // a number 0..1 that is always the same for the same dot
+    for (let y = 0; y < dotsH; y++) for (let x = 0; x < dotsW; x++) { // the scenery, drawn once: which of the backdrop's colors each dot is (3 is the ember color), blended by dithering
+      const d = (LIFE_DITHER[(y & 3) * 4 + (x & 3)] + 0.5) / 16, v = y / dotsH, r = Math.hypot(x - dotsW / 2, y - dotsH / 2) / (Math.min(dotsW, dotsH) / 2), s = world.scene;
+      let k = v * 1.2 + d > 1 ? 1 : 0; // most of them: darker above, a little lighter below
+      if (s === "tiles") { if ((x % 16 === 0 && y % 16 === 0) || ((x + 8) % 16 === 0 && (y + 8) % 16 === 0)) k = 2; }
+      else if (s === "rings") { const ring = (r * 5) % 2; k = (ring < 1 ? ring : 2 - ring) * 0.9 + d * 0.9 > 1 ? 1 : 0; if (Math.abs(r - 0.8) < 0.012 || Math.abs(r - 0.4) < 0.014) k = 2; }
+      else if (s === "grate") { k = v * 1.5 + d > 1.25 ? 1 : 0; if ((x + y) % 24 === 0 && chanceAt(x >> 3, y >> 3) < 0.5) k = 2; if (v > 0.8) { const bed = (v - 0.8) * 5; if (bed * 1.1 + d > 1.15) k = 2; if (bed + d * 0.7 > 1.4 && chanceAt(x >> 1, y >> 1) < 0.6) k = 3; } } // a bed of embers along the floor, so the furnace still reads when little is burning
+      else if (s === "sky") { const horizon = 1 - Math.abs(v - 0.74) * 2.4; k = horizon + d * 0.8 > 1.1 ? 1 : 0; if (horizon > 0.97 && ((x >> 1) + y) % 2 === 0) k = 2; if (v < 0.7 && chanceAt(x, y) < 0.007) k = chanceAt(y, x) < 0.3 ? 3 : 2; }
+      else if (s === "board") { k = x % 32 === 0 || y % 32 === 0 ? 1 : 0; if (x % 32 < 2 && y % 32 < 2) k = 2; }
+      else if (s === "stems") { const stem = Math.abs(((x + Math.sin(y * 0.05 + (x >> 5)) * 6) % 40) - 20) / 20; k = stem * 0.8 + d * 0.5 + v * 0.3 > 1 ? 1 : 0; }
+      else if (s === "shafts") { const shaft = Math.sin((x + y * 0.6) * 0.045) * 0.5 + 0.5; k = shaft * (1 - v) * 1.5 + d * 0.7 > 1 ? 1 : 0; if (v > 0.93 && chanceAt(x >> 1, 7) + v > 1.5) k = 2; }
+      else if (s === "lattice") k = (x & 1) && (y & 1) ? 1 : 0;
+      else if (s === "vignette") k = 1.25 - r * 0.9 + d * 0.6 > 1.1 ? 1 : 0;
+      scenery[y * dotsW + x] = k;
+    }
+    function tones(turn) { // the world's colors, turned round the color wheel as far as the version says: worked out again only when that changes
+      turn = Math.round(turn);
+      if (turn === turnNow) return;
+      turnNow = turn;
+      const tone = (c) => { const [r, gr, b] = turnHue(c, turn); return ((255 << 24) | (Math.round(b) << 16) | (Math.round(gr) << 8) | Math.round(r)) >>> 0; }, glint = world.glint || [255, 246, 220];
+      let inks = world.inks;
+      if (sands && inks.length < 6) inks = [0, 1, 2, 3, 4, 5].map((k) => { const [dim, body] = world.inks[k % 3]; return k < 3 ? [dim, body] : [dim.map((v) => v * 0.6), dim.map((v) => Math.min(255, v * 1.35))]; }); // sand in a world of three inks: those three, and three darker ones made from them, so the layers show
+      if (!sands && inks[0].length < 3) inks = [0, 2, 4].map((k) => [...world.inks[k], glint]); // and the hourglass's six sands down to three inks for any other rule
+      inks.forEach((three, k) => { ramp[k * 5 + 1] = tone(world.ember); ramp[k * 5 + 2] = tone(three[0]); ramp[k * 5 + 3] = tone(three[1]); ramp[k * 5 + 4] = tone(three[2] || glint); });
+      inkCount = inks.length;
+      (world.peg || [world.back[2], world.inks[2][0]]).forEach((c, k) => { pegTones[k] = tone(c); });
+      const four = [...world.back, world.ember].map(tone);
+      dark = four[0];
+      for (let o = 0; o < backdrop.length; o++) backdrop[o] = four[scenery[o]];
+    }
+    function dials(symNow, trailNow, paceNow, beadNow) { // the version's dials, which can change while the garden grows on
+      const most = sands || ruleName === "coral" ? 2 : ruleName === "vines" ? 4 : 8, own = Math.min(most, (home && world.sym) || R.sym), next = Math.min(most, symNow || own); // sand and coral have an up and a down, so no more than two mirrors
+      share = Math.min(1, own / next) ** (R.fuel ? 1.5 : 1); // with more mirrors than a rule-set was made for, everything planted comes that many more times over, so the song plants that much less often. Rarer still where what is planted spreads as a ring: rings set off together light the picture faster than the same rings one after another
+      lean = share ** 0.6; // and what it plants is that much smaller
+      const tailed = kind === "cells" && R.states > 2; // comets and sparks blink by nature, and are tuned so that nothing blinks faster than twice a second: they keep their own pace and their own fade whatever the dials say
+      trail = tailed ? 1 : trailNow;
+      quicken = tailed ? 1 : R.fuel ? Math.min(1, paceNow) : paceNow; // (and the maze, which also grows by fuel, is never run at double pace: a build would fill the picture too fast)
+      pace = R.pace * quicken * ((home && world.slowly) || 1);
+      bead = sands ? 0 : beadNow;
+      if (next !== sym) { sym = next; if (kind === "ants" && K.gardens) newAnts(); } // (ants walk in mirrored twos or fours, so they start again)
+    }
+
+    // every mirror image of a spot, for mandalas: fn(x, y, flipX, flipY, turned)
+    function images(x, y, fn) {
+      fn(x, y, 1, 1, 0);
+      if (sym >= 2) fn(cols - 1 - x, y, -1, 1, 0);
+      if (sym >= 4) { fn(x, rows - 1 - y, 1, -1, 0); fn(cols - 1 - x, rows - 1 - y, -1, -1, 0); }
+      if (sym >= 8) { const X = Math.floor(cx + y - cy), Y = Math.floor(cy + x - cx); for (const [sx, sy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) { const X2 = sx > 0 ? X : cols - 1 - X, Y2 = sy > 0 ? Y : rows - 1 - Y; if (Y2 >= 0 && Y2 < rows && X2 >= 0 && X2 < cols) fn(X2, Y2, sx, sy, 1); } } // and the same four again with across and down changed over
+    }
+    function set(x, y, state, k, f) { if (x < 1 || y < 1 || x >= cols - 1 || y >= rows - 1) return -1; const i = y * cols + x; st[i] = state; ink[i] = k; fuel[i] = f; age[i] = 0; tgt[i] = state === 1 ? 1 : 0.4; return i; }
+    function stamp(shape, x, y, k, f) { // a shape at every mirror image of a spot, pointing the way each image points
+      const oy = (shape.length - 1) >> 1, ox = (shape[0].length - 1) >> 1;
+      images(x, y, (X, Y, fx, fy, turned) => { shape.forEach((row, j) => { for (let i = 0; i < row.length; i++) if (row[i] !== ".") { let dx = (i - ox) * fx, dy = (j - oy) * fy; if (turned) [dx, dy] = [dy * fx * fy, dx * fx * fy]; const at = set(X + dx, Y + dy, row[i] === "#" ? 1 : 2, k, f); if (at >= 0 && kind === "bloom" && row[i] === "#") front.push(at, f); } }); });
+    }
+    // where the next thing is planted: spots spread evenly over the top left quarter (the mirrors fill the rest), never the same place twice running
+    const spread = (n, by) => { let f = 1, r = 0; while (n > 0) { f /= by; r += f * (n % by); n = Math.floor(n / by); } return r; };
+    function spot(inX = 0.06, toX = 0.5, inY = 0.08, toY = 0.5) { K.planted = (K.planted % 4096) + 1; const span = sym === 1 ? 1 : toX, tall = sym >= 4 ? toY : 1 - inY; return [Math.floor(cols * (inX + (span - inX) * spread(K.planted, 2))), Math.floor(rows * (inY + (tall - inY) * spread(K.planted, 3)))]; }
+    function spotWithin(within, ...edges) { for (let tries = 0; tries < 8; tries++) { const at = spot(...edges); if (far[at[1] * cols + at[0]] < within) return at; } return null; } // the same, but no further from the middle than this (behind the drop's ring), or nowhere
+
+    // ---- cells: live and die by the count of neighbours ----
+    function stepCells() {
+      const born = R.born, stay = R.stay, states = R.states, burns = !!R.fuel, young = R.crumbles ? 8 : 0;
+      for (let y = 1; y < rows - 1; y++) for (let i = y * cols + 1, end = y * cols + cols - 1; i < end; i++) {
+        const s = st[i];
+        if (s > 1) { nx[i] = s + 1 < states ? s + 1 : 0; continue; }
+        const a = i - cols, b = i + cols, n = (st[a - 1] === 1) + (st[a] === 1) + (st[a + 1] === 1) + (st[i - 1] === 1) + (st[i + 1] === 1) + (st[b - 1] === 1) + (st[b] === 1) + (st[b + 1] === 1);
+        if (s === 1) { nx[i] = (stay >> n) & 1 ? 1 : states > 2 ? 2 : 0; continue; }
+        if (n && (born >> n) & 1) {
+          let from = -1, most = 0; // a newborn takes the ink of the neighbour with the most fuel, and one less of it
+          for (let j = 0; j < 8; j++) { const at = i + NEAR8[j]; if (st[at] === 1 && fuel[at] >= most && (!young || age[at] < young)) { most = fuel[at]; from = at; } } // (where corridors crumble, only a young cell passes fuel on: a hole in an old island stays a hole)
+          if (from < 0 || (burns && most < 2)) { nx[i] = 0; continue; }
+          nx[i] = 1; ink[i] = ink[from]; fuel2[i] = burns ? most - 1 : 0; age[i] = 0;
+        } else nx[i] = 0;
+      }
+      const old = 24, plain = states === 2, crumbles = R.crumbles || 0;
+      for (let i = 0; i < N; i++) {
+        let s = nx[i]; const was = st[i];
+        if (s === 1 && was === 0) fuel[i] = fuel2[i];
+        if (crumbles && s === 1 && age[i] > crumbles + (jit[i] >> 1)) s = 0; // old corridors crumble, each cell at its own time, so there is always room to grow into
+        if (plain) { flips[i] = (s === 1) !== (was === 1) && (s === 1) === (two[i] === 1) ? Math.min(9, flips[i] + 1) : 0; two[i] = was; } // on, off, on, off: a blinker
+        st[i] = s;
+        if (plain && flips[i] > 2) tgt[i] = 0.5; // a cell that has blinked three steps running is held at a steady half light until it stops: nothing strobes
+        else if (s === 1) { const a = age[i]; if (a < 400) age[i] = a + 1; tgt[i] = a < 2 ? (plain ? 0.85 : 1) : a < old ? 0.75 : 0.55; } else tgt[i] = s ? 0.62 * (1 - (s - 1) / (states - 1)) : 0;
+      }
+    }
+    const ragged = () => [0, 1, 2, 3].map((j) => [0, 1, 2, 3].map((i) => ((i === 1 || i === 2) && (j === 1 || j === 2)) || roll() < 0.4 ? "#" : ".").join("")); // a ragged lump: where the tidy square opens into a clean ring, this goes off like a fireball
+    function feedCells(hushed, lively) { // once a step: the bass feeds the bottom rows, and a build sprinkles everywhere
+      const bass = sound.bass * lively, build = flow.build, wide = (sym > 1 ? cols / 2 : cols) - 4, any = hushed ? K.planted % 3 : 2; // (in a long quiet stretch the sprinkle takes each ink in turn, so the picture never ends up all one color)
+      if (ruleName === "maze") { // islands of corridors along the floor, as big as the bass is loud
+        const n = hushed ? 0 : (bass * 0.25 + build * 0.8) * share; for (let k = 0; k < n; k++) if (roll() < n - k) stamp(LIFE_SHAPES.seed, 2 + int(wide), rows - 3 - int(5), 0, 3 + Math.round(bass * 4));
+        if (roll() < build * 1.5 * share) { const [x, y] = spot(0.04, 0.5, 0.04, 0.5); stamp(LIFE_SHAPES.seed, x, y, any, Math.round((4 + int(2 + 5 * build)) * lean)); }
+      } else if (R.fuel) { // fountains: a ship from the floor that climbs as high as the bass is loud
+        const n = hushed ? 0 : (bass * cols * (R.states === 3 ? 0.016 : 0.008) + build * 1.2) * share; for (let k = 0; k < n; k++) if (roll() < n - k) stamp(LIFE_SHAPES.ship, 2 + int(wide), rows - 3, 0, 6 + Math.round(bass * rows * 0.5 * (0.5 + 0.5 * roll())));
+        if (roll() < build * build * 1.5 * share) { const [x, y] = spot(); stamp(R.states === 3 && roll() < 0.6 ? ragged() : LIFE_SHAPES.burst, x, y, any, Math.round((3 + int(4 + (R.states === 3 ? 4 : 3) * build)) * lean)); } // (smaller than a kick's: in a build several go off together, and big ones together would light the whole picture at once)
+        if (roll() < (flow.calm - 0.15) * (R.states === 3 ? 0.9 : 0.7) * share) stamp(LIFE_SHAPES.ship, 2 + int(cols / 2 - 4), rows - 3 - int(rows * 0.5), int(3), 200); // in a break: slow comets, one after another, all the way up
+      } else {
+        const n = hushed ? 0 : (bass * 1.6 + build * 3) * share; for (let k = 0; k < n; k++) if (roll() < n - k) stamp(LIFE_SHAPES.triple, 2 + int(wide), rows - 2 - int(4), 0, 0);
+        if (roll() < build * 3 * share) { const [x, y] = spot(0.04, 0.5, 0.04, 0.5); stamp(ruleName === "classic" ? (roll() < 0.5 ? LIFE_SHAPES.bloom : LIFE_SHAPES.triple) : LIFE_SHAPES.seed, x, y, any, 0); }
+      }
+    }
+    function kickCells(strong, bar) {
+      const [x, y] = spot(), odd = K.planted % 2;
+      if (ruleName === "maze") stamp(LIFE_SHAPES.seed, x, y, 1, Math.round((bar ? 7 + 3 * strong : 4) * lean));
+      else if (R.states === 3) stamp(ragged(), x, y, 1, Math.round(((bar ? 24 : 14) + 6 * strong) * lean)); // the furnace: every kick is a fireball, the first of a bar a big one
+      else if (R.fuel) { if (bar) stamp(LIFE_SHAPES.burst, x, y, 1, Math.round((7 + 8 * strong) * lean)); else stamp(odd ? LIFE_SHAPES.side : LIFE_SHAPES.ship, odd ? 3 : x, odd ? y : rows - 4 - int(8), 1, 40 + int(60)); } // a bar starts with a burst; the other kicks send a ship in from the side or up from the floor
+      else if (ruleName === "classic") stamp(bar ? LIFE_SHAPES.bloom : LIFE_SHAPES.glider, bar ? x : 4 + int(cols * 0.3), bar ? y : 3 + int(rows * 0.3), 1, 0);
+      else stamp(LIFE_SHAPES.seed, x, y, 1, 0);
+    }
+    function hatCells() {
+      const x = 2 + int(cols - 4), y = 2 + int(rows * 0.8);
+      if (ruleName === "maze") stamp(LIFE_SHAPES.seed, x, y, 2, Math.round((3 + int(3)) * lean)); else if (R.fuel) stamp(roll() < 0.5 ? LIFE_SHAPES.dart : LIFE_SHAPES.pin, x, y, 2, Math.round((4 + int(5)) * lean)); else if (ruleName === "classic") stamp(LIFE_SHAPES.corner, x, y, 2, 0); else stamp(LIFE_SHAPES.one, x, y, 2, 0);
+    }
+
+    // ---- bloom: crystals, coral and creepers. front is the list of cells that may still grow, each with what it has left: its fuel, how often it has failed, and whether it hangs ----
+    const UPWARD = [-cols - 1, -cols, -cols, -cols, -cols + 1, -cols - 1, -cols + 1, -1, 1], NEAR4 = [-cols, -1, 1, cols], NEAR8 = [-cols - 1, -cols, -cols + 1, -1, 1, cols - 1, cols, cols + 1];
+    function stepBloom(ageing) {
+      const near = R.near === 4 ? NEAR4 : NEAR8, births = [], keep = [], most = 3 * Math.max(30, Math.round(N / 90 / Math.max(1, quicken))); // (most: no more cells than this are born in one step, fewer where the steps come faster, so a whole garden growing at once never lights the picture in a rush)
+      if (++K.stamps > 1e9) { K.stamps = 1; mark.fill(0); }
+      const stampNo = K.stamps;
+      for (let q = 0; q < front.length; q += 2) {
+        const f = front[q], e = front[q + 1]; if (st[f] !== 1 || (e & 255) < 2) continue;
+        if (coral) { // a coral's tip tries one way a step, mostly upward: it grows on from there, forks now and then, and after four failures is a tip no more
+          const tries = (e >> 8) & 255, fuelNow = e & 255, hangs = e & 65536, n = f + UPWARD[int(UPWARD.length)] * (hangs ? -1 : 1), x = n % cols; let grew = false;
+          if (n >= cols && n < N - cols && x > 0 && x < cols - 1 && st[n] === 0 && mark[n] !== stampNo) { let c = 0; for (const d2 of near) c += st[n + d2] === 1; if (c === 1) { mark[n] = stampNo; births.push(n, ink[f], (fuelNow - 1) | hangs); grew = true; } }
+          if (grew ? roll() < R.chance : tries < 4) keep.push(f, hangs | ((grew ? 0 : tries + 1) << 8) | (fuelNow - 1));
+          continue;
+        }
+        if (births.length >= most) { keep.push(f, e); continue; } // the rest wait their turn
+        for (const d of near) {
+          const n = f + d, x = n % cols; if (n < cols || n >= N - cols || x === 0 || x === cols - 1 || st[n] !== 0 || mark[n] === stampNo) continue;
+          let c = 0; for (const d2 of near) c += st[n + d2] === 1;
+          if (c === 1) { mark[n] = stampNo; births.push(n, ink[f], e - 1); } // only where exactly one neighbour is alive: so branches never touch
+        }
+      }
+      for (let k = 0; k < births.length; k += 3) { const n = births[k]; if (st[n]) continue; st[n] = 1; ink[n] = births[k + 1]; fuel[n] = births[k + 2] & 255; age[n] = 0; tgt[n] = 1; keep.push(n, births[k + 2]); }
+      front = keep;
+      const life = Math.round((R.both ? 230 : coral ? 200 : 36) * trail);
+      for (let i = 0; i < N; i++) if (st[i] === 1) { const a = age[i] + (ageing ? 1 : 0), mine = coral ? life - 2 * (70 - fuel[i]) : life; age[i] = a; if (a > mine) { st[i] = 0; tgt[i] = 0; } else tgt[i] = a < 3 ? 1 : a < mine * 0.6 ? 0.75 : 0.55; } // a crystal goes hollow from the middle; a coral, whose tips have the least fuel, draws back from its tips
+    }
+    function seedBloom(x, y, k, f) { images(x, y, (X, Y) => { if (X > 0 && Y > 0 && X < cols - 1 && Y < rows - 1 && st[Y * cols + X] === 0) front.push(set(X, Y, 1, k, f), f | (R.both && Y < rows / 2 ? 65536 : 0)); }); } // a creeper in the top half grows downward
+    function feedBloom(hushed, lively) {
+      const bass = sound.bass, build = flow.build, n = hushed ? 0 : (bass * lively * (coral ? 0.5 : 0.7) + build * (coral ? 0.6 : 1.2)) * share; // the bass plants along the floor: frost climbing, or coral
+      for (let k = 0; k < n; k++) if (roll() < n - k) seedBloom(1 + int((sym > 1 ? cols / 2 : cols) - 2), R.both && roll() < 0.5 ? 1 : rows - 2, 0, coral ? 20 + int(60 * bass) : 3 + Math.round(bass * 8));
+      if (roll() < build * (sym >= 8 ? 1.3 : 2.5) * share) { const [x, y] = spot(0.02, 0.5, 0.02, 0.5); seedBloom(x, y, hushed ? K.planted % 3 : 2, coral ? 10 + int(12) : 4 + int(3 + 5 * build)); } // (each ink in turn through a long quiet stretch)
+    }
+
+    // ---- ants ----
+    const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
+    function newAnts() { // in mirrored twos or fours: a mirror image turns the other way, so together they draw one mirrored picture
+      const mirrors = sym >= 4 ? [[1, 1], [-1, 1], [1, -1], [-1, -1]] : sym >= 2 ? [[1, 1], [-1, 1]] : [[1, 1]], count = sym >= 4 ? 2 : sym >= 2 ? 3 : 5;
+      ants = [];
+      for (let k = 0; k < count; k++) { const [x, y] = spot(0.15, 0.48, 0.2, sym >= 4 ? 0.46 : 0.8), d = int(4);
+        for (const [fx, fy] of mirrors) { let dd = d; if (fx < 0) dd = (4 - dd) & 3; if (fy < 0) dd = (6 - dd) & 3; ants.push({ x: fx < 0 ? cols - 1 - x : x, y: fy < 0 ? rows - 1 - y : y, d: dd, ink: k % 3, hand: fx * fy, fx, fy, pair: k + 1, hops: 0 }); } }
+    }
+    function stepAnt(a) {
+      const i = a.y * cols + a.x, on = st[i] ? 0 : 1;
+      a.d = (a.d + (on ? 1 : -1) * a.hand + 4) & 3;
+      st[i] = on; ink[i] = a.ink; age[i] = 0; tgt[i] = on ? 0.75 : 0; if (on && lum[i] < 0.5) lum[i] = 0.5; // fresh paint is the brightest
+      a.x += DX[a.d]; a.y += DY[a.d];
+      if (a.x < 0 || a.y < 0 || a.x >= cols || a.y >= rows) { // off the edge: it starts again somewhere else (its twin, leaving at the same moment, at the mirror of the same place), so a road never runs round and round the screen
+        a.hops = (a.hops % 500) + 1;
+        const n = a.pair * 7 + a.hops, x = Math.floor(cols * (sym >= 2 ? 0.1 + 0.38 * spread(n, 2) : 0.1 + 0.8 * spread(n, 2))), y = Math.floor(rows * (sym >= 4 ? 0.1 + 0.38 * spread(n, 3) : 0.1 + 0.8 * spread(n, 3)));
+        a.x = a.fx < 0 ? cols - 1 - x : x; a.y = a.fy < 0 ? rows - 1 - y : y;
+      }
+    }
+    function moveAnts(dt, burst) {
+      K.antSteps += dt * (40 + 260 * flow.intensity + 420 * flow.build + 240 * sound.bass) * (1 - 0.8 * flow.calm) * quicken + burst; // so many steps a second for each ant, and a kick is a dash
+      let n = Math.min(400, Math.floor(K.antSteps)); K.antSteps -= Math.floor(K.antSteps);
+      for (; n > 0; n--) for (const a of ants) stepAnt(a);
+    }
+    function ageAnts() { // once a beat: paint dries, and after a while flakes away, so the grid never fills for good
+      const life = Math.round(44 * trail);
+      for (let i = 0; i < N; i++) if (st[i]) { const a = ++age[i]; if (a > life) { st[i] = 0; tgt[i] = 0; } else if (a === 6 && tgt[i] > 0.6) tgt[i] -= 0.15; }
+    }
+    function drawAnt(a) { // a dark ant with a bright head, on its own fresh paint, turned the way it walks
+      const legs = LIFE_ANT[(a.x + a.y) & 1], k = a.ink * 5, ox = a.x * 2 - 1, oy = a.y * 2 - 1;
+      for (let j = 0; j < 5; j++) for (let i = 0; i < 5; i++) {
+        const ch = legs[j][i]; if (ch === ".") continue;
+        const u = a.d === 0 ? i : a.d === 1 ? 4 - j : a.d === 2 ? 4 - i : j, v = a.d === 0 ? j : a.d === 1 ? i : a.d === 2 ? 4 - j : 4 - i, X = ox + u, Y = oy + v;
+        if (X >= 0 && Y >= 0 && X < dotsW && Y < dotsH) out[Y * dotsW + X] = ch === "h" ? ramp[k + 4] : dark;
+      }
+    }
+
+    // ---- sand: a cell is a grain (255 is a peg, which never moves) ----
+    function pegs() { // the furniture: short shelves and slopes, mirrored, for the sand to heap on and spill from
+      for (let i = 0; i < N; i++) if (st[i] === 255) { st[i] = 0; tgt[i] = 0; }
+      const count = 5 + int(3);
+      for (let k = 0; k < count; k++) {
+        const len = 5 + int(Math.max(3, cols * 0.07)), x0 = 3 + int(Math.max(1, cols / 2 - len - 4)), y0 = Math.floor(rows * (0.14 + 0.5 * ((k + roll() * 0.6) / count))), slope = [0, 0, 0.5, -0.5, 1][int(5)];
+        for (let j = 0; j < len; j++) images(x0 + j, y0 + Math.round(j * slope), (X, Y) => { if (Y > 1 && Y < rows - 2 && X > 0 && X < cols - 1) { const i = Y * cols + X; st[i] = 255; tgt[i] = 0; } });
+      }
+    }
+    function stepSand() {
+      K.tick ^= 1;
+      const open = K.hatch > 0; // the floor is open: everything runs out, over a couple of seconds
+      for (let y = rows - 2; y >= 1; y--) {
+        const leftFirst = (y + K.tick) & 1;
+        for (let j = 1; j < cols - 1; j++) {
+          const x = leftFirst ? j : cols - 1 - j, i = y * cols + x, s = st[i]; if (!s || s === 255) continue;
+          if (y === rows - 2) { if (roll() < (open ? 0.6 / quicken : K.drain)) { st[i] = 0; tgt[i] = 0; } continue; }
+          const b = i + cols; let to = -1;
+          if (!st[b]) to = b; else { const side = roll() < 0.5 ? -1 : 1, one = x + side > 0 && x + side < cols - 1, other = x - side > 0 && x - side < cols - 1; if (one && !st[b + side] && !st[i + side]) to = b + side; else if (other && !st[b - side] && !st[i - side]) to = b - side; } // (never into the two edge columns, which nothing sweeps)
+          if (to >= 0) { const air = y < rows - 3 && !st[to + cols]; st[to] = s; ink[to] = ink[i]; tgt[to] = open ? 0.6 : air ? 0.86 : Math.min(0.75, tgt[i]); age[to] = air ? 0 : age[i]; st[i] = 0; tgt[i] = 0; } // a grain falling through the air glints; one that only sinks with its heap stays as dim as it had become
+          else if (age[i] < 60000) { const a = ++age[i]; if (a === 12) tgt[i] = 0.75; else if (a === 120) tgt[i] = 0.42; } // at rest it settles: bright while it moves, its own color lying still, and dim once it has lain a couple of seconds, so the heap never becomes one big bright mass
+        }
+      }
+      // the spectrum pours in along the top: each band over its own stretch of columns, the low notes in the middle and the high at the sides, each in its own sand, and more of it on the kick than between
+      const bands = sound.bands, rate = (0.05 + 0.3 * flow.intensity + 0.5 * flow.build) * (1 - 0.6 * flow.calm) * (0.3 + 1.4 * clamp(sound.kick));
+      for (let x = 1; x < cols - 1; x++) { const b = Math.min(63, Math.floor((sym >= 2 ? Math.abs(x - cx) / cx : x / cols) * 64)), v = bands[b]; if (v > 0.08 && roll() < v * v * rate && !st[cols + x]) { const i = cols + x; st[i] = 1; ink[i] = Math.min(inkCount - 1, Math.floor((b / 64) * inkCount)); age[i] = 0; tgt[i] = 1; } }
+      let filled = 0, seen = 0; for (let x = 4; x < cols; x += 8, seen++) for (let y = rows - 2; y > 0 && st[y * cols + x]; y--) filled++; // how high the heap stands, as a part of the screen
+      K.heap = filled / (rows * Math.max(1, seen));
+    }
+    function kickSand(bar) { // a kick tips a scoop of the kick's own sand in from the top, a round lump that falls as one
+      const [x] = spot(0.1, 0.5), r = bar ? 4 : 2, k = (K.planted >> 2) % inkCount;
+      images(x, 2 + r, (X, Y) => { for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (dx * dx + dy * dy <= r * r + 1) { const xx = X + dx, yy = Y + dy; if (xx > 0 && xx < cols - 1 && yy > 0 && !st[yy * cols + xx]) { const i = yy * cols + xx; st[i] = 1; ink[i] = k; age[i] = 0; tgt[i] = 1; } } });
+    }
+
+    // ---- what they share: the garden, the clock, the ring on a drop, and the picture ----
+    function garden(much, first, within) { // what a grid starts with, and what a drop plants behind its ring: much is how big a garden, first says the middle piece is still to come, within how far from the middle it may be planted yet
+      const many = (n) => { const all = n * much, whole = Math.floor(all); return whole + (roll() < all - whole ? 1 : 0); };
+      if (kind === "cells") {
+        if (ruleName === "maze") for (let k = many(5); k > 0; k--) { const at = spotWithin(within, 0.1, 0.5, 0.1, 0.5); if (at) stamp(LIFE_SHAPES.seed, at[0], at[1], k % 3, 7 + int(4)); }
+        else if (R.fuel) { if (first) stamp(LIFE_SHAPES.burst, Math.floor(cols * 0.5) - 1, Math.floor(rows * 0.5) - 1, 1, 22); for (let k = many(sym >= 8 ? 1 : sym >= 4 ? 2 : 4); k > 0; k--) { const at = spotWithin(within); if (at) stamp(LIFE_SHAPES.burst, at[0], at[1], k % 3, 10); } }
+        else if (ruleName === "classic") for (let k = many(10); k > 0; k--) { const at = spotWithin(within, 0.05, 0.5, 0.06, 0.94); if (at) stamp(k % 3 ? LIFE_SHAPES.bloom : LIFE_SHAPES.glider, at[0], at[1], k % 3, 0); }
+        else for (let k = many(5); k > 0; k--) { const at = spotWithin(within, 0.1, 0.5, 0.1, 0.5); if (at) stamp(LIFE_SHAPES.seed, at[0], at[1], k % 3, 0); }
+      } else if (kind === "bloom") {
+        if (coral) for (let k = many(9); k > 0; k--) { const x = 2 + int(cols - 4), y = R.both && k % 2 ? 1 : rows - 2; if (far[y * cols + x] < within) seedBloom(x, y, k % 3, 45 + int(25)); else if (within < reach * 0.6) { const at = spotWithin(within, 0.1, 0.5, 0.3, 0.7); if (at) seedBloom(at[0], at[1], k % 3, 14 + int(10)); } } // coral: a row of holdfasts on the floor (and while the ring has not reached the floor, a few adrift)
+        else { if (first) seedBloom(Math.floor(cx), Math.floor(cy), 1, sym >= 8 ? 18 : 24); for (let k = many(3); k > 0; k--) { const at = spotWithin(within, 0.1, 0.4, 0.1, 0.4); if (at) seedBloom(at[0], at[1], (k + K.gardens) % 3, 10); } } // crystal: one big flake in the middle and a few around it
+      } else if (kind === "ants") newAnts();
+      else if (sands) pegs();
+    }
+    function advance(dt) { // the song moves it all on
+      const bpm = flow.bpm > 40 ? flow.bpm : 128, calm = flow.calm, hushed = calm > 0.5, rising = flow.part === "build" || flow.build > 0.35, hit = sound.kickHit > 0, strong = Math.min(1.4, sound.kick * (1 + 0.4 * flow.drop)), lively = 0.4 + flow.intensity; // (after a drop the kicks plant bigger for a while)
+      // the clock: so many steps a beat, half as many in a break (the picture's own clock already runs at three quarters there), and a kick pulls the next step onto itself
+      K.phase += dt * (bpm / 60) * pace * (1 - 0.35 * calm);
+      if (hit) K.phase = K.phase - Math.floor(K.phase) > 0.5 ? Math.ceil(K.phase) : Math.floor(K.phase);
+      let steps = Math.min(3, Math.floor(K.phase));
+      K.phase -= Math.floor(K.phase);
+      if (K.ring < 0) {
+        if (hit && !hushed) {
+          K.kicks = (K.kicks + 1) % 16;
+          const bar = K.kicks % 4 === 1;
+          if (kind === "cells") kickCells(strong, bar);
+          else if (kind === "bloom") { const [x, y] = spot(); if (coral) seedBloom(x, bar ? y : R.both && K.kicks % 2 ? 1 : rows - 2, 1, bar ? 12 : 30 + int(40)); else seedBloom(x, y, 1, bar ? 8 + Math.round(4 * strong) : 3 + Math.round(3 * strong)); } // coral: from the floor, and at the start of a bar a small one adrift
+          else if (sands) kickSand(bar);
+        }
+        if (sound.hatHit && !hushed) for (let n = T.spark; n > 0; n--) if (roll() < n * share) { // a hi-hat sprinkles (more or fewer with the knob for glints on the hi-hats)
+          if (kind === "cells") hatCells();
+          else if (kind === "bloom") seedBloom(1 + int(cols - 2), 1 + int(rows * 0.85), 2, coral ? 2 + int(5) : 3);
+          else if (kind === "ants") images(int(cols), int(rows), (X, Y) => { const i = Y * cols + X; if (!st[i]) { st[i] = 1; ink[i] = 2; age[i] = 0; tgt[i] = 0.75; lum[i] = 1; } }); // a crumb in an ant's way, and one at each mirror image of the spot
+          else if (sands) for (let k = 0; k < 3; k++) { const i = cols + 1 + int(cols - 2); if (!st[i]) { st[i] = 1; ink[i] = inkCount - 1; age[i] = 0; tgt[i] = 1; } }
+        }
+      }
+      for (; steps > 0; steps--) {
+        const turn = !hushed || (K.slow = (K.slow + 1) % 3) === 0; // in a break what has grown ages one step in three: slowly, but it never stands still, so a song with no drums at all does not fill the grid for good
+        if (kind === "cells") { if (K.ring < 0) feedCells(hushed, lively); stepCells(); }
+        else if (kind === "bloom") { if (K.ring < 0) feedBloom(hushed, lively); stepBloom(turn && !(coral && rising && !hushed)); } // (coral and creepers do not age through a build: its new shoots come on top of the old growth)
+        else if (kind === "ants" && turn) ageAnts();
+      }
+      if (kind === "ants") moveAnts(dt, hit && !hushed ? 24 : 0);
+      if (sands) {
+        K.hatch = Math.max(0, K.hatch - dt);
+        if (K.ring < 0 && K.sinceDrop >= 64) { K.sinceDrop = 8; K.hatch = 2.6; pegs(); } // a minute with no drop: the floor opens and the shelves are set out afresh, so the hourglass is not the same picture all through a steady song
+        K.drain = Math.max(0, (K.heap - (0.1 + 0.2 * flow.build)) * 3); // the floor lets sand through faster the higher the heap stands; a build lets it pile up a little
+        K.sandTicks += dt * 48 * (1 - 0.35 * calm) * quicken;
+        let n = Math.min(4, Math.floor(K.sandTicks)); K.sandTicks -= Math.floor(K.sandTicks);
+        for (; n > 0; n--) stepSand();
+      }
+      K.sinceDrop = Math.min(99, K.sinceDrop + dt);
+      if (K.ring >= 0) { // the drop's ring runs out from the middle, clears what it crosses, and the new garden is planted behind it, a third at a time
+        const from = K.ring, quick = 1 - Math.exp(-dt / 0.06), slowOnes = ruleName === "classic" || coral || pace < R.pace;
+        K.ring += dt * (reach / 1.9);
+        for (let i = 0; i < N; i++) { const r = far[i];
+          if (r >= from && r < K.ring) { if (!sands) { st[i] = 0; tgt[i] = 0; } ink[i] = st[i] && st[i] !== 255 ? ink[i] : 1; if (st[i] !== 255) lum[i] = Math.max(lum[i], 0.8); }
+          else if (r < from - 3 && r > from - 16 && lum[i] > tgt[i]) lum[i] += (tgt[i] - lum[i]) * quick; } // the ring is three cells wide: behind it the light goes out quickly instead of trailing
+        while (K.sown < 3 && K.ring > reach * [0.3, 0.62, 1][K.sown]) { // (the slow rules get a garden two or three times the usual, so the song's biggest moment is not its emptiest picture)
+          K.sown++;
+          K.gardens = (K.gardens % 30) + 1;
+          if (kind !== "ants" && (!sands || K.sown === 3)) garden((slowOnes ? 2.6 : 1.3) / 3, K.sown === 1, K.sown === 3 ? Infinity : K.ring - 4);
+        }
+        if (K.ring > reach) K.ring = -1;
+      }
+    }
+    function paint(dt) { // each cell's light eases to where it should be (quickly up, slowly down: the trail) and picks its color from the ramp: the top left dot a shade up and the bottom right a shade down, which makes the bead
+      const up = 1 - Math.exp(-dt / R.up), down = 1 - Math.exp(-dt / (R.down * trail * (1 + 0.8 * flow.calm))), hi = bead ? 0.6 : 0.3, lo = bead ? 0.1 : 0.05, rest = dt * 2;
+      for (let y = 0, i = 0; y < rows; y++) for (let x = 0, o = y * 2 * dotsW; x < cols; x++, i++, o += 2) {
+        const aim = tgt[i], F = tired[i]; let L = lum[i];
+        if (F > 0) tired[i] = F > rest ? F - rest : 0;
+        if (L !== aim) { if (aim > L) L += (aim - L) * (F > 0 ? up * (1 - 0.85 * F) : up); else { L += (aim - L) * down; if (L > 0.3) tired[i] = 1; } if (Math.abs(aim - L) < 0.004) L = aim; lum[i] = L; } // (a cell that has only just gone dark comes back slowly: nothing blinks)
+        if (st[i] === 255) { out[o] = out[o + 1] = pegTones[1]; out[o + dotsW] = out[o + dotsW + 1] = pegTones[0]; continue; }
+        if (L < 0.1) { out[o] = backdrop[o]; out[o + 1] = backdrop[o + 1]; out[o + dotsW] = backdrop[o + dotsW]; out[o + dotsW + 1] = backdrop[o + dotsW + 1]; continue; }
+        const v = L * 4 + 0.5, k = ink[i] * 5, a = Math.min(4, (v + hi) | 0), b = Math.min(4, (v + lo) | 0), c = (v - lo) | 0, d = (v - hi) | 0;
+        out[o] = a ? ramp[k + a] : backdrop[o]; out[o + 1] = b ? ramp[k + b] : backdrop[o + 1]; out[o + dotsW] = c ? ramp[k + c] : backdrop[o + dotsW]; out[o + dotsW + 1] = d > 0 ? ramp[k + d] : backdrop[o + dotsW + 1];
+      }
+      if (kind === "ants") for (const a of ants) drawAnt(a);
+    }
+    function frame(dt, again) { // again: the effect is being drawn a second time in one frame (for a picture of it), so nothing moves on
+      if (!K.gardens) { K.gardens = 1; if (!flow.dropHit) garden(1, true, Infinity); } // (a grid that starts on a drop starts with the ring)
+      if (flow.dropHit && K.ring < 0 && K.sinceDrop > 4) { K.ring = 0; K.sown = 0; K.sinceDrop = 0; if (sands) K.hatch = 2.6; if (kind === "ants") newAnts(); } // one ring for a drop, however many times it lands in its first seconds (the sand's floor opens; new ants start at once, inside the ring)
+      if (!again) advance(dt);
+      paint(dt);
+    }
+    function adopt(old) { // the same garden on a grid of another size, when the window changes shape: the middle stays the middle (sand and coral keep their floor), and what no longer fits is let go
+      const o = old.kept(), ox = (cols >> 1) - (o.cols >> 1), oy = sands || coral ? rows - o.rows : (rows >> 1) - (o.rows >> 1), where = new Int32Array(o.cols * o.rows).fill(-1);
+      for (let y = 1; y < o.rows - 1; y++) for (let x = 1; x < o.cols - 1; x++) {
+        const X = x + ox, Y = y + oy; if (X < 1 || Y < 1 || X >= cols - 1 || Y >= rows - 1) continue;
+        const a = y * o.cols + x, b = Y * cols + X; where[a] = b; st[b] = o.st[a]; ink[b] = o.ink[a]; fuel[b] = o.fuel[a]; age[b] = o.age[a]; lum[b] = o.lum[a]; tgt[b] = o.tgt[a];
+      }
+      for (let q = 0; q < o.front.length; q += 2) if (where[o.front[q]] >= 0) front.push(where[o.front[q]], o.front[q + 1]);
+      ants = o.ants.map((a) => ({ ...a, x: Math.max(0, Math.min(cols - 1, a.x + ox)), y: Math.max(0, Math.min(rows - 1, a.y + oy)) }));
+      Object.assign(K, o.K);
+      sym = o.sym;
+      if (K.ring >= 0) K.ring *= reach / o.reach;
+    }
+    const kept = () => ({ cols, rows, reach, sym, st, ink, fuel, age, lum, tgt, front, ants, K });
+    return { cols, rows, world: worldName, rule: ruleName, img, K, tones, dials, frame, adopt, kept };
+  }
+  const lifeNow = { grid: null, seen: -1, screen: null, soft: null, old: null, fade: 0 }; // the grid showing, the moment it was last moved on, the small screen it was last drawn on, the small smoothed copy for the glow, and the last picture going away over a new world or a grid of another size
+  function livingGrid() {
+    const now = lifeNow, dot = Math.max(2, Math.round(Math.sqrt((w * h) / 57600))), S = pixelScreen(2 * Math.floor(w / dot / 2)), cols = S.across >> 1, rows = S.down >> 1; // about 14,400 cells whatever the picture's shape: 160 by 90 on a wide one, 75 by 150 on a phone
+    const again = sound.t === now.seen, dt = again ? 0 : Math.min(0.25, Math.max(0, sound.dt)), worldName = musicWorld() || "dish", world = LIFE_WORLDS[worldName], ruleNo = Math.round(V.rule || 0) % 3, ruleName = ruleNo ? world.also[ruleNo - 1] : world.rule; // (the version's rule dial: 0 the world's own rule-set, 1 and 2 its other two)
+    now.seen = sound.t;
+    let L = now.grid;
+    if (!L || L.world !== worldName || L.rule !== ruleName || L.cols !== cols || L.rows !== rows) {
+      const next = lifeGrid(cols, rows, worldName, ruleName), same = L && L.world === worldName && L.rule === ruleName, last = now.screen;
+      if (same) next.adopt(L); // only the window's shape changed: the garden goes along
+      else if (L) { next.K.phase = L.K.phase; next.K.kicks = L.K.kicks; } // another world or rule-set: a new garden, at the same place in the song
+      if (L && last && (L.world !== worldName || (same && Math.abs(cols * rows - L.cols * L.rows) > 0.1 * L.cols * L.rows))) { // another kind of music, or a grid of quite another size all at once (the app makes its picture smaller on a slow machine, and the cells change size with it): the last picture is kept, and goes away over the new one in a second or two. A window being dragged changes a column at a time and needs none of this
+        if (!now.old || now.old[0].width !== last.across || now.old[0].height !== last.down) now.old = paper(last.across, last.down);
+        now.old[1].globalCompositeOperation = "copy";
+        now.old[1].drawImage(last.c, 0, 0);
+        now.fade = 1;
+      }
+      L = now.grid = next;
+    }
+    now.screen = S;
+    const s = Math.round(V.sym || 0);
+    L.dials(s >= 6 ? 8 : s >= 3 ? 4 : s >= 1 ? 2 : 0, V.trail || 1, V.pace || 1, (V.bead ?? 1) > 0.5 ? 1 : 0);
+    L.tones((V.hue || 0) * world.turns);
+    L.frame(dt, again);
+    S.x.putImageData(L.img, 0, 0);
+    if (now.fade > 0) {
+      S.x.globalAlpha = eased(now.fade);
+      S.x.drawImage(now.old[0], 0, 0, S.across, S.down);
+      S.x.globalAlpha = 1;
+      now.fade -= dt / 1.6;
+    }
+    S.show();
+    if (!now.soft || now.soft[0].width !== S.across >> 2 || now.soft[0].height !== S.down >> 2) now.soft = paper(Math.max(1, S.across >> 2), Math.max(1, S.down >> 2));
+    const [soft, sx] = now.soft; // the glow: the same picture a quarter the size, smoothed, laid softly over the dots
+    sx.globalCompositeOperation = "copy";
+    sx.drawImage(S.c, 0, 0, soft.width, soft.height);
+    g.save();
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = "lighter";
+    g.globalAlpha = 0.35;
+    g.drawImage(soft, 0, 0, w, h);
+    g.restore();
+  }
+  /* ==== life: end ==== */
+  const DRAW = { life: livingGrid, places: placesFx, arcade: arcadeFx, runner: runnerFx, forms: formsFx, faces, ribbon, silk, helix, strings, bars, mirror, leds, terrain, scope, trails, tunnel, vortex, prism, ripple, comets, stars: starfield, whirl, dust, links, fireworks, halo, sun, rings, mandala, rays, space, warp: space, drift: space, orbit: space, visitors: space, well,
     kaleido, plasma, fractal, julia, mandel, newton, ocean, neonroad, aurora, tube: tubeFx, heads: headsFx, sphere: sphereFx, solids: solidsFx, city: cityFx };
 
   /* From one effect to another. The change waits for the next frame, which draws the old picture once more with nobody visiting and keeps it.
@@ -7432,6 +7848,7 @@ window.Effects = (() => {
     formsKept.started = false;
     runner.fresh = true;
     placeSt.world = ""; placeSt.over = 1; placeSt.gT = Math.max(placeSt.gT, 12); // Places opens straight in the place for the music playing now: no wipe from where it was last time, and no grand thing left half done
+    lifeNow.grid = null; // the living grid plants a new garden each time it is shown
     afterImages.ghosts.length = 0; // the last effect's after-images go with it, and a fold starts open
     afterImages.rate = afterImages.span = 0;
     trippy.fold = 0;
