@@ -291,6 +291,7 @@ class Collection:
         self.saved_lists, self.saved_lists_sig = {}, None
         self.levels, self.levels_sig = {}, None
         self.waves, self.waves_sig = {}, None
+        self.sound_edges, self.sound_edges_sig = {}, None
         self.own, self.own_sig = {}, None
         self.styles, self.styles_sig = {}, None
         self.cover_px, self.tracklists = {}, {}  # only for the songs on Double-check
@@ -330,6 +331,10 @@ class Collection:
     def _read_waves(self):
         """The shape of each song that has been played."""
         return self._watch("waves", waves_path(self.paths), lambda saved: {k: v for k, v in saved.items() if isinstance(v, list) and all(type(x) is int and 0 <= x <= 100 for x in v)})
+
+    def _read_edges(self):
+        """Where the sound of each song that has been played starts and ends."""
+        return self._watch("sound_edges", edges_path(self.paths), lambda saved: {k: v for k, v in saved.items() if isinstance(v, list) and len(v) == 2 and all(type(x) in (int, float) and 0 <= x < 1e6 for x in v) and v[0] < v[1]})
 
     def _read_saved_lists(self):
         """Your Spotify playlists as they were at the last Check Spotify."""
@@ -863,6 +868,11 @@ class Collection:
         from . import waveform
         return self._measured(song_id, "wave", "waves", self._read_waves, waves_path, waveform.measure)
 
+    def edges(self, song_id):
+        """Where the sound of a song starts and ends, measuring it the first time it's asked for."""
+        from . import waveform
+        return self._measured(song_id, "edges", "sound_edges", self._read_edges, edges_path, waveform.edges)
+
 
 class Handler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
@@ -993,9 +1003,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if route == "/api/curate":
             from . import curate
             return self._json(curate.status(self.server))
-        m = re.fullmatch(r"/api/(loudness|waveform)/([0-9a-f]{12})", route)
+        m = re.fullmatch(r"/api/(loudness|waveform|edges)/([0-9a-f]{12})", route)
         if m and collection:
-            answer = collection.level(m[2]) if m[1] == "loudness" else collection.wave(m[2])
+            answer = {"loudness": collection.level, "waveform": collection.wave, "edges": collection.edges}[m[1]](m[2])
             return self._json(answer, 404 if answer.get("error") else 200)
         m = re.fullmatch(r"/(cover|audio)/([0-9a-f]{12})", route)
         song = collection.songs.get(m[2]) if m and collection else None  # only indexed files, never a path from the URL
@@ -1196,6 +1206,10 @@ def plays_path(paths):
 
 def waves_path(paths):
     return os.path.join(os.path.dirname(paths["decisions"]), "waveforms.json")
+
+
+def edges_path(paths):
+    return os.path.join(os.path.dirname(paths["decisions"]), "sound_edges.json")
 
 
 def own_lists_path(paths):

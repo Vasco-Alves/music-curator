@@ -1,4 +1,4 @@
-"""The shape of a song in the seek bar: what's measured, and what's kept of it. Nothing here reaches the network."""
+"""The shape of a song in the seek bar, and where its sound starts and ends: what's measured, and what's kept of it. Nothing here reaches the network."""
 import array
 import http.client
 import json
@@ -111,14 +111,140 @@ class Measuring(unittest.TestCase):
         waveform._slots.release()
 
 
+def log(*lines):
+    return "\n".join(lines)
+
+
+def quiet(began, ended=None):
+    """What ffmpeg's silencedetect says about one stretch of quiet."""
+    said = [f"[Parsed_silencedetect_0 @ 000001fb7e18e880] silence_start: {began}"]
+    if ended is not None:
+        said.append(f"[Parsed_silencedetect_0 @ 000001fb7e18e880] silence_end: {ended} | silence_duration: {ended - began}")
+    return log(*said)
+
+
+class WhereTheSoundIs(unittest.TestCase):
+    def test_quiet_at_both_ends(self):
+        self.assertEqual(waveform.sounding(log(quiet(0, 3.000023), quiet(7, 12)), 12), [3.0, 7.0])
+
+    def test_no_quiet_at_all(self):
+        self.assertEqual(waveform.sounding("", 301.4), [0.0, 301.4])
+
+    def test_quiet_in_the_middle_doesnt_count(self):  # a breakdown that stops dead is part of the song
+        self.assertEqual(waveform.sounding(quiet(100, 104), 200), [0.0, 200.0])
+
+    def test_quiet_only_at_the_start(self):
+        self.assertEqual(waveform.sounding(quiet(0, 7.29), 190.4), [7.29, 190.4])
+
+    def test_quiet_only_at_the_end(self):
+        self.assertEqual(waveform.sounding(quiet(189.5638, 301.4), 301.4), [0.0, 189.56])
+
+    def test_quiet_still_going_when_the_song_ran_out(self):  # older ffmpeg doesn't say that it ended
+        self.assertEqual(waveform.sounding(log(quiet(0, 2), quiet(9)), 12), [2.0, 9.0])
+
+    def test_a_start_just_before_zero_is_the_start(self):  # how some files' first samples are timed
+        self.assertEqual(waveform.sounding(quiet(-0.0213, 4), 60), [4.0, 60.0])
+
+    def test_quiet_all_the_way_through(self):
+        self.assertIsNone(waveform.sounding(quiet(0, 12), 12))
+        self.assertIsNone(waveform.sounding(quiet(0), 12))
+
+    def test_older_ffmpeg_names_it_differently(self):
+        said = log("[silencedetect @ 0x55d0c8a3e2c0] silence_start: 0", "[silencedetect @ 0x55d0c8a3e2c0] silence_end: 5.5 | silence_duration: 5.5")
+        self.assertEqual(waveform.sounding(said, 60), [5.5, 60.0])
+
+    def test_only_ffmpegs_own_lines_count(self):  # a song's tags are printed in the same place
+        said = log("    comment         : silence_start: 0", "    title           : [silencedetect @ 1] silence_end: 30", "  Stream #0:0: Audio: mp3, 44100 Hz, stereo")
+        self.assertEqual(waveform.sounding(said, 60), [0.0, 60.0])
+
+    def test_other_lines_in_between_dont_matter(self):
+        said = log("Input #0, mp3, from 'a.mp3':", quiet(0, 3), "[out#0/null @ 0000] video:0KiB audio:2067KiB", quiet(7, 12))
+        self.assertEqual(waveform.sounding(said, 12), [3.0, 7.0])
+
+
+def made(path, expression, seconds):
+    """A made-up song, as FLAC: `expression` is the sound at time t, the same in both channels."""
+    subprocess.run(["ffmpeg", "-hide_banner", "-v", "error", "-y", "-f", "lavfi", "-i", f"aevalsrc='{expression}|{expression}':s=44100:d={seconds}", "-c:a", "flac", path], check=True)
+
+
+class MeasuringWhereTheSoundIs(unittest.TestCase):
+    def setUp(self):
+        self.folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.folder, ignore_errors=True)
+        self.path = os.path.join(self.folder, "a.flac")
+
+    def near(self, got, expected):
+        self.assertIsNotNone(got)
+        for a, b in zip(got, expected):
+            self.assertAlmostEqual(a, b, delta=0.05)
+
+    def test_a_song_with_quiet_at_both_ends(self):
+        made(self.path, "if(between(t,3,7),0.5*sin(2*PI*220*t),0)", 12)
+        self.near(waveform.edges(self.path), [3, 7])
+
+    def test_a_song_with_none(self):
+        made(self.path, "0.5*sin(2*PI*220*t)", 9)
+        self.near(waveform.edges(self.path), [0, 9])
+
+    def test_less_than_a_second_of_quiet_is_left_alone(self):
+        made(self.path, "if(gte(t,0.6),0.5*sin(2*PI*220*t),0)", 9)
+        self.near(waveform.edges(self.path), [0, 9])
+
+    def test_a_quiet_middle_is_left_alone(self):
+        made(self.path, "if(between(t,3,6),0,0.5*sin(2*PI*220*t))", 9)
+        self.near(waveform.edges(self.path), [0, 9])
+
+    def test_a_song_that_opens_on_hi_hats_alone_isnt_quiet(self):  # high and soft: measured at the full rate, it's heard
+        made(self.path, "if(lt(t,3),0.03*sin(2*PI*9000*t),0.5*sin(2*PI*220*t))", 9)
+        self.near(waveform.edges(self.path), [0, 9])
+
+    def test_hiss_far_down_is_quiet(self):
+        made(self.path, "if(lt(t,3),0.0002*(random(0)*2-1),0.5*sin(2*PI*220*t))", 9)
+        self.near(waveform.edges(self.path), [3, 9])
+
+    def test_a_song_thats_quiet_all_the_way_through(self):
+        made(self.path, "0", 5)
+        self.assertIsNone(waveform.edges(self.path))
+
+    def test_something_that_isnt_audio(self):
+        with open(self.path, "wb") as f:
+            f.write(b"not audio at all")
+        self.assertIsNone(waveform.edges(self.path))
+
+    def test_with_no_ffmpeg(self):
+        with mock.patch.object(waveform.shutil, "which", return_value=None):
+            self.assertIsNone(waveform.edges(self.path))
+
+    def test_ffmpeg_getting_stuck(self):
+        with mock.patch.object(waveform.subprocess, "run", side_effect=subprocess.TimeoutExpired("x", 1)):
+            self.assertIsNone(waveform.edges(self.path))
+
+    def test_ffmpeg_not_starting(self):
+        with mock.patch.object(waveform.subprocess, "run", side_effect=OSError("no")):
+            self.assertIsNone(waveform.edges(self.path))
+
+    def test_ffmpeg_not_saying_how_long_it_was(self):
+        done = subprocess.CompletedProcess([], 0, stdout=b"out_time_us=N/A\nprogress=end\n", stderr=quiet(0, 3).encode())
+        with mock.patch.object(waveform.subprocess, "run", return_value=done):
+            self.assertIsNone(waveform.edges(self.path))
+
+    def test_a_slot_is_free_again_afterwards(self):
+        with mock.patch.object(waveform.subprocess, "run", side_effect=OSError("no")):
+            for _ in range(4):
+                waveform.edges(self.path)
+        self.assertTrue(waveform._slots.acquire(blocking=False))
+        waveform._slots.release()
+
+
 WAVE = [50] * waveform.SLICES
+EDGES = [3.0, 297.5]
 
 
-class FromThePage(Base):
+class Served(Base):
+    """The app, running, with one song in it."""
     def setUp(self):
         super().setUp()
         self.one = self.song("Acid", "A - One", notes="")
-        self.saved = os.path.join(self.app, "waveforms.json")
         self.server = webapp.Server(("127.0.0.1", 0), webapp.Handler)
         self.port = self.server.server_address[1]
         self.server.collection, self.server.hosts = webapp.Collection(webapp.app_paths()), {f"127.0.0.1:{self.port}"}
@@ -126,9 +252,11 @@ class FromThePage(Base):
         threading.Thread(target=self.server.serve_forever, daemon=True).start()
         self.addCleanup(self.server.server_close)
         self.addCleanup(self.server.shutdown)
-        patcher = mock.patch.object(waveform, "measure", return_value=WAVE)
-        self.measure = patcher.start()
+
+    def patch(self, name, value):
+        patcher = mock.patch.object(waveform, name, return_value=value)
         self.addCleanup(patcher.stop)
+        return patcher.start()
 
     def ask(self, route, headers=None):
         c = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
@@ -141,6 +269,13 @@ class FromThePage(Base):
     def song_now(self):
         self.server.collection.refresh()
         return next(iter(self.server.collection.songs.values()))
+
+
+class FromThePage(Served):
+    def setUp(self):
+        super().setUp()
+        self.saved = os.path.join(self.app, "waveforms.json")
+        self.measure = self.patch("measure", WAVE)
 
     def get(self):
         return self.ask(f"/api/waveform/{self.song_now()['id']}")
@@ -220,6 +355,74 @@ class FromThePage(Base):
         self.assertEqual((status, answer), (200, dict(lufs=-9.5)))
         self.assertEqual(self.get(), (200, dict(wave=WAVE)))
         self.assertEqual(self.song_now()["lufs"], -9.5)
+
+
+class EdgesFromThePage(Served):
+    def setUp(self):
+        super().setUp()
+        self.saved = os.path.join(self.app, "sound_edges.json")
+        self.measure = self.patch("edges", EDGES)
+
+    def get(self):
+        return self.ask(f"/api/edges/{self.song_now()['id']}")
+
+    def test_the_page_gets_them(self):
+        self.assertEqual(self.get(), (200, dict(edges=EDGES)))
+
+    def test_they_are_only_measured_once(self):
+        self.get()
+        self.get()
+        self.assertEqual(self.measure.call_count, 1)
+
+    def test_they_are_still_there_after_a_restart(self):
+        self.get()
+        self.server.collection = webapp.Collection(webapp.app_paths())
+        self.assertEqual(self.get(), (200, dict(edges=EDGES)))
+        self.assertEqual(self.measure.call_count, 1)
+        with open(self.saved, encoding="utf-8") as f:
+            self.assertEqual(json.load(f), {webapp.level_key(self.song_now()): EDGES})
+
+    def test_a_better_copy_is_measured_again(self):
+        self.get()
+        with open(self.one, "ab") as f:
+            f.write(b"\xff\xfb\x90\x00" * 50)
+        self.get()
+        self.assertEqual(self.measure.call_count, 2)
+
+    def test_what_cant_be_told_isnt_kept(self):
+        self.measure.return_value = None
+        self.assertEqual(self.get(), (200, dict(edges=None)))
+        self.assertFalse(os.path.exists(self.saved))
+        self.measure.return_value = EDGES
+        self.assertEqual(self.get(), (200, dict(edges=EDGES)))
+
+    def test_a_saved_file_of_the_wrong_kind_is_measured_again(self):
+        key = webapp.level_key(self.song_now())
+        for wrong in ("many", [1], [1, 2, 3], [5, 2], [2, 2], [-1, 2], [True, 2], ["0", 2], [0, 1e9], [0, float("nan")], {"a": 1}, None):
+            with self.subTest(wrong):
+                self.measure.reset_mock()
+                with open(self.saved, "w", encoding="utf-8") as f:
+                    json.dump({key: wrong}, f)
+                self.assertEqual(self.get(), (200, dict(edges=EDGES)))
+                self.assertEqual(self.measure.call_count, 1)
+
+    def test_a_song_it_doesnt_know(self):
+        self.assertEqual(self.ask("/api/edges/000000000000")[0], 404)
+
+    def test_another_site_cant_ask(self):
+        self.assertEqual(self.ask(f"/api/edges/{self.song_now()['id']}", headers={"Host": "evil.example"})[0], 403)
+
+    def test_they_arent_sent_with_the_whole_library(self):
+        self.get()
+        self.assertNotIn("edges", self.ask("/api/all")[1]["songs"][0])
+
+    def test_they_dont_get_in_the_way_of_the_shape(self):
+        shape = self.patch("measure", WAVE)
+        song = self.song_now()["id"]
+        self.assertEqual(self.ask(f"/api/waveform/{song}"), (200, dict(wave=WAVE)))
+        self.assertEqual(self.get(), (200, dict(edges=EDGES)))
+        self.assertEqual(self.ask(f"/api/waveform/{song}"), (200, dict(wave=WAVE)))
+        self.assertEqual((shape.call_count, self.measure.call_count), (1, 1))
 
 
 if __name__ == "__main__":

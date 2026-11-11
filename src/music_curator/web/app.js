@@ -1972,6 +1972,11 @@ function extrasSetting() { // the app is a music player; the Curator and Spotify
       el("span", { class: "note extra-needs" }, (S.meta.spotify || {}).ready ? "Set up." : ["Needs a Spotify app ID in your settings file: ", el("a", { href: `${GUIDE}checking-spotify-optional`, target: "_blank", rel: "noreferrer noopener" }, "how to get one"), "."])));
   return box;
 }
+function playingSetting() { // how songs are played, kept on this device
+  return el("div", { class: "card accent-setting" }, el("h2", {}, "Playing"),
+    el("p", { class: "note" }, "A song that opens or closes with a second or more of near silence starts where its sound does, and the next one comes once it's over, with the crossfade or without. Each song is measured the first time it plays, and the file isn't changed. To check always plays the whole file."),
+    el("label", { class: "filter-check vibe-note" }, el("input", { type: "checkbox", checked: skipQuiet, onchange: (e) => { skipQuiet = e.target.checked; store("curator-quiet", skipQuiet ? "on" : "off"); } }), "Skip a long quiet start or end"));
+}
 function curatorOff() { // an old link to To check or Progress, with the Curator off
   view.replaceChildren(el("div", {}, el("div", { class: "page-head" }, el("h1", {}, "The Curator is off")),
     el("p", { class: "empty" }, "To check and Progress belong to the Curator. Turn it on in Settings, under Extras, to see them again."),
@@ -2001,6 +2006,7 @@ async function pageSettings() {
   view.replaceChildren(el("div", { class: "settings-wrap" },
     el("div", { class: "page-head" }, el("h1", {}, "Settings")),
     extrasSetting(),
+    playingSetting(),
     accentSetting(),
     vibeSetting(),
     surprisesSetting(),
@@ -2738,12 +2744,40 @@ function countListening() {
     document.querySelectorAll(`dd[data-plays="${s.id}"]`).forEach((n) => { n.textContent = playedWords(s); });
   });
 }
+/* A long quiet start or end: a song that opens or closes with a second or more of near silence starts where its sound does, and is over once its sound is, crossfade or not.
+   Where the sound starts and ends is measured once per file, which isn't changed. Not on To check, where you hear each file just as it is. */
+let skipQuiet = store("curator-quiet") !== "off", quietFor = ""; // quietFor: a song started from the top before it was measured, moved on to its sound once it is
+const QUIET_LEAD = 0.3, QUIET_TAIL = 0.5; // how much of the quiet is kept, just before the sound and just after it
+const quietOn = () => skipQuiet && P.label !== "To check";
+const soundFrom = (s) => (quietOn() && s && s.edges && s.edges[0] > QUIET_LEAD ? s.edges[0] - QUIET_LEAD : 0); // where a song is started from
+const soundTo = (s, deck) => (quietOn() && s && s.edges ? Math.min(deck.duration, s.edges[1] + QUIET_TAIL) : deck.duration); // where it's over
+async function learnEdges(s) { // where its sound starts and ends: measured the first time it's needed, then kept
+  if (!s || s.edges !== undefined || s.askedEdges) return;
+  s.askedEdges = true;
+  const r = await fetch(`/api/edges/${s.id}`, { cache: "no-store" }).then((x) => (x.ok ? x.json() : null)).catch(() => null);
+  s.askedEdges = false;
+  if (!r) return;
+  const kept = S.byId.get(s.id) || s; // the library may have been read again while this was measured, and then these are new objects
+  kept.edges = r.edges;
+  if (quietFor !== s.id || current() !== kept) return;
+  quietFor = "";
+  const from = soundFrom(kept);
+  if (!from || outgoing || dragging) return;
+  if (audio.readyState < 1) resumeAt = from; // not loaded yet: it starts there when it is
+  else if (audio.currentTime < from) audio.currentTime = from;
+}
+function quietEnd() { // all that's left of the song is quiet: what comes next comes now, just as at its end
+  const s = current();
+  if (!s || !s.edges || audio.paused || audio.seeking || dragging || !isFinite(audio.duration) || audio.currentTime >= audio.duration || audio.currentTime < soundTo(s, audio)) return;
+  audio.currentTime = audio.duration;
+}
 function loadCurrent(autoplay = true, at = 0) {
   const s = current();
   if (!s) return;
   endFade();
   dragging = false; // a seek bar held across the change can't freeze the clock
-  resumeAt = at; // set on every load, so a spot that was never reached can't land on the next song
+  resumeAt = at || soundFrom(s); // set on every load, so a spot that was never reached can't land on the next song. From the top, a song starts where its sound does
+  quietFor = at || s.edges !== undefined ? "" : s.id;
   wanted = !!autoplay;
   listenAgain();
   topUpRadio();
@@ -2770,6 +2804,7 @@ function showSong(s) { // everything on the page that goes with the song that's 
   showPlace(audio.duration ? audio.currentTime / audio.duration : 0);
   paintWave();
   learnWave(S.byId.get(P.queue[P.i + 1])); // ready before it's needed
+  if (quietOn()) { learnEdges(s); learnEdges(S.byId.get(P.queue[upNext()])); } // where its sound starts and ends, and the next one's
   if ("mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: s.title, artist: s.artist, album: s.album, artwork: s.cover ? [{ src: coverUrl(s), sizes: "512x512" }] : [] });
   markPlaying();
   $(".np").classList.add("ready");
@@ -2793,22 +2828,26 @@ function watchFade() {
   const n = upNext(), now = current(), next = S.byId.get(P.queue[n]);
   if (!fadeSecs || outgoing || P.repeat === "one" || P.label === "To check" || !now || !next || !isFinite(audio.duration) || audio.duration < fadeSecs * 2) return;
   if (now.album && fold(now.album).trim() === fold(next.album).trim()) return;
-  const left = audio.duration - audio.currentTime, deck = decks.find((d) => d !== audio);
+  const left = soundTo(now, audio) - audio.currentTime, deck = decks.find((d) => d !== audio);
   if (left > fadeSecs + 12) return;
   if (armedId !== next.id) { // ready a little ahead, so it can start the moment it's needed
     armedId = next.id;
     deck.preload = "auto";
     deck.src = `/audio/${next.id}`;
+    const from = soundFrom(next); // past its own quiet start
+    if (from) deck.addEventListener("loadedmetadata", () => { if (armedId === next.id && deck.getAttribute("src") === `/audio/${next.id}`) deck.currentTime = from; }, { once: true });
     return;
   }
   if (left <= fadeSecs && !audio.paused && !audio.seeking && !dragging && deck.readyState >= 3) startFade(n, deck);
 }
 function startFade(n, deck) {
+  const was = current();
   outgoing = audio;
   outGain = volGain;
   audio = deck;
   armedId = null;
-  fadeLength = Math.max(0.5, Math.min(fadeSecs, isFinite(outgoing.duration) ? outgoing.duration - outgoing.currentTime : fadeSecs)); // never longer than what is left of the old song
+  fadeLength = Math.max(0.5, Math.min(fadeSecs, isFinite(outgoing.duration) ? soundTo(was, outgoing) - outgoing.currentTime : fadeSecs)); // never longer than what is left of the old song
+  const from = audio.currentTime; // where the new song comes in: its start, or where its sound starts
   fadeIn = 0;
   dragging = false; // a seek bar held across the change can't freeze the clock
   P.i = n;
@@ -2821,7 +2860,7 @@ function startFade(n, deck) {
   showTime($("#dur"), clock(audio.duration));
   let far = 0; // the furthest the fade has got: seeking back in the new song never brings the old one back up
   fadeTimer = setInterval(() => {
-    const part = (far = Math.max(far, Math.min(1, audio.currentTime / fadeLength)));
+    const part = (far = Math.max(far, Math.min(1, (audio.currentTime - from) / fadeLength)));
     fadeIn = Math.sin((part * Math.PI) / 2); // equal power: the two together stay as loud as one all the way through
     fadeOut = Math.cos((part * Math.PI) / 2);
     setVolume();
@@ -3620,8 +3659,8 @@ const onDeck = (type, fn) => decks.forEach((d) => d.addEventListener(type, (e) =
 onDeck("play", () => { wanted = !audio.paused; paintPlay(); if (outgoing) outgoing.play().catch(() => {}); startSound(); });
 onDeck("pause", () => { wanted = !audio.paused; paintPlay(); saveSpot(); if (outgoing) outgoing.pause(); }); // read afresh, not taken as "paused": a pause left over from a file that failed can come in after the next one has started
 window.addEventListener("pagehide", saveSpot);
-const startOver = () => { endFade(); audio.currentTime = 0; listenAgain(); }; // a crossfade under way is over: this song from its start, at full volume
-const goBack = () => (audio.currentTime > 4 ? startOver() : step(-1)); // Previous, on the page or on the keyboard's media key: the start of this song first, then the one before
+const startOver = () => { endFade(); audio.currentTime = soundFrom(current()); listenAgain(); }; // a crossfade under way is over: this song from its start, at full volume
+const goBack = () => (audio.currentTime > soundFrom(current()) + 4 ? startOver() : step(-1)); // Previous, on the page or on the keyboard's media key: the start of this song first, then the one before
 let failed = 0; // songs in a row the browser couldn't play
 onDeck("ended", () => { if (P.repeat === "one") { startOver(); audio.play().catch(() => {}); } else step(1); });
 onDeck("error", () => {
@@ -3635,9 +3674,11 @@ onDeck("error", () => {
   }
 });
 onDeck("playing", () => { failed = 0; });
+onDeck("seeking", () => { quietFor = ""; }); // moved by hand before its sound was measured: it stays where it was put
 onDeck("timeupdate", () => {
   countListening();
   watchFade();
+  quietEnd();
   if (dragging || !audio.duration) return;
   showPlace(audio.currentTime / audio.duration);
   showClock();
