@@ -25,6 +25,8 @@ _slots = threading.BoundedSemaphore(2)  # the page asks for the next song ahead 
 QUIET_DB = -60  # a stretch where nothing reaches this is quiet. Measured on a whole library: lower finds hardly any more, higher starts taking the first seconds of a slow fade-in
 QUIET_S = 1  # quiet shorter than this at the start or the end is left alone
 _QUIET_LINE = re.compile(r"\[(?:Parsed_)?silencedetect\w* @ [^\]]*\] silence_(start|end): ([-+]?\d+(?:\.\d*)?(?:[eE][-+]?\d+)?)")
+_STARTS_AT = re.compile(r"(?m)^\s*Duration: [^,]*, start: (-?\d+(?:\.\d+)?)")  # where the file's own clock starts, from ffmpeg's description of it
+LATE_START_S = 0.2  # a file whose clock starts later than this isn't measured: a browser may keep that offset, and the times would not line up
 
 
 def shape(raw):
@@ -61,7 +63,7 @@ def sounding(log, length):
     """Where the sound starts and ends, in seconds, from ffmpeg's silencedetect lines and the song's length: [start, end]. A song with no quiet
     at the start starts at 0 and one with none at the end ends at its length; quiet in the middle doesn't count. None if it's quiet all the way through."""
     runs = []
-    for line in log.splitlines():
+    for line in log.replace("\r", "\n").split("\n"):  # only real line breaks: a tag can hold other characters that splitlines() would break on
         m = _QUIET_LINE.match(line)
         if not m:
             continue
@@ -76,7 +78,8 @@ def sounding(log, length):
             start = ended
         if ended >= length - 0.05:
             end = min(end, max(began, 0.0))
-    return [round(start, 2), round(end, 2)] if end > start else None
+    start, end = round(start, 2), round(end, 2)
+    return [start, end] if end > start else None
 
 
 def edges(path):
@@ -87,7 +90,7 @@ def edges(path):
     with _slots:
         try:
             done = subprocess.run([ffmpeg, "-hide_banner", "-nostdin", "-nostats", "-v", "info", "-progress", "pipe:1", "-i", path, "-map", "0:a:0",
-                                   "-af", f"silencedetect=noise={QUIET_DB}dB:d={QUIET_S}", "-f", "null", "-"],
+                                   "-af", f"highpass=f=20,silencedetect=noise={QUIET_DB}dB:d={QUIET_S}", "-f", "null", "-"],
                                   capture_output=True, timeout=TIMEOUT_S, creationflags=folders.NO_WINDOW)
         except (OSError, subprocess.SubprocessError):
             return None
@@ -98,6 +101,8 @@ def edges(path):
         key, _, value = line.partition("=")
         if key.strip() == "out_time_us" and value.strip().isdigit():
             length = int(value) / 1e6
-    if not length:
+    log = done.stderr.decode("utf-8", "replace")
+    late = _STARTS_AT.search(log)
+    if not length or (late and float(late[1]) > LATE_START_S):  # (a clock that starts before 0 is moved to 0 by ffmpeg and the browsers alike)
         return None
-    return sounding(done.stderr.decode("utf-8", "replace"), length)
+    return sounding(log, length)

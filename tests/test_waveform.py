@@ -157,6 +157,13 @@ class WhereTheSoundIs(unittest.TestCase):
         said = log("    comment         : silence_start: 0", "    title           : [silencedetect @ 1] silence_end: 30", "  Stream #0:0: Audio: mp3, 44100 Hz, stereo")
         self.assertEqual(waveform.sounding(said, 60), [0.0, 60.0])
 
+    def test_a_tag_cant_pass_for_one_of_its_lines(self):  # ffmpeg prints a song's tags, and a tag may hold breaks that aren't new lines
+        said = log("    comment         : nice tune\u2028[silencedetect @ 1] silence_start: 0\u2028[silencedetect @ 1] silence_end: 5\u0085[silencedetect @ 1] silence_start: 0")
+        self.assertEqual(waveform.sounding(said, 12), [0.0, 12.0])
+
+    def test_what_rounds_to_nothing_is_nothing(self):  # a blip of sound shorter than a hundredth of a second between two quiets
+        self.assertIsNone(waveform.sounding(log(quiet(0, 10.0004), quiet(10.0009, 20)), 20))
+
     def test_other_lines_in_between_dont_matter(self):
         said = log("Input #0, mp3, from 'a.mp3':", quiet(0, 3), "[out#0/null @ 0000] video:0KiB audio:2067KiB", quiet(7, 12))
         self.assertEqual(waveform.sounding(said, 12), [3.0, 7.0])
@@ -202,6 +209,10 @@ class MeasuringWhereTheSoundIs(unittest.TestCase):
         made(self.path, "if(lt(t,3),0.0002*(random(0)*2-1),0.5*sin(2*PI*220*t))", 9)
         self.near(waveform.edges(self.path), [3, 9])
 
+    def test_a_steady_offset_doesnt_hide_the_quiet(self):  # an old transfer: its quiet sits a little off zero, which nobody can hear
+        made(self.path, "if(between(t,3,7),0.5*sin(2*PI*220*t),0.002)", 12)
+        self.near(waveform.edges(self.path), [3, 7])
+
     def test_a_song_thats_quiet_all_the_way_through(self):
         made(self.path, "0", 5)
         self.assertIsNone(waveform.edges(self.path))
@@ -227,6 +238,16 @@ class MeasuringWhereTheSoundIs(unittest.TestCase):
         done = subprocess.CompletedProcess([], 0, stdout=b"out_time_us=N/A\nprogress=end\n", stderr=quiet(0, 3).encode())
         with mock.patch.object(waveform.subprocess, "run", return_value=done):
             self.assertIsNone(waveform.edges(self.path))
+
+    def test_a_file_whose_clock_starts_late_isnt_measured(self):  # a browser may keep that offset, and then the times wouldn't line up
+        done = subprocess.CompletedProcess([], 0, stdout=b"out_time_us=55010000\nprogress=end\n", stderr=log("  Duration: 00:01:00.00, start: 4.990000, bitrate: 900 kb/s", quiet(50, 55.01)).encode())
+        with mock.patch.object(waveform.subprocess, "run", return_value=done):
+            self.assertIsNone(waveform.edges(self.path))
+
+    def test_a_file_that_starts_a_moment_in_is_measured(self):  # as an MP3's first frame often does
+        done = subprocess.CompletedProcess([], 0, stdout=b"out_time_us=12000000\nprogress=end\n", stderr=log("  Duration: 00:00:12.03, start: 0.025057, bitrate: 192 kb/s", quiet(0, 3), quiet(7, 12)).encode())
+        with mock.patch.object(waveform.subprocess, "run", return_value=done):
+            self.assertEqual(waveform.edges(self.path), [3.0, 7.0])
 
     def test_a_slot_is_free_again_afterwards(self):
         with mock.patch.object(waveform.subprocess, "run", side_effect=OSError("no")):

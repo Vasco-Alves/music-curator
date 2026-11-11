@@ -129,6 +129,9 @@ async function load() {
   const was = S.byId;
   S.byId = new Map(d.songs.map((s) => [s.id, s]));
   reconcile(was); // what's queued follows any song whose file has moved
+  const playing = current(), after = S.byId.get(P.queue[upNext()]);
+  if (quietOn(playing)) learnEdges(playing); // these are new songs to the page now: where their sound starts and ends is asked again. The server knows each file by its name and size, so a moved file keeps what was measured and a better copy is measured afresh
+  if (quietOn(after)) learnEdges(after);
   S.lib = d.songs.filter((s) => s.area === "library");
   indexLists();
   $("#genres").replaceChildren(...tally(S.lib.map((s) => s.genre)).map(([g]) => el("option", { value: g })));
@@ -1975,7 +1978,7 @@ function extrasSetting() { // the app is a music player; the Curator and Spotify
 function playingSetting() { // how songs are played, kept on this device
   return el("div", { class: "card accent-setting" }, el("h2", {}, "Playing"),
     el("p", { class: "note" }, "A song that opens or closes with a second or more of near silence starts where its sound does, and the next one comes once it's over, with the crossfade or without. Each song is measured the first time it plays, and the file isn't changed. To check always plays the whole file."),
-    el("label", { class: "filter-check vibe-note" }, el("input", { type: "checkbox", checked: skipQuiet, onchange: (e) => { skipQuiet = e.target.checked; store("curator-quiet", skipQuiet ? "on" : "off"); } }), "Skip a long quiet start or end"));
+    el("label", { class: "filter-check vibe-note" }, el("input", { type: "checkbox", checked: skipQuiet, onchange: (e) => { skipQuiet = e.target.checked; store("curator-quiet", skipQuiet ? "on" : "off"); armedId = null; if (skipQuiet) { learnEdges(current()); learnEdges(S.byId.get(P.queue[upNext()])); } } }), "Skip a long quiet start or end")); // at once: the next song is readied again, and with it on, this one and the next are measured
 }
 function curatorOff() { // an old link to To check or Progress, with the Curator off
   view.replaceChildren(el("div", {}, el("div", { class: "page-head" }, el("h1", {}, "The Curator is off")),
@@ -2744,7 +2747,7 @@ function countListening() {
   if (audio.paused || audio.seeking || gap <= 0 || gap >= 2) return; // a jump or a stall isn't listening
   heard.secs += gap;
   const s = current();
-  if (heard.counted || !s || !audio.duration || heard.secs < Math.min(240, audio.duration / 2)) return;
+  if (heard.counted || !s || !audio.duration || heard.secs < Math.min(240, (soundTo(s, audio) - soundFrom(s)) / 2)) return; // half of what is played: a long quiet start or end doesn't count
   heard.counted = true;
   post("/api/played", { id: s.id }).then((r) => {
     if (r.error) { if (!playsWarned) toast(r.error); playsWarned = true; return; }
@@ -2762,9 +2765,9 @@ function countListening() {
    Where the sound starts and ends is measured once per file, which isn't changed. Not on To check, where you hear each file just as it is. */
 let skipQuiet = store("curator-quiet") !== "off", quietFor = ""; // quietFor: a song started from the top before it was measured, moved on to its sound once it is
 const QUIET_LEAD = 0.3, QUIET_TAIL = 0.5; // how much of the quiet is kept, just before the sound and just after it
-const quietOn = () => skipQuiet && P.label !== "To check";
-const soundFrom = (s) => (quietOn() && s && s.edges && s.edges[0] > QUIET_LEAD ? s.edges[0] - QUIET_LEAD : 0); // where a song is started from
-const soundTo = (s, deck) => (quietOn() && s && s.edges ? Math.min(deck.duration, s.edges[1] + QUIET_TAIL) : deck.duration); // where it's over
+const quietOn = (s) => skipQuiet && P.label !== "To check" && !(s && s.checks && s.checks.length && stillOpen(s, NEEDS)); // a song with questions still open on To check plays whole, however it was started
+const soundFrom = (s) => (quietOn(s) && s && s.edges && s.edges[0] > QUIET_LEAD ? s.edges[0] - QUIET_LEAD : 0); // where a song is started from
+const soundTo = (s, deck) => (quietOn(s) && s && s.edges ? Math.min(deck.duration, s.edges[1] + QUIET_TAIL) : deck.duration); // where it's over
 async function learnEdges(s) { // where its sound starts and ends: measured the first time it's needed, then kept
   if (!s || s.edges !== undefined || s.askedEdges) return;
   s.askedEdges = true;
@@ -2782,7 +2785,7 @@ async function learnEdges(s) { // where its sound starts and ends: measured the 
 }
 function quietEnd() { // all that's left of the song is quiet: what comes next comes now, just as at its end
   const s = current();
-  if (!s || !s.edges || audio.paused || audio.seeking || dragging || !isFinite(audio.duration) || audio.currentTime >= audio.duration || audio.currentTime < soundTo(s, audio)) return;
+  if (!s || !s.edges || outgoing || audio.paused || audio.seeking || dragging || !isFinite(audio.duration) || audio.currentTime >= audio.duration || audio.currentTime < soundTo(s, audio)) return;
   audio.currentTime = audio.duration;
 }
 function loadCurrent(autoplay = true, at = 0) {
@@ -2818,7 +2821,9 @@ function showSong(s) { // everything on the page that goes with the song that's 
   showPlace(audio.duration ? audio.currentTime / audio.duration : 0);
   paintWave();
   learnWave(S.byId.get(P.queue[P.i + 1])); // ready before it's needed
-  if (quietOn()) { learnEdges(s); learnEdges(S.byId.get(P.queue[upNext()])); } // where its sound starts and ends, and the next one's
+  const after = S.byId.get(P.queue[upNext()]);
+  if (quietOn(s)) learnEdges(s); // where its sound starts and ends, and the next one's
+  if (quietOn(after)) learnEdges(after);
   if ("mediaSession" in navigator) navigator.mediaSession.metadata = new MediaMetadata({ title: s.title, artist: s.artist, album: s.album, artwork: s.cover ? [{ src: coverUrl(s), sizes: "512x512" }] : [] });
   markPlaying();
   $(".np").classList.add("ready");
@@ -2840,19 +2845,20 @@ let fadeSecs = FADES.includes(+store("curator-fade")) ? +store("curator-fade") :
 const upNext = () => (P.i + 1 < P.queue.length ? P.i + 1 : P.repeat === "all" && P.queue.length > 1 ? 0 : -1);
 function watchFade() {
   const n = upNext(), now = current(), next = S.byId.get(P.queue[n]);
-  if (!fadeSecs || outgoing || P.repeat === "one" || P.label === "To check" || !now || !next || !isFinite(audio.duration) || audio.duration < fadeSecs * 2) return;
+  if (!fadeSecs || outgoing || P.repeat === "one" || P.label === "To check" || !now || !next || !isFinite(audio.duration) || soundTo(now, audio) - soundFrom(now) < fadeSecs * 2) return; // a song with less sound than two fades isn't faded
   if (now.album && fold(now.album).trim() === fold(next.album).trim()) return;
   const left = soundTo(now, audio) - audio.currentTime, deck = decks.find((d) => d !== audio);
   if (left > fadeSecs + 12) return;
   if (armedId !== next.id) { // ready a little ahead, so it can start the moment it's needed
     armedId = next.id;
+    if (quietOn(next)) learnEdges(next); // it may have become next only now (Play next, the queue moved): it's measured before it comes in
     deck.preload = "auto";
     deck.src = `/audio/${next.id}`;
     const from = soundFrom(next); // past its own quiet start
     if (from) deck.addEventListener("loadedmetadata", () => { if (armedId === next.id && deck.getAttribute("src") === `/audio/${next.id}`) deck.currentTime = from; }, { once: true });
     return;
   }
-  if (left <= fadeSecs && !audio.paused && !audio.seeking && !dragging && deck.readyState >= 3) startFade(n, deck);
+  if (left <= fadeSecs && !audio.paused && !audio.seeking && !dragging && deck.readyState >= 3 && soundTo(next, deck) - deck.currentTime >= fadeSecs) startFade(n, deck); // (never into a song with less sound left than the fade)
 }
 function startFade(n, deck) {
   const was = current();
@@ -2861,6 +2867,8 @@ function startFade(n, deck) {
   audio = deck;
   armedId = null;
   fadeLength = Math.max(0.5, Math.min(fadeSecs, isFinite(outgoing.duration) ? soundTo(was, outgoing) - outgoing.currentTime : fadeSecs)); // never longer than what is left of the old song
+  const coming = S.byId.get(P.queue[n]), want = soundFrom(coming);
+  if (want > audio.currentTime + 0.5) audio.currentTime = want; // measured after it was readied: it still comes in past its quiet start
   const from = audio.currentTime; // where the new song comes in: its start, or where its sound starts
   fadeIn = 0;
   dragging = false; // a seek bar held across the change can't freeze the clock
@@ -3668,12 +3676,18 @@ async function learnWave(s) { // measured the first time it's needed, then kept
   const now = current();
   if (now && now.id === s.id) paintWave();
 }
-const togglePlay = () => { if (!audio.src) return; audio.paused ? audio.play().catch(() => {}) : audio.pause(); };
+const togglePlay = () => { if (!audio.src) return; if (audio.paused && audio.ended) audio.currentTime = soundFrom(current()); audio.paused ? audio.play().catch(() => {}) : audio.pause(); }; // a song that has ended plays again from where its sound starts
 const onDeck = (type, fn) => decks.forEach((d) => d.addEventListener(type, (e) => { if (e.target === audio) fn(e); })); // only the deck you're listening to speaks for the player
 onDeck("play", () => { wanted = !audio.paused; paintPlay(); if (outgoing) outgoing.play().catch(() => {}); startSound(); });
 onDeck("pause", () => { wanted = !audio.paused; paintPlay(); saveSpot(); if (outgoing) outgoing.pause(); }); // read afresh, not taken as "paused": a pause left over from a file that failed can come in after the next one has started
 window.addEventListener("pagehide", saveSpot);
-const startOver = () => { endFade(); audio.currentTime = soundFrom(current()); listenAgain(); }; // a crossfade under way is over: this song from its start, at full volume
+const startOver = () => { // a crossfade under way is over: this song from its start, at full volume
+  endFade();
+  const s = current(), waiting = s && s.edges === undefined ? s.id : "";
+  audio.currentTime = soundFrom(s);
+  if (waiting) audio.addEventListener("seeked", () => { if (current() === s) quietFor = waiting; }, { once: true }); // not measured yet: when it is, it still moves on to its sound
+  listenAgain();
+};
 const goBack = () => (audio.currentTime > soundFrom(current()) + 4 ? startOver() : step(-1)); // Previous, on the page or on the keyboard's media key: the start of this song first, then the one before
 let failed = 0; // songs in a row the browser couldn't play
 onDeck("ended", () => { if (P.repeat === "one") { startOver(); audio.play().catch(() => {}); } else step(1); });
@@ -3701,7 +3715,7 @@ onDeck("timeupdate", () => {
 });
 onDeck("loadedmetadata", () => {
   showTime($("#dur"), clock(audio.duration));
-  if (resumeAt && resumeAt < audio.duration - 2) audio.currentTime = resumeAt;
+  if (resumeAt) audio.currentTime = resumeAt < audio.duration - 2 ? resumeAt : soundFrom(current()); // a spot at the very end starts it again, where its sound does
   resumeAt = 0;
 });
 $("#seek").before(waveShape("wave-rest"), waveShape("wave-done"));
