@@ -46,7 +46,7 @@ window.Packs = (() => {
   function cleanGenres(raw) {
     return Object.fromEntries(Object.entries(object(raw)).slice(0, 400).map(([genre, mood]) => [text(genre, 60), mood]).filter(([genre, mood]) => genre && (MOODS.includes(mood) || mood === "none")));
   }
-  const KNOBS = new Set(["light", "react", "speed", "drag", "spark", "nod", "turns", "moves", "shots", "folk", "acid", "pit", "tilt", "vary", "dream", "falls", "color", "echo", "breathe", "sounds"]);
+  const KNOBS = new Set(["light", "react", "speed", "drag", "spark", "nod", "turns", "moves", "shots", "folk", "acid", "band", "pit", "tilt", "vary", "dream", "falls", "color", "echo", "breathe", "sounds"]);
   function cleanSurprise(raw, sized) {
     const s = object(raw), out = {};
     if (["off", "rare", "some", "often", "always"].includes(s.often)) out.often = s.often;
