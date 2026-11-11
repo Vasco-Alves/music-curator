@@ -9,7 +9,7 @@ window.Effects = (() => {
   const stage = canvas.getContext("2d", { alpha: false }), spare = document.createElement("canvas"), back = spare.getContext("2d", { alpha: false });
   let g = stage; // what's being drawn on: the picture, or for a moment the visitors' own layer over the app
   const sound = { bands: new Float32Array(BANDS), wave: new Float32Array(POINTS), bass: 0, mid: 0, treble: 0, level: 0, kick: 0, hat: 0, kickHit: 0, hatHit: 0, t: 0, dt: 0.016 };
-  const T = { light: 1, react: 1, speed: 1, drag: 1, spark: 1, nod: 1, turns: 1, moves: 1, shots: 1, folk: 1, pit: 1, tilt: 1, vary: 1, dream: 1, falls: 1, color: 1, echo: 1, breathe: 1 }; // what's been adjusted for the effect showing: 1 is how it was designed
+  const T = { light: 1, react: 1, speed: 1, drag: 1, spark: 1, nod: 1, turns: 1, moves: 1, shots: 1, folk: 1, pit: 1, tilt: 1, vary: 1, dream: 1, falls: 1, color: 1, echo: 1, breathe: 1, sounds: 1 }; // what's been adjusted for the effect showing: 1 is how it was designed
   const STYLES = { // each effect and its styles, by the name a style goes by
     ribbon: [["ribbon", "Classic"], ["silk", "Silk"], ["helix", "Helix"], ["strings", "Strings"]],
     bars: [["bars", "Classic"], ["mirror", "Mirror"], ["leds", "LEDs"], ["terrain", "Landscape"], ["scope", "Scope"]],
@@ -26,7 +26,7 @@ window.Effects = (() => {
   const FOLK_OF = { arcade: ["astronaut", "shapes", "neon", "jelly"], ocean: ["jelly", "whale", "jelly", "shapes"], neonroad: ["neon", "shapes", "saucer", "neon"], aurora: ["saucer", "astronaut", "neon", "saucer"], // some places have their own visitors
     tube: ["shapes", "neon", "eye", "saucer"], heads: ["saucer", "eye", "shapes", "neon"], sphere: ["astronaut", "saucer", "shapes", "jelly"], solids: ["shapes", "saucer", "neon", "astronaut"], city: ["saucer", "neon", "saucer", "shapes"] };
   const FAMILY = Object.fromEntries(Object.entries(STYLES).flatMap(([family, list]) => list.map(([style]) => [style, family])));
-  const KNOBS = { light: ["Brightness", 0.3, 1.7], react: ["Reacts to the music", 0.2, 1.8], speed: ["Speed", 0.3, 2], spark: ["Glints on the hi-hats", 0, 2], drag: ["Length of the trails", 0.4, 2.5], nod: ["Nodding to the beat", 0, 2], turns: ["Changes of course", 0, 3], moves: ["Jumps and stops", 0, 3], pit: ["Cockpit", 0, 1], shots: ["Shooting stars", 0, 3], folk: ["Visitors", 0, 3], tilt: ["Turning now and then", 0, 3], vary: ["Changes by itself", 0, 3], dream: ["Dreamy lights", 0, 2], falls: ["Falling into planets", 0, 3], color: ["Colors that travel", 0, 1.5], echo: ["After-images", 0, 2], breathe: ["Breathing", 0, 2] };
+  const KNOBS = { light: ["Brightness", 0.3, 1.7], react: ["Reacts to the music", 0.2, 1.8], speed: ["Speed", 0.3, 2], spark: ["Glints on the hi-hats", 0, 2], drag: ["Length of the trails", 0.4, 2.5], nod: ["Nodding to the beat", 0, 2], turns: ["Changes of course", 0, 3], moves: ["Jumps and stops", 0, 3], pit: ["Cockpit", 0, 1], shots: ["Shooting stars", 0, 3], folk: ["Visitors", 0, 3], tilt: ["Turning now and then", 0, 3], vary: ["Changes by itself", 0, 3], dream: ["Dreamy lights", 0, 2], falls: ["Falling into planets", 0, 3], color: ["Colors that travel", 0, 1.5], echo: ["After-images", 0, 2], breathe: ["Breathing", 0, 2], sounds: ["Answers to sounds", 0, 2] };
   const LEAVES_TRAILS = new Set(["trails", "tunnel", "vortex", "prism", "ripple", "comets", "stars", "whirl", "fireworks", "scope"]);
   const raw = new Float32Array(BANDS), leadHold = new Float32Array(BANDS), leadMid = new Float32Array(512), leadSum = new Float32Array(513), peaks = new Float32Array(160), stars = new Float32Array(STARS * 3), HEADS = 9, past = new Float32Array(HEADS * 2).fill(NaN), orbits = new Float32Array(HEADS);
   let nowSong = "", genre = "", mood = "", name = "", alone = false, w = 0, h = 0, quality = 1, colors = PLAIN, picture = null, last = 0, slowTime = 0, slowFrames = 0, top = 0.3, waveTop = 0.1, freq = null, time = null, binHz = 23.4;
@@ -3155,6 +3155,7 @@ window.Effects = (() => {
     uniform vec4 roam2;  // x: how far round the far colors are (degrees), y: how far the stripes push the bands along (rounds), z: how much the stripes shade, w: how much a turned color is brought back to the lightness it had (0..1)
     uniform vec4 breath; // x: the lens (over 0 the middle swells), y: the sway's size, z and w: where the sway is, across and up
     uniform vec4 folds;  // x: how far in the mirror has come (0 none, 1 through the middle), y: half the fan's opening (pi: open), z: how far the fold is turned, w: how far out the mirror starts
+    uniform vec4 snap;   // what claps and a snare roll do: x, how far a clap has turned the picture (radians); y, how much it shivers; z, where the shiver is
     uniform vec4 thump;  // two rings going out from the middle, one for each of the last two hard kicks. x and z: how far out each has got, y and w: how far each pushes the picture where it is (0 none)
     out vec4 color;
     float stripe = 0.5; // set by a sum before it calls outside(): 0..1, which way round the middle the dot's last steps went
@@ -3163,6 +3164,7 @@ window.Effects = (() => {
     void stripes(vec2 z, vec2 was, float part) { stripe = mix(way(z), way(was), clamp(part, 0.0, 1.0)); } // from the last place a dot's sum went through and the one before, by how far past the line the dot got: so there is no seam where the count changes
     vec2 spot() {
       vec2 p = (gl_FragCoord.xy * 2.0 - size) / size.y;
+      if (snap.x != 0.0) { float c = cos(snap.x), s = sin(snap.x); p = vec2(p.x * c - p.y * s, p.x * s + p.y * c); } // a clap: the whole picture turned a little, folds and all
       if (folds.x > 0.0) { // a mirror that slides in from the edge, and then a fan of mirrors that closes: the picture is whole and sharp all the way
         float co = cos(folds.z), si = sin(folds.z), slide = (1.0 - folds.x) * folds.w;
         p = vec2(p.x * co + p.y * si, p.y * co - p.x * si);
@@ -3173,6 +3175,7 @@ window.Effects = (() => {
       if (thump.y + thump.w > 0.0) { float far = max(length(p), 1e-4), k1 = (far - thump.x) / 0.11, k2 = (far - thump.z) / 0.11; p -= p / far * (thump.y * exp(-k1 * k1) + thump.w * exp(-k2 * k2)); } // a hard kick's ring: the picture is pushed outward where the ring is, and falls back behind it
       p *= 1.0 - breath.x / (1.0 + 2.0 * dot(p, p)); // the breath: the middle swells and sinks with the bass, the edges nearly stay
       p += breath.y * sin(p.yx * 2.2 + breath.zw); // and a slow sway
+      p += snap.y * sin(p.yx * 9.0 + snap.z); // and through a snare roll a shiver, finer and quicker
       return p;
     }
     vec3 turnHue(vec3 c, float degrees) { // round the color wheel about the grey in the middle, as turnHue() in the page does, and then most of the way back to the lightness it had: turned yellow would be a dark blue otherwise, and the picture would dim and brighten as the colors travel
@@ -3203,8 +3206,8 @@ window.Effects = (() => {
     acid: { reach: 26, round: 70, deep: 0.45, far: 200, most: 0.6, jump: 0.25 }, // yellow from orange to green, with violet let in along the stripes
     hard: { reach: 24, round: 70, deep: 0.45, far: 215, most: 0.5, jump: 0.25 }, // red from crimson to orange, with cold blue-green let in along the stripes
   };
-  const trippy = { at: Math.random(), owed: 0, far: Math.random(), grown: 0, breath: 0.4, own: 0, seen: 0, wave: 0, fold: 0, turn: 0, kind: "", shutFor: 0, kickLight: 1, values: {}, stepped: -1, rings: [9, 0, 9, 0], ring: 0 }; // rings: for each of the last two hard kicks, the seconds since it and how hard it was
-  const TRIPPY_OFF = { roam: [4, [0, 0, 0, 0]], roam2: [4, [0, 0, 0, 0]], breath: [4, [0, 0, 0, 0]], folds: [4, [0, Math.PI, 0, 0]], thump: [4, [0, 0, 0, 0]] }; // what a picture is told when it did not ask for the trip this frame: nothing of it
+  const trippy = { at: Math.random(), owed: 0, far: Math.random(), grown: 0, breath: 0.4, own: 0, seen: 0, wave: 0, fold: 0, turn: 0, kind: "", shutFor: 0, kickLight: 1, values: {}, stepped: -1, rings: [9, 0, 9, 0], ring: 0, acid: 0, sq: 0, sqMid: 0, rise: 0, snap: 0, snapTo: 0, shiver: 0, shake: 0 }; // acid to shake: what the 303, a riser, claps and a snare roll are doing to the picture just now // rings: for each of the last two hard kicks, the seconds since it and how hard it was
+  const TRIPPY_OFF = { roam: [4, [0, 0, 0, 0]], roam2: [4, [0, 0, 0, 0]], breath: [4, [0, 0, 0, 0]], folds: [4, [0, Math.PI, 0, 0]], thump: [4, [0, 0, 0, 0]], snap: [4, [0, 0, 0, 0]] }; // what a picture is told when it did not ask for the trip this frame: nothing of it
   function trippyOn() { // once a frame, before a fractal is drawn: moves the colors, the breath and the fold on by the clock, and leaves what the card is told in trippy.values
     if (trippy.stepped === sound.t && trippy.values.roam) return; // (a frame can draw the picture twice, when the effect changes: once is enough)
     trippy.stepped = sound.t;
@@ -3214,17 +3217,28 @@ window.Effects = (() => {
     trippy.owed -= pay;
     trippy.at = (trippy.at + (dt * pace) / R.round + pay) % 1;
     trippy.far = (trippy.far + (dt * pace) / 47) % 1; // the far colors come and go on a round of their own, so the two never line up the same way twice running
-    trippy.grown += (R.most * clamp(0.5 - 0.5 * Math.cos(TAU * trippy.far) + 0.6 * flow.drop) - trippy.grown) * (1 - Math.exp(-dt / 0.7));
+    trippy.grown += (R.most * clamp(0.5 - 0.5 * Math.cos(TAU * trippy.far) + 0.6 * flow.drop + 0.5 * trippy.acid * T.sounds) - trippy.grown) * (1 - Math.exp(-dt / 0.7)); // (a 303 line brings the far colors in along their veins too)
     trippy.breath += (sound.bass - trippy.breath) * (1 - Math.exp(-dt / 0.4)); // the bass, followed slowly, and a slow breath of its own so a break is not still
     trippy.wave = (trippy.wave + dt * (0.2 + 0.5 * flow.intensity)) % TAU;
     const real = Math.min(0.1, Math.max(0, (realNow - (trippy.seen || realNow)) / 1000)); // the clock on the wall, which is what the song keeps time by (sound.dt runs slower in a calm part)
-    const rings = trippy.rings, hard = mood === "hard" ? (T.stomp ?? 1) : 0; // hardcore, gabber and their kin: every kick sends a ring out from the middle, which bends the picture as it passes
+    const S = T.sounds, hear = Math.min(0.1, real), building = flow.part === "build" || flow.build > 0.35; // how much the picture answers particular sounds, and the wall clock they keep time by
+    trippy.acid += ((flow.acid || 0) - trippy.acid) * (1 - Math.exp(-hear / 0.5)); // a 303 line: how surely one is playing, and where its squelch is, followed quickly, and its own middle, followed slowly
+    trippy.sq += ((flow.acidAt || 0) - trippy.sq) * (1 - Math.exp(-hear / 0.08));
+    trippy.sqMid += (trippy.sq - trippy.sqMid) * (1 - Math.exp(-hear / 1.5));
+    const rising = (flow.riser || 0) > 0.5 && (flow.riserFor || 0) > 0.35; // a riser the ear is sure of: the picture swells toward you as it climbs, and lets go when it ends
+    trippy.rise += ((rising ? flow.riserAt || 0 : 0) - trippy.rise) * (1 - Math.exp(-hear / (rising ? 0.3 : 0.4)));
+    if ((flow.clap || 0) > 0 && (flow.clapOn || 0) >= 0.75) trippy.snapTo = (trippy.snapTo > 0 ? -0.075 : 0.075) * S; // a clap of a steady pattern: the picture's turn snaps a few degrees, one way and then the other, and eases back
+    trippy.snap += (trippy.snapTo - trippy.snap) * (1 - Math.exp(-hear / 0.03));
+    trippy.snapTo *= Math.exp(-hear / 0.22);
+    trippy.shiver += ((building ? flow.roll || 0 : 0) - trippy.shiver) * (1 - Math.exp(-hear / 0.2)); // a snare roll, believed only through a build: the picture shivers, quicker as the roll speeds up
+    trippy.shake = (trippy.shake + hear * Math.PI * Math.min(9, flow.rollRate || 6)) % TAU;
+    const rings = trippy.rings, hard = mood === "hard" ? S : 0; // hardcore, gabber and their kin: every kick sends a ring out from the middle, which bends the picture as it passes
     rings[0] += real; rings[2] += real;
     if (hard > 0 && sound.kickHit > 0) { const i = (trippy.ring ^= 1) * 2; rings[i] = 0; rings[i + 1] = Math.min(1, sound.kickHit) * Math.min(1.5, hard); }
     const left1 = Math.max(0, 1 - rings[0] / 0.9), left2 = Math.max(0, 1 - rings[2] / 0.9); // a ring is gone in nine tenths of a second, by when it has passed the corners
     trippy.seen = realNow;
     trippy.own = (trippy.own + real * (flow.bpm ? (TAU * flow.bpm) / 480 : 0.8)) % TAU; // a breath of its own, one every two bars of the song: a steady bass gives the breath above nothing to follow
-    const lens = Math.max(-0.3, Math.min(0.45, B * (0.55 * (trippy.breath - 0.4) + 0.13 * Math.sin(trippy.own)))); // (never so far that the middle turns inside out)
+    const lens = Math.max(-0.3, Math.min(0.45, B * (0.55 * (trippy.breath - 0.4) + 0.13 * Math.sin(trippy.own)) + S * (0.3 * trippy.acid * (trippy.sq - trippy.sqMid) + 0.3 * trippy.rise))); // (the squelch opens and shuts the middle with the filter, a riser swells it; never so far that the middle turns inside out)
     if (trippy.fold === 0) trippy.kind = V.fold || ""; // the version's fold, taken only while none is showing
     const kind = trippy.kind, held = kind && (flow.part === "calm" || flow.part === "build");
     trippy.shutFor = held ? trippy.shutFor + dt : 0;
@@ -3237,6 +3251,7 @@ window.Effects = (() => {
       roam: [4, [trippy.at, R.reach * K, R.deep, Math.min(0.75, trippy.grown * K)]], roam2: [4, [R.far, 0.1 * K, 0.35 * K, 0.7]], // (far colors never past 0.75, where they would cover a picture with no stripes)
       breath: [4, [lens, 0.03 * B, trippy.wave, trippy.wave * 0.73 + 1.3]],
       folds: [4, [mirror, Math.PI * Math.pow(fanTo, -fan), turn, Math.abs(Math.cos(turn)) + (w / h) * Math.abs(Math.sin(turn))]],
+      snap: [4, [trippy.snap, 0.012 * S * trippy.shiver, trippy.shake, 0]],
       thump: [4, [rings[0] * 2.4, 0.1 * rings[1] * left1 * left1 * Math.min(1, rings[0] / 0.06), rings[2] * 2.4, 0.1 * rings[3] * left2 * left2 * Math.min(1, rings[2] / 0.06)]], // (a ring swells up over its first moments: at full strength from nothing it is a bubble popping up in the middle)
     };
   }
@@ -3333,7 +3348,7 @@ window.Effects = (() => {
     if (!card.art || card.art.W !== W || card.art.H !== H) { const [c, x] = paper(W, H); card.art = { W, H, c, x, img: x.createImageData(W, H) }; }
     const d = card.art.img.data, dot = { x: 0, shade: 0, edge: 0, stripe: 0.5, half: H / 2, t: sound.t, glow: V.glow ?? 1 }, z4 = [0, 0, 0, 0], tv = trippy.stepped === sound.t ? trippy.values : TRIPPY_OFF;
     const [hueAt, reach, deep, grownTo] = (tv.roam || [0, z4])[1], [farTurn, pullBy, shadeAs, sameLight] = (tv.roam2 || [0, z4])[1], grown = grownTo * 0.5, pull = pullBy * 0.5, shadeBy = shadeAs * 0.5, // (the stripes do half as much here: on a picture this coarse they are finer than a dot, and came out as speckle)
-      [lens, wave, waveX, waveY] = (tv.breath || [0, z4])[1], [mirror, fan, turn, far] = (tv.folds || [0, z4])[1], [ring1, push1, ring2, push2] = (tv.thump || [0, z4])[1];
+      [lens, wave, waveX, waveY] = (tv.breath || [0, z4])[1], [mirror, fan, turn, far] = (tv.folds || [0, z4])[1], [ring1, push1, ring2, push2] = (tv.thump || [0, z4])[1], [snapTurn, shiver, shake] = (tv.snap || [0, z4])[1], snapCo = Math.cos(snapTurn), snapSi = Math.sin(snapTurn);
     const co = Math.cos(turn), si = Math.sin(turn), slide = (1 - mirror) * far, plain = !reach && !grown;
     if (!plain) for (let i = 0, o = 0; i < HUE_ROUNDS * HUE_STEPS; i++, o += 6) { // the card's pal(), once for each place round the bands: on a leash round home, and the far colors beside it
       const X = (i + 0.5) / HUE_STEPS, pos = (X - Math.floor(X)) * 3, a = Math.floor(pos) % 3, f = eased(pos - Math.floor(pos)), c1 = tones[a], c2 = tones[(a + 1) % 3], home = reach * Math.sin(TAU * (hueAt + deep * X));
@@ -3345,6 +3360,7 @@ window.Effects = (() => {
     }
     for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
       let u = ((i + 0.5) * 2 - W) / H, v = (H - (j + 0.5) * 2) / H;
+      if (snapTurn) { const su = u * snapCo - v * snapSi; v = u * snapSi + v * snapCo; u = su; } // a clap's turn, as the card does it
       if (mirror > 0) { // the card's spot(): the mirror that slides in, then the fan
         let a = u * co + v * si, b = Math.abs(v * co - u * si + slide) - slide;
         if (fan > 0 && fan < 3.14159) { const r = Math.hypot(a, b), at = Math.atan2(b, a) + fan, ang = Math.abs(at - 2 * fan * Math.floor(at / (2 * fan)) - fan); a = r * Math.cos(ang); b = r * Math.sin(ang); }
@@ -3353,7 +3369,8 @@ window.Effects = (() => {
       if (push1 + push2 > 0) { const out = Math.hypot(u, v) || 1e-4, k1 = (out - ring1) / 0.11, k2 = (out - ring2) / 0.11, push = (push1 * Math.exp(-k1 * k1) + push2 * Math.exp(-k2 * k2)) / out; u -= u * push; v -= v * push; } // a hard kick's ring, as the card does it
       const lensed = 1 - lens / (1 + 2 * (u * u + v * v)), lu = u * lensed, lv = v * lensed; // the breath, then the sway
       dot.stripe = 0.5;
-      sum(lu + wave * Math.sin(lv * 2.2 + waveX), lv + wave * Math.sin(lu * 2.2 + waveY), dot);
+      const su = lu + wave * Math.sin(lv * 2.2 + waveX), sv = lv + wave * Math.sin(lu * 2.2 + waveY);
+      sum(shiver ? su + shiver * Math.sin(sv * 9 + shake) : su, shiver ? sv + shiver * Math.sin(su * 9 + shake) : sv, dot); // (and a snare roll's shiver)
       const X = dot.x + pull * (dot.stripe - 0.5), pos = (X - Math.floor(X)) * 3, a = Math.floor(pos) % 3, f = eased(pos - Math.floor(pos)), c1 = tones[a], c2 = tones[(a + 1) % 3], o = (j * W + i) * 4;
       let p0 = c1[0] + (c2[0] - c1[0]) * f, p1 = c1[1] + (c2[1] - c1[1]) * f, p2 = c1[2] + (c2[2] - c1[2]) * f;
       if (!plain) { // the colors as they are just now at this place round the bands, with the far colors grown in along the stripes
@@ -5245,7 +5262,7 @@ window.Effects = (() => {
       const none = [0, 0, 0, 0], one = () => [1, [0]], four = () => [4, new Float32Array(16)];
       facesIs = { z: 0, clarity: 0.3, flowAt: rnd(0, 50), crawl: 0, swell: 0, lit: 0, gx: 0, gy: 0, lookX: 1, lookY: 0, peek: 0, hush: 0, stepped: -1, beings: [],
         told: { bA: four(), bB: four(), bC: four(), bD: four(), flowIs: [4, [0, 0, 0, 0]], gaze: [3, [0, 0, 0]], clear: one(), melt: one(), mid: one(), flowAt: one(), swell: one(), bandsN: one(), crawl: one(), rush: one(), light: one(),
-          roam: [4, none], roam2: [4, none], breath: [4, none], folds: [4, none], thump: [4, none] } }; // (the fractals' breath, their fold and a hard kick's ring are told to keep out: this picture has a fold of its own, and a face that is bent stops being one)
+          roam: [4, none], roam2: [4, none], breath: [4, none], folds: [4, none], thump: [4, none], snap: [4, none] } }; // (the fractals' breath, their fold and a hard kick's ring are told to keep out: this picture has a fold of its own, and a face that is bent stops being one)
       for (let k = 0; k < FACES_COUNT; k++) { const b = { age: 0 }; facesLooks(b); facesIs.beings.push(b); }
     }
     const F = facesIs, told = F.told;
@@ -5469,7 +5486,7 @@ window.Effects = (() => {
     rings: [10, 0], arms: [0, 6], fine: 10, fine4: [10, 6, 12, 12], lit: [1, 0, 0, 0], level: 0, line: 0.3, cell: 0.55, roll: 0, way: 1, bend: 0.5, veil: 0, spin: 0, hue: 0, swell: 0, lift: 0, clockA: 0, clockB: 0, // the two waves as they are now, how fine the pattern is (and each of the four waves), and everything that glides
     fronts: [{ side: 0, adds: 0, gone: 0, takes: 2.6 }, { side: 0, adds: 0, gone: 0, takes: 2.6 }] }; // a front for each wave: which side of it is new (0: none on its way), how many arms it adds, how far through the picture it has got (0..1) and how long it takes
   const formsNow = { light: [0.64], turn: [1, 0], wave: [10, 0, 0, 0], arms: [0, 6], frontA: [0, 0, 0, FORM_SHARP], frontB: [0, 0, 0, FORM_SHARP], lit4: [1, 0, 0, 0], look: [0, 0, 0.03, 0.55], grow: [0, 0, 0, 0], hue: [0, 0.26, 0.12], veil: [0, 3, 0, 0] }; // what the sum is given this frame: the card's values, as FORMS_SUM names them
-  const FORMS_STILL = { roam: [4, [0, 0, 0, 0]], roam2: [4, [0, 0, 0, 0]], breath: [4, [0, 0, 0, 0]], folds: [4, [0, 0, 0, 0]], thump: [4, [0, 0, 0, 0]] }; // what the fractals' shared top is told so that it leaves this picture alone: no travelling colors, no breath, no fold and no ring from a hard kick. The pattern drifts, bends and breathes by itself
+  const FORMS_STILL = { roam: [4, [0, 0, 0, 0]], roam2: [4, [0, 0, 0, 0]], breath: [4, [0, 0, 0, 0]], folds: [4, [0, 0, 0, 0]], thump: [4, [0, 0, 0, 0]], snap: [4, [0, 0, 0, 0]] }; // what the fractals' shared top is told so that it leaves this picture alone: no travelling colors, no breath, no fold and no ring from a hard kick. The pattern drifts, bends and breathes by itself
   const formsGive = { ...FORMS_STILL, ...Object.fromEntries(Object.entries(formsNow).map(([key, value]) => [key, [value.length, value]])) }; // the same lists as onCard wants them, and those zeros with them
   const formsToward = (now, aim, dt, takes) => now + (aim - now) * (1 - Math.exp(-dt / takes)); // gliding by the clock: a late frame only arrives, it never overshoots
   const formsRound = (x, round) => ((x % round) + round) % round; // an angle or a phase kept within its round, so nothing grows without end
@@ -7647,7 +7664,7 @@ window.Effects = (() => {
       return true;
     },
     visiting: () => guest.list.length > 0,
-    knobs: (style) => { const trip = TRIPS[style]; return ["light", "react", "speed", "spark", ...(LEAVES_TRAILS.has(style) ? ["drag"] : []), ...(style === "ripple" ? ["tilt"] : []), ...(trip ? ["nod", ...(trip.steer ? ["turns"] : []), ...(trip.moves ? ["moves"] : []), "shots"] : []), ...(VERSIONS[style] ? ["vary"] : []), ...(FRACTALS.has(style) ? ["color", "echo", "breathe"] : []), "dream", "folk", ...(trip && trip.falls ? ["falls"] : []), ...(trip && trip.cockpit ? ["pit"] : [])].map((key) => [key, ...KNOBS[key]]); },
+    knobs: (style) => { const trip = TRIPS[style]; return ["light", "react", "speed", "spark", ...(LEAVES_TRAILS.has(style) ? ["drag"] : []), ...(style === "ripple" ? ["tilt"] : []), ...(trip ? ["nod", ...(trip.steer ? ["turns"] : []), ...(trip.moves ? ["moves"] : []), "shots"] : []), ...(VERSIONS[style] ? ["vary"] : []), ...(FRACTALS.has(style) ? ["color", "echo", "breathe", "sounds"] : []), "dream", "folk", ...(trip && trip.falls ? ["falls"] : []), ...(trip && trip.cockpit ? ["pit"] : [])].map((key) => [key, ...KNOBS[key]]); },
     tuning(values) { // adjustments for the effect showing. Anything left out is back to how it was designed
       const was = T.vary;
       for (const key of Object.keys(T)) { const [, low, high] = KNOBS[key], v = Number(values[key]); T[key] = Number.isFinite(v) ? Math.min(high, Math.max(low, v)) : 1; }
