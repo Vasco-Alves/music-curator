@@ -2,7 +2,7 @@
 /* Everything a pack can change lives here: the jokes and genre moods that come with the app, the packs added on top of them, and the rules a pack has to pass.
    A pack is only data: words, numbers and colors. Nothing in one is ever run, or shown as anything but plain text. */
 window.Packs = (() => {
-  const VERSION = 1, FILE_LIMIT = 256 * 1024, STORE = "curator-packs", MOODS = ["euphoric", "acid", "hard", "psy"], NEWS_GROUPS = ["", ...MOODS];
+  const VERSION = 1, FILE_LIMIT = 256 * 1024, STORE = "curator-packs", MOODS = ["euphoric", "acid", "hard", "psy", "nightcore"], NEWS_GROUPS = ["", ...MOODS];
   const BUILT_IN = {
     banter: {
       "": ["ARE WE THERE YET", "COFFEE LOW", "CHECK ENGINE. OR DON'T", "PLEASE KEEP YOUR ARMS INSIDE THE SHIP", "DO NOT FEED THE JELLYFISH", "LAST SERVICED: NEVER"],
@@ -10,6 +10,7 @@ window.Packs = (() => {
       acid: ["SQUELCH LEVELS RISING", "303 ON THE STARBOARD SIDE", "RESONANCE: YES", "SMILEYS OFF THE BOW"],
       hard: ["BASS SHIELDS FAILING", "EARPLUGS RECOMMENDED", "HULL RATTLING AS INTENDED", "THEY ARE SHOOTING AT US. TURN IT UP"],
       psy: ["THIRD EYE: OPEN", "FRACTALS ON THE HORIZON", "THE TOADSTOOLS ARE DANCING", "KALEIDOSCOPE AHEAD. KEEP LOOKING", "SUNRISE IN 3 HOURS", "THE COLORS ARE LOUDER OUT HERE"],
+      nightcore: ["ENGINES AT 125%. PITCH UP", "SPARKLE LEVELS CRITICAL", "PAPER CRANES OFF THE BOW", "THE CAT ON THE DASH IS WAVING AGAIN", "BEST VIEWED AT 800 BY 600", "THIS SHIP IS STILL UNDER CONSTRUCTION", "PETALS IN THE AIR VENTS", "YOU ARE VISITOR NUMBER 000303"],
     },
     signs: [{ bg: "#f2f2ea", ink: "#121212", lines: ["SPEED", "LIMIT", "303"] }, { bg: "#0e6b3c", ink: "#ffffff", lines: ["NEXT RAVE", "2 LIGHT YEARS"] }, { bg: "#b3141a", ink: "#ffffff", lines: ["WRONG", "WAY"] }, { bg: "#f2c10e", ink: "#121212", lines: ["CAUTION", "BLACK HOLES"] }, { bg: "#f2f2ea", ink: "#b3141a", lines: ["NO PARKING", "ON THE EVENT", "HORIZON"] }],
     told: { jump: "JUMPING", stop: "HANDBRAKE ON", trail: "LEAVING A TRAIL", exposure: "HOLD STILL. TAKING A PHOTO", glass: "SOMETHING HIT THE GLASS", cow: "WAS THAT A COW", sign: "OBEY THE SIGNS", vinyl: "VERY LARGE RECORD AHEAD", astronaut: "IS THAT STEVE", gas: "GAS GIANT AHEAD. HOLD ON", sea: "WATER WORLD. BRING A TOWEL", lava: "THAT ONE IS ON FIRE. GOING IN", tuned: "THIS PLANET KNOWS THE SONG", ice: "LOOKS COLD DOWN THERE", toxic: "DO NOT OPEN THE WINDOWS", climb: "PULLING UP" },
@@ -17,8 +18,9 @@ window.Packs = (() => {
     notes: { late: "3 a.m. Excellent choice.", again: "Still this one? Good." },
   };
   const GENRES = new Map([
-    ["euphoric", ["Trance", "Hard Trance", "Progressive Trance", "Nightcore", "Happy Hardcore", "Euro House", "Eurodance", "Italodance", "Progressive House", "Hard House"]],
+    ["euphoric", ["Trance", "Hard Trance", "Progressive Trance", "Happy Hardcore", "Euro House", "Eurodance", "Italodance", "Progressive House", "Hard House"]],
     ["psy", ["Goa Trance", "Psy-Trance"]],
+    ["nightcore", ["Nightcore"]], // pastel: anime and Japan on one side, the early internet on the other
     ["acid", ["Acid", "Acid Techno", "Acid House"]],
     ["hard", ["Hardcore", "Gabber", "Speedcore", "Frenchcore", "Terror", "Hardstyle", "Jumpstyle", "J-Core", "Breakcore", "Industrial", "Hard Techno", "Freetekno"]],
   ].flatMap(([mood, genres]) => genres.map((genre) => [genre, mood])));

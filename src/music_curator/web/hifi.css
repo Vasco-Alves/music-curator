@@ -330,7 +330,7 @@ body.drawer-open .drawer { box-shadow: var(--deck-edge), var(--glass-shadow); }
 
 /* ---------- the mood of what's playing: a little more light for trance, yellow for acid, darker for hardcore. It only touches the background: the page stays as it is ---------- */
 .vibe { position: absolute; inset: 0; opacity: 0; transition: opacity 1.8s ease; }
-body[data-vibe="euphoric"] .vibe-euphoric, body[data-vibe="acid"] .vibe-acid, body[data-vibe="hard"] .vibe-hard, body[data-vibe="psy"] .vibe-psy { opacity: var(--mood, .6); } /* Settings, under Mood: the colours below are as strong as it can go */
+body[data-vibe="euphoric"] .vibe-euphoric, body[data-vibe="acid"] .vibe-acid, body[data-vibe="hard"] .vibe-hard, body[data-vibe="psy"] .vibe-psy, body[data-vibe="nightcore"] .vibe-nightcore { opacity: var(--mood, .6); } /* Settings, under Mood: the colours below are as strong as it can go */
 .vibe-euphoric { background: radial-gradient(90% 60% at 50% -6%, rgba(255, 255, 255, .45), transparent 70%), radial-gradient(60% 50% at 14% 100%, rgba(140, 200, 255, .23), transparent 70%), radial-gradient(50% 45% at 90% 92%, rgba(255, 170, 230, .18), transparent 70%); }
 .vibe-acid { background: radial-gradient(75% 62% at 50% 102%, rgba(228, 238, 40, .47), transparent 72%), radial-gradient(45% 40% at 92% 8%, rgba(190, 240, 40, .23), transparent 70%); }
 .vibe-hard { background: radial-gradient(62% 44% at 50% 106%, rgba(232, 40, 30, .6), transparent 72%), radial-gradient(120% 90% at 50% 50%, transparent 38%, rgba(0, 0, 0, .92) 100%), rgba(0, 0, 0, .33); }
@@ -347,6 +347,38 @@ body.gentle .vibe-psy { animation: none; } /* a slow machine can't afford the wh
 @keyframes psy-turn { to { filter: hue-rotate(360deg); } }
 body[data-vibe="psy"].is-playing:not(.gentle) .play-btn { animation: psy-orb 9s linear infinite; }
 @keyframes psy-orb { to { filter: hue-rotate(360deg); } }
+/* nightcore: soft pastel light from the corners (sakura pink, sky cyan, lavender), a big pale moon high up, a thin rainbow line low down, a starry sky made of a few small tiles repeated, and sakura petals drifting across.
+   While the music plays the stars twinkle a step at a time and the petals drift; only their opacity and their place change, and a slow machine or a wish for less motion keeps them still */
+.vibe-nightcore { --night-star: #ffffff; --night-star-2: rgba(200, 226, 255, .95);
+  background: radial-gradient(circle at 84% 15%, rgba(255, 234, 196, .52) 0, rgba(255, 224, 208, .44) 4vmin, rgba(255, 204, 222, .36) 6.5vmin, rgba(255, 200, 228, .15) 7vmin, transparent 21vmin), /* the moon, lit cream in the middle and pink at its edge, and its glow */
+  linear-gradient(90deg, transparent, rgba(255, 179, 199, .34) 12%, rgba(255, 211, 166, .34) 28%, rgba(255, 241, 168, .3) 44%, rgba(191, 240, 196, .3) 60%, rgba(169, 220, 255, .34) 76%, rgba(211, 191, 255, .34) 88%, transparent) 0 84% / 100% 3px no-repeat,
+  radial-gradient(70% 55% at 8% -4%, rgba(255, 170, 215, .38), transparent 72%), radial-gradient(60% 50% at 96% 104%, rgba(130, 220, 255, .3), transparent 70%), radial-gradient(55% 45% at 2% 98%, rgba(190, 160, 255, .3), transparent 70%); }
+.vibe-nightcore::before, .vibe-nightcore::after { content: ""; position: absolute; pointer-events: none; }
+.vibe-nightcore::before { inset: 0; opacity: .85; background: /* the tiles: sparkles with four points, and dots */
+  radial-gradient(1.2px 6px at 31px 37px, var(--night-star), transparent), radial-gradient(6px 1.2px at 31px 37px, var(--night-star), transparent),
+  radial-gradient(1.2px 6px at 241px 151px, var(--night-star), transparent), radial-gradient(6px 1.2px at 241px 151px, var(--night-star), transparent),
+  radial-gradient(1.2px 6px at 113px 283px, var(--night-star), transparent), radial-gradient(6px 1.2px at 113px 283px, var(--night-star), transparent),
+  radial-gradient(1px 4.5px at 131px 113px, var(--night-star-2), transparent), radial-gradient(4.5px 1px at 131px 113px, var(--night-star-2), transparent),
+  radial-gradient(1px 4.5px at 29px 211px, var(--night-star-2), transparent), radial-gradient(4.5px 1px at 29px 211px, var(--night-star-2), transparent),
+  radial-gradient(circle at 97px 141px, var(--night-star) 0 1.1px, transparent 1.9px), radial-gradient(circle at 59px 197px, var(--night-star-2) 0 1px, transparent 1.7px),
+  radial-gradient(circle at 151px 23px, var(--night-star-2) 0 .9px, transparent 1.6px), radial-gradient(circle at 13px 263px, var(--night-star) 0 .8px, transparent 1.5px);
+  background-size: 389px 389px, 389px 389px, 389px 389px, 389px 389px, 389px 389px, 389px 389px, 263px 263px, 263px 263px, 263px 263px, 263px 263px, 173px 173px, 263px 263px, 311px 311px, 311px 311px; } /* tiles of four sizes that share no step, and several stars on the biggest, so the sky repeats without rows or a grid */
+.vibe-nightcore::after { inset: -420px 0 0 -420px; background: /* the petals, a few scattered on a tile of their own, bigger than the stars': each a pink oval with a paler, smaller one at its tip, so it reads as a petal and not a dot */
+  radial-gradient(8px 4.5px at 46px 70px, rgba(255, 186, 216, .55) 0 40%, transparent), radial-gradient(4.5px 3px at 52px 66px, rgba(255, 236, 244, .5) 0 40%, transparent),
+  radial-gradient(6px 3.5px at 300px 38px, rgba(255, 204, 226, .5) 0 40%, transparent), radial-gradient(3.5px 2.5px at 295px 35px, rgba(255, 240, 246, .45) 0 40%, transparent),
+  radial-gradient(7.5px 4px at 188px 196px, rgba(255, 180, 210, .55) 0 40%, transparent), radial-gradient(4px 3px at 194px 200px, rgba(255, 232, 242, .5) 0 40%, transparent),
+  radial-gradient(5.5px 3px at 364px 268px, rgba(255, 216, 234, .5) 0 40%, transparent), radial-gradient(3px 2px at 359px 271px, rgba(255, 244, 248, .45) 0 40%, transparent),
+  radial-gradient(7px 4px at 96px 330px, rgba(250, 176, 208, .55) 0 40%, transparent), radial-gradient(4px 2.5px at 102px 326px, rgba(255, 234, 244, .5) 0 40%, transparent),
+  radial-gradient(5px 3px at 250px 392px, rgba(255, 200, 224, .5) 0 40%, transparent), radial-gradient(3px 2px at 245px 389px, rgba(255, 240, 246, .45) 0 40%, transparent);
+  background-size: 420px 420px; } /* (no will-change: the layer exists for every mood, and only the petals' own animation, while nightcore plays, needs a layer of its own) */
+body[data-vibe="nightcore"].is-playing:not(.gentle) .vibe-nightcore::before { animation: night-twinkle 1.1s steps(1, end) infinite; }
+body[data-vibe="nightcore"].is-playing:not(.gentle) .vibe-nightcore::after { animation: night-petals 16s linear infinite; }
+@keyframes night-twinkle { 50% { opacity: .5; } }
+@keyframes night-petals { to { transform: translate(420px, 420px); } } /* one tile down and along, which looks the same as where it began */
+:root[data-theme="light"] .vibe-nightcore { --night-star: #b49be6; --night-star-2: rgba(120, 180, 230, .9);
+  background: radial-gradient(circle at 84% 15%, rgba(255, 226, 196, .34) 0, rgba(255, 204, 222, .32) 6.5vmin, rgba(255, 214, 232, .14) 7vmin, transparent 21vmin),
+  linear-gradient(90deg, transparent, rgba(255, 150, 180, .3) 12%, rgba(255, 190, 130, .3) 28%, rgba(240, 220, 110, .3) 44%, rgba(140, 220, 150, .3) 60%, rgba(120, 190, 250, .3) 76%, rgba(180, 150, 250, .3) 88%, transparent) 0 84% / 100% 3px no-repeat,
+  radial-gradient(70% 55% at 8% -4%, rgba(255, 170, 215, .26), transparent 72%), radial-gradient(60% 50% at 96% 104%, rgba(130, 220, 255, .22), transparent 70%); }
 /* the time of day, over the background: darker and more neon late at night, a sunrise at dawn (most of all on psytrance), warm in the evening */
 .timeglow, .era { position: absolute; inset: 0; opacity: 0; pointer-events: none; transition: opacity 3s ease; }
 body[data-hour="night"] .timeglow { opacity: 1; background: radial-gradient(120% 80% at 50% 112%, rgba(120, 60, 255, .16), transparent 70%), radial-gradient(60% 40% at 90% 0%, rgba(255, 40, 160, .08), transparent 70%), rgba(0, 0, 12, .2); }

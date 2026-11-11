@@ -2554,7 +2554,7 @@ window.addEventListener("pointercancel", fingerUp, { passive: true });
 const ambient = (() => { // a tiny picture stretched over the window: it looks blurred, and moving it costs next to nothing, unlike a real blur
   const SIZE = 64, THUMB = 9, CAP = 112, FLOOR = 190; // how bright (dark theme) or how dark (light theme) it may get: the words on top have to stay readable
   const box = el("div", { class: "ambient", "aria-hidden": "true" }), layers = [0, 1].map(() => el("canvas", { width: SIZE, height: SIZE }));
-  box.append(...layers, el("div", { class: "ambient-scrim" }), el("div", { class: "ambient-flash" }), ...["euphoric", "acid", "hard", "psy"].map((mood) => el("div", { class: `vibe vibe-${mood}` })), el("div", { class: "timeglow" }), el("div", { class: "era" }));
+  box.append(...layers, el("div", { class: "ambient-scrim" }), el("div", { class: "ambient-flash" }), ...Packs.MOODS.map((mood) => el("div", { class: `vibe vibe-${mood}` })), el("div", { class: "timeglow" }), el("div", { class: "era" }));
   document.body.prepend(box);
   const thumb = el("canvas", { width: THUMB, height: THUMB });
   let front = 0, turn = 0;
@@ -2965,8 +2965,8 @@ async function wireSound() { // true once the sound is going through it and can 
 }
 /* The mood of what's playing. The genre says which, and it changes the background and how a kick lands, never what's on the page. */
 const FEEL = { "": { ms: 240, lift: 0.1, blur: 7 }, euphoric: { ms: 430, lift: 0.08, blur: 13, flash: 480 }, acid: { ms: 320, lift: 0.1, blur: 8, wobble: true }, hard: { ms: 130, lift: 0.24, blur: 4, flash: 150 },
-  psy: { ms: 380, lift: 0.12, blur: 12, flash: 420, wobble: true, trip: true } }; // how long a kick lasts, how bright, how far the light spreads. On psy each kick lands in the next color round
-const DRIFT = { euphoric: 0.7, acid: 1.15, hard: 1.7, psy: 1.4 }; // how fast the background turns
+  psy: { ms: 380, lift: 0.12, blur: 12, flash: 420, wobble: true, trip: true }, nightcore: { ms: 200, lift: 0.16, blur: 9, flash: 220, tones: ["#ffb7d5", "#96e4ff", "#cdb5ff"] } }; // how long a kick lasts, how bright, how far the light spreads. On psy each kick lands in the next color round; on nightcore, quick and bright, in the next of three pastels
+const DRIFT = { euphoric: 0.7, acid: 1.15, hard: 1.7, psy: 1.4, nightcore: 1.3 }; // how fast the background turns
 let tripHue = 280; // the color the next psychedelic kick lands in
 const moodOf = (s) => genresOf(s).map((g) => Packs.moodOf(g)).find(Boolean) || ""; // the genre on the file first, then the others it's listed under
 let vibesOn = store("curator-vibes") !== "off", vibe = "", moodStrength = Number.isFinite(parseFloat(store("curator-mood"))) ? Math.min(1, Math.max(0, parseFloat(store("curator-mood")))) : 0.6;
@@ -3065,7 +3065,7 @@ function packsSetting() {
       Packs.setMine({ words: { ...was, banter: { ...(was.banter || {}), "": lines(news.value) }, signs: lines(signs.value).map((line) => ({ lines: line.split("/") })), empty: { ...(was.empty || {}), songs: nothing.value, check: cleared.value } }, genres: Packs.mine().genres });
     };
     [news, signs, nothing, cleared].forEach((field) => field.addEventListener("change", save));
-    const moodOptions = (genre) => [["", `As it comes (${Packs.builtInMood(genre) || "no mood"})`], ["euphoric", "Euphoric"], ["acid", "Acid"], ["hard", "Hard"], ["psy", "Psychedelic"], ["none", "No mood"]];
+    const moodOptions = (genre) => [["", `As it comes (${Packs.builtInMood(genre) || "no mood"})`], ["euphoric", "Euphoric"], ["acid", "Acid"], ["hard", "Hard"], ["psy", "Psychedelic"], ["nightcore", "Nightcore"], ["none", "No mood"]];
     const genreRow = (genre) => el("label", { class: "pack-genre" }, el("span", {}, genre), el("select", { "aria-label": `Mood for ${genre}`, onchange: (e) => { const genres = { ...Packs.mine().genres }; if (e.target.value) genres[genre] = e.target.value; else delete genres[genre]; Packs.setMine({ words: Packs.mine().words, genres }); setVibe(current()); } }, moodOptions(genre).map(([value, word]) => el("option", { value, selected: (mine.genres[genre] || "") === value }, word))));
     return [el("h3", { class: "pack-own" }, "Your own touches"), el("p", { class: "note" }, "These go into your export, and they stay yours when you remove a pack."),
       el("label", { class: "pack-field" }, el("span", {}, "Cockpit news"), news), el("label", { class: "pack-field" }, el("span", {}, "Road signs"), signs),
@@ -3104,7 +3104,7 @@ function surprisesSetting() {
       one("dance", "The dance", "The whole app dances for a few seconds.", letsDance),
       one("bob", "Bobbing", "Everything nods to the kick for a few seconds.", letsBob),
       one("logo", "The logo and name", "A spin, a scratch, a wave through the letters, a glint, a neon flicker, a shuffle.", logoTrick),
-      one("visitors", "Visitors", "Somebody drops by the app itself: a saucer borrows a cover and gives it back, a face peeks over the play bar, a cow gets taken from it, a little one hangs on a thread from the top, an astronaut or a jellyfish floats past.", tryVisit),
+      one("visitors", "Visitors", "Somebody drops by the app itself: a saucer borrows a cover and gives it back, a face peeks over the play bar, a cow gets taken from it, a little one hangs on a thread from the top, an astronaut or a jellyfish floats past. On nightcore a lucky cat waves over the play bar, a little window pops up, a paper crane flies by.", tryVisit),
       tick("clock", "Jokes on the clock: 303 at 3:03 on acid tracks, and 11 at full volume"),
       tick("notes", "Small notes: late at night, or the same song over and over"),
       tick("falling", "Small records falling when To check is cleared"),
@@ -3115,14 +3115,14 @@ function surprisesSetting() {
   return box;
 }
 function vibeSetting() {
-  return el("div", { class: "card accent-setting" }, el("h2", {}, "Mood"), el("p", { class: "note" }, "The background, the way a kick lands and who visits change with the genre of what's playing: softer for trance, yellow for acid, darker and quicker for hardcore, every color at once for goa and psytrance. An effect covers the background, so it shows best with no effect on."),
+  return el("div", { class: "card accent-setting" }, el("h2", {}, "Mood"), el("p", { class: "note" }, "The background, the way a kick lands and who visits change with the genre of what's playing: softer for trance, yellow for acid, darker and quicker for hardcore, every color at once for goa and psytrance, pastel stars and petals for nightcore. An effect covers the background, so it shows best with no effect on."),
     el("label", { class: "filter-check vibe-note" }, el("input", { type: "checkbox", checked: vibesOn, onchange: (e) => { vibesOn = e.target.checked; store("curator-vibes", vibesOn ? "on" : "off"); setVibe(current()); } }), "Let the look follow the music"),
     el("label", { class: "filter-check vibe-note" }, el("input", { type: "checkbox", checked: followTime, onchange: (e) => { followTime = e.target.checked; store("curator-time", followTime ? "on" : "off"); paintTime(); } }), "Follow the time of day and the season: darker late at night, a sunrise at dawn, snow in winter"),
     el("label", { class: "filter-check vibe-note" }, el("input", { type: "checkbox", checked: followEra, onchange: (e) => { followEra = e.target.checked; store("curator-era", followEra ? "on" : "off"); paintTime(); } }), "Give older records the look of their time: film grain, scanlines, a VHS wobble"),
     (() => { const shown = el("span", { class: "fx-value" }, `${Math.round(moodStrength * 100)}%`); return el("label", { class: "fx-knob vibe-note" }, el("span", {}, "Strength of the background"), el("input", { type: "range", min: 0, max: 1, step: 0.05, value: moodStrength, oninput: (e) => { moodStrength = +e.target.value; store("curator-mood", String(moodStrength)); document.documentElement.style.setProperty("--mood", String(moodStrength)); shown.textContent = `${Math.round(moodStrength * 100)}%`; } }), shown); })());
 }
 function glow(strength) { // soft and over quickly. Each runs by itself, so nothing is redrawn between kicks
-  const feel = FEEL[vibe], light = feel.trip ? `hsl(${(tripHue = (tripHue + 47) % 360)} 95% 62%)` : "var(--accent)";
+  const feel = FEEL[vibe], light = feel.trip ? `hsl(${(tripHue = (tripHue + 47) % 360)} 95% 62%)` : feel.tones ? feel.tones[(feel.next = ((feel.next || 0) + 1) % feel.tones.length)] : "var(--accent)"; // (feel.next: which of its pastels the next kick takes)
   const rest = "brightness(1) drop-shadow(0 0 0 transparent)", peak = `brightness(${1 + feel.lift + 0.14 * strength}) drop-shadow(0 0 ${feel.blur}px ${light})`, again = `brightness(${1 + feel.lift / 2}) drop-shadow(0 0 ${feel.blur / 2}px ${light})`;
   document.querySelectorAll(GLOWING).forEach((n) => n.animate({ filter: feel.wobble ? [peak, rest, again, rest] : [peak, rest] }, { duration: feel.ms, easing: "ease-out" }));
 }
@@ -3399,14 +3399,14 @@ function coverToBorrow() { // a cover that can be seen whole and isn't tiny, bes
 function visitApp(kind) { // says whether somebody came
   if (!FX || calm.matches || fxFull || document.hidden || S.setup || $("dialog[open]") || visiting()) return false;
   const deck = $(".player").getBoundingClientRect(), page = view.getBoundingClientRect(), cover = coverToBorrow();
-  const can = { borrow: !!cover, peek: deck.top > 260, abduct: deck.top > 320, dangle: page.width > 260, astronaut: true, jelly: true, smiley: vibe === "acid", eye: vibe === "psy" && deck.top > 260 };
-  const order = vibe === "euphoric" ? ["jelly", "borrow", "dangle", "jelly", "peek", "astronaut", "abduct"] : vibe === "acid" ? ["smiley", "borrow", "peek", "smiley", "dangle", "abduct", "astronaut"]
+  const can = { borrow: !!cover, peek: deck.top > 260, abduct: deck.top > 320, dangle: page.width > 260, astronaut: true, jelly: true, smiley: vibe === "acid", eye: vibe === "psy" && deck.top > 260, neko: vibe === "nightcore" && deck.top > 260, popup: vibe === "nightcore" && page.width > 320, crane: vibe === "nightcore" };
+  const order = vibe === "nightcore" ? ["neko", "popup", "crane", "borrow", "neko", "crane", "dangle", "popup", "astronaut"] : vibe === "euphoric" ? ["jelly", "borrow", "dangle", "jelly", "peek", "astronaut", "abduct"] : vibe === "acid" ? ["smiley", "borrow", "peek", "smiley", "dangle", "abduct", "astronaut"]
     : vibe === "psy" ? ["eye", "jelly", "borrow", "eye", "dangle", "astronaut", "abduct"] : ["borrow", "peek", "dangle", "abduct", "astronaut", "jelly"];
   let pick = kind && can[kind] ? kind : "";
   for (let i = 0; !pick && i < order.length; i++) { const k = order[(visitTurn + i) % order.length]; if (can[k]) { pick = k; visitTurn += i + 1; } }
   if (!pick) return false;
   if (pick === "smiley") { rollSmiley(); return true; } // acid's own: it rolls along the play bar
-  const places = { borrow: { element: cover }, peek: { floor: deck.top, left: page.left, right: page.right }, eye: { floor: deck.top, left: page.left, right: page.right }, abduct: { floor: deck.top, left: page.left, right: page.right }, dangle: { left: page.left, right: page.right } }, came = FX.visit(pick, places[pick]);
+  const places = { borrow: { element: cover }, peek: { floor: deck.top, left: page.left, right: page.right }, eye: { floor: deck.top, left: page.left, right: page.right }, neko: { floor: deck.top, left: page.left, right: page.right }, popup: { top: page.top, floor: deck.top, left: page.left, right: page.right }, abduct: { floor: deck.top, left: page.left, right: page.right }, dangle: { left: page.left, right: page.right } }, came = FX.visit(pick, places[pick]);
   if (came) startSound();
   return came;
 }

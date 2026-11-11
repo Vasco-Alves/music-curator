@@ -228,8 +228,8 @@ window.Effects = (() => {
   /* The melody's own lights. While a big lead plays, beams of light come down from above, circles of light out of focus drift up, motes rise and glint, and every color goes a little paler:
      over whatever effect is showing, coming and going slowly, never a flash. Any other tune (an acid line, a stab, chords) brings the same lights part of the way, without the paler colors,
      and the beams keep time with it: slow for held notes, quick for a quick line. How much of it there is goes by the mood of what's playing, and by the Dreamy lights slider. */
-  const DREAMS = { euphoric: 1, hard: 1, psy: 0.9 }; // how much of it each mood gets: anything else gets 0.8
-  const TUNES = { acid: 1, psy: 0.7, euphoric: 0.45, hard: 0.45 }; // and how far a tune that isn't a big lead brings them: all the way where the line is the song, less where a real lead is still to come, 0.6 for anything else
+  const DREAMS = { euphoric: 1, hard: 1, psy: 0.9, nightcore: 1 }; // how much of it each mood gets: anything else gets 0.8
+  const TUNES = { acid: 1, psy: 0.7, euphoric: 0.45, hard: 0.45, nightcore: 0.45 }; // and how far a tune that isn't a big lead brings them: all the way where the line is the song, less where a real lead is still to come, 0.6 for anything else
   const dream = { on: 0, held: 0, bloom: 0, t: 0, dt: 0, done: false, orbs: null, motes: [], glow: new Float32Array(6), sheet: null, ink: null, art: null, inked: "" };
   const dreamShare = () => T.dream * (DREAMS[mood] ?? 0.8);
   const dreaming = () => dream.on > 0.004 || dream.bloom > 0 || dream.motes.length > 0;
@@ -338,7 +338,8 @@ window.Effects = (() => {
       wave = 1;
       if (T.folk && !crowd.folk.some((o) => o.kind === "confetti" || o.kind === "lasers" || o.kind === "disco")) { // and now and then something for the drop
         const r = Math.random() / T.folk;
-        if (r < 0.75) meet(mood === "hard" ? (r < 0.5 ? "lasers" : "confetti") : mood === "euphoric" ? (r < 0.35 ? "confetti" : r < 0.6 ? "disco" : "lasers") : r < 0.3 ? "confetti" : r < 0.55 ? "lasers" : "disco");
+        if (mood === "nightcore") meet("hanami"); // nightcore's own, every time: a burst of petals and sparkles, with speed lines
+        else if (r < 0.75) meet(mood === "hard" ? (r < 0.5 ? "lasers" : "confetti") : mood === "euphoric" ? (r < 0.35 ? "confetti" : r < 0.6 ? "disco" : "lasers") : r < 0.3 ? "confetti" : r < 0.55 ? "lasers" : "disco");
       }
       for (let i = 0, n = Math.round(60 * T.shots); i < n; i++) { const a = rnd(0, TAU), v = rnd(0.25, 0.9) * most; sparks.push({ x: w / 2, y: h / 2, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: rnd(0.7, 1.4), age: 0, tone: around(rnd(0, 1)) }); }
     }
@@ -1768,11 +1769,12 @@ window.Effects = (() => {
     softBlob(x, 112, 126, 11, [255, 255, 255], 0.95);
     return c;
   }
-  const toneOf = (look) => (look === "hard" ? [255, 60, 44] : look === "acid" ? [246, 230, 50] : look === "euphoric" ? mix(around(rnd(0, 1)), [255, 255, 255], 0.35) : look === "psy" ? rainbowTone(rnd(0, 3), 0) : around(rnd(0, 1))); // a saucer's lights
+  const toneOf = (look) => (look === "hard" ? [255, 60, 44] : look === "acid" ? [246, 230, 50] : look === "euphoric" ? mix(around(rnd(0, 1)), [255, 255, 255], 0.35) : look === "psy" ? rainbowTone(rnd(0, 3), 0) : look === "nightcore" ? nightTone() : around(rnd(0, 1))); // a saucer's lights
   function meet(kind) {
     const { t } = sound, side = Math.random() < 0.5 ? -1 : 1, most = Math.max(w, h), look = mood, come = (o) => crowd.folk.push(o);
+    if (nightMeet(kind)) return; // the lucky cat, the cranes, the little windows and the rest: see the nightcore block
     if (kind === "neon") {
-      const shapes = look === "acid" ? ["ring", "bolt", "star"] : look === "hard" ? ["bolt", "triangle", "zigzag"] : look === "euphoric" ? ["heart", "star", "ring"] : ["ring", "triangle", "star", "heart", "bolt", "zigzag"];
+      const shapes = look === "acid" ? ["ring", "bolt", "star"] : look === "hard" ? ["bolt", "triangle", "zigzag"] : look === "euphoric" || look === "nightcore" ? ["heart", "star", "ring"] : ["ring", "triangle", "star", "heart", "bolt", "zigzag"];
       for (let i = 0, n = 1 + Math.floor(rnd(0, 2.5)); i < n; i++) come({ kind, born: t + i * 0.7, life: rnd(10, 16), x: rnd(0.15, 0.85) * w, y: rnd(0.2, 0.7) * h, size: Math.min(w, h) * rnd(0.08, 0.16), shape: shapes[Math.floor(rnd(0, shapes.length))], tone: look === "psy" ? rainbowTone(rnd(0, 3), 0) : mix(toneOf(look), [255, 255, 255], 0.1), seed: rnd(0, TAU) });
       return;
     }
@@ -3052,7 +3054,7 @@ window.Effects = (() => {
   function moodColors(n) { // the version's turn of the colors reaches these too, a little for acid and hardcore so they stay yellow and red
     const hue = V.hue || 0;
     if (mood === "psy") return Array.from({ length: n }, (_, i) => rainbowTone(sound.t * 0.08, (i / n) * TAU + (hue * Math.PI) / 180)); // spread evenly round the wheel, all turning together
-    const set = mood === "acid" ? [[246, 230, 50], [150, 240, 60], [255, 140, 30]] : mood === "hard" ? [[255, 50, 40], [170, 20, 30], [255, 140, 60]] : mood === "euphoric" ? [mix(colors[0], [255, 255, 255], 0.35), [170, 210, 255], [255, 190, 235]] : colors, turn = set === colors ? 0 : hue * (mood === "euphoric" ? 0.5 : 0.12);
+    const set = mood === "acid" ? [[246, 230, 50], [150, 240, 60], [255, 140, 30]] : mood === "hard" ? [[255, 50, 40], [170, 20, 30], [255, 140, 60]] : mood === "euphoric" ? [mix(colors[0], [255, 255, 255], 0.35), [170, 210, 255], [255, 190, 235]] : mood === "nightcore" ? NIGHT_PASTEL : colors, turn = set === colors ? 0 : hue * (mood === "euphoric" ? 0.5 : mood === "nightcore" ? 0.25 : 0.12); // nightcore: sakura pink, cyan and lavender
     return Array.from({ length: n }, (_, i) => turnHue(set[i % set.length], turn));
   }
   function skyStars(n, bottom, seed = 1) { // a fixed scatter of stars, twinkling a little
@@ -3216,6 +3218,7 @@ window.Effects = (() => {
     "": { reach: 150, round: 120, deep: 0.3, far: 140, most: 0.7, jump: 0.25 }, // a record's own colors, or none: nearly the whole wheel
     psy: { reach: 60, round: 90, deep: 0.3, far: 120, most: 0.7, jump: 0.25 }, // already turning through the rainbow: this is on top
     euphoric: { reach: 70, round: 100, deep: 0.3, far: 110, most: 0.5, jump: 0.25 },
+    nightcore: { reach: 40, round: 80, deep: 0.3, far: 60, most: 0.4, jump: 0.25 }, // kept near its sakura pink, cyan and lavender, so no olive or green
     acid: { reach: 26, round: 70, deep: 0.45, far: 200, most: 0.6, jump: 0.25 }, // yellow from orange to green, with violet let in along the stripes
     hard: { reach: 24, round: 70, deep: 0.45, far: 215, most: 0.5, jump: 0.25 }, // red from crimson to orange, with cold blue-green let in along the stripes
   };
@@ -3659,7 +3662,7 @@ window.Effects = (() => {
     const n = V.power || 2, hand = card.off || card.lost || card.made.julia === null;
     trippyOn();
     if (!juliaTrip || juliaTrip.n !== n) juliaTrip = juliaWays.travel(n); // another power is another set: its journey starts from the whole of it
-    const F = juliaTrip.step(sound, flow, w / h, hand, V.spin ?? 1), light = F.light - (1 - trippy.kickLight) * F.kicked, probe = juliaWays.sumOf(F), share = mood === "acid" || mood === "hard" ? 0.12 : mood === "euphoric" ? 0.5 : 1, tones = moodColors(3).map((tone) => turnHue(tone, F.hue * share)); // the flight's turn of the colors goes as far as the mood lets a version's turn go, so acid stays yellow and hardcore red
+    const F = juliaTrip.step(sound, flow, w / h, hand, V.spin ?? 1), light = F.light - (1 - trippy.kickLight) * F.kicked, probe = juliaWays.sumOf(F), share = mood === "acid" || mood === "hard" ? 0.12 : mood === "euphoric" || mood === "nightcore" ? 0.5 : 1, tones = moodColors(3).map((tone) => turnHue(tone, F.hue * share)); // the flight's turn of the colors goes as far as the mood lets a version's turn go, so acid stays yellow and hardcore red
     let pale = 0; // how much of the picture lies right on the set's edge, from forty dots worked out here. Where that is most of it (a shape that is a dust of fine branches) the edge glows less, or the whole picture goes pale
     for (let i = 0; i < 40; i++) { probe((((i % 8) - 3.5) / 4) * Math.min(w / h, 1.6), ((Math.floor(i / 8) - 2) / 2.5) * 0.9, juliaSeen); pale += juliaSeen.edge / 40; }
     juliaPale += (pale - juliaPale) * (1 - Math.exp(-Math.min(0.1, Math.max(0, sound.dt)) / 0.7));
@@ -5100,7 +5103,7 @@ window.Effects = (() => {
     colors = turn || order ? base.map((_, i) => turnHue(part ? mix(base[(i + first) % n], base[(i + first + 1) % n], part) : base[(i + first) % n], turn)) : base;
     const pale = Math.min(0.4, dream.held * 0.25); // and paler while a big lead plays
     if (pale > 0.004) colors = colors.map((c) => mix(c, [255, 255, 255], pale));
-    colors = acidTint(colors); // and a little toward acid's yellow while the 303's singer sings
+    colors = nightTint(acidTint(colors)); // and a little toward acid's yellow while the 303's singer sings; three quarters of the way to the pastels in the nightcore mood
   }
   function fold(kind, amount = 1) { // the picture folded on itself: mirrored down the middle, top to bottom, both ways, or round and round like a kaleidoscope, slowly turning. Less than all of it shows while one fold goes over to another
     if (amount < 0.004) return;
@@ -5165,7 +5168,7 @@ window.Effects = (() => {
     return (pixelLast = S);
   }
   function musicWorld() { // which kind of world the music playing belongs to: "acid", "psy", "hard", "trance", "techno", "house", "jungle", "ambient", "game", or "" when nothing says. The four the app has moods for go by the mood, which a pack can teach new genres; the rest, and everything while moods are switched off, go by words in the song's genres
-    const byMood = { acid: "acid", psy: "psy", hard: "hard", euphoric: "trance" }[mood];
+    const byMood = { acid: "acid", psy: "psy", hard: "hard", euphoric: "trance", nightcore: "trance" }[mood]; // (nightcore keeps the worlds it had when it was euphoric)
     if (byMood) return byMood;
     const words = " " + genre.toLowerCase().replace(/[^a-z0-9]+/g, " ") + " ", has = (...list) => list.some((word) => words.includes(word));
     if (has("acid")) return "acid";
@@ -10091,6 +10094,565 @@ window.Effects = (() => {
   }
   function awReset(next) { if (next === "aero") awSky.W = 0; if (next === "aqua") awTank.W = 0; } // a fresh sky, or a fresh tank, for the one that is starting: the one going away is left as it was, so it can go on moving while the change fades
   /* ==== aerowater: end ==== */
+  /* ==== nightcore: begin ==== */
+  /* Nightcore: songs sped up and sung high, and a look to go with them. Two sides that live together.
+     Anime and Japan: sakura petals drifting, sparkles with four points, soft pastel light, paper lanterns on a string, a big round moon over a sea of waves drawn as rows of fish scales with a gate standing in it,
+     a lucky cat that waves on the kick, folded paper cranes, and on the drop a burst of petals and sparkles with speed lines, the way a comic draws a big moment.
+     The early internet: little windows of their own look that pop up and close (one with a starry tiled sky and a blinking cursor, one with a counter whose digits tick on the kick, one with stripes
+     for "still being built" and a bar that fills), pixel sparkles that turn a step at a time like the small moving pictures old pages had, rainbow lines, a floppy disk with a face, and a pixel arrow
+     wandering about with sparkles behind it. Everything is pastel and soft: nothing here lights up the whole picture, and what moves on the kick moves a little. There are no words in any of it.
+     Each picture is painted the first time it's needed and kept; only what moves is drawn on each frame. */
+  const NIGHT_PASTEL = [[255, 183, 214], [150, 228, 255], [200, 178, 255]], NIGHT_INK = [62, 44, 96], NIGHT_RAINBOW = ["#ffb3c7", "#ffd3a6", "#fff1a8", "#bff0c4", "#a9dcff", "#d3bfff"]; // sakura pink, sky cyan and lavender; a soft dark violet for lines; and a rainbow in the same pastels
+  const nightKept = NIGHT_PASTEL.map((c) => [...c]), nightArt = {}, NIGHT_INK_CSS = rgba(NIGHT_INK, 1);
+  const nightTone = () => [...NIGHT_PASTEL[Math.floor(Math.random() * 3)]];
+  const nightPaint = (key, make) => nightArt[key] || (nightArt[key] = make()); // each picture painted once, the first time it's wanted
+  function nightTint(from) { // in the nightcore mood the record's colors lean three quarters of the way to the pastels, in every effect, so a song with no cover (lime, teal and blue) or a dark one still comes out pastel. The three leaning colors are kept and filled in again, not made anew
+    if (mood !== "nightcore" || from.length !== 3) return from;
+    for (let i = 0; i < 3; i++) for (let c = 0; c < 3; c++) nightKept[i][c] = from[i][c] + (NIGHT_PASTEL[i][c] - from[i][c]) * 0.75;
+    return nightKept;
+  }
+  LOOKS.nightcore = { skin: [255, 204, 226], hull: ["#ffffff", "#ffe3f0", "#9b86c4", "#d4ecff", "#6f5c98"], belly: "#3d3160", rim: "rgba(255,232,246,.9)" }; // saucers and faces, when one comes, in pastel
+  FOLK.nightcore = ["neko", "sakura", "crane", "popup", "kira", "lantern", "shrine", "pointer", "floppy", "neko", "popup", "crane", "sakura", "kira"];
+
+  /* ---- the pictures, painted once ---- */
+  function nightPetal() { // one sakura petal, 64 across: rounded, with the small notch at its tip, white at the stem and pink at the edge
+    const S = 64, [c, x] = paper(S), paint = x.createRadialGradient(S * 0.5, S * 0.9, 2, S * 0.5, S * 0.5, S * 0.52);
+    paint.addColorStop(0, "#fffafc");
+    paint.addColorStop(0.55, "#ffcfe2");
+    paint.addColorStop(1, "#f7a3c4");
+    x.fillStyle = paint;
+    x.beginPath();
+    x.moveTo(S * 0.5, S * 0.96); // the stem end
+    x.bezierCurveTo(S * 0.1, S * 0.76, S * 0.02, S * 0.3, S * 0.24, S * 0.1);
+    x.quadraticCurveTo(S * 0.4, S * 0.03, S * 0.5, S * 0.17); // the notch
+    x.quadraticCurveTo(S * 0.6, S * 0.03, S * 0.76, S * 0.1);
+    x.bezierCurveTo(S * 0.98, S * 0.3, S * 0.9, S * 0.76, S * 0.5, S * 0.96);
+    x.fill();
+    return c;
+  }
+  function nightSparkle(i) { // a sparkle, 64 across: four points with curved-in sides in one of the pastels (3 is white), a white middle and a soft glow round it
+    const S = 64, m = S / 2, [c, x] = paper(S), tone = i < 3 ? NIGHT_PASTEL[i] : [255, 255, 255];
+    softBlob(x, m, m, S * 0.34, tone, 0.4);
+    x.fillStyle = rgba(mix(tone, [255, 255, 255], 0.45), 1);
+    x.beginPath();
+    x.moveTo(m, 0);
+    x.quadraticCurveTo(m + 3, m - 3, S, m);
+    x.quadraticCurveTo(m + 3, m + 3, m, S);
+    x.quadraticCurveTo(m - 3, m + 3, 0, m);
+    x.quadraticCurveTo(m - 3, m - 3, m, 0);
+    x.fill();
+    softBlob(x, m, m, S * 0.12, [255, 255, 255], 1);
+    return c;
+  }
+  const nightSparkleArt = () => [0, 1, 2, 3].map(nightSparkle), nightSparkles = () => nightPaint("sparkles", nightSparkleArt);
+  const NIGHT_PIX = [ // a pixel sparkle in four steps, the way the small moving pictures of old pages turned: a long cross, the cross turned, a short one, a dot
+    ["...a...", "...a...", "..aba..", "aabwbaa", "..aba..", "...a...", "...a..."],
+    ["a.....a", ".a...a.", "..bab..", "..awa..", "..bab..", ".a...a.", "a.....a"],
+    [".......", "...a...", "...b...", ".abwba.", "...b...", "...a...", "......."],
+    [".......", ".......", "...a...", "..awa..", "...a...", ".......", "......."]];
+  function nightPixel(x, y, size, tone, step, alpha) { // a pixel sparkle at x, y, size across, in pastel 0, 1 or 2, showing one of its four steps, its dots square
+    const all = nightPaint("pixels", nightPixelArt), smoothWas = g.imageSmoothingEnabled;
+    g.imageSmoothingEnabled = false;
+    g.globalAlpha = alpha;
+    g.drawImage(all[tone % 3][((step % 4) + 4) % 4], Math.round(x - size / 2), Math.round(y - size / 2), Math.round(size), Math.round(size));
+    g.imageSmoothingEnabled = smoothWas;
+  }
+  const nightPixelArt = () => NIGHT_PASTEL.map((c) => NIGHT_PIX.map((rows) => pixelSprite(rows, { a: c, b: mix(c, [255, 255, 255], 0.55), w: [255, 255, 255] }))); // all twelve, painted together
+  function nightNeko() { // the lucky cat sitting, 256 by 288, without the paw it waves (that has a picture of its own, so it can move): white with a pastel patch, eyes shut in a smile, a pink collar and a little gold bell
+    const W = 256, H = 288, [c, x] = paper(W * 2, H * 2), fur = x.createRadialGradient(104, 90, 20, 128, 150, 180), head = () => { x.beginPath(); x.ellipse(128, 106, 96, 80, 0, 0, TAU); };
+    x.scale(2, 2); // painted at twice its size, so it stays sharp when it is drawn big
+    fur.addColorStop(0, "#ffffff");
+    fur.addColorStop(1, "#eee4f3");
+    x.lineJoin = x.lineCap = "round";
+    x.lineWidth = 5;
+    x.strokeStyle = NIGHT_INK_CSS;
+    for (const s of [-1, 1]) { // the ears, pink inside
+      x.fillStyle = fur;
+      x.beginPath(); x.moveTo(128 + s * 86, 80); x.lineTo(128 + s * 74, 10); x.lineTo(128 + s * 26, 46); x.closePath(); x.fill(); x.stroke();
+      x.fillStyle = "#ffc4dc";
+      x.beginPath(); x.moveTo(128 + s * 74, 64); x.lineTo(128 + s * 68, 28); x.lineTo(128 + s * 42, 48); x.closePath(); x.fill();
+    }
+    x.fillStyle = fur;
+    x.beginPath(); x.ellipse(128, 226, 90, 58, 0, 0, TAU); x.fill(); x.stroke(); // the body
+    head(); x.fill();
+    x.save(); head(); x.clip(); x.fillStyle = "#ffd6b0"; x.beginPath(); x.ellipse(62, 54, 48, 36, -0.5, 0, TAU); x.fill(); x.restore(); // a patch over one ear
+    head(); x.stroke();
+    x.lineWidth = 6;
+    for (const s of [-1, 1]) { x.beginPath(); x.arc(128 + s * 38, 104, 14, Math.PI * 1.1, Math.PI * 1.9); x.stroke(); } // eyes shut in a smile
+    x.fillStyle = "rgba(255,150,190,.55)";
+    for (const s of [-1, 1]) { x.beginPath(); x.ellipse(128 + s * 62, 124, 16, 10, 0, 0, TAU); x.fill(); }
+    x.fillStyle = "#ff9fc2";
+    x.beginPath(); x.moveTo(120, 114); x.lineTo(136, 114); x.lineTo(128, 123); x.closePath(); x.fill();
+    x.lineWidth = 4;
+    x.beginPath(); x.arc(119, 124, 9, 0.1 * Math.PI, 0.9 * Math.PI); x.arc(137, 124, 9, 0.1 * Math.PI, 0.9 * Math.PI); x.stroke(); // a small mouth, two curves
+    x.lineWidth = 2.5;
+    for (const s of [-1, 1]) for (const k of [-1, 1]) { x.beginPath(); x.moveTo(128 + s * 74, 116 + k * 6); x.lineTo(128 + s * 106, 112 + k * 14); x.stroke(); } // whiskers
+    x.strokeStyle = "#ff8fb6";
+    x.lineWidth = 15;
+    x.beginPath(); x.moveTo(58, 170); x.quadraticCurveTo(128, 204, 198, 170); x.stroke(); // the collar
+    const bell = x.createRadialGradient(122, 186, 2, 128, 192, 16);
+    bell.addColorStop(0, "#fff6c8");
+    bell.addColorStop(1, "#e7b94c");
+    x.fillStyle = bell;
+    x.strokeStyle = NIGHT_INK_CSS;
+    x.lineWidth = 3;
+    x.beginPath(); x.arc(128, 194, 15, 0, TAU); x.fill(); x.stroke();
+    x.beginPath(); x.moveTo(128, 196); x.lineTo(128, 207); x.stroke();
+    x.fillStyle = fur;
+    x.lineWidth = 4.5;
+    x.beginPath(); x.ellipse(90, 262, 30, 21, 0, 0, TAU); x.fill(); x.stroke(); // the paw it rests
+    x.lineWidth = 3;
+    for (const k of [-1, 1]) { x.beginPath(); x.moveTo(90 + k * 9, 250); x.lineTo(90 + k * 9, 260); x.stroke(); }
+    return c;
+  }
+  function nightNekoPaw() { // the paw it waves, 80 by 128, standing up from its shoulder at the bottom middle: a round paw with a pink pad
+    const [c, x] = paper(160, 256);
+    x.scale(2, 2); // at twice its size, like the cat
+    x.lineJoin = x.lineCap = "round";
+    x.strokeStyle = NIGHT_INK_CSS;
+    x.fillStyle = "#fbf7fd";
+    x.lineWidth = 4.5;
+    x.beginPath(); x.roundRect(18, 30, 44, 94, 22); x.fill(); x.stroke();
+    x.beginPath(); x.arc(40, 34, 28, 0, TAU); x.fill(); x.stroke();
+    x.fillStyle = "#ffb7d2";
+    x.beginPath(); x.ellipse(40, 42, 12, 9, 0, 0, TAU); x.fill();
+    for (const [a, b] of [[24, 26], [40, 20], [56, 26]]) { x.beginPath(); x.arc(a, b, 5.5, 0, TAU); x.fill(); }
+    return c;
+  }
+  function nightLantern() { // a round paper lantern, 128 by 176: soft coral paper lit from inside, ribs going round it, dark caps and a tassel
+    const W = 128, H = 176, [c, x] = paper(W, H), lit = x.createRadialGradient(64, 88, 6, 64, 88, 64);
+    lit.addColorStop(0, "#fff6ea");
+    lit.addColorStop(0.5, "#ffc9cf");
+    lit.addColorStop(1, "#f290a8");
+    x.strokeStyle = NIGHT_INK_CSS;
+    x.lineWidth = 3;
+    x.beginPath(); x.moveTo(64, 0); x.lineTo(64, 22); x.stroke();
+    x.fillStyle = lit;
+    x.beginPath(); x.ellipse(64, 88, 56, 62, 0, 0, TAU); x.fill();
+    x.strokeStyle = "rgba(196,92,124,.45)";
+    x.lineWidth = 2;
+    for (let i = -4; i <= 4; i++) { const y = 88 + i * 13, half = 56 * Math.sqrt(Math.max(0, 1 - ((i * 13) / 62) ** 2)); x.beginPath(); x.ellipse(64, y - 3, half, 4, 0, 0, Math.PI); x.stroke(); }
+    x.fillStyle = NIGHT_INK_CSS;
+    x.beginPath(); x.roundRect(38, 20, 52, 11, 3); x.roundRect(38, 145, 52, 11, 3); x.fill();
+    x.strokeStyle = "#ff9fbf";
+    x.lineWidth = 2;
+    for (let k = -2; k <= 2; k++) { x.beginPath(); x.moveTo(64, 156); x.lineTo(64 + k * 3, 176); x.stroke(); }
+    return c;
+  }
+  function nightMoon() { // the moon, 256 across: a cream disc, a little deeper toward one edge, with two faint marks
+    const S = 256, [c, x] = paper(S), face = x.createRadialGradient(100, 96, 10, 128, 128, 120);
+    face.addColorStop(0, "#fffdf6");
+    face.addColorStop(0.75, "#fff1dc");
+    face.addColorStop(1, "#f6d9d6");
+    x.fillStyle = face;
+    x.beginPath(); x.arc(128, 128, 120, 0, TAU); x.fill();
+    x.fillStyle = "rgba(230,190,200,.35)";
+    x.beginPath(); x.ellipse(160, 150, 26, 18, 0.4, 0, TAU); x.ellipse(96, 172, 14, 10, 0, 0, TAU); x.fill();
+    return c;
+  }
+  function nightGate() { // a gate's shape against the moon, 256 by 200, as a silhouette only: two posts, a top beam whose ends turn up, a second beam under it and a short post between them
+    const [c, x] = paper(256, 200);
+    x.fillStyle = NIGHT_INK_CSS;
+    x.beginPath(); x.moveTo(2, 8); x.quadraticCurveTo(128, 34, 254, 8); x.lineTo(246, 30); x.quadraticCurveTo(128, 50, 10, 30); x.closePath(); x.fill(); // the top beam
+    x.fillRect(26, 64, 204, 12); // the beam under it
+    x.fillRect(120, 38, 16, 28);
+    for (const left of [50, 188]) { x.beginPath(); x.moveTo(left, 36); x.lineTo(left + 18, 36); x.lineTo(left + 22, 200); x.lineTo(left - 4, 200); x.closePath(); x.fill(); }
+    return c;
+  }
+  function nightWaves() { // waves drawn as rows of fish scales, 512 by 128, its ends meeting so it can repeat across: each scale three rings of light on the sea's blue, each row a little lighter
+    const W = 512, H = 128, R = 32, [c, x] = paper(W * 2, H * 2);
+    x.scale(2, 2); // painted at twice its size, so the scales stay sharp across a big picture
+    for (let row = 0; row <= 7; row++) {
+      const sea = rgba(mix([92, 100, 186], [150, 170, 230], row / 10), 1);
+      for (let i = -1; i <= 8; i++) {
+        const cx = i * 64 + (row % 2) * 32, cy = 32 + row * 16;
+        x.fillStyle = sea;
+        x.beginPath(); x.arc(cx, cy, R, Math.PI, TAU); x.lineTo(cx + R, H); x.lineTo(cx - R, H); x.closePath(); x.fill();
+        x.strokeStyle = "rgba(255,255,255,.75)";
+        x.lineWidth = 2.4;
+        for (const k of [1, 0.7, 0.42]) { x.beginPath(); x.arc(cx, cy, R * k - 2, Math.PI, TAU); x.stroke(); }
+      }
+    }
+    return c;
+  }
+  function nightKira(i) { // a little sparkle star with a face, 128 across: four plump points, two dot eyes, a small smile and pink cheeks, in one of the pastels (3 is butter yellow)
+    const S = 128, m = S / 2, [c, x] = paper(S), tone = i < 3 ? NIGHT_PASTEL[i] : [255, 236, 160], body = new Path2D();
+    body.moveTo(m, 4);
+    body.quadraticCurveTo(m + 16, m - 16, S - 4, m);
+    body.quadraticCurveTo(m + 16, m + 16, m, S - 4);
+    body.quadraticCurveTo(m - 16, m + 16, 4, m);
+    body.quadraticCurveTo(m - 16, m - 16, m, 4);
+    x.fillStyle = rgba(mix(tone, [255, 255, 255], 0.3), 1);
+    x.fill(body);
+    x.lineJoin = x.lineCap = "round";
+    x.strokeStyle = NIGHT_INK_CSS;
+    x.lineWidth = 4;
+    x.stroke(body);
+    x.fillStyle = NIGHT_INK_CSS;
+    for (const s of [-1, 1]) { x.beginPath(); x.ellipse(m + s * 11, m - 5, 4, 5.5, 0, 0, TAU); x.fill(); }
+    x.lineWidth = 3.5;
+    x.beginPath(); x.arc(m, m + 3, 7, 0.15 * Math.PI, 0.85 * Math.PI); x.stroke();
+    x.fillStyle = "rgba(255,140,180,.55)";
+    for (const s of [-1, 1]) { x.beginPath(); x.ellipse(m + s * 21, m + 7, 6, 4, 0, 0, TAU); x.fill(); }
+    x.fillStyle = "rgba(255,255,255,.85)";
+    x.beginPath(); x.ellipse(m - 6, m - 30, 4, 9, 0.2, 0, TAU); x.fill(); // a shine on the top point
+    return c;
+  }
+  function nightFloppy() { // a floppy disk with a face, 128 across: a lavender case with one corner cut off, a metal shutter at the top and a paper label where the face is
+    const [c, x] = paper(128);
+    x.lineJoin = x.lineCap = "round";
+    x.strokeStyle = NIGHT_INK_CSS;
+    x.lineWidth = 4;
+    x.fillStyle = "#bba8f0";
+    x.beginPath(); x.moveTo(8, 8); x.lineTo(106, 8); x.lineTo(120, 22); x.lineTo(120, 120); x.lineTo(8, 120); x.closePath(); x.fill(); x.stroke();
+    x.fillStyle = "#e9edf5";
+    x.beginPath(); x.rect(34, 8, 56, 36); x.fill(); x.stroke();
+    x.fillStyle = "#8d86a8";
+    x.fillRect(68, 15, 12, 22);
+    x.fillStyle = "#fff8f0";
+    x.beginPath(); x.roundRect(20, 58, 88, 56, 6); x.fill(); x.stroke();
+    x.fillStyle = NIGHT_INK_CSS;
+    for (const s of [-1, 1]) { x.beginPath(); x.arc(64 + s * 13, 82, 4.5, 0, TAU); x.fill(); }
+    x.lineWidth = 3.5;
+    x.beginPath(); x.arc(64, 88, 7, 0.15 * Math.PI, 0.85 * Math.PI); x.stroke();
+    x.fillStyle = "rgba(255,140,180,.5)";
+    for (const s of [-1, 1]) { x.beginPath(); x.ellipse(64 + s * 26, 94, 6, 4, 0, 0, TAU); x.fill(); }
+    return c;
+  }
+  const NIGHT_ARROW = ["k..........", "kk.........", "kwk........", "kwwk.......", "kwwwk......", "kwwwwk.....", "kwwwwwk....", "kwwwwwwk...", "kwwwwwwwk..", "kwwwwwwwwk.", "kwwwwwkkkkk", "kwwkwwk....", "kwk.kwwk...", "kk...kwwk..", "k....kwwk..", "......kwwk.", ".......kk.."]; // a pixel arrow, its point at the top left
+  function nightPopupArt(ww, wh, inside, k = 1) { // a little window of its own look, ww by wh (painted k times as sharp): rounded, lit along the top and shaded below, a title bar going pink to lilac to cyan with a heart at one end and three round buttons at the other.
+    const W = Math.max(40, Math.round(ww)), H = Math.max(30, Math.round(wh)), bar = Math.max(12, Math.round(H * 0.15)), [c, x] = paper(Math.round(W * k), Math.round(H * k)), top = x.createLinearGradient(0, 0, W, 0), at = nightPopupBody(W, H); // inside: "stars" (a starry tiled sky and a box for a cursor), "count" (a page for the counter), "build" (a page for the stripes and the bar)
+    x.scale(k, k); // drawn in the window's page size from here on
+    x.lineJoin = x.lineCap = "round";
+    x.fillStyle = "#f6f0fd";
+    x.strokeStyle = NIGHT_INK_CSS;
+    x.lineWidth = 2;
+    x.beginPath(); x.roundRect(1, 1, W - 2, H - 2, bar * 0.45); x.fill(); x.stroke();
+    x.strokeStyle = "rgba(255,255,255,.95)"; // the edge: light along the top and left, shade along the bottom and right
+    x.beginPath(); x.moveTo(4, H - bar * 0.5); x.lineTo(4, bar * 0.5); x.quadraticCurveTo(4, 4, bar * 0.5, 4); x.lineTo(W - bar * 0.5, 4); x.stroke();
+    x.strokeStyle = "rgba(130,108,180,.55)";
+    x.beginPath(); x.moveTo(W - 4, bar * 0.5); x.lineTo(W - 4, H - bar * 0.5); x.quadraticCurveTo(W - 4, H - 4, W - bar * 0.5, H - 4); x.lineTo(bar * 0.5, H - 4); x.stroke();
+    top.addColorStop(0, "#ffb7d5");
+    top.addColorStop(0.5, "#cdb5ff");
+    top.addColorStop(1, "#96e4ff");
+    x.fillStyle = top;
+    x.beginPath(); x.roundRect(5, 5, W - 10, bar, bar * 0.35); x.fill();
+    const hx = 5 + bar * 0.7, hy = 5 + bar * 0.52, hs = bar * 0.26; // a heart at the left end of the title bar
+    x.fillStyle = "#ffffff";
+    x.beginPath(); x.moveTo(hx, hy + hs); x.bezierCurveTo(hx - hs * 1.6, hy - hs * 0.2, hx - hs * 0.6, hy - hs * 1.5, hx, hy - hs * 0.4); x.bezierCurveTo(hx + hs * 0.6, hy - hs * 1.5, hx + hs * 1.6, hy - hs * 0.2, hx, hy + hs); x.fill();
+    ["#ffb7d5", "#96e4ff", "#cdb5ff"].forEach((tone, k) => { // and three round buttons at the right
+      const bx = W - 5 - bar * (0.62 + k * 0.82), by = 5 + bar / 2;
+      x.fillStyle = tone;
+      x.strokeStyle = NIGHT_INK_CSS;
+      x.lineWidth = 1.5;
+      x.beginPath(); x.arc(bx, by, bar * 0.29, 0, TAU); x.fill(); x.stroke();
+      x.fillStyle = "rgba(255,255,255,.85)";
+      x.beginPath(); x.arc(bx - bar * 0.09, by - bar * 0.09, bar * 0.09, 0, TAU); x.fill();
+    });
+    const { left, y0, bw, bh } = at;
+    if (inside === "stars") { // a dark sky tiled with the same few stars, the way a page's background was a small picture repeated
+      x.fillStyle = "#23204a";
+      x.fillRect(left, y0, bw, bh);
+      x.save(); x.beginPath(); x.rect(left, y0, bw, bh); x.clip();
+      const tile = Math.max(16, Math.round(bh / 3.2));
+      for (let ty = y0; ty < y0 + bh; ty += tile) for (let tx = left; tx < left + bw; tx += tile) for (const [u, v, r] of [[0.2, 0.3, 1.2], [0.7, 0.15, 0.8], [0.55, 0.7, 1.5], [0.1, 0.85, 0.7], [0.88, 0.6, 1]]) {
+        x.fillStyle = r > 1.1 ? "#fff6fb" : "#bfd8ff";
+        x.fillRect(Math.round(tx + u * tile), Math.round(ty + v * tile), Math.max(1, Math.round(r * tile / 16)), Math.max(1, Math.round(r * tile / 16)));
+      }
+      x.restore();
+      nightRainbow(x, left, y0 + bh * 0.62, bw, Math.max(1, bh * 0.025));
+      x.fillStyle = "#ffffff";
+      x.strokeStyle = NIGHT_INK_CSS;
+      x.lineWidth = 1.5;
+      x.beginPath(); x.roundRect(left + bw * 0.12, y0 + bh * 0.72, bw * 0.76, bh * 0.18, 3); x.fill(); x.stroke(); // a box to type in, empty but for its cursor
+    } else {
+      x.fillStyle = "#fffaf3";
+      x.fillRect(left, y0, bw, bh);
+      nightRainbow(x, left, y0 + bh * 0.08, bw, Math.max(1, bh * 0.025));
+      nightRainbow(x, left, y0 + bh * 0.88, bw, Math.max(1, bh * 0.025));
+      if (inside === "build") { x.fillStyle = "#efe6fb"; x.strokeStyle = NIGHT_INK_CSS; x.lineWidth = 1.5; x.beginPath(); x.roundRect(left + bw * 0.1, y0 + bh * 0.6, bw * 0.8, bh * 0.16, 3); x.fill(); x.stroke(); } // the trough the bar fills
+    }
+    return c;
+  }
+  const nightPopupBody = (W, H, k = 1) => { const bar = Math.max(12, Math.round(H * 0.15)), y0 = 5 + bar + 4; return { left: 7 * k, y0: y0 * k, bw: (W - 14) * k, bh: (H - y0 - 7) * k }; }; // where the inside of a window is, below its title bar (in the dots of a window painted k times as sharp)
+  function nightRainbow(x, left, y, wide, thick) { // a rainbow line across a page, six thin stripes of the pastels
+    NIGHT_RAINBOW.forEach((tone, k) => { x.fillStyle = tone; x.fillRect(left, y + k * thick, wide, thick); });
+  }
+
+  /* ---- who comes, and how each is set up: the same in the pictures and on the app itself ---- */
+  const NIGHT_SET = {
+    neko(o, size) { Object.assign(o, { size, paw: 0, pawV: 0, glow: 0 }); },
+    crane(o, size) { const paper = mix(nightTone(), [255, 255, 255], 0.3); Object.assign(o, { size, flap: rnd(0, TAU), beat: 0, faces: [rgba(mix(paper, [255, 255, 255], 0.45), 1), rgba(paper, 1), rgba(mix(paper, NIGHT_INK, 0.28), 1)] }); }, // its three shades of paper, made as it arrives
+    popup(o, ww, wh, k = 1) { // the window is painted as it arrives, at its own size (k times as sharp on a layer that has k dots to each of the page's)
+      const inside = ["stars", "count", "build"][Math.floor(Math.random() * 3)], art = nightPopupArt(ww, wh, inside, k), count = 1000 + Math.floor(Math.random() * 90000);
+      Object.assign(o, { ww, wh, inside, art, body: nightPopupBody(art.width / k, art.height / k, k), count, digits: String(count).padStart(6, "0"), fill: Math.floor(Math.random() * 6), tick: 0, spin: rnd(0, 4) });
+    },
+  };
+  const NIGHT_KINDS = new Set(["neko", "crane", "popup", "kira", "lantern", "shrine", "pointer", "floppy", "sakura", "hanami"]);
+  function nightMeet(kind) { // nightcore's own visitors in the pictures. Says whether it was one of them
+    if (!NIGHT_KINDS.has(kind)) return false; // first of all, so everybody else's visits draw the same chances as they always did
+    const { t } = sound, side = Math.random() < 0.5 ? -1 : 1, s = Math.min(w, h), most = Math.max(w, h), come = (o) => crowd.folk.push(o);
+    if (kind === "neko") { const o = { kind, born: t, life: rnd(9, 12), x: rnd(0.18, 0.82) * w, seed: rnd(0, TAU) }; NIGHT_SET.neko(o, s * rnd(0.32, 0.4)); come(o); return true; }
+    if (kind === "crane") { for (let i = 0, n = 2 + Math.floor(rnd(0, 2)); i < n; i++) { const o = { kind, born: t + i * 0.9, life: rnd(11, 15), side, y: rnd(0.16, 0.55) * h, seed: rnd(0, TAU) }; NIGHT_SET.crane(o, s * rnd(0.1, 0.16)); come(o); } return true; }
+    if (kind === "popup") { // two or three, each a step down and along from the last, as they used to pile up
+      const ww = Math.min(w * 0.7, s * 0.5), wh = ww * 0.66, step = Math.max(12, wh * 0.15) * 1.7, n = 2 + Math.floor(rnd(0, 2)), x0 = rnd(0.3, 0.7) * w - ((n - 1) * step) / 2, y0 = rnd(0.32, 0.55) * h - ((n - 1) * step) / 2;
+      for (let i = 0; i < n; i++) { const o = { kind, born: t + i * 1.1, life: rnd(6.5, 8.5) - i * 0.6, x: Math.max(ww / 2, Math.min(w - ww / 2, x0 + i * step)), y: Math.max(wh / 2, Math.min(h - wh / 2, y0 + i * step)), seed: rnd(0, TAU) }; NIGHT_SET.popup(o, ww, wh); come(o); }
+      return true;
+    }
+    if (kind === "kira") { for (let i = 0; i < 3; i++) come({ kind, born: t + i * 0.8, life: rnd(9, 13), x: rnd(0.12, 0.88) * w, y: h * 1.15, vx: rnd(-0.04, 0.04) * w, vy: -rnd(0.11, 0.16) * h, size: s * rnd(0.09, 0.14), tone: Math.floor(rnd(0, 4)), hop: 0, hopV: 0, seed: rnd(0, TAU) }); return true; }
+    if (kind === "lantern") { const n = w > h ? 5 : 3; come({ kind, born: t, life: rnd(14, 18), n, size: Math.min(w / (n * 1.6), s * 0.17), droop: h * rnd(0.05, 0.09), seed: rnd(0, TAU) }); return true; }
+    if (kind === "shrine") { come({ kind, born: t, life: rnd(20, 26), mx: side > 0 ? rnd(0.62, 0.78) : rnd(0.22, 0.38), gx: side > 0 ? rnd(0.18, 0.34) : rnd(0.66, 0.82), seed: rnd(0, TAU) }); return true; }
+    if (kind === "pointer") { come({ kind, born: t, life: rnd(11, 15), x: w / 2, y: h / 2, trail: new Float32Array(32), trailAt: 0, trailNext: 0, kicks: 0, clickAt: -9, seed: rnd(0, TAU) }); return true; }
+    if (kind === "floppy") { come({ kind, born: t, life: rnd(13, 17), side, y: rnd(0.2, 0.6) * h, x: w / 2, size: s * rnd(0.13, 0.18), hop: 0, hopV: 0, seed: rnd(0, TAU) }); return true; }
+    if (kind === "sakura") { come({ kind, born: t, life: rnd(18, 26), glints: Array.from({ length: 6 }, () => ({ x: 0, y: 0, age: 9 })), glintNext: 0, bits: Array.from({ length: 44 }, () => ({ x: rnd(-0.2, 1) * w, y: rnd(-1, 1) * h, v: rnd(0.07, 0.13) * h, drift: rnd(0.03, 0.08) * w, size: s * rnd(0.018, 0.032), turn: rnd(0, TAU), spin: rnd(-2, 2), flip: rnd(0, TAU), flipSpeed: rnd(2, 4.5) })) }); return true; }
+    if (kind === "hanami") { // the drop: petals and sparkles burst out from the middle, with speed lines round the edge for a moment
+      if (crowd.folk.some((o) => o.kind === "hanami" && t - o.born < 3)) return true; // one burst at a time
+      const burst = (n, make) => Array.from({ length: n }, () => { const a = rnd(0, TAU), v = rnd(0.3, 1) * most; return { x: w / 2, y: h * 0.47, vx: Math.cos(a) * v, vy: Math.sin(a) * v * 0.8, ...make() }; });
+      come({ kind, born: t, life: 7, lines: Float32Array.from({ length: 56 }, (_, i) => (i % 2 ? rnd(0.004, 0.013) : rnd(0, TAU))), bits: burst(70, () => ({ size: s * rnd(0.018, 0.034), turn: rnd(0, TAU), spin: rnd(-4, 4), flip: rnd(0, TAU), flipSpeed: rnd(3, 6) })), stars: burst(18, () => ({ size: s * rnd(0.04, 0.08), tone: Math.floor(rnd(0, 4)), turn: rnd(0, TAU), spin: rnd(-2, 2) })) });
+      return true;
+    }
+    return false;
+  }
+  function nightGuest(o, place, W, H) { // where nightcore's visitors go on the app itself: the cat over the play bar, a window over the page (painted as sharp as the visitors' layer, and there only four or five seconds, since the page under it can't be read), cranes across it
+    const left = place.left ?? 0, right = place.right ?? W, floor = place.floor ?? H;
+    if (o.kind === "neko") { NIGHT_SET.neko(o, Math.max(110, Math.min(170, Math.min(W, H) * 0.17))); Object.assign(o, { life: rnd(8, 11), floor, x: left + o.size * 0.7 + Math.max(0, right - left - o.size * 1.4) * Math.random() }); }
+    else if (o.kind === "popup") { const ww = Math.max(190, Math.min(280, W * 0.2)), wh = ww * 0.66, from = Math.max(70, place.top ?? 70) + wh / 2, to = Math.max(from, floor - wh / 2 - 24); NIGHT_SET.popup(o, ww, wh, document.body.classList.contains("gentle") ? 1 : Math.min(2, devicePixelRatio || 1)); Object.assign(o, { life: rnd(4, 5), x: left + ww / 2 + 20 + Math.max(0, right - left - ww - 40) * Math.random(), y: from + (to - from) * Math.random() }); }
+    else { NIGHT_SET.crane(o, Math.max(64, Math.min(110, Math.min(W, H) * 0.1))); Object.assign(o, { life: rnd(10, 13), y: rnd(0.15, 0.5) * H }); }
+  }
+
+  /* ---- and how each is drawn ---- */
+  function drawNightNeko(o, part) { // the lucky cat comes up from below, nods along and waves its paw on every kick, a sparkle at its paw, and sinks back down
+    const { t, dt, kickHit } = sound, S = o.size, up = part < 0.14 ? 1 - (1 - part / 0.14) ** 3 : part > 0.86 ? 1 - ((part - 0.86) / 0.14) ** 2 : 1, art = nightPaint("neko", nightNeko), paw = nightPaint("paw", nightNekoPaw), tall = (S * art.height) / art.width;
+    if (kickHit) { o.pawV -= 11 * kickHit; o.glow = 1; }
+    spring(o, "paw", "pawV", 150, 9, dt);
+    o.glow *= Math.exp(-dt / 0.25);
+    const floor = o.floor !== undefined ? o.floor : TRIPS[name] && TRIPS[name].cockpit && T.pit ? dashAt(o.x) : h; // over the dashboard in the cockpit, over the play bar on the app
+    if (o.floor !== undefined) { g.beginPath(); g.rect(0, 0, w, o.floor); g.clip(); }
+    g.globalCompositeOperation = "source-over";
+    g.globalAlpha = 1;
+    g.translate(o.x + Math.sin(t * 0.8 + o.seed) * S * 0.03, floor + tall * 0.55 - up * tall * 0.98 + sky.bob * S * 0.05);
+    g.rotate(Math.sin(t * 1.1 + o.seed) * 0.04 + sky.bob * 0.05);
+    g.drawImage(art, -S / 2, -tall / 2, S, tall);
+    const sx = S * 0.3, sy = tall * 0.12, turn = Math.max(-0.9, Math.min(0.5, 0.15 + o.paw * 0.09)); // the shoulder the raised paw turns from, in front of the body: on the kick it tips in toward the face, then swings back out
+    g.save();
+    g.translate(sx, sy);
+    g.rotate(turn);
+    g.drawImage(paw, -S * 0.16, -S * 0.46, S * 0.31, S * 0.5);
+    if (o.glow > 0.02) { const k = nightSparkles()[1]; g.globalCompositeOperation = "lighter"; g.globalAlpha = o.glow; g.drawImage(k, -S * 0.2, -S * 0.66, S * 0.26, S * 0.26); g.globalCompositeOperation = "source-over"; g.globalAlpha = 1; }
+    g.restore();
+  }
+  function drawNightCrane(o, part) { // a folded paper crane flying across, its wings beating quicker on the kick
+    const { t, dt, kickHit } = sound, S = o.size, fromX = o.side > 0 ? -S * 1.3 : w + S * 1.3, toX = o.side > 0 ? w + S * 1.3 : -S * 1.3;
+    if (kickHit) o.beat = Math.min(2, o.beat + kickHit);
+    o.beat *= Math.exp(-dt / 0.35);
+    o.flap += dt * (5 + 8 * o.beat);
+    o.x = fromX + (toX - fromX) * part;
+    const f = Math.sin(o.flap), [light, mid, dark] = o.faces, y = o.y + Math.sin(t * 0.9 + o.seed) * h * 0.03 + sky.bob * S * 0.2;
+    const shape = (tone, ax, ay, bx, by, cx, cy, dx = cx, dy = cy) => { g.fillStyle = tone; g.beginPath(); g.moveTo(ax * S, ay * S); g.lineTo(bx * S, by * S); g.lineTo(cx * S, cy * S); g.lineTo(dx * S, dy * S); g.closePath(); g.fill(); };
+    g.globalCompositeOperation = "source-over";
+    g.globalAlpha = clamp(part / 0.05) * clamp((1 - part) / 0.05);
+    g.translate(o.x, y);
+    g.scale(o.side, 1); // facing the way it flies
+    g.rotate(-0.06 + Math.sin(t * 0.9 + o.seed + 1) * 0.05);
+    shape(dark, -0.1, -0.03, 0.12, -0.03, 0.06, -0.5 * f, -0.28, -0.36 * f); // the far wing
+    shape(mid, -0.22, 0.02, 0, -0.07, 0.22, 0.02, 0, 0.12); // the body
+    shape(light, 0.08, 0, 0.16, 0.05, 0.5, -0.34); // the neck, and the head folded down at its end
+    shape(dark, 0.5, -0.34, 0.6, -0.27, 0.47, -0.28);
+    shape(mid, -0.08, 0, -0.17, 0.05, -0.58, -0.3); // the tail
+    shape(light, -0.13, -0.01, 0.13, -0.01, 0.03, -0.62 * f, -0.33, -0.44 * f); // the near wing
+    g.strokeStyle = dark;
+    g.lineWidth = Math.max(1, S * 0.012);
+    g.beginPath(); g.moveTo(0, -0.01 * S); g.lineTo(-0.15 * S, -0.53 * f * S); g.stroke(); // a fold down the wing
+  }
+  function drawNightPopup(o, part) { // a little window pops up with a bounce, does its one thing (twinkles and a blinking cursor, a counter ticking on the kick, stripes sliding while a bar fills on the kick) and folds shut
+    const { t, kickHit } = sound, age = part * o.life, end = o.life - age, open = clamp(age / 0.3), pop = open < 1 ? 1 + 2.4 * (open - 1) ** 3 + 1.4 * (open - 1) ** 2 : 1, shut = clamp(1 - end / 0.35); // it overshoots a little as it opens
+    if (kickHit && age > 0.3) { o.tick = 1; if (o.inside === "count") { o.count = (o.count + 1) % 1000000; o.digits = String(o.count).padStart(6, "0"); } else if (o.inside === "build") o.fill = (o.fill + 1) % 13; } // only a counter's digits change, and only a building page's bar fills
+    o.tick *= Math.exp(-sound.dt / 0.12);
+    const { ww, wh, art } = o, W = art.width, H = art.height, { left, y0, bw, bh } = o.body, fold = 1 - 0.82 * eased(shut);
+    g.globalCompositeOperation = "source-over";
+    g.globalAlpha = 1 - eased(clamp((shut - 0.6) / 0.4));
+    g.translate(o.x, o.y);
+    g.scale(pop * (ww / W), pop * fold * (wh / H)); // drawn in the window's own dots from here on
+    g.translate(-W / 2, -H / 2);
+    g.drawImage(art, 0, 0);
+    if (fold < 0.95) return; // folding shut: only the frame
+    if (o.inside === "stars") {
+      for (let i = 0; i < 3; i++) nightPixel(left + bw * (0.2 + 0.3 * i), y0 + bh * (0.22 + 0.18 * ((i * 7) % 3)), Math.max(7, bh * 0.2), i, Math.floor(t * 7 + o.spin + i * 1.3), 1); // pixel sparkles turning, each its own step behind the last
+      if (Math.floor(t * 2.4) % 2 === 0) { g.fillStyle = NIGHT_INK_CSS; g.fillRect(left + bw * 0.16, y0 + bh * 0.75, Math.max(1.5, bw * 0.012), bh * 0.12); } // the cursor, blinking
+    } else if (o.inside === "count") { // a counter: six boxes, the last one's digit ticking up on every kick (and the others carried along when it rolls over)
+      const n = 6, cell = Math.min(bw * 0.84 / n, bh * 0.5 / 1.5), dot = cell / 4.4, x0 = left + (bw - cell * n) / 2, yy = y0 + (bh - cell * 1.5) / 2, digits = o.digits;
+      for (let k = 0; k < n; k++) {
+        const bx = x0 + k * cell, lift = k === n - 1 ? o.tick * dot * 1.5 : 0;
+        g.fillStyle = "#2a2450";
+        g.fillRect(bx + dot * 0.3, yy, cell - dot * 0.6, cell * 1.5);
+        g.fillStyle = "#9fe9ff";
+        const map = PIXEL_DIGITS[digits[k]];
+        for (let i = 0; i < 15; i++) if (map[i] === "1") g.fillRect(bx + dot * (0.7 + (i % 3)), yy + dot * (0.9 + Math.floor(i / 3)) - lift, dot * 0.9, dot * 0.9);
+      }
+    } else { // stripes sliding along, the way a page that wasn't finished said so, and a bar filling a block on each kick
+      const sy = y0 + bh * 0.2, sh = bh * 0.3, stripe = Math.max(4, sh * 0.6), slide = (t * stripe * 1.6) % (stripe * 2);
+      g.save();
+      g.beginPath(); g.rect(left, sy, bw, sh); g.clip();
+      g.fillStyle = "#fff0a6";
+      g.fillRect(left, sy, bw, sh);
+      g.fillStyle = "#6a54a8";
+      for (let sx = left - sh - stripe * 2 + slide; sx < left + bw + stripe; sx += stripe * 2) { g.beginPath(); g.moveTo(sx, sy + sh); g.lineTo(sx + stripe, sy + sh); g.lineTo(sx + stripe + sh, sy); g.lineTo(sx + sh, sy); g.closePath(); g.fill(); }
+      g.restore();
+      const tx = left + bw * 0.1 + 2, ty = y0 + bh * 0.6 + 2, tw = bw * 0.8 - 4, th = bh * 0.16 - 4, block = tw / 12;
+      for (let k = 0; k < o.fill; k++) { g.fillStyle = NIGHT_RAINBOW[k % 6]; g.fillRect(tx + k * block + 1, ty, block - 2, th); }
+      nightPixel(tx + tw + bw * 0.06, ty + th / 2, Math.max(7, bh * 0.16), 0, Math.floor(t * 7 + o.spin), 1);
+    }
+  }
+  function drawNightKira(o, part) { // a little sparkle star with a face floats up, hopping on the kick, with a pixel sparkle beside it
+    const { t, dt, kickHit } = sound;
+    if (kickHit) o.hopV -= 8 * kickHit;
+    spring(o, "hop", "hopV", 140, 8, dt);
+    o.x += o.vx * dt;
+    o.y += o.vy * dt;
+    const S = o.size, art = nightPaint("kira", nightKiraArt)[o.tone], squash = 1 + 0.06 * o.hop, fade = clamp(part / 0.08) * clamp((1 - part) / 0.12);
+    g.globalCompositeOperation = "source-over";
+    g.globalAlpha = fade;
+    g.translate(o.x, o.y + o.hop * S * 0.12);
+    nightPixel(S * 0.62, -S * 0.42, Math.max(7, S * 0.3), o.tone % 3, Math.floor(t * 6 + o.seed), fade);
+    g.globalAlpha = fade;
+    g.rotate(Math.sin(t * 1.4 + o.seed) * 0.2);
+    g.scale(1 / squash, squash);
+    g.drawImage(art, -S / 2, -S / 2, S, S);
+  }
+  const nightKiraArt = () => [0, 1, 2, 3].map(nightKira), nightArrowArt = () => pixelSprite(NIGHT_ARROW, { k: NIGHT_INK, w: [255, 255, 255] });
+  function drawNightFloppy(o, part) { // a floppy disk with a face drifts across, hopping on the kick, two pixel sparkles going round it
+    const { t, dt, kickHit } = sound, S = o.size, fromX = o.side > 0 ? -S : w + S;
+    if (kickHit) o.hopV -= 9 * kickHit;
+    spring(o, "hop", "hopV", 120, 8, dt);
+    o.x = fromX + (w - 2 * fromX) * part;
+    const y = o.y + Math.sin(t * 0.8 + o.seed) * h * 0.04 + o.hop * S * 0.15, fade = clamp(part / 0.05) * clamp((1 - part) / 0.05);
+    g.globalCompositeOperation = "source-over";
+    g.translate(o.x, y);
+    for (let i = 0; i < 2; i++) { const a = t * 1.8 + o.seed + i * Math.PI; nightPixel(Math.cos(a) * S * 0.75, Math.sin(a) * S * 0.5, Math.max(7, S * 0.22), i + 1, Math.floor(t * 7 + i * 2), fade); }
+    g.globalAlpha = fade;
+    g.rotate(Math.sin(t * 1.2 + o.seed) * 0.25 + o.hop * 0.08);
+    g.drawImage(nightPaint("floppy", nightFloppy), -S / 2, -S / 2, S, S);
+  }
+  function drawNightPointer(o, part) { // a pixel arrow wanders about the picture, sparkles left behind it, and every fourth kick it clicks: a ring of dots and a few sparkles where it lands
+    const { t, kickHit } = sound, dot = Math.max(2, Math.round(Math.min(w, h) / 170)), fade = clamp(part / 0.06) * clamp((1 - part) / 0.08), tr = o.trail;
+    o.x = (0.5 + 0.34 * Math.sin(t * 0.47 + o.seed) + 0.08 * Math.sin(t * 1.31 + o.seed * 2)) * w;
+    o.y = (0.5 + 0.3 * Math.sin(t * 0.61 + o.seed * 3) + 0.07 * Math.cos(t * 1.13)) * h;
+    if (t >= o.trailNext) { o.trailNext = t + 0.06; o.trailAt = (o.trailAt + 1) % 16; tr[o.trailAt * 2] = o.x; tr[o.trailAt * 2 + 1] = o.y; } // the trail keeps its last sixteen places, the oldest giving way to the newest
+    if (kickHit && ++o.kicks % 4 === 0) o.clickAt = t;
+    for (let k = 1; k < 16; k++) { const i = (o.trailAt - k + 16) % 16, age = k / 16; if (tr[i * 2] || tr[i * 2 + 1]) nightPixel(tr[i * 2] + dot * 3, tr[i * 2 + 1] + dot * 6, dot * 7 * (1 - age * 0.6), k % 3, Math.floor(t * 8) + k, fade * (1 - age)); }
+    const since = t - o.clickAt;
+    if (since < 0.45) { // the click
+      const r = dot * (3 + since * 40);
+      g.globalAlpha = fade * (1 - since / 0.45);
+      g.fillStyle = "#ffffff";
+      for (let k = 0; k < 12; k++) { const a = (k / 12) * TAU; g.fillRect(Math.round(o.x + Math.cos(a) * r), Math.round(o.y + Math.sin(a) * r), dot, dot); }
+      for (let k = 0; k < 4; k++) { const a = (k / 4) * TAU + 0.6; nightPixel(o.x + Math.cos(a) * r * 1.4, o.y + Math.sin(a) * r * 1.4, dot * 7, k % 3, Math.floor(since * 16) + k, fade * (1 - since / 0.45)); }
+    }
+    const arrow = nightPaint("arrow", nightArrowArt), smoothWas = g.imageSmoothingEnabled;
+    g.imageSmoothingEnabled = false;
+    g.globalCompositeOperation = "source-over";
+    g.globalAlpha = fade;
+    g.drawImage(arrow, Math.round(o.x), Math.round(o.y), arrow.width * dot, arrow.height * dot);
+    g.imageSmoothingEnabled = smoothWas;
+  }
+  function drawNightLantern(o, part) { // paper lanterns on a string across the top: they come down, sway, glow a little brighter on the kick, and go back up
+    const { t, kick } = sound, down = part < 0.12 ? 1 - (1 - part / 0.12) ** 3 : part > 0.88 ? 1 - ((part - 0.88) / 0.12) ** 2 : 1, art = nightPaint("lantern", nightLantern), S = o.size, tall = (S * art.height) / art.width, lift = -(1 - down) * (o.droop + tall * 1.6);
+    const at = (i) => { const u = (i + 0.5) / o.n; return [u * w, lift + h * 0.02 + Math.sin(u * Math.PI) * o.droop]; }; // where each one hangs: the string sags in the middle
+    g.globalCompositeOperation = "source-over";
+    g.strokeStyle = "rgba(255,236,246,.7)";
+    g.lineWidth = Math.max(1, S * 0.02);
+    g.beginPath();
+    g.moveTo(0, lift + h * 0.02);
+    g.quadraticCurveTo(w / 2, lift + h * 0.02 + o.droop * 2, w, lift + h * 0.02);
+    g.stroke();
+    for (let i = 0; i < o.n; i++) {
+      const [x, y] = at(i), sway = Math.sin(t * 1.5 + o.seed + i * 1.3) * 0.09 + sky.bob * 0.06;
+      g.save();
+      g.translate(x, y);
+      g.rotate(sway);
+      g.globalCompositeOperation = "lighter";
+      softBlob(g, 0, tall * 0.5, S * (0.9 + 0.15 * kick), [255, 196, 170], 0.16 + 0.22 * kick); // its light on the air round it
+      g.globalCompositeOperation = "source-over";
+      g.drawImage(art, -S / 2, 0, S, tall);
+      g.restore();
+    }
+  }
+  function drawNightShrine(o, part) { // the moon comes up, a sea of fish-scale waves rises along the bottom with a gate standing in it, the moon's light lies on the water; then it all sinks away
+    const { t, bass, kick, hatHit } = sound, show = eased(clamp(part / 0.12)) * eased(clamp((1 - part) / 0.12)), s = Math.min(w, h), R = s * 0.17, mx = w * o.mx, my = h * (0.42 - 0.12 * show);
+    const sea = h * (1 - 0.21 * show) + bass * h * 0.008, waves = nightPaint("waves", nightWaves), gate = nightPaint("gate", nightGate), tall = h * 0.24, across = (waves.width * tall) / waves.height;
+    g.globalCompositeOperation = "lighter";
+    softBlob(g, mx, my, R * 2.4, [255, 200, 225], 0.3 * show * (1 + 0.25 * kick)); // the moon's glow, a little stronger on the kick
+    g.globalCompositeOperation = "source-over";
+    g.globalAlpha = 0.95 * show;
+    g.drawImage(nightPaint("moon", nightMoon), mx - R, my - R, R * 2, R * 2);
+    const gh = Math.min(h * 0.34, (w * 0.42 * gate.height) / gate.width), gw = (gh * gate.width) / gate.height; // as tall as a third of the picture, but never wider than about two fifths of it (a phone held upright)
+    g.globalAlpha = 0.92 * show;
+    g.drawImage(gate, w * o.gx - gw / 2, sea - gh + h * 0.05, gw, gh); // its feet in the water
+    g.globalAlpha = show;
+    for (let x = -((t * s * 0.05) % across); x < w; x += across) g.drawImage(waves, Math.floor(x), sea, Math.ceil(across) + 1, tall); // the waves roll slowly along (each copy a dot wider, so no seam shows where they meet)
+    if (sea + tall < h) { g.fillStyle = "#9cabe4"; g.fillRect(0, sea + tall - 1, w, h - sea - tall + 1); }
+    g.globalCompositeOperation = "lighter";
+    for (let k = 0; k < 4; k++) softBlob(g, mx + Math.sin(t * 1.3 + k * 2) * R * 0.2, sea + tall * (0.12 + k * 0.18), R * (0.7 - k * 0.12), [255, 244, 230], 0.22 * show); // the moon's light on the water
+    if (hatHit) for (let i = 0; i < 2; i++) twinkle(rnd(0, w), sea + rnd(0, tall * 0.5), s * 0.05);
+  }
+  function drawNightSakura(o, part) { // sakura petals drifting down and along, turning over as they fall, quicker on the kick; now and then one catches the light
+    const { t, dt, kick, hatHit } = sound, fade = clamp(part / 0.1) * clamp((1 - part) / 0.15), petal = nightPaint("petal", nightPetal), sparkle = nightSparkles()[3];
+    g.globalCompositeOperation = "source-over";
+    for (const p of o.bits) {
+      p.y += p.v * dt * (1 + 0.6 * kick);
+      p.x += (p.drift + Math.sin(t * 0.9 + p.flip) * w * 0.02) * dt;
+      p.turn += p.spin * dt;
+      p.flip += p.flipSpeed * dt;
+      if (p.y > h + p.size * 2) { p.y = -p.size * 2; p.x = rnd(-0.2, 0.9) * w; }
+      if (p.x > w + p.size * 2) p.x = -p.size * 2;
+      const turnOver = Math.cos(p.flip);
+      g.save();
+      g.translate(p.x, p.y);
+      g.rotate(p.turn);
+      g.scale(1, Math.abs(turnOver) < 0.15 ? 0.15 : turnOver);
+      g.globalAlpha = fade * 0.92;
+      g.drawImage(petal, -p.size, -p.size, p.size * 2, p.size * 2);
+      g.restore();
+    }
+    if (hatHit && t >= o.glintNext) { const p = o.bits[Math.floor(Math.random() * o.bits.length)], k = o.glints.reduce((a, b) => (b.age > a.age ? b : a)); k.x = p.x; k.y = p.y; k.age = 0; o.glintNext = t + 0.15; } // the oldest of six glints is the one that goes
+    g.globalCompositeOperation = "lighter";
+    for (const k of o.glints) { if (k.age > 0.5) continue; k.age += dt; const size = Math.min(w, h) * 0.05 * (1 - k.age); g.globalAlpha = fade * clamp(1 - k.age / 0.5); g.drawImage(sparkle, k.x - size / 2, k.y - size / 2, size, size); }
+  }
+  function nightFloat(list, slow, dt) { // thrown out, slowing, then floating down
+    for (const p of list) { p.vx *= slow; p.vy = p.vy * slow + h * 0.1 * dt; p.x += (p.vx + Math.sin(sound.t * 1.1 + p.turn) * w * 0.015) * dt; p.y += p.vy * dt; p.turn += p.spin * dt; }
+  }
+  function drawNightHanami(o, part) { // the drop: speed lines round the edge for most of a second, and petals and sparkles thrown out from the middle that slow, float and drift down
+    const { t, dt } = sound, age = part * o.life, fade = clamp((1 - part) / 0.3), cx = w / 2, cy = h * 0.47, far = Math.hypot(w, h) * 0.75, petal = nightPaint("petal", nightPetal), sparkles = nightSparkles(), slow = Math.exp(-dt / 0.55);
+    if (age < 0.9) { // the speed lines: thin wedges pointing in, the middle left clear
+      const L = o.lines, near = Math.min(w, h) * (0.36 + 0.25 * age);
+      g.globalCompositeOperation = "source-over";
+      g.globalAlpha = 0.34 * (1 - age / 0.9) ** 1.5;
+      g.fillStyle = "#fffafd";
+      g.beginPath();
+      for (let i = 0; i < L.length; i += 2) { const a = L[i], wide = L[i + 1] * 3; g.moveTo(cx + Math.cos(a) * near, cy + Math.sin(a) * near); g.lineTo(cx + Math.cos(a - wide) * far, cy + Math.sin(a - wide) * far); g.lineTo(cx + Math.cos(a + wide) * far, cy + Math.sin(a + wide) * far); g.closePath(); }
+      g.fill();
+    }
+    nightFloat(o.bits, slow, dt);
+    nightFloat(o.stars, slow, dt);
+    g.globalCompositeOperation = "source-over";
+    for (const p of o.bits) {
+      p.flip += p.flipSpeed * dt;
+      const turnOver = Math.cos(p.flip);
+      g.save();
+      g.translate(p.x, p.y);
+      g.rotate(p.turn);
+      g.scale(1, Math.abs(turnOver) < 0.15 ? 0.15 : turnOver);
+      g.globalAlpha = fade * 0.95;
+      g.drawImage(petal, -p.size, -p.size, p.size * 2, p.size * 2);
+      g.restore();
+    }
+    g.globalCompositeOperation = "lighter";
+    for (const p of o.stars) { const size = p.size * (0.8 + 0.25 * Math.sin(t * 7 + p.turn * 3)); g.save(); g.translate(p.x, p.y); g.rotate(p.turn * 0.3); g.globalAlpha = fade * 0.9; g.drawImage(sparkles[p.tone], -size / 2, -size / 2, size, size); g.restore(); }
+  }
+  Object.assign(DRAWN_BY, { neko: drawNightNeko, crane: drawNightCrane, popup: drawNightPopup, kira: drawNightKira, floppy: drawNightFloppy, pointer: drawNightPointer, lantern: drawNightLantern, shrine: drawNightShrine, sakura: drawNightSakura, hanami: drawNightHanami });
+  for (const kind of ["lantern", "shrine", "sakura", "hanami"]) STILL.add(kind); // they fill the picture, or hang from its top, so they aren't pushed around
+  const NIGHT_GUESTS = { neko: drawNightNeko, popup: drawNightPopup, crane: drawNightCrane }; // and the ones that visit the app itself
+  /* ==== nightcore: end ==== */
   const DRAW = { aqua: awAquaFx, aero: awAeroFx, beings: beingsFx, life: livingGrid, places: placesFx, arcade: arcadeFx, runner: runnerFx, forms: formsFx, faces, ribbon, silk, helix, strings, bars, mirror, leds, terrain, scope, trails, tunnel, vortex, prism, ripple, comets, stars: starfield, whirl, dust, links, fireworks, halo, sun, rings, mandala, rays, space, warp: space, drift: space, orbit: space, visitors: space, well,
     kaleido, plasma, fractal, julia, mandel, newton, ocean, neonroad, aurora, tube: tubeFx, heads: headsFx, sphere: sphereFx, solids: solidsFx, city: cityFx };
 
@@ -10392,7 +10954,7 @@ window.Effects = (() => {
     g.rotate(o.neck * 0.5);
     g.drawImage(artOf(o.look).pilot, -S * 0.5, -S * 0.86, S, S);
   }
-  const GUESTS = { borrow: drawBorrow, abduct: drawAbduct, dangle: drawDangle, peek: drawPeek, astronaut: drawAstronaut, eye: drawEye, jelly: (o, part) => { drawJelly(o, part); if (o.y < -o.size * 1.4) o.done = true; } };
+  const GUESTS = { ...NIGHT_GUESTS, borrow: drawBorrow, abduct: drawAbduct, dangle: drawDangle, peek: drawPeek, astronaut: drawAstronaut, eye: drawEye, jelly: (o, part) => { drawJelly(o, part); if (o.y < -o.size * 1.4) o.done = true; } };
   function guests(real) {
     if (!guest.list.length) return;
     const W = innerWidth, H = innerHeight, k = document.body.classList.contains("gentle") ? 1 : Math.min(2, devicePixelRatio || 1), was = [g, w, h, sound.t, sound.dt];
@@ -10476,6 +11038,7 @@ window.Effects = (() => {
       else if (kind === "peek") { const size = Math.max(130, Math.min(220, Math.min(W, H) * 0.22)); Object.assign(o, { life: rnd(7, 10), floor: place.floor ?? H, size, x: left + size * 0.6 + Math.max(0, right - left - size * 1.2) * Math.random(), lean: side, blink: t + rnd(1, 3), shut: 0 }, look === "acid" ? smileyTrick(0.6, true) : {}); }
       else if (kind === "eye") { const size = Math.max(60, Math.min(120, Math.min(W, H) * 0.1)), floor = place.floor ?? H; Object.assign(o, { life: rnd(8, 11), size, x: left + size * 1.5 + Math.max(0, right - left - size * 3) * Math.random(), y: floor - size * 1.15, blink: t + rnd(1.2, 2.5), shut: 0 }); } // it opens just over the play bar
       else if (kind === "astronaut") Object.assign(o, { life: rnd(14, 18), y: rnd(0.15, 0.5) * H, size: Math.max(56, Math.min(96, Math.min(W, H) * 0.085)), beat: 0, arm: 0 });
+      else if (NIGHT_GUESTS[kind]) nightGuest(o, place, W, H); // nightcore's: the lucky cat, a little window, a paper crane
       else { const tone = look === "psy" ? mix(rainbowTone(rnd(0, 3), 0), [255, 255, 255], 0.15) : mix(around(rnd(0, 1)), look === "euphoric" ? [230, 215, 255] : [120, 210, 255], 0.35); Object.assign(o, { life: rnd(12, 16), x: rnd(0.15, 0.85) * W, y: H * 1.12, drift: side * rnd(0.004, 0.012) * W, rise: H * rnd(0.05, 0.065), size: Math.max(90, Math.min(160, Math.max(W, H) * 0.075)), art: paintJelly(tone), tone, pulse: 0 }); }
       guest.list.push(o);
       return true;
