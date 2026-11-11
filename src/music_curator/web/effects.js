@@ -20,7 +20,7 @@ window.Effects = (() => {
     trip: [["kaleido", "Kaleidoscope"], ["plasma", "Plasma"], ["fractal", "Fractal"], ["julia", "Julia"], ["mandel", "Mandelbrot"], ["newton", "Newton"]],
     journey: [["ocean", "Under the sea"], ["neonroad", "Neon road"], ["aurora", "Northern lights"]],
     worlds: [["tube", "Energy tube"], ["heads", "Neon heads"], ["sphere", "Sound sphere"], ["solids", "Shapes in space"], ["city", "Neon city"]],
-    pixel: [["runner", "Runner"], ["arcade", "Arcade"]],
+    pixel: [["runner", "Runner"], ["arcade", "Arcade"], ["places", "Places"]],
     visions: [["faces", "Faces"], ["forms", "Forms"]],
   };
   const FOLK_OF = { arcade: ["astronaut", "shapes", "neon", "jelly"], ocean: ["jelly", "whale", "jelly", "shapes"], neonroad: ["neon", "shapes", "saucer", "neon"], aurora: ["saucer", "astronaut", "neon", "saucer"], // some places have their own visitors
@@ -4945,6 +4945,7 @@ window.Effects = (() => {
     forms: { form: ["tunnel", "tunnel", "spiral", "rays", "honeycomb", "lattice", "cobweb"], arms: [6, 8, 5, 12, 4], twist: [0, 0, 1, -1, 2, 3], drift: [1, 1, -1, 0.5], bends: [1, 0, 2], veil: [0, 0, 0, 0.5], glow: [1, 0.6, 1.5], spin: [1, -1, 0] },
     runner: { gait: [1, 0.85, 1.12], kin: [0.5, 0, 1], wings: [2, 3, 4, 1], flair: [1, 0, 1], course: [0, 1, 2, 3] },
     arcade: { spin: [1, -1, 0, 1.8], rails: [1, 0.4, 0], hops: [0, 1, -1], foes: [16, 12, 20], scroll: [1, 0.6, 1.5] },
+    places: { land: ["a", "b", "c", "d"], hour: [0, 0, 0.25, 0.5, 0.75], going: [1, 1, -1], weather: [1, 0.3, 1.8] },
     kaleido: { blobs: [5, 3, 8], line: ["wave", "ring", "none"], spin: [1, -1, 2] },
     plasma: { scale: [1, 0.55, 1.7], stripes: [2, 1, 4], swirl: [0, 1, 2] },
     fractal: { sides: [0, 3, 4, 5, 6, 8], child: [0.22, 0.32, 0.15], spin: [1, -1] },
@@ -4960,7 +4961,7 @@ window.Effects = (() => {
     solids: { mode: ["field", "nested", "orbit", "field"], forms: ["mixed", "cube", "icosa", "tetra", "dodeca"], spin: [1, 2, 0.5] },
     city: { heights: [1, 0.6, 1.5], weave: [1, 0, 2], look: ["neon", "glass", "neon"] },
   };
-  const GLIDES = new Set(["rails", "hops", "foes", "scroll", "gait", "kin", "wings", "flair", "course", "veil", "stack", "hue", "order", "waves", "twists", "loops", "floor", "height", "glow", "spin", "roll", "drift", "flat", "size", "reach", "scale", "swirl", "child", "curve", "twist", "bends", "twirl", "swell", "depth", "wobble", "heights", "weave"]);
+  const GLIDES = new Set(["hour", "going", "weather", "rails", "hops", "foes", "scroll", "gait", "kin", "wings", "flair", "course", "veil", "stack", "hue", "order", "waves", "twists", "loops", "floor", "height", "glow", "spin", "roll", "drift", "flat", "size", "reach", "scale", "swirl", "child", "curve", "twist", "bends", "twirl", "swell", "depth", "wobble", "heights", "weave"]);
   const dialsOf = (style) => VERSIONS[style] && { hue: HUES, order: [0, 0, 1, 2], ...VERSIONS[style] };
   const LIVE = new Set(["fold", "form", "glasses", "roots"]), TAKES = { fold: 0.45, form: 1, glasses: 0.16, roots: 0.5 }; // these go over in the picture itself: the old fold lets go as the new one takes hold, a ring bends from one shape into the other, a head takes its glasses off and puts others on, and Newton's new roots open as a ring of light. Each takes this much of a slow change
   const vary = { aim: {}, on: 0, due: 40, turned: {}, was: {}, over: {}, trip: null }; // where each dial is going, what a fold or a shape was and how far over it is, and the slow change that's on
@@ -6592,7 +6593,721 @@ window.Effects = (() => {
     };
   })();
   /* ==== arcade: end ==== */
-  const DRAW = { arcade: arcadeFx, runner: runnerFx, forms: formsFx, faces, ribbon, silk, helix, strings, bars, mirror, leds, terrain, scope, trails, tunnel, vortex, prism, ripple, comets, stars: starfield, whirl, dust, links, fireworks, halo, sun, rings, mandala, rays, space, warp: space, drift: space, orbit: space, visitors: space, well,
+  /* ==== places: begin ==== */
+  /* ---------- Places: pixel-art scenery that lives with the song, one place for each kind of music. Not a game: a picture with depth, a sky that turns slowly through the hours, and things that live in it.
+     Everything is drawn in whole dots by a few drawing tools of its own into one list of dots (B), which goes onto the small screen in one go: nothing is smoothed, blends are dithered or mixed in a few steps.
+     What is kept from frame to frame is a handful of numbers (placeSt) and sixteen levels of the spectrum. Snow, embers, birds, fireworks and the whale are worked out from the clocks, so nothing piles up. ---------- */
+  const PLACE_OF = { trance: "fjord", techno: "city", jungle: "city", hard: "cinder", acid: "acid", psy: "psy", house: "pier", ambient: "sea", game: "day", "": "meadow" }; // the place each kind of music gets ("day" is the meadow under a bright sky; drum and bass gets the city with heavier rain)
+  const PLACE_HOUR = { fjord: 0.4, city: 0.4, acid: 0.4, psy: 0.3, sea: 0.3 }; // where in the turn of the sky each place begins (0 is late in the day, 0.5 the middle of the night): the places that are best by night begin near it
+  const placeSt = { t: 0, cam: 1000, day: 0, wide: 0, calmFor: 0, gT: 30, soft: 0, up: 0, afloat: 0, beat: 0, hat: 0, hatAgo: 0, he: 0, bs: 0.4, sw: 0.4, kick: 0, sk: 9, bl: 0.47, bc: 0, build: 0, inten: 0.6, rain: 0.55, eq: new Float32Array(16), world: "", over: 1, stepped: -1, painted: -1e9, look: "" }; // the clocks and levels of the place: see placeStep
+  const PLACE_LANDS = "abcd"; // the four lies of the land a version can have (the dial "land"). Letters and not numbers, because the app walks a number through the sizes in between, and here each is another landscape with the moon on the other side
+  let placeView = null; // the place as it is drawn for one size of small screen: made again when the picture changes shape, while placeSt carries on
+  function placeStep() { // the clocks and the smoothed levels, once a frame
+    const st = placeSt, dt = Math.min(Math.max(+sound.dt || 0, 0), 0.1), ease = (rate) => 1 - Math.exp(-dt * rate); // a late frame moves things a tenth of a second at most, and a frame with no time moves nothing: nothing jumps after a sleeping tab
+    const kind = musicWorld(), next = PLACE_OF[kind] || "meadow", building = clamp((flow.build - 0.25) / 0.75); // (with no kick the follower's build creeps up to a quarter and sits there: only what is above that is a build)
+    st.t += dt; st.kick = sound.kick; st.inten += (flow.intensity - st.inten) * ease(2); st.bl = 60 / (flow.bpm || 128);
+    st.build += (building - st.build) * ease(building > st.build ? 5 : 2.5); // the build, smoothed: the follower sets its own to nothing on the frame a drop lands
+    st.bs += (sound.bass - st.bs) * ease(7); // the bass, quick: for small things (a reed, a frond, a tower car)
+    st.sw += (sound.bass - st.sw) * ease(1.2); // the bass, slow: a swell for big areas (water, aurora, lava), so that nothing large pulses with single kicks
+    st.calmFor = flow.calm > 0.5 ? Math.min(60, st.calmFor + dt) : Math.max(0, st.calmFor - dt * 6);
+    st.up += dt * (1 + st.build); st.afloat += dt * (1 - 0.7 * st.wide); // clocks of their own for what rises: embers go up faster through a build, spores slower in a break. (Stepped like this a change of speed only changes how fast they go on from where they are)
+    st.wide += (flow.calm * (1 - 0.65 * eased(clamp((st.calmFor - 20) / 10))) - st.wide) * ease(0.7); // a break: the view settles and tilts up to the sky. After twenty seconds of quiet the stillness wears off again, so music with no drums is not a still picture
+    st.cam += dt * (V.going ?? 1) * 5 * (1 - 0.9 * st.wide) * (0.5 + 0.8 * st.inten) * (1 + 0.6 * st.build); // dots a second for the nearest layer
+    st.bc = (st.bc + (dt / st.bl) * (1 - 0.92 * st.wide) * (1 + st.build)) % 32; // a clock in beats for wheels and sails: it nearly stops in a break and runs ahead in a build
+    st.day = (st.day + dt / 240) % 1; // the sky turns once in four minutes
+    if (sound.kickHit > 0) { st.beat = (st.beat + 1) % 2400; st.sk = 0; } else st.sk += dt; // count the kicks, quiet ones too; sk is the seconds since the last one
+    st.hatAgo = sound.hatHit ? 0 : st.hatAgo + dt;
+    if (sound.hatHit) { st.hat = (st.hat + 1) % 360000; st.he = 1; } else st.he *= Math.exp(-dt * 7); // count the hi-hats; he is a hat's short afterglow
+    if (st.hatAgo > 1.5 + st.bl * 2) { st.hat = (st.hat + 1) % 360000; st.hatAgo = 1.5; } // with no hi-hats at all, the windows and bulbs still change now and then
+    if (flow.dropHit && st.gT > 8) { st.gT = 0; st.soft = 0; } // the drop: the grand thing begins (a second drop while it is still on is left alone)
+    else if (st.gT > (st.world === "sea" ? 90 : 180) && (st.calmFor > 40 || (sound.kickHit > 0 && flow.part === "groove"))) { st.gT = 0; st.soft = 1; } // no drop for a long while: it comes by itself, and more gently. Only in a long quiet (music with no drums never has a drop) or on a kick of a running groove: never in an ordinary break, where the drop itself is on its way
+    else st.gT += dt;
+    if (st.soft && (flow.dropHit || st.soft < 1)) st.soft = Math.max(0, Math.min(st.soft, 0.999) - dt / 0.4); // a real drop while one that came by itself is on takes it over: it is not started again, its gentleness goes in a moment (soft is 1 while gentle, and on its way to 0 from then on)
+    for (let i = 0; i < 16; i++) { const v = (sound.bands[i * 4] + sound.bands[i * 4 + 1] + sound.bands[i * 4 + 2] + sound.bands[i * 4 + 3]) / 4; st.eq[i] += (v - st.eq[i]) * (v > st.eq[i] ? ease(30) : ease(4)); } // sixteen levels of the spectrum, quick up and slow down
+    st.rain += ((kind === "jungle" ? 1 : 0.55) - st.rain) * ease(0.5);
+    if (st.over < 1) st.over = Math.min(1, st.over + dt / 2.2); // going over to another place takes two seconds or so
+    else if (next !== st.world) { st.over = st.world ? 0 : 1; st.world = next; } // another kind of music: another place (the clocks carry on)
+  }
+  function placeMake(S) { // the place laid out for one size of small screen, with its drawing tools
+    const W = S.across, H = S.down, img = S.x.createImageData(W, H), B = new Uint32Array(img.data.buffer), old = new Uint32Array(W * H), st = placeSt, WIDE = W >= H; // B: every dot of the small screen as one number; old: the place before, while the new one comes through it
+    const TALL = WIDE ? Math.min(1, Math.max(0.6, H / 180)) : 1.3, SC = WIDE ? Math.min(1, Math.max(0.7, H / 180)) : 0.8; // how much taller things stand on an upright picture, and how much smaller they are drawn on a low or narrow one
+    const M = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]; // the 4 by 4 dither
+    const lerp = (a, b, t) => a + (b - a) * t; // from a to b by t (0..1)
+    const rgb = (r, g, b) => ((255 << 24) | ((b & 255) << 16) | ((g & 255) << 8) | (r & 255)) >>> 0; // a color as the one number a dot of B holds
+    const named = {}, C = (hex) => named[hex] ?? (named[hex] = rgb(parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16))); // a color from its name ("#rrggbb"): worked out the first time and kept
+    const mixc = (a, b, t) => { t = clamp(t); const ar = a & 255, ag = (a >> 8) & 255, ab = (a >> 16) & 255; return rgb(ar + ((b & 255) - ar) * t, ag + (((b >> 8) & 255) - ag) * t, ab + (((b >> 16) & 255) - ab) * t); }; // a color between two (t from 0 to 1)
+    const turnOf = (c, deg) => { const k = (deg * Math.PI) / 180, co = Math.cos(k), m = (1 - co) / 3, q = Math.sin(k) / Math.sqrt(3), s = co + m, b = m - q, o = m + q, r = c & 255, g = (c >> 8) & 255, bl = (c >> 16) & 255, cl = (v) => (v < 0 ? 0 : v > 255 ? 255 : v); return rgb(cl(r * s + g * b + bl * o), cl(r * o + g * s + bl * b), cl(r * b + g * o + bl * s)); }; // a color with its hue turned
+    const hash = (n, s = 0) => { let x = Math.imul((n | 0) ^ Math.imul((s | 0) + 0x9e3779b9, 0x85ebca6b), 0xc2b2ae35); x ^= x >>> 15; x = Math.imul(x, 0x2c1b3c6d); x ^= x >>> 12; x = Math.imul(x, 0x297a2d39); x ^= x >>> 15; return (x >>> 0) / 4294967296; }; // a number from 0 to 1 that is always the same for the same two whole numbers
+    const noise = (x, s = 0) => { const i = Math.floor(x), f = x - i; return lerp(hash(i, s), hash(i + 1, s), eased(f)); }; // a smooth wandering number (0..1) along x: the same place always gives the same
+    const fbm = (x, s = 0) => noise(x, s) * 0.6 + noise(x * 2.3, s + 1) * 0.28 + noise(x * 5.1, s + 2) * 0.12; // the same with finer wobbles on top, for a skyline
+    const noise2 = (x, y, s = 0) => { const i = Math.floor(x), j = Math.floor(y), u = eased(x - i), v = eased(y - j); return lerp(lerp(hash(i + j * 7919, s), hash(i + 1 + j * 7919, s), u), lerp(hash(i + (j + 1) * 7919, s), hash(i + 1 + (j + 1) * 7919, s), u), v); }; // and one over a flat area, for mist
+    let HZ = 0, air = [], ni = 0, grand = 0, day = 0, land = 1, moonAt = 0.74, weather = 1, pick = "", coming = false; // this frame's horizon row, sky colors (top to horizon), how much it is night (0..1), how much of the drop's grand thing there is (0..1), the hour, and the version's dials
+
+    // The drawing tools. Each puts whole dots into B; where a blend is wanted (l from 0 to 1) it is dithered: so many dots of every sixteen, in a fixed pattern.
+    const dit = (x, y, l) => M[(x & 3) | ((y & 3) << 2)] < l * 16; // is this dot on, at a blend of l (0..1)
+    const dot = (x, y, c) => { x = Math.round(x); y = Math.round(y); if (x >= 0 && x < W && y >= 0 && y < H) B[y * W + x] = c; };
+    function box(x, y, w, h, c, l = 1) { // a filled rectangle, dithered when l < 1
+      x = Math.round(x); y = Math.round(y); const x1 = Math.min(W, x + Math.round(w)), y1 = Math.min(H, y + Math.round(h)); x = Math.max(0, x); y = Math.max(0, y);
+      if (x1 <= x || l <= 0) return;
+      for (let j = y; j < y1; j++) { if (l >= 1) B.fill(c, j * W + x, j * W + x1); else for (let i = x; i < x1; i++) if (dit(i, j, l)) B[j * W + i] = c; }
+    }
+    function disc(cx, cy, r, c, l = 1, below = H) { cx = Math.round(cx); cy = Math.round(cy); for (let j = -Math.ceil(r); j <= r; j++) { const q = r * r - j * j; if (q >= 0 && cy + j < below) { const half = Math.floor(Math.sqrt(q) + 0.35); box(cx - half, cy + j, half * 2 + 1, 1, c, l); } } } // "below": nothing is drawn from that row down (for things half in the water)
+    function dome(cx, base, rx, ry, c, l = 1) { cx = Math.round(cx); base = Math.round(base); for (let j = 0; j <= ry; j++) { const half = Math.floor(rx * Math.sqrt(Math.max(0, 1 - (j / (ry + 0.5)) ** 2))); box(cx - half, base - j, half * 2 + 1, 1, c, l); } } // the top half of an ellipse standing on row "base"
+    function ring(cx, cy, r, c, l = 1, squash = 1, tilt = 0, from = 0, to = TAU) { const n = Math.max(8, Math.ceil(r * 7)), ct = Math.cos(tilt), sn = Math.sin(tilt); for (let i = 0; i < n; i++) { const a = from + ((to - from) * i) / n, ex = Math.cos(a) * r, ey = Math.sin(a) * r * squash, x = Math.round(cx + ex * ct - ey * sn), y = Math.round(cy + ex * sn + ey * ct); if (l >= 1 || dit(x, y, l)) dot(x, y, c); } }
+    function line(x0, y0, x1, y1, c) { x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1); const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1); for (let i = 0; i <= n; i++) dot(x0 + ((x1 - x0) * i) / n, y0 + ((y1 - y0) * i) / n, c); }
+    function put(rows, x, y, pal, flip = false, size = 1) { // a sprite: rows of characters, colored by pal at the moment it is drawn (so the same sprite can be lit by the hour)
+      x = Math.round(x);
+      y = Math.round(y);
+      const n = rows[0].length;
+      for (let j = 0; j < rows.length; j++) for (let i = 0; i < n; i++) { const c = pal[rows[j][flip ? n - 1 - i : i]]; if (c !== undefined) { if (size === 1) dot(x + i, y + j, c); else box(x + i * size, y + j * size, size, size, c); } }
+    }
+
+    // Things every place uses: the hour, the sky, stars, a moon, a layer of land, things standing along a layer, water, birds, clouds, rain.
+    const phase = () => { const p = day * 4, i = Math.floor(p) % 4; return [i, (i + 1) % 4, eased(clamp((p - Math.floor(p) - 0.3) / 0.7))]; }; // each hour of the sky is held for a while, then blends into the next
+    const hour = (table) => { const [a, b, f] = phase(); return typeof table[a] === "number" ? lerp(table[a], table[b], f) : table[a].map((c, k) => mixc(c, table[b][k], f)); };
+    const band = (x) => st.eq[Math.max(0, Math.min(15, Math.floor((x / W) * 16)))]; // the spectrum laid across the picture, low on the left
+    function paintSky(cols, to) { // bands of the sky's colors from the top to row "to", dithered into each other
+      const n = cols.length - 1;
+      for (let y = 0; y < Math.min(H, to); y++) { const f = (y / to) * n, i = Math.min(n - 1, Math.floor(f)), l = clamp((f - i - 0.2) / 0.6) * 16, a = cols[i], b = cols[i + 1], row = y * W, my = (y & 3) << 2; for (let x = 0; x < W; x++) B[row + x] = M[(x & 3) | my] < l ? b : a; }
+    }
+    function stars(count, level, cDim, cBright, to) { // they come out as it gets dark; a few flare on each hi-hat
+      for (let i = 0; i < count; i++) {
+        if (hash(i, 11) > level) continue;
+        const x = Math.floor((((hash(i, 12) * W - st.cam * 0.02) % W) + W) % W), y = Math.floor(hash(i, 13) ** 1.4 * to), big = hash(i, 14) > 0.8, lit = (i + st.hat * 5) % 9 === 0 && st.he > 0.25;
+        dot(x, y, big || lit ? cBright : cDim);
+        if (lit && big) { dot(x - 1, y, cDim); dot(x + 1, y, cDim); dot(x, y - 1, cDim); dot(x, y + 1, cDim); }
+      }
+    }
+    function moon(x, y, r, cLit, cDark, cHalo, bite = 0.45) { // a moon with a halo that swells on the kick
+      const k = st.kick * (1 - st.wide * 0.5);
+      disc(x, y, r + 5 + 5 * k, cHalo, 0.14); disc(x, y, r + 2 + 3 * k, cHalo, 0.35);
+      disc(x, y, r, cLit);
+      if (bite > 0) { for (let j = -r; j <= r; j++) for (let i = -r; i <= r; i++) if (i * i + j * j <= r * r + r * 0.7 && (i - r * bite * 1.6) ** 2 + (j + r * bite * 0.5) ** 2 < r * r * 0.92) dot(x + i, y + j, cDark); }
+      else { disc(x - r * 0.35, y - r * 0.2, r * 0.22, cDark); disc(x + r * 0.35, y + r * 0.35, r * 0.16, cDark); dot(x + r * 0.2, y - r * 0.5, cDark); dot(x - r * 0.1, y + r * 0.55, cDark); }
+    }
+    const heights = new Float32Array(W + 14); // a layer's height at every column (and a few to either side), filled anew by each layer as it is drawn
+    function ridge(hOf, par, base, cBody, cLit, { litDeep = 2, to = H, tex = null, cHaze = null } = {}) { // one layer of land: a silhouette from a height function, lit on the slopes that face left
+      const off = Math.floor(st.cam * par), hs = heights, PAD = 6; base = Math.round(base); to = Math.min(H, Math.round(to));
+      for (let x = -PAD - 2; x < W + PAD; x++) hs[x + PAD + 2] = hOf(x + off);
+      for (let x = 0; x < W; x++) {
+        const hh = hs[x + PAD + 2], y = Math.max(0, Math.round(base - hh));
+        if (y >= to) continue;
+        for (let j = y, end = Math.min(to, H); j < end; j++) B[j * W + x] = cBody;
+        if (cLit !== null) for (let d = 0, n = Math.min(litDeep, to - y); d < n; d++) { const sh = x + PAD + 2 + Math.round((Math.abs((d % 14) - 7) - 3.5) * 1.1); if (hs[sh] - hs[sh - 2] > 0.25) B[(y + d) * W + x] = cLit; } // lit where the slope above faces the light; the line between light and shade zigzags down the mountain
+        if (tex) tex(x, y, x + off, hh);
+        if (cHaze !== null) for (let d = 1; d <= 9 && to - d >= y; d++) if (to - d < H && dit(x, to - d, 0.75 - d * 0.08)) B[(to - d) * W + x] = cHaze;
+      }
+    }
+    const each = (par, cell, seed, fn, margin = 40, drift = 0) => { const off = Math.floor(st.cam * par + drift); for (let k = Math.floor((off - margin) / cell); k <= Math.floor((off + W + margin) / cell); k++) fn(k * cell + Math.floor(hash(k, seed) * cell * 0.7) - off, k, hash(k, seed + 1)); }; // things standing along a layer, one to a cell
+    function water(top, cWater, cGlint, { ripple = 1, deep = 0.3, glint = 1, flow = 0, few = 0.93 } = {}) { // everything above row "top" mirrored below it, rippling with the bass, sinking into the water's own color
+      const amp = (0.3 + 2.4 * st.sw * ripple) * (1 - 0.85 * st.wide);
+      for (let y = top; y < H; y++) {
+        const d = y - top, src = top - 1 - Math.floor(d * 1.25), off = Math.round(Math.sin(d * 0.55 + st.t * 1.7) * amp * Math.min(1, d / 5)), row = y * W, sink = clamp(deep + (0.6 * d) / (H - top + 1)) * 4, my = (y & 3) << 2;
+        for (let x = 0; x < W; x++) B[row + x] = src < 0 ? cWater : mixc(B[src * W + Math.max(0, Math.min(W - 1, x + off))], cWater, Math.floor(sink + M[(x & 3) | my] / 16) / 4);
+        if (glint) for (let x = 0; x < W; x++) if (noise((x + st.cam * 0.3 + st.t * flow * (4 + d * 0.3)) * 0.11 + d * 3.7, d) + 0.25 * Math.sin(st.t * 1.3 + d * 1.9 + x * 0.05) > few - 0.06 * st.he * glint) B[row + x] = mixc(B[row + x], cGlint, 0.6); // short glints that shift, a few more on each hi-hat
+      }
+    }
+    function glitter(x, top, c) { for (let y = top; y < H; y++) { const d = y - top, hw = 2 + d * 0.16; for (let i = 0; i < 2; i++) if (hash(d, i + 5) < 0.5) box(x + (hash(d * 3 + i, Math.floor(st.t * 3 + d * 0.3)) - 0.5) * 2 * hw, y, 1 + hash(d, i) * 3, 1, c, d % 2 ? 1 : 0.5); } } // a path of short dashes that widens toward the viewer
+    function flock(rowsA, rowsB, pal, { n = 7, y = 0.3, every = 26, takes = 18, seed = 5, spread = 9 } = {}) { // a flock crossing the sky now and then, wings beating
+      const k = Math.floor(st.t / every), p = (st.t - k * every) / takes; if (p >= 1 || hash(k, seed) < 0.2) return;
+      const dir = hash(k, seed + 1) < 0.5 ? 1 : -1, x0 = dir > 0 ? lerp(-70, W + 70, p) : lerp(W + 70, -70, p), y0 = HZ * (y + 0.2 * hash(k, seed + 2)) + 5 * Math.sin(p * 9);
+      for (let i = 0; i < n; i++) { const side = i % 2 ? 1 : -1, rank = Math.ceil(i / 2); put(Math.floor(st.t * 5 + i * 0.37) % 2 ? rowsA : rowsB, x0 - dir * rank * spread, y0 + side * rank * spread * 0.55 + rank, pal, dir < 0); }
+    }
+    function cloud(x, base, size, id, cLit, cBody, cUnder, flat = false, high = 0.62) { // a heap of domes with a flat foot, lit from the upper left
+      if (flat) { // "flat": bars of low cloud or smoke
+        const L = size * 5;
+        for (let i = 0; i < 3; i++) { const o = (hash(id, 60 + i) - 0.5) * L * 0.5, l = L * (0.5 + 0.5 * hash(id, 70 + i)), y = base - i * 3; box(x + o - l / 2, y, l, 2, cBody); box(x + o - l / 2 - 5, y, 5, 2, cBody, 0.5); box(x + o + l / 2, y, 5, 2, cBody, 0.5); box(x + o - l * 0.35, y - 1, l * 0.7, 1, cLit, 0.5); box(x + o - l * 0.4, y + 2, l * 0.8, 1, cUnder, 0.5); }
+        return;
+      }
+      const heap = high > 0.8, n = heap ? 3 + Math.floor(size / 7) : 4 + Math.floor(size / 4), fat = heap ? 1.15 : 1.5;
+      for (let pass = 0; pass < 2; pass++) for (let i = 0; i < n; i++) { const u = i / (n - 1) - 0.5, r = size * (0.25 + 0.75 * (1 - 4 * u * u) ** 0.8) * (0.6 + 0.4 * hash(i, id + 50)), cx = x + u * size * (heap ? 3 : 3.6); if (pass) dome(cx + 1, base, r * fat, r * high, cBody); else dome(cx - 1, base, r * fat, r * high + 1.5, cLit); }
+      box(x - size * 2, base, size * 4, 1, cUnder); box(x - size * 1.7, base - 1, size * 3.4, 1, cUnder, 0.5);
+    }
+    function fall(amount, c, vx, vy, len = 0, seed = 21) { // rain, snow or ash: dots that fall by the clock
+      const n = Math.round(W * 0.5 * clamp(amount)), span = W + 60;
+      for (let i = 0; i < n; i++) { const f = 0.75 + 0.5 * hash(i, seed + 2), x = ((((hash(i, seed) * span + st.t * vx * f + (len ? 0 : 5 * Math.sin(st.t * 0.6 + i))) % span) + span) % span) - 30, y = (hash(i, seed + 1) * H + st.t * vy * f) % H; dot(x, y, c); for (let j = 1; j <= len; j++) dot(x - (vx / vy) * j, y - j, c); }
+    }
+    function flame(x, y, h, cols) { h = Math.round(h); for (let j = 0; j < h; j++) { const wd = Math.round((1 - j / h) * Math.min(2, h / 4)); box(x - wd, y - j, wd * 2 + 1, 1, j < h * 0.35 ? cols[2] : j < h * 0.7 ? cols[1] : cols[0]); } }
+    const BIRD_A = ["b.....b", ".b...b.", "..bbb..", "...b..."], BIRD_B = [".......", "..bbb..", ".b.b.b.", "b.....b"];
+    const CABIN = ["......rr.......", "....sssssss....", "...sssssssss...", "..srrrrrrrrrs..", ".rrrrrrrrrrrrr.", ".bbbbbbbbbbbbb.", ".bwwbbbbbbwwbb.", ".bwwbbddbbwwbb.", ".bbbbbddbbbbbb."];
+    const BOAT = ["......l......", "......m......", "......mw.....", "......mww....", ".....wmwww...", "....wwmwwww..", "...wwwmwwwww.", "..wwwwmwwwwww", "......m......", "hhhhhhhhhhhhh", ".hkkkkkkkkkh.", "..hhhhhhhhh.."];
+    function boat(every, takes, y, pal, cWake) { const k = Math.floor(st.t / every), p = (st.t - k * every) / takes; if (p < 1) { const bx = lerp(W + 20, -20, p), by = y + Math.round(Math.sin(st.t * 1.5) * 0.6); put(BOAT, bx, by - 11, pal); box(bx + 1, by + 1, 11, 1, cWake, 0.5); box(bx + 6, by + 2, 1, 5, pal.l, 0.5); } } // a boat with a lantern crosses now and then
+
+    // The places. Each has its sky at four hours (late day, evening, night, dawn; four colors each from the top down to the horizon), how much it is night at each, and draw(), which paints it from the back to the front.
+    const WORLDS = {};
+
+    // Fjord (trance): snow peaks over still water, a little harbour, the aurora.
+    WORLDS.fjord = (() => {
+      const SKY = [["#27336b", "#5a5f9c", "#c57a9e", "#f7b891"], ["#10163a", "#272b63", "#5c4688", "#b9627f"], ["#04060f", "#080f29", "#0c1a3d", "#15304f"], ["#0d1535", "#2b3873", "#7c68a3", "#eba08e"]].map((r) => r.map(C));
+      const NIGHT = [0.1, 0.55, 1, 0.6];
+      const snow = C("#eef4ff"), snowSh = C("#8fa3d6"), rock = C("#2a3157"), rockLit = C("#59679c"), pineC = C("#0a1626"), pineLit = C("#1d3a4a"), warm = C("#ffd27a"), warmDim = C("#7a4a3a"), roof = C("#7a2f3f"), wall = C("#3a2a3a"), aur = [C("#3dffa0"), C("#22c7a9"), C("#7a5cff"), C("#ff5cc8")], waterC = C("#060d22");
+      const AUR = [aur[0], aur[1], aur[2], ...[0, 1, 2, 3, 4].map((k) => mixc(aur[0], aur[3], k / 4))], lit = new Uint8Array(W * H); // the aurora's colors (the foot of a curtain, its middle, its top, and five from green to pink for the edge on a drop), and its light on every dot of the sky this frame: strength 0 to 4 and which color
+      const far = (x) => { const p = noise(x * 0.012, land), q = 1 - Math.abs(2 * noise(x * 0.03, land + 3) - 1); return 12 + 46 * TALL * p * (0.35 + 0.65 * q) + 5 * noise(x * 0.21, land + 5); };
+      const mid = (x) => 4 + 30 * fbm(x * 0.011, land + 9) + Math.max(0, 5 * hash(Math.floor(x / 5), 7) + 2 - Math.abs((x % 5 + 5) % 5 - 2) * 2.6);
+      function pine(x, base, h, sway, sn, snS) {
+        const tierH = Math.max(6, Math.round(h / 6));
+        for (let j = 0; j < h; j++) { const tier = (j % tierH) / tierH, half = Math.floor(1 + (j / h) * h * 0.3 * (0.45 + 0.55 * tier)), o = Math.round(sway * (1 - j / h) ** 2), y = base - h + j; box(x - half + o, y, half * 2 + 1, 1, pineC); if (tier < 0.3 && j > 3) box(x - half + o, y, half + 1, 1, tier < 0.14 ? sn : snS); else if (half > 2) box(x - half + o + 1, y, half * 0.6, 1, pineLit); }
+        box(x - 1, base, 3, 8, pineC);
+      }
+      return { SKY, NIGHT, draw() {
+        const t = st.t, sc = SC;
+        stars(Math.round(W * 0.42), (ni - 0.2) * 1.3, mixc(air[1], snow, 0.55), snow, HZ * 0.85);
+        // the aurora: curtains of rays that sway with the bass, gather through a build and fill the sky on a drop
+        const power = clamp(0.1 + 0.3 * ni * (0.5 + st.sw) + 0.3 * st.build ** 2 + 0.9 * grand - 0.1 * st.wide);
+        lit.fill(0);
+        for (let c = 0; c < 3; c++) for (let x = 0; x < W; x++) {
+          const gather = lerp(1, 0.55, st.build), u = ((x - W / 2) * gather) / Math.max(W, 240), base = HZ * (0.3 + 0.13 * c - 0.1 * grand) + HZ * 0.14 * Math.sin(u * 5 + t * 0.13 + c * 2.1) + HZ * 0.05 * Math.sin(u * 13 - t * 0.21 + c);
+          const ray = noise(x * 0.33 + c * 31, 4) * 0.6 + 0.4, len = (10 + HZ * 0.34 * noise(x * 0.045 + t * 0.25 + c * 17, 2)) * (0.5 + power) * ray;
+          const edge = 3 + Math.round(clamp(ray * 1.6 - 0.5) * 4); // on a drop the foot of each ray is lit pink, more where the ray is strong
+          for (let j = 0; j < len; j++) { const y = Math.round(base - j), u = 1 - j / len, l = power * ray * u * (0.7 + 0.3 * u) * (0.85 + 0.3 * st.sw); if (y < 0 || y >= HZ) continue; const q = Math.floor(clamp(l * 1.5) * 4 + M[(x & 3) | ((y & 3) << 2)] / 16), at = y * W + x; if (q > (lit[at] & 7)) lit[at] = q | ((j < 2 && grand > 0.2 ? edge : j < len * 0.35 ? 0 : j < len * 0.7 ? 1 : 2) << 3); }
+        }
+        for (let at = 0, n = W * Math.min(H, HZ); at < n; at++) if (lit[at]) B[at] = mixc(B[at], AUR[lit[at] >> 3], (lit[at] & 7) * 0.2125); // onto the sky in four steps of strength: where curtains cross, the brighter one shows
+        moon(Math.round(W * moonAt), Math.round(HZ * 0.2), Math.round(9 * sc), C("#fff6d8"), mixc(air[0], C("#fff6d8"), 0.12), mixc(air[0], C("#cfd8ff"), 0.5));
+        flock(BIRD_A, BIRD_B, { b: mixc(pineC, air[2], 0.3) }, { y: 0.34 });
+        // far peaks with snow, then a nearer wooded ridge
+        const haze = mixc(rock, air[3], 0.45), hazeLit = mixc(rockLit, air[2], 0.4), sn = mixc(snow, air[2], 0.25 + 0.3 * ni), snS = mixc(snowSh, air[1], 0.3 + 0.3 * ni);
+        ridge(far, 0.08, HZ, haze, hazeLit, { to: HZ + 2, litDeep: 90, cHaze: mixc(haze, air[3], 0.5), tex: (x, y, wx, hh) => { if (hh > 26) { const deep = Math.round((hh - 26) * 0.8 + 3 * hash(wx, 3)); for (let d = 0; d < deep; d++) B[(y + d) * W + x] = B[(y + d) * W + x] === hazeLit ? sn : snS; } } });
+        ridge(mid, 0.2, HZ + 1, mixc(pineC, air[3], 0.22), null, { to: HZ + 2 });
+        // the harbour: a spit of land with cabins and sometimes a lighthouse (windows change on the hi-hats)
+        const land = mixc(C("#101a30"), air[3], 0.1);
+        each(0.4, Math.round(Math.max(130, Math.min(230, W * 0.72))), 40, (x, k, r) => {
+          for (let i = -50; i <= 50; i++) { const hh = Math.round((2 + 5 * noise((i + k * 300) * 0.08, 3)) * Math.sqrt(1 - (i / 50) ** 2)); box(x + i, HZ - hh + 1, 1, hh + 1, land); dot(x + i, HZ - hh + 1, snS); }
+          for (let j = 0, n = 2 + Math.floor(r * 3); j < n; j++) { const cx = x - 40 + j * 18 + Math.floor(hash(k * 3 + j, 2) * 4), on = hash(k * 8 + j, Math.floor((st.hat + j * 3) / 8)) < 0.45 + 0.4 * st.inten - 0.3 * st.wide; put(CABIN, cx, HZ - 12 - Math.floor(hash(k * 3 + j, 9) * 3), { r: roof, s: sn, b: wall, w: on ? warm : warmDim, d: C("#20141f") }); }
+          if (hash(k, 5) > 0.35) { const lx = x + 38, ly = HZ - 26; box(lx, ly, 5, 24, snS); box(lx, ly, 2, 24, sn); box(lx, ly + 6, 5, 3, roof); box(lx, ly + 15, 5, 3, roof); box(lx - 1, ly - 4, 7, 4, pineC); box(lx + 1, ly - 3, 3, 2, warm); box(lx + 1, ly - 5, 3, 1, roof); dot(lx + 2, ly - 6, roof); disc(lx + 2, ly - 2, 3 + 4 * st.kick, warm, 0.22); } // the lamp swells on the kick
+        }, 70);
+        water(HZ + 1, waterC, mixc(air[2], snow, 0.35), { deep: 0.22 });
+        boat(34, 26, HZ + 8, { m: pineC, w: mixc(snow, air[2], 0.3), h: roof, k: wall, l: warm }, mixc(waterC, snow, 0.4));
+        fall(clamp(noise(t / 30, 5) * 2.4 - 1.1 + (weather - 1) * 0.6) * (1 - grand), sn, -6, 14); // snow comes and goes
+        // the near bank: tall pines that lean with the bass
+        const bank = H - 4 + st.wide * H * 0.08;
+        each(1, WIDE ? 62 : 46, 60, (x, k, r) => { if (r < 0.7) pine(x, bank + r * 6, Math.round((38 + r * 46) * TALL), Math.sin(t * 0.9 + k) * (1 + 3 * st.bs), sn, snS); }, 30);
+        box(0, bank, W, 30, pineC); box(0, bank - 1, W, 1, snS, 0.5);
+        // shooting stars over the first seconds of a drop, one a beat
+        for (let i = 0; i < 6; i++) { const a = st.gT - i * st.bl; if (a > 0 && a < 0.9) { const sx = W * (0.1 + 0.6 * hash(i, 31)) + a * 70, sy = HZ * 0.06 + hash(i, 9) * HZ * 0.25 + a * 34; for (let j = 0; j < 14; j++) if (j < 5 || dit(Math.round(sx - j * 2), Math.round(sy - j), 0.5)) dot(sx - j * 2, sy - j, j < 3 ? snow : aur[1]); } }
+      } };
+    })();
+
+    // City (techno; with heavier rain for drum and bass): towers whose lit floors are the spectrum, a train on a viaduct, a canal, signs on the roofs that all come on at the drop.
+    WORLDS.city = (() => {
+      const SKY = [["#241f3c", "#46335a", "#8a4a62", "#d27a58"], ["#0b0d1d", "#161a33", "#2a2748", "#5a3a55"], ["#04060d", "#090d1a", "#101726", "#1e2838"], ["#121829", "#263048", "#4a5a72", "#8d9199"]].map((r) => r.map(C));
+      const NIGHT = [0.35, 0.8, 1, 0.65];
+      const ink = C("#07080f"), tower = C("#12172a"), towerLit = C("#252e4c"), warm = C("#ffb85a"), cool = C("#9fe8ff"), winOff = C("#1b2136"), red = C("#ff3b4a"), signs = [C("#ff4fa8"), C("#4fe8ff"), C("#ffe14f")], steel = C("#3c4764"), waterC = C("#04060c"), white = C("#f2f6ff");
+      const GLYPH = [["...x...", "..x.x..", "..x.x..", ".x...x.", ".x...x.", "x.....x", "xxxxxxx"], ["..xxx..", ".x...x.", "x.....x", "x..x..x", "x.....x", ".x...x.", "..xxx.."], ["......x", "....x.x", "..x.x.x", "x.x.x.x", "x.x.x.x", "x.x.x.x", "x.x.x.x"],
+        [".......", "..x....", ".x.x...", "x...x.x", ".....x.", ".......", "xxxxxxx"], ["...x...", "..xxx..", ".x.x.x.", "...x...", "...x...", "...x...", "...x..."], ["x..x..x", ".x.x.x.", "..xxx..", "xxxxxxx", "..xxx..", ".x.x.x.", "x..x..x"]];
+      const CAR = [".bbbbbbbbbbbbbbbbbb.", "bbbbbbbbbbbbbbbbbbbb", "bwwbwwbwwbwwbwwbwwbb", "bwwbwwbwwbwwbwwbwwbb", "bbbbbbbbbbbbbbbbbbbb", "ssssssssssssssssssss", ".oo..............oo."];
+      const beacon = (x, y) => { dot(x, y, red); disc(x, y, 1 + 2.5 * st.kick, red, 0.3); };
+      return { SKY, NIGHT, draw() {
+        const t = st.t, wet = clamp(noise(t / 34, 8) * 2.6 - 0.9 + (weather - 1) * 0.6) * st.rain * (1 - st.wide) * (1 - 0.7 * grand); // rain comes and goes, and stops in a break
+        stars(Math.round(W * 0.3), (ni - 0.5) * (0.4 + st.wide) * (1 - wet), mixc(air[1], white, 0.4), white, HZ * 0.6);
+        moon(Math.round(W * (1 - moonAt) + 20), Math.round(HZ * 0.16), Math.round(7 * (WIDE ? 1 : 0.8)), mixc(air[1], C("#f4ecd0"), 0.75), mixc(air[0], white, 0.08), mixc(air[1], white, 0.3), 0);
+        each(0.04, 90, 60, (x, k, r) => { const s = 9 + r * 12; cloud(x, HZ * (0.18 + 0.4 * hash(k, 3)), s, k, mixc(air[1], air[2], 0.5), mixc(air[0], air[1], 0.4), mixc(air[3], warm, 0.12), true); }, 60, t * 1.2); // low cloud, lit from below by the town
+        flock(BIRD_A, BIRD_B, { b: ink }, { n: 5, y: 0.2, every: 37 });
+        // the far skyline: flat shapes, a few lights, red lamps on the masts that swell on the kick
+        const farC = mixc(tower, air[3], 0.5), farWin = mixc(warm, air[3], 0.45);
+        each(0.07, 13, 70, (x, k, r) => {
+          const hh = Math.round((8 + r * r * 34) * TALL), wd = 8 + Math.floor(hash(k, 3) * 6);
+          box(x, HZ - hh, wd, hh + 1, farC);
+          if (hash(k, 4) < 0.25) { box(x + 3, HZ - hh - 7, 1, 7, farC); beacon(x + 3, HZ - hh - 8); }
+          for (let j = 0; j < hh / 4 - 1; j++) for (let i = 0; i < wd / 3 - 1; i++) if (hash(k * 131 + j * 17 + i, 5) < 0.16) dot(x + 2 + i * 3, HZ - hh + 3 + j * 4, farWin);
+        });
+        // the towers: floors light up from the street as their part of the spectrum rises; every window makes up its own mind on a hi-hat
+        each(0.18, 25, 80, (x, k, r) => {
+          const wd = 13 + Math.floor(hash(k, 2) * 9), hh = Math.round((26 + r * 52) * TALL), top = HZ - hh, kind = hash(k, 6), lev = Math.max(st.eq[((k * 5) % 16 + 16) % 16] * 1.15, st.build * 0.95, clamp(grand * 3)) * (1 - 0.6 * st.wide), win = hash(k, 9) < 0.3 ? cool : warm;
+          box(x, top, wd, hh + 1, tower); box(x, top, 2, hh + 1, towerLit); box(x, top, wd, 1, towerLit);
+          if (kind < 0.3) { box(x + 3, top - 4, wd - 6, 4, tower); box(x + 3, top - 4, 1, 4, towerLit); } else if (kind < 0.5) { box(x + (wd >> 1), top - 11, 1, 11, tower); beacon(x + (wd >> 1), top - 12); } else if (kind < 0.65) { box(x + 2, top - 6, 5, 5, tower); dome(x + 4, top - 6, 2, 2, towerLit); }
+          const rows = Math.floor((hh - 4) / 4), cols = Math.floor((wd - 4) / 3);
+          for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) { const id = k * 977 + j * 31 + i, lit = 1 - j / rows < lev ? hash(id, Math.floor((st.hat + (id % 8)) / 8)) < 0.78 : hash(id, 3) < 0.09; box(x + 3 + i * 3, top + 3 + j * 4, 2, 2, lit ? win : winOff); }
+          if (wd >= 17 && hash(k, 7) < 0.6) { // a sign on the roof: dark most of the time; on the drop they come on one after another across the town, and go out again as the drop fades
+            const gx = x + ((wd - 16) >> 1), gy = top - (kind < 0.3 ? 21 : 17), order = clamp(x / W) * 10, on = (st.gT > order * st.bl * 0.5 && grand > 0.08 + 0.02 * order) || hash(k, 8) < 0.12, col = signs[((k % 3) + 3) % 3];
+            box(gx + 2, gy + 15, 1, 3, steel); box(gx + 13, gy + 15, 1, 3, steel); box(gx, gy, 16, 16, ink);
+            if (on) { for (let j = -2; j < 18; j++) for (let i = -2; i < 18; i++) if ((i < 0 || j < 0 || i > 15 || j > 15) && dit(gx + i, gy + j, 0.4)) dot(gx + i, gy + j, mixc(col, ink, 0.45)); }
+            put(GLYPH[((k % 6) + 6) % 6], gx + 1, gy + 1, { x: on ? col : mixc(col, ink, 0.8) }, false, 2);
+          }
+        });
+        // the viaduct and its train
+        const vy = HZ - 10, k = Math.floor(t / 21), p = (t - k * 21) / 8;
+        each(0.35, 28, 90, (x) => { box(x, vy + 2, 3, 9, ink); box(x - 2, vy + 2, 7, 1, ink); }, 10);
+        if (p < 1) { const dir = hash(k, 31) < 0.5 ? 1 : -1, x0 = dir > 0 ? lerp(-110, W + 10, p) : lerp(W + 10, -110, p); for (let c = 0; c < 5; c++) put(CAR, x0 + c * 21, vy - 7, { b: steel, w: (c + k) % 3 ? warm : mixc(warm, ink, 0.6), s: towerLit, o: ink }); dot(dir > 0 ? x0 + 104 : x0, vy - 3, white); }
+        box(0, vy, W, 2, ink); box(0, vy, W, 1, steel, 0.5);
+        water(HZ + 1, waterC, mixc(air[2], cool, 0.3), { deep: 0.2, ripple: 0.8 });
+        fall(wet, mixc(air[2], white, 0.3), -40, 150, 2);
+        // the roofs in front: tanks, masts, a vent that puffs on the kick, a skylight
+        each(1, WIDE ? 84 : 64, 100, (x, kk, r) => {
+          const top = H - Math.round((14 + r * 20) * TALL) + st.wide * H * 0.07, wd = 44 + Math.floor(hash(kk, 2) * 22);
+          box(x, top, wd, H, ink); box(x + 1, top + 4, wd - 1, H, tower, 0.25); box(x, top, wd, 1, towerLit); box(x, top + 3, wd, 1, tower); box(x, top + 1, 1, H, towerLit); for (let i = 3; i < wd - 12; i += 9) if (hash(kk * 9 + i, 6) < 0.5) box(x + i + 28, top + 9, 4, 5, hash(kk * 9 + i, 7 + Math.floor((st.hat + i) / 8)) < 0.4 ? cool : winOff);
+          if (hash(kk, 3) < 0.6) { const tx = x + 6; box(tx + 1, top - 5, 1, 5, ink); box(tx + 8, top - 5, 1, 5, ink); box(tx, top - 15, 10, 10, tower); box(tx, top - 15, 2, 10, towerLit); dome(tx + 5, top - 15, 5, 3, tower); }
+          if (hash(kk, 4) < 0.7) { const ax = x + wd - 9; box(ax, top - 26, 1, 26, ink); box(ax - 3, top - 20, 7, 1, ink); box(ax - 2, top - 15, 5, 1, ink); beacon(ax, top - 27); }
+          const sx = x + (wd >> 1); box(sx, top - 4, 3, 4, tower); for (let i = 0; i < 3; i++) { const a = (st.sk / st.bl + i) / 3; if (a < 1 && st.wide < 0.5) disc(sx + 1 + a * 5, top - 6 - a * 14, 1 + 3 * a, mixc(air[2], white, 0.25), 0.55 * (1 - a)); }
+          if (hash(kk, 5 + Math.floor((st.hat + kk) / 6)) < 0.6) box(x + 22, top + 4, 6, 3, warm); else box(x + 22, top + 4, 6, 3, winOff);
+        }, 70);
+      } };
+    })();
+
+    // Cinder (hardcore, gabber, hardstyle): a volcano over a lake of lava, forge stacks whose flames jump on the kick; on the drop it erupts.
+    WORLDS.cinder = (() => {
+      const SKY = [["#1a0a14", "#4a1220", "#a02a1e", "#f0702a"], ["#050207", "#14060f", "#380c14", "#861e16"], ["#0d0b10", "#1e181c", "#3a2a28", "#6a3a2a"], ["#12060e", "#3a0e1c", "#8a2030", "#e0603a"]].map((r) => r.map(C));
+      const NIGHT = [0.4, 1, 0.8, 0.5];
+      const basalt = C("#08060c"), rockC = C("#170d14"), rockLit = C("#5c1d1c"), lava = [C("#2a0a10"), C("#a01a12"), C("#f0541a"), C("#ffc23a"), C("#fff3b0")], smoke = C("#241b24"), ash = C("#8a7f85"), SPAN = Math.round(W * 1.5), AT = 40 + Math.round(W * 0.64) - SPAN / 2, FOOT = Math.min(130, W * 0.62);
+      const cone = (x) => { const d = Math.abs(((((x - AT) % SPAN) + SPAN) % SPAN) - SPAN / 2), body = d < FOOT ? 64 * TALL * (1 - d / FOOT) ** 1.55 : 0; return Math.max(body - (d < 8 ? (8 - d) * 0.7 + 3 : 0), 0) + 4 * noise(x * 0.11, 2) + 3; };
+      const crag = (x) => 5 + 24 * (1 - Math.abs(2 * noise(x * 0.035, land + 4) - 1)) * noise(x * 0.01, land + 6) + 4 * noise(x * 0.3, 8);
+      return { SKY, NIGHT, draw() {
+        const t = st.t, off = Math.floor(st.cam * 0.04), vx = Math.round(AT + SPAN / 2 + SPAN * Math.round((off + W / 2 - SPAN / 2 - AT) / SPAN) - off), top = HZ - Math.round(cone(vx + off)) - 1, heat = clamp(0.25 + 0.35 * st.sw + 0.5 * grand + 0.3 * st.build - 0.35 * st.wide);
+        // a dull red sun behind bars of smoke; its halo swells on the kick
+        const sx = Math.round(W * (1 - moonAt) + 6), sy = Math.round(HZ * 0.24), sr = Math.round(11 * (WIDE ? 1 : 0.85));
+        disc(sx, sy, sr + 4 + 5 * st.kick, mixc(air[1], lava[1], 0.6), 0.25); disc(sx, sy, sr, mixc(lava[2], air[2], 0.25)); disc(sx - 2, sy - 2, sr - 4, mixc(lava[3], air[3], 0.4), 0.5);
+        for (let i = 0; i < 3; i++) box(sx - sr - 2, sy - 4 + i * 5 + Math.round(Math.sin(t * 0.2 + i) * 1.5), sr * 2 + 5, 2, air[1], 0.75);
+        each(0.05, 80, 20, (x, k, r) => cloud(x, HZ * (0.12 + 0.45 * hash(k, 3)), 8 + r * 13, k, mixc(smoke, air[2], 0.35), mixc(smoke, air[0], 0.4), mixc(smoke, lava[1], 0.55), true), 60, t * 1.5);
+        flock(BIRD_A, BIRD_B, { b: basalt }, { n: 9, y: 0.3, every: 31, spread: 8 });
+        // the mountain: its plume, the glow in its mouth (kick), the streams down its sides
+        for (let i = 0; i < 12; i++) { const a = (t * 0.06 + i / 12) % 1, r = 3 + a * 12 * TALL, x = vx + a * a * 60 + 5 * Math.sin(i * 2.4 + a * 4), y = top - 5 - a * HZ * 0.55, l = a > 0.75 ? (1 - a) * 4 : 1; disc(x - 1, y + 1, r, mixc(smoke, lava[1], 0.6 * (1 - a) + 0.3 * grand), l); disc(x + 1, y - 1, r - 1, mixc(smoke, air[1], a * 0.6), l); }
+        disc(vx, top, 7 + 5 * st.kick + 7 * st.build + 8 * grand, lava[2], 0.3); disc(vx, top + 1, 4 + 2 * st.kick + 4 * grand, lava[3], 0.6);
+        if (grand > 0) { // the eruption: a pillar of fire, and bombs thrown out one after another
+          const hc = HZ * 0.55 * Math.sqrt(grand) * Math.min(1, st.gT * 3) * (0.75 + 0.25 * noise(t * 5, 3));
+          for (let j = 0; j < hc; j++) { const wd = 1 + 6 * (1 - j / hc) ** 0.7, wob = Math.sin(j * 0.35 + t * 8) * (1 + j * 0.04); box(vx - wd + wob, top - j, wd * 2 + 1, 1, lava[2], j > hc * 0.7 ? 0.6 : 1); box(vx - wd * 0.6 + wob, top - j, wd * 1.2 + 1, 1, lava[3], j > hc * 0.55 ? 0.5 : 1); if (j < hc * 0.4) box(vx - wd * 0.25 + wob, top - j, wd * 0.5 + 1, 1, lava[4]); }
+          for (let i = 0; i < 18; i++) { const a = st.gT - i * st.bl * 0.5; if (a <= 0) continue; const bvx = (hash(i, 41) - 0.5) * 80, bvy = -(50 + hash(i, 42) * 40) * TALL; for (let s = 0; s < 4; s++) { const q = a - s * 0.05, bx = vx + bvx * q, by = top - 6 + bvy * q + 30 * q * q; if (q > 0 && by < HZ - 2) box(bx, by, s ? 1 : 2, s ? 1 : 2, lava[4 - s]); } }
+        }
+        ridge(cone, 0.04, HZ, mixc(rockC, air[2], 0.18), mixc(rockLit, air[3], 0.25), { litDeep: 100, to: HZ + 2 });
+        for (let side = -1; side <= 1; side += 2) for (let s = 0; s < 3; s++) {
+          const reach = Math.min(FOOT - 6, (22 + s * 16 + (40 + s * 14) * clamp(st.gT / 5) * clamp(grand * 4)) * (s === 1 && side < 0 ? 0.6 : 1));
+          for (let d = 3; d < reach; d++) { const x = vx + side * d, y = HZ - cone(x + off) + d * (0.12 + 0.42 * s) + Math.sin(d * 0.5 + s) * 0.8; if (y < HZ) box(x, y, 1, 2, d > reach - 4 ? lava[3] : heat > 0.5 || s === 0 ? lava[2] : lava[1]); }
+        }
+        ridge(crag, 0.15, HZ + 1, mixc(rockC, air[1], 0.1), mixc(rockLit, air[2], 0.1), { litDeep: 3, to: HZ + 2 });
+        // the forge: stacks whose flames jump on every kick, a hall whose slits change on the hi-hats
+        each(0.3, 150, 50, (x, k, r) => {
+          box(x, HZ - 9, 44, 10, basalt); box(x, HZ - 9, 44, 1, rockLit); for (let i = 0; i < 6; i++) box(x + 4 + i * 7, HZ - 5, 3, 2, hash(k * 9 + i, Math.floor((st.hat + i) / 4)) < 0.6 ? lava[2] : lava[0]);
+          for (let i = 0; i < 2 + (r > 0.5); i++) { const cx = x + 6 + i * 15, ch = Math.round((20 + hash(k * 3 + i, 4) * 20) * TALL); box(cx, HZ - ch, 5, ch, basalt); box(cx, HZ - ch, 1, ch, rockLit); box(cx - 1, HZ - ch, 7, 2, basalt); flame(cx + 2, HZ - ch - 1, 2 + (8 + 5 * grand) * st.kick * (1 - 0.6 * st.wide), [lava[2], lava[3], lava[4]]); }
+        }, 60);
+        // the lake: a crust with glowing cracks that widen with the bass
+        for (let y = HZ + 1; y < H; y++) {
+          const d = y - HZ, sx2 = 0.11 * (16 / (d + 14)), v = Math.log(1 + d / 7) * 2.6 - t * 0.03, row = y * W;
+          for (let x = 0; x < W; x++) { const n = Math.abs(noise2((x - W / 2) * sx2 + st.cam * 0.01, v, 5) - 0.5) + 0.05 + (M[(x & 3) | ((y & 3) << 2)] - 8) * 0.0022; B[row + x] = n < 0.02 + heat * 0.035 ? lava[3] : n < 0.05 + heat * 0.07 ? lava[2] : n < 0.09 + heat * 0.1 ? lava[1] : n < 0.2 ? lava[0] : basalt; }
+        }
+        box(0, HZ + 1, W, 1, mixc(lava[1], basalt, 0.4));
+        // embers rise (faster through a build); in a break ash falls instead
+        for (let i = 0, n = Math.round(W * 0.2 * (0.4 + st.inten) * (1 - 0.8 * st.wide)); i < n; i++) { const f = hash(i, 61), y = H - ((st.up * (9 + 18 * f) + hash(i, 62) * 700) % (H * 0.95)), x = (((hash(i, 63) * W * 1.3 - st.cam * 0.5 + 6 * Math.sin(t * 0.8 + i)) % W) + W) % W; dot(x, y, y < HZ * 0.7 ? lava[2] : (i + st.hat) % 4 ? lava[3] : lava[4]); }
+        fall(Math.max(st.wide, 0.6 * clamp(noise(t / 40, 3) * 2 - 0.9 + (weather - 1) * 0.6)) * 0.5, mixc(ash, air[2], 0.3), 5, 11);
+        // basalt columns in front, lit from the lake
+        const lift = st.wide * H * 0.07;
+        const cOff = Math.floor(st.cam), colH = (q) => Math.round((3 + 50 * Math.max(0, noise(q * 0.11, 5) - 0.32) + 7 * hash(q, 6)) * TALL - lift), rim = mixc(rockLit, lava[1], 0.3 + 0.5 * heat);
+        for (let k = Math.floor(cOff / 10) - 1; k * 10 - cOff < W; k++) { const x = k * 10 - cOff, hh = colH(k), y = H - hh; box(x, y, 10, hh, basalt); box(x + 1, y, 8, 1, rockLit); box(x + 2, y + 1, 7, 2, rockC); if (colH(k - 1) < hh) box(x, y + 1, 1, hh - colH(k - 1), rim); for (let j = 9; j < hh; j += 11) box(x + 3 + (j % 4), y + j, 4, 1, rockC); }
+      } };
+    })();
+
+    // Acid: a marsh below a chemical works, under a dripping moon; reeds that are the spectrum, bubbles, a frog; on the drop the pools throw up geysers.
+    WORLDS.acid = (() => {
+      const SKY = [["#1c2812", "#46561a", "#9aa41c", "#e2de3c"], ["#050e0b", "#0a2418", "#1a5a2a", "#5c9a2c"], ["#030808", "#081a14", "#124030", "#2f7a48"], ["#0b1813", "#1e4829", "#66962a", "#d6de5e"]].map((r) => r.map(C));
+      const NIGHT = [0.25, 0.9, 1, 0.5];
+      const lime = C("#b6ff3c"), yel = C("#f4f04a"), dk = C("#05100b"), g2 = C("#16482a"), g3 = C("#3f8f2c"), rust = C("#7a4420"), pink = C("#ff4fb0"), cream = C("#f6ffd0"), waterC = C("#030d07");
+      const FROG = [["...........oooo.....", "..........oywkoo....", "......oooooGkkGGo...", "....ooGGGGGGGGGGGGo.", "...oGGGGGGGgggGpppo.", "..oGGGGGGGggggpppo..", ".oGGGGGGggggggooo...", ".oGGgooogggggggo....", "oGGgoGGGoggggggo....", "oggoGGgggoogggo.....", ".oooGgooggo.ogGo....", "..oGGGGoooo.oGGGGo.."],
+        ["...........oooo.....", "..........oywkoo....", "......oooooGkkGGoo..", "....ooGGGGGGGGGGGppo", "...oGGGGGGGgggGppppo", "..oGGGGGGGggggpppppo", ".oGGGGGGggggggopppo.", ".oGGgooogggggggooo..", "oGGgoGGGoggggggo....", "oggoGGgggoogggo.....", ".oooGgooggo.ogGo....", "..oGGGGoooo.oGGGGo.."]];
+      return { SKY, NIGHT, draw() {
+        const t = st.t, sc = SC, wk = mixc(dk, air[2], 0.3), wkLit = mixc(dk, air[3], 0.6);
+        stars(Math.round(W * 0.25), (ni - 0.4) * 1.2, mixc(air[1], lime, 0.35), cream, HZ * 0.7);
+        // the moon drips: a drop swells for six beats, falls for two, and rings the water where it lands
+        const mx = Math.round(W * moonAt), my = Math.round(HZ * 0.24), mr = Math.round(14 * sc), moonC = mixc(yel, lime, 0.35), dn = ((st.beat % 8) + Math.min(1, st.sk / st.bl)) / 8;
+        moon(mx, my, mr, moonC, mixc(moonC, g3, 0.45), mixc(air[1], lime, 0.4), 0);
+        disc(mx - mr * 0.3, my - mr * 0.3, mr * 0.45, mixc(moonC, cream, 0.5), 0.5);
+        if (dn < 0.75) box(mx - 1, my + mr - 1, 2, 2 + dn * 9, moonC); else box(mx - 1, my + mr + 8 + ((dn - 0.75) / 0.25) ** 2 * (HZ - my - mr - 8), 2, 3, moonC);
+        each(0.05, 110, 20, (x, k, r) => cloud(x, HZ * (0.2 + 0.4 * hash(k, 3)), 7 + r * 9, k, mixc(air[2], lime, 0.25), mixc(air[1], air[2], 0.6), mixc(air[1], air[0], 0.5)), 60, t * 0.9);
+        flock(BIRD_A, BIRD_B, { b: dk }, { n: 3, y: 0.45, every: 23, spread: 13 });
+        // the works on the far shore: tanks, a flare stack that licks up on the hi-hats, lamps
+        each(0.1, 150, 30, (x, k, r) => {
+          disc(x + 12, HZ - 18, 11, wk); for (let j = -11; j <= 11; j++) { const half = Math.floor(Math.sqrt(121 - j * j)); box(x + 12 - half, HZ - 18 + j, Math.max(1, half * 0.35), 1, wkLit); } box(x + 4, HZ - 9, 2, 10, wk); box(x + 18, HZ - 9, 2, 10, wk); box(x + 1, HZ - 18, 22, 1, wk); // a ball tank on legs
+          const th = Math.round((40 + r * 22) * TALL); box(x + 34, HZ - th, 6, th + 1, wk); box(x + 34, HZ - th, 2, th + 1, wkLit); for (let j = 6; j < th; j += 8) box(x + 32, HZ - j, 10, 1, wk); box(x + 42, HZ - th + 6, 1, th - 6, wk); flame(x + 37, HZ - th - 1, 4 + 5 * st.he + 10 * grand, [g3, lime, cream]); // a column with a flare that licks up on the hi-hats
+          for (let i = 0; i < 2; i++) { const tx = x + 52 + i * 21; box(tx, HZ - 20, 17, 21, wk); dome(tx + 8, HZ - 20, 8, 4, wk); box(tx, HZ - 20, 3, 21, wkLit); box(tx, HZ - 12, 17, 1, mixc(wk, dk, 0.5)); }
+          for (let j = 0; j < 30 * TALL; j++) { const u = j / (30 * TALL), half = Math.round(10 - 4 * Math.sin(u * Math.PI * 0.8)); box(x + 108 - half, HZ - j, half * 2, 1, wk); box(x + 108 - half, HZ - j, 3, 1, wkLit); } // a cooling tower that breathes out a puff on each kick
+          for (let i = 0; i < 3; i++) { const a = (st.sk / st.bl + i) / 3; if (a < 1) disc(x + 108 + a * 8, HZ - 30 * TALL - 3 - a * 16, 2 + 5 * a, mixc(air[2], cream, 0.3), 0.6 * (1 - a)); }
+          box(x + 23, HZ - 6, 86, 2, wk); box(x + 40, HZ - 12, 60, 1, wk);
+          for (let i = 0; i < 7; i++) if (hash(k * 7 + i, Math.floor((st.hat + i) / 4)) < 0.6) dot(x + 6 + i * 17, HZ - 3 - (i % 3) * 6, yel);
+        }, 130);
+        // a pipeline on stilts: each joint lets a drop go on a kick, and it lands on the next
+        const py = HZ - 9, pipe = mixc(dk, air[1], 0.2);
+        box(0, py, W, 2, pipe); box(0, py, W, 1, mixc(g2, air[2], 0.3), 0.5);
+        each(0.25, 44, 90, (x, k) => { box(x, py + 2, 2, 8, pipe); const jx = x + 20, ph = st.sk / st.bl, turnN = (((st.beat + k) % 4) + 4) % 4; box(jx - 1, py - 1, 3, 5, rust); dot(jx - 1, py - 1, mixc(rust, yel, 0.4)); if (turnN === 0) box(jx, py + 4 + Math.min(1, ph) ** 2 * 6, 1, 2, lime); if (turnN === 1 && ph < 1.6) ring(jx, HZ + 4, 2 + 7 * ph, lime, 0.9 - ph * 0.5, 0.3); }, 10);
+        // on the drop: the pools throw up geysers, one after another across the marsh
+        if (grand > 0) for (let i = 0; i < 5; i++) {
+          const a = st.gT - i * st.bl * 0.5, gx = Math.round(W * (0.1 + 0.2 * i)); if (a <= 0) continue;
+          const hg = HZ * 0.78 * (0.6 + 0.4 * hash(i, 3)) * Math.min(1, a * 2.5) * grand ** 0.6 * (0.92 + 0.08 * Math.sin(t * 11 + i));
+          for (let j = 0; j < hg; j++) { const wd = 1 + 2.5 * (1 - j / hg), wob = Math.round(Math.sin(j * 0.3 + t * 7 + i) * (j / hg) * 1.5); box(gx - wd + wob, HZ - j, wd * 2 + 1, 1, g3); box(gx - wd + 1 + wob, HZ - j, wd * 2 - 1, 1, j > hg * 0.75 ? cream : lime); }
+          for (let j = 0; j < 14; j++) { const q = (t * 0.9 + hash(j, i + 7)) % 1; dot(gx + (hash(j, i + 8) - 0.5) * 34 * q, HZ - hg - 5 * Math.sin(q * Math.PI) + hg * 0.5 * q * q, j % 3 ? lime : cream); }
+        }
+        if (dn < 0.2) ring(mx, HZ + 2, 3 + 60 * dn, moonC, 0.8 - dn * 3, 0.3);
+        water(HZ + 1, waterC, mixc(g2, lime, 0.45), { deep: 0.25, few: 0.965 });
+        if (st.wide > 0.05) for (let y = HZ - 10; y < HZ + 8; y++) for (let x = 0; x < W; x++) if (dit(x, y, st.wide * 0.75 * (1 - Math.abs(y - HZ + 1) / 9) * (0.3 + noise((x + t * 3) * 0.03 + y * 0.11, 12)))) B[y * W + x] = mixc(B[y * W + x], mixc(air[3], cream, 0.3), 0.7); // in a break, mist lies on the water in drifts
+        // bubbles drift up out of the marsh, more of them through a build
+        for (let i = 0, n = Math.round(5 + 4 * st.inten + 12 * st.build); i < n; i++) {
+          const f = hash(i, 71), y = H - ((t * (5 + 9 * f) + hash(i, 72) * 900) % (H + 30)) + 10, x = (((hash(i, 73) * W * 1.4 - st.cam * 0.6) % W) + W) % W + 5 * Math.sin(t * 0.7 + i), r = 2 + Math.floor(f * 3.5) + ((i + st.hat) % 4 === 0 && st.he > 0.5 ? 1 : 0);
+          ring(x, y, r, y < HZ ? mixc(lime, air[2], 0.3) : lime);
+          dot(x - r * 0.4, y - r * 0.4, cream);
+        }
+        // reeds: their height is the spectrum laid across the marsh
+        const off = Math.floor(st.cam * 0.8), base = H + st.wide * H * 0.05;
+        for (let x = -4; x < W + 4; x++) {
+          const k = x + off;
+          if (((k % 4) + 4) % 4 || hash(k, 3) > 0.8) continue;
+          const big = hash(k, 5) < 0.35, hh = Math.round((6 + 12 * hash(k, 4) + 22 * band(x) * (big ? 1 : 0.6)) * TALL), lean = Math.sin(t * 1.2 + k * 0.13) * (1 + 3.5 * st.bs), c = big ? mixc(g3, air[1], 0.35) : mixc(dk, g2, 0.55);
+          for (let j = 0; j < hh; j++) { const xo = x + Math.round(lean * (j / hh) ** 2); dot(xo, base - j, c); if (big && j < hh * 0.5) dot(xo + 1, base - j, mixc(dk, g2, 0.55)); }
+          const tx = x + Math.round(lean);
+          if (big) { box(tx, base - hh, 2, 5, rust); dot(tx, base - hh - 2, c); dot(tx, base - hh - 1, c); dot(tx, base - hh, mixc(rust, yel, 0.5)); } else if (band(x) > 0.6) dot(tx, base - hh, lime);
+        }
+        // a frog on a lily pad, its throat swelling on the kick
+        each(1, Math.round(Math.max(130, Math.min(250, W * 0.8))), 95, (x, k) => { const y = H - Math.round(15 * TALL) + st.wide * H * 0.05; box(x - 6, y, 32, 2, g3); box(x - 4, y + 2, 28, 1, g2); box(x - 6, y, 10, 1, lime); put(FROG[st.kick > 0.45 ? 1 : 0], x, y - 12, { o: dk, G: g3, g: mixc(g3, lime, 0.55), y: yel, w: cream, k: dk, p: mixc(cream, pink, 0.35 + 0.3 * st.kick) }, k % 2 === 0); }, 40);
+      } };
+    })();
+
+    // Psy (psytrance, goa): a garden of giant mushrooms under a ringed planet, colors that turn; on the drop a mandala opens around the planet.
+    WORLDS.psy = (() => {
+      const SKY = [["#170a36", "#461a76", "#aa3a96", "#fa8a5c"], ["#040a20", "#0a2048", "#0e4a6a", "#1a8684"], ["#0a0418", "#2a0a48", "#6a1070", "#bc308a"], ["#1a0a30", "#5a1a5a", "#bc504c", "#fcc064"]].map((r) => r.map(C));
+      const NIGHT = [0.5, 1, 0.9, 0.4];
+      const ink = C("#090420"), CAPS = [C("#ff3fa4"), C("#ff9a2e"), C("#2ee6d6"), C("#a65cff")], cream = C("#fff2c8"), stemC = C("#d9c9ea"), stemSh = C("#6c4c9c"), moss = C("#3cffb0");
+      const RAY_A = ["mm...........mm", ".mmm.......mmm.", "..mmmm...mmmm..", "...mmmmmmmmm...", "....mwmmmwm....", "......mmm......", ".......t.......", ".......t......."], RAY_B = ["...............", "......mmm......", "..mmmmmmmmmmm..", ".mmmmwmmmwmmmm.", "mmm...mmm...mmm", "m......t......m", ".......t.......", "..............."];
+      let mist = null, mistOf = 0, mistUnder = -1, mistOver = 0;
+      function shroom(x, base, h, r, cap, k, flat, sway, glow) { // flat: one dark color for the ones far off
+        const lean = (hash(k, 3) - 0.5) * h * 0.35, wd = Math.max(1, Math.round(r * 0.2));
+        for (let j = 0; j < h; j++) { const u = j / h, sx = x + Math.round((lean + sway) * u * u); box(sx - wd, base - j, wd * 2 + 1, 1, flat || stemSh); if (!flat) box(sx - wd, base - j, wd, 1, stemC); }
+        const tx = x + Math.round(lean + sway), ty = base - h, ry = Math.round(r * 0.62);
+        if (flat) { dome(tx, ty + 2, r, ry, flat); box(tx - r + 2, ty + 3, r * 2 - 3, 1, mixc(flat, cap, 0.5 + 0.4 * glow)); return; }
+        dome(tx, ty + 2, r, ry, mixc(cap, ink, 0.55)); dome(tx - 1, ty + 1, r - 2, ry - 2, cap); dome(tx - r * 0.3, ty - ry * 0.35, r * 0.4, ry * 0.3, mixc(cap, cream, 0.45));
+        box(tx - r + 2, ty + 3, r * 2 - 3, 1, mixc(stemSh, cream, 0.3 + 0.7 * glow)); box(tx - r + 4, ty + 4, r * 2 - 7, 1, stemSh);
+        for (let i = 0, n = 3 + Math.floor(r / 5); i < n; i++) { const a = (i + 0.5) / n * Math.PI, q = 0.35 + 0.5 * hash(k * 7 + i, 4); disc(tx - Math.cos(a) * r * q * 1.05, ty + 1 - Math.sin(a) * ry * q, 0.8 + r * 0.07 * (1 + hash(k * 7 + i, 5)) + ((k + st.beat) % 2 ? 0 : st.kick * 1.3), mixc(cream, cap, 0.25 * (1 - glow))); } // the spots swell on the kick, every other mushroom in turn
+      }
+      return { SKY, NIGHT, draw() {
+        const t = st.t, sc = WIDE ? SC : 0.75, hue = t * 5 + grand * 60, caps = CAPS.map((c) => turnOf(c, hue)), glow = clamp(0.25 + 0.5 * st.bs + grand);
+        stars(Math.round(W * 0.6), 0.3 + ni * 0.7, mixc(air[2], cream, 0.4), cream, HZ * 0.9);
+        if (mistOf !== land) { mistOf = land; mist = mist || new Uint8Array(W * Math.ceil(H * 0.56)); for (let y = 0; y < H * 0.56; y++) for (let x = 0; x < W; x++) { const v = noise2(x * 0.02 + y * 0.03, y * 0.045 - x * 0.012, 9 + land); mist[y * W + x] = v > 0.56 ? Math.min(16, (v - 0.56) * 35) : 0; } } // a band of mist across the stars: its shape is worked out once, its color turns with the rest
+        mistUnder = -1;
+        for (let y = 0, to = Math.min(HZ * 0.8, H * 0.56); y < to; y++) for (let x = 0; x < W; x++) { const l = mist[y * W + x]; if (l && M[(x & 3) | ((y & 3) << 2)] < l) { const under = B[y * W + x]; if (under !== mistUnder) { mistUnder = under; mistOver = mixc(under, caps[3], 0.35); } B[y * W + x] = mistOver; } } // (the sky under it has a handful of colors: each is mixed once, not for every dot)
+        // the planet: its rings, and on each kick a ripple that runs out along the ring's plane
+        const px = Math.round(W * (1 - moonAt) + 8), py = Math.round(HZ * 0.3), pr = Math.round(19 * sc), pc = [turnOf(C("#ffb46a"), hue * 0.3), turnOf(C("#e0607a"), hue * 0.3), turnOf(C("#7a3a8a"), hue * 0.3)];
+        if (grand > 0) { // the mandala: three rings of petals that turn against each other
+          const R = Math.min(HZ * 0.95, W * 0.6) * eased(clamp(st.gT / 1.6)), rot = t * 0.22, N = [6, 10, 16], F = [0.5, 0.76, 1];
+          for (let m = 0; m < 3; m++) for (let i = 0, steps = Math.ceil(R * F[m] * 9); i < steps; i++) { // each petal line with a glow that thins out inward
+            const a = (i / steps) * TAU, Rm = R * F[m] * (0.72 + 0.28 * Math.abs(Math.cos(N[m] * 0.5 * (a + rot * (m % 2 ? -1 : 1))))), ca = Math.cos(a), sa = Math.sin(a);
+            for (let g = 0; g < 5; g++) { const rr = Rm - g * 1.6, x = Math.round(px + ca * rr), y = Math.round(py + sa * rr); if (rr > pr + 2 && y >= 0 && y < HZ && x >= 0 && x < W && dit(x, y, grand * (g ? 0.8 - g * 0.17 : 2.5))) B[y * W + x] = mixc(B[y * W + x], caps[m], g ? 0.45 : 0.9); }
+          }
+        }
+        ring(px, py, pr * 1.95, pc[0], 1, 0.3, -0.35, Math.PI, TAU); ring(px, py, pr * 1.7, pc[1], 1, 0.3, -0.35, Math.PI, TAU);
+        for (let j = -pr; j <= pr; j++) { const half = Math.floor(Math.sqrt(pr * pr - j * j) + 0.35); for (let i = -half; i <= half; i++) { const bandN = Math.max(0, Math.floor((j + pr + 2 * Math.sin(i * 0.2)) / (pr / 3.2))) % 3, shade = i * 0.9 + j * 0.45 - pr * 0.25; dot(px + i, py + j, shade > 0 && dit(px + i, py + j, shade / (pr * 0.5)) ? mixc(pc[2], ink, 0.6) : pc[bandN]); } }
+        ring(px, py, pr * 1.95, pc[0], 1, 0.3, -0.35, 0, Math.PI); ring(px, py, pr * 1.7, pc[1], 1, 0.3, -0.35, 0, Math.PI);
+        for (let i = 0; i < 2; i++) { const a = (st.sk / st.bl + i) / 2; if (a < 1 && st.wide < 0.6) ring(px, py, pr * 2.2 + a * pr * 2.6, caps[2], 0.7 * (1 - a), 0.3, -0.35); }
+        disc(px + pr * 2.7, py - pr * 0.9, 3 * sc + 1, cream); disc(px + pr * 2.7 + 1, py - pr * 0.9 + 1, 3 * sc, mixc(cream, air[1], 0.5));
+        flock(RAY_A, RAY_B, { m: mixc(caps[2], air[1], 0.25), w: cream, t: caps[2] }, { n: 3, y: 0.42, every: 29, takes: 22, spread: 17 });
+        // far off: stepped temples on low domes of hills
+        const hillC = mixc(ink, air[3], 0.42);
+        ridge((x) => 6 + 22 * fbm(x * 0.008, land + 2) ** 1.5, 0.08, HZ + 2, hillC, mixc(hillC, air[3], 0.35), { litDeep: 3, to: HZ + 12 });
+        each(0.08, 210, 30, (x, k, r) => {
+          const n = 4 + Math.floor(r * 3), tc = mixc(ink, air[3], 0.5), tl = mixc(ink, air[3], 0.75), up = Math.round(7 * TALL);
+          for (let i = 0; i < n; i++) { const wd = Math.round(60 - i * (48 / n)); box(x - wd / 2, HZ - up * (i + 1) + 2, wd, up, tc); box(x - wd / 2, HZ - up * (i + 1) + 2, wd * 0.3, up, tl); box(x - wd / 2, HZ - up * (i + 1) + 2, wd, 1, tl); }
+          const ty = HZ - up * n + 2;
+          box(x - 2, ty - 9, 5, 9, tc);
+          box(x - 2, ty - 9, 2, 9, tl);
+          dot(x, ty - 11, cream);
+          disc(x, ty - 11, 1 + 2.5 * st.kick, caps[1], 0.4);
+          box(x - 3, HZ - 8, 6, 10, ink);
+          box(x - 1, ty - 6, 2, 3, st.hat % 2 ? caps[1] : ink);
+        }, 50);
+        // the wood: dark mushrooms behind, big spotted ones in front that sway with the bass
+        const farCap = mixc(ink, air[2], 0.28), ground = H - Math.round(13 * TALL) + st.wide * H * 0.06;
+        each(0.22, 34, 44, (x, k, r) => shroom(x, HZ + 6, Math.round((16 + r * 30) * TALL), Math.round((6 + Math.floor(hash(k, 2) * 9)) * SC), caps[((k % 4) + 4) % 4], k, farCap, 0, glow), 30);
+        ridge((x) => 3 + 7 * fbm(x * 0.015, land + 40), 0.35, HZ + 8, mixc(ink, air[2], 0.12), mixc(ink, air[2], 0.3), { litDeep: 1 });
+        for (let y = HZ + 9; y < H; y++) for (let x = 0; x < W; x++) if (hash(x + st.cam * 0.6 * ((y - HZ) / (H - HZ)) | 0, y) < 0.04) dot(x, y, band(x) > hash(x * 31 + y, 8) ? mixc(moss, air[2], 0.3) : mixc(ink, moss, 0.22)); // moss lights: the spectrum picks which glow
+        each(0.55, WIDE ? 74 : 60, 55, (x, k, r) => { if (r < 0.8) shroom(x, ground + 6, Math.round((34 + r * 50) * TALL), Math.round((11 + Math.floor(hash(k, 2) * 12)) * (WIDE ? SC : 1)), caps[((k % 4) + 4) % 4], k, 0, Math.sin(t * 0.8 + k) * (1 + 4 * st.bs), glow); }, 40);
+        ridge((x) => 5 + 9 * fbm(x * 0.03, land + 30), 1, ground + 10, ink, null, { tex: (x, y, wx) => {
+          if (wx % 7 === 0 && hash(wx, 2) < 0.6) { const fh = 5 + Math.floor(hash(wx, 3) * 7), sw = Math.round(Math.sin(t + wx) * st.bs * 2); for (let j = 0; j < fh; j++) dot(x + (j > fh - 3 ? sw : 0), y - j, ink); for (let i = 0; i < 7; i++) dot(x + sw + Math.cos(i * 0.9) * (2.5 - i * 0.3), y - fh + Math.sin(i * 0.9) * (2.5 - i * 0.3), i > 4 ? moss : ink); }
+        } });
+        // spores rise from the caps and, through a build, draw together toward the planet
+        for (let i = 0, n = Math.round(W * 0.17 * (0.5 + st.inten)); i < n; i++) {
+          const f = hash(i, 81), up = (st.afloat * (5 + 9 * f) + hash(i, 82) * 600) % (H * 0.9), y = H * 0.88 - up;
+          let x = (((hash(i, 83) * W * 1.3 - st.cam * 0.5) % W) + W) % W + 5 * Math.sin(t * 0.9 + i);
+          x = lerp(x, px, st.build * 0.85 * clamp(up / (H * 0.8)));
+          dot(x, y, (i + st.hat) % 5 === 0 && st.he > 0.3 ? cream : caps[i % 4]);
+        }
+      } };
+    })();
+
+    // Pier (house, disco): a boardwalk at sunset, a big wheel that turns with the beat, strings of bulbs, palms; on the drop, fireworks.
+    WORLDS.pier = (() => {
+      const SKY = [["#2a3a7c", "#7a5a9c", "#f08a6a", "#ffd27a"], ["#1a1648", "#5a2a78", "#d04a7a", "#ff9a5a"], ["#060a24", "#0e1640", "#1c2a5e", "#3a3a7a"], ["#1c2a5a", "#5a5a9a", "#e8a0a0", "#ffe0a0"]].map((r) => r.map(C));
+      const NIGHT = [0, 0.5, 1, 0.5];
+      const ink = C("#150a26"), wood = C("#4a2a3a"), bulbs = [C("#ff5fa2"), C("#ffe066"), C("#5fe0e6"), C("#fff4d6")], steel = C("#8a7aa8"), palm = C("#143a34"), palmLit = C("#2f7a5a"), white = C("#fff8ea"), waterC = C("#0a0c2a");
+      function wheel(cx, deck, R, night) { // one turn in thirty-two beats; the rim's bulbs step round on the hi-hats
+        const cy = deck - R - 5, a0 = (st.bc / 32) * TAU, frame = mixc(steel, ink, 0.3 + 0.4 * night);
+        line(cx, cy, cx - R * 0.6, deck, ink); line(cx, cy, cx + R * 0.6, deck, ink); line(cx + 1, cy, cx - R * 0.6 + 1, deck, ink);
+        ring(cx, cy, R, frame); ring(cx, cy, R - 3, mixc(frame, ink, 0.4));
+        for (let i = 0; i < 8; i++) { const a = a0 + (i * TAU) / 8; line(cx, cy, cx + Math.cos(a) * R, cy + Math.sin(a) * R, mixc(frame, ink, 0.4)); }
+        for (let i = 0; i < 8; i++) { const a = a0 + (i * TAU) / 8, gx = Math.round(cx + Math.cos(a) * R), gy = Math.round(cy + Math.sin(a) * R); box(gx - 2, gy + 1, 5, 4, bulbs[i % 3]); box(gx - 2, gy + 1, 5, 1, ink); box(gx - 1, gy + 2, 3, 1, mixc(white, ink, 0.2 + 0.5 * (1 - night))); }
+        for (let i = 0; i < 16; i++) { const a = a0 + ((i + 0.5) * TAU) / 16, on = grand > 0.08 || (i + st.hat) % 4 === 0; dot(cx + Math.cos(a) * (R - 1), cy + Math.sin(a) * (R - 1), on ? white : mixc(bulbs[1], ink, 0.6)); }
+        disc(cx, cy, 2, white); disc(cx, cy, 3 + 2 * st.kick, bulbs[1], 0.3);
+      }
+      function palmTree(x, base, h, sway, body, lit) {
+        const lean = (hash(h, 3) - 0.5) * h * 0.5;
+        for (let j = 0; j < h; j++) { const sx = x + Math.round(lean * (j / h) ** 1.6); box(sx - 1, base - j, j > h * 0.6 ? 2 : 3, 1, j % 4 ? body : lit); }
+        const tx = x + Math.round(lean), ty = base - h;
+        for (let f = 0; f < 9; f++) { const a = Math.PI * (1.04 + f * 0.115), L = h * (0.36 + 0.1 * hash(f, h)); for (let s = 0; s < L; s++) { const fx = tx + Math.cos(a) * s * 1.1, fy = ty + Math.sin(a) * s * 0.6 + s * s * (0.62 / L) + sway * (s / L) ** 2, hang = 1 + Math.round(3 * Math.sin((s / L) * Math.PI)); box(fx, fy, 1, 2, f < 4 ? lit : body); if (s % 2 === 0) box(fx, fy + 2, 1, hang, body); } }
+        disc(tx, ty + 1, 2, body);
+      }
+      return { SKY, NIGHT, draw() {
+        const t = st.t, sc = SC, d = day, alt = Math.max(-0.6, Math.min(1, d < 0.5 ? 1 - d / 0.36 : (d - 0.86) / 0.14));
+        stars(Math.round(W * 0.4), (ni - 0.35) * 1.5, mixc(air[1], white, 0.5), white, HZ * 0.8);
+        // the sun goes down into the sea as the song goes on, and a moon comes up; whichever is there swells on the kick
+        const sx = Math.round(W * moonAt), sy = Math.round(HZ - 2 - alt * HZ * 0.42), sr = Math.round(15 * sc), sunC = mixc(C("#ff5a4a"), C("#fff0a0"), clamp(alt * 1.2));
+        if (alt > -0.55) { disc(sx, sy, sr + 4 + 5 * st.kick, mixc(air[2], sunC, 0.5), 0.3); disc(sx, sy, sr, sunC); disc(sx - 2, sy - 2, sr - 4, mixc(sunC, white, 0.5), 0.5); }
+        if (ni > 0.5) moon(Math.round(W * (1 - moonAt)), Math.round(HZ * (0.2 + 1.2 * (1 - clamp((ni - 0.5) * 2.2)))), Math.round(8 * sc), white, mixc(air[0], white, 0.1), mixc(air[1], white, 0.4));
+        each(0.05, 100, 20, (x, k, r) => cloud(x, HZ * (0.2 + 0.5 * hash(k, 3)), 6 + r * 10, k, mixc(air[3], white, 0.5 - 0.3 * ni), mixc(air[2], air[1], 0.35), mixc(air[1], air[2], 0.5)), 60, t * 0.8);
+        flock(BIRD_A, BIRD_B, { b: mixc(white, air[1], 0.2 + 0.5 * ni) }, { n: 5, y: 0.3, every: 33, spread: 11 });
+        // fireworks, one every two beats through the first half of the drop
+        if (grand > 0) for (let i = 0; i < 14; i++) {
+          const a = st.gT - i * st.bl, fx = W * (i % 2 ? 0.08 + 0.4 * hash(i, 3) : 0.52 + 0.4 * hash(i, 3)), top = HZ * (0.16 + 0.34 * hash(i, 4)), col = bulbs[i % 3]; if (a <= 0) continue;
+          if (a < 0.6) { const y = lerp(HZ - 12, top, eased(a / 0.6)); dot(fx, y, white); dot(fx, y + 2, col); dot(fx, y + 4, mixc(col, air[1], 0.5)); continue; }
+          const b = a - 0.6, R = (20 + 17 * hash(i, 5)) * sc; if (b > 2.6) continue;
+          if (b < 0.15) disc(fx, top, 1 + b * 9, white, 0.4);
+          for (let j = 0; j < 42; j++) for (let s = 0; s < 3; s++) {
+            const q = Math.max(0, b - s * 0.07), ang = (j / 14) * TAU + i + (j % 3) * 0.2, rr = R * [1, 0.68, 0.36][j % 3] * (1 - Math.exp(-q * 3.2)), x = Math.round(fx + Math.cos(ang) * rr), y = Math.round(top + Math.sin(ang) * rr + 6 * q * q);
+            if (y < HZ && (b < 1.4 || dit(x, y, 1 - (b - 1.4) / 1.2))) { if (s === 0 && b < 0.9) box(x, y, 2, 2, b < 0.18 ? white : j % 3 === 2 ? white : col); else dot(x, y, s ? mixc(col, air[1], 0.3 * s) : col); }
+          }
+        }
+        // the headland with its hotels, the long pier with the wheel, a tent and a tower
+        const headC = mixc(C("#2a1648"), air[3], 0.3), head = (x) => 3 + 17 * fbm(x * 0.01, land + 3);
+        ridge(head, 0.1, HZ + 1, headC, mixc(headC, air[3], 0.35), { litDeep: 2, to: HZ + 2 });
+        each(0.1, 46, 30, (x, k, r) => {
+          if (r > 0.55) return;
+          const hh = 9 + Math.floor(hash(k, 2) * 15), by = HZ - Math.round(head(x + Math.floor(st.cam * 0.1))) + 3;
+          box(x, by - hh, 9, hh, headC);
+          box(x, by - hh, 2, hh, mixc(headC, air[3], 0.45));
+          for (let j = 0; j < hh / 3 - 1; j++) for (let i = 0; i < 2; i++) if (hash(k * 50 + j * 2 + i, Math.floor((st.hat + j) / 8)) < ni * 0.75) dot(x + 3 + i * 3, by - hh + 2 + j * 3, bulbs[1]);
+        });
+        const deck = HZ - 5, night = ni;
+        each(0.3, 12, 0, (x) => box(x, deck + 1, 2, 5, ink), 4);
+        each(0.3, Math.round(Math.max(110, Math.min(170, W * 0.55))), 44, (x, k) => {
+          const kind = [0, 1, 0, 2][((k % 4) + 4) % 4]; // every other one is a wheel, so one is nearly always in view
+          if (kind === 0) wheel(x, deck, Math.round(27 * TALL * sc + 3), night);
+          else if (kind === 1) {
+            for (let i = -17; i <= 17; i++) { const hh = Math.round(11 * Math.sqrt(1 - (i / 17.5) ** 2)); box(x + i, deck - 8 - hh, 1, hh, Math.floor((i + 18) / 4) % 2 ? bulbs[0] : white); }
+            box(x - 17, deck - 8, 35, 8, mixc(bulbs[0], ink, 0.5));
+            box(x - 3, deck - 6, 6, 6, ink);
+            box(x, deck - 26, 1, 8, ink);
+            box(x + 1, deck - 26, 4, 2, bulbs[1]);
+            for (let i = 0; i < 6; i++) dot(x - 15 + i * 6, deck - 9, (i + st.hat) % 2 ? bulbs[1] : ink);
+          }
+          else { const th = Math.round(46 * TALL); box(x, deck - th, 2, th, ink); box(x - 2, deck - th - 2, 6, 2, ink); box(x - 3, deck - 9 - (th - 16) * clamp(st.bs * 1.2), 8, 4, bulbs[2]); dot(x, deck - th - 3, bulbs[0]); disc(x, deck - th - 3, 1 + 2 * st.kick, bulbs[0], 0.35); } // a car that rides up the tower with the bass
+          for (let i = 0; i < 3; i++) { const bx = x + 36 + i * 15; box(bx, deck - 7, 11, 7, wood); box(bx - 1, deck - 9, 13, 2, i % 2 ? bulbs[2] : bulbs[0]); box(bx + 3, deck - 5, 5, 3, hash(k * 3 + i, Math.floor((st.hat + i) / 4)) < 0.3 + 0.6 * ni ? bulbs[1] : ink); }
+        }, 90);
+        box(0, deck, W, 2, wood); box(0, deck, W, 1, mixc(wood, air[3], 0.4));
+        water(HZ + 1, waterC, mixc(air[3], white, 0.3), { deep: 0.18, flow: 1 });
+        if (alt > 0.02) glitter(sx, HZ + 2, mixc(waterC, sunC, 0.8)); else if (ni > 0.6) glitter(Math.round(W * (1 - moonAt)), HZ + 2, mixc(waterC, white, 0.55));
+        boat(41, 30, HZ + 9, { m: ink, w: white, h: bulbs[0], k: ink, l: bulbs[1] }, mixc(waterC, white, 0.4));
+        // the promenade in front: lamp posts with strings of bulbs (they step on the hi-hats, fill up through a build, all shine on the drop), and palms
+        const y0 = H - Math.round(13 * TALL) + st.wide * H * 0.07, off = Math.floor(st.cam * 0.8), dark = mixc(ink, air[1], 0.15);
+        for (let x = 0; x < W; x++) if ((x + off) % 8 === 0) box(x, y0 - 5, 1, 5, dark);
+        box(0, y0 - 5, W, 1, dark); box(0, y0, W, H, dark); box(0, y0, W, 1, mixc(wood, air[3], 0.3));
+        each(0.8, 66, 0, (x, k) => {
+          const ph = Math.round(30 * TALL); box(x, y0 - ph, 2, ph, dark); box(x - 1, y0 - ph - 3, 4, 3, grand > 0.08 || ni > 0.4 ? bulbs[3] : dark); if (ni > 0.4) disc(x, y0 - ph - 2, 3 + st.kick, bulbs[1], 0.25);
+          for (let j = 1; j < 13; j++) { const u = j / 13, bx = x + 1 + u * 66, by = y0 - ph + 2 + 28 * u * (1 - u), col = bulbs[(((j + k) % 4) + 4) % 4], on = grand > 0.08 ? true : st.build > 0.05 ? bx / W < st.build * 1.1 : (j + st.hat + k) % 3 === 0 && (st.wide < 0.5 || j % 4 === 0); dot(bx, by - 1, dark); box(bx, by, 2, 2, on ? col : mixc(col, ink, 0.72)); if (on && ni > 0.3) dot(bx, by, white); }
+        }, 70);
+        each(0.9, 140, 77, (x, k, r) => palmTree(x, H, Math.round((58 + r * 26) * TALL), Math.sin(t * 0.8 + k) * (1.5 + 5 * st.bs), mixc(palm, ink, 0.3 + 0.4 * ni), mixc(palmLit, air[3], 0.25 * (1 - ni))), 50);
+      } };
+    })();
+
+    // Sea (ambient, chill, downtempo): open water under towers of cloud, an island, a skiff, a buoy; on the drop a whale leaps out of the water (and with no drop for a minute and a half, by itself).
+    WORLDS.sea = (() => {
+      const SKY = [["#35579a", "#6a8ac2", "#b2b9d9", "#f1c9b1"], ["#192357", "#49397f", "#ae5989", "#f7a171"], ["#040818", "#081230", "#0e2048", "#183a60"], ["#16224a", "#3a4a80", "#9a80a8", "#f0b8a0"]].map((r) => r.map(C));
+      const NIGHT = [0, 0.5, 1, 0.55];
+      const white = C("#fdfaf0"), ink = C("#070b1c"), whale = C("#1c2c4c"), whaleLit = C("#3a5684"), belly = C("#cfd9e6"), red = C("#e0483c"), warm = C("#ffd27a"), waterC = C("#07122e"), PROF = [4, 6, 8, 9, 9, 10, 10, 10, 9, 9, 8, 8, 7, 6, 6, 5, 4, 4, 3, 3, 2, 2];
+      const SKIFF = ["........l........", "........m........", "........m........", "..pp....m........", "..pp....m........", ".ppp....m.......h", "hhhhhhhhhhhhhhhhh", ".hkkkkkkkkkkkkkh.", "..hhhhhhhhhhhhh.."];
+      return { SKY, NIGHT, draw() {
+        const t = st.t, sc = SC, wy = HZ + Math.round(13 * TALL);
+        stars(Math.round(W * 0.45), (ni - 0.3) * 1.4, mixc(air[1], white, 0.5), white, HZ * 0.85);
+        moon(Math.round(W * moonAt), Math.round(HZ * 0.22), Math.round(12 * sc), C("#fff6d8"), mixc(C("#fff6d8"), air[2], 0.45), mixc(air[1], white, 0.4), 0);
+        // towers of cloud that come and go with the weather
+        const cover = 0.35 + 0.5 * noise(t / 50, 4) + (weather - 1) * 0.25, cl = mixc(white, air[3], 0.25 + 0.45 * ni), cb = mixc(air[2], white, 0.3 - 0.2 * ni), cu = mixc(air[1], air[2], 0.6);
+        each(0.06, 120, 20, (x, k, r) => { const s = (10 + r * 12) * sc * clamp((cover - hash(k, 4) * 0.7) * 5), base = HZ * (0.5 + 0.38 * hash(k, 3)); if (s < 3) return; cloud(x + s * 0.5, base - s * 1.5, s * 0.45, k + 9, cl, cb, cb, false, 1.1); cloud(x - s * 0.3, base - s * 0.75, s * 0.7, k + 5, cl, cb, cb, false, 1.1); cloud(x, base, s, k, cl, cb, cu, false, 0.9); }, 80, t * 0.7);
+        flock(BIRD_A, BIRD_B, { b: mixc(white, air[1], 0.3 + 0.5 * ni) }, { n: 5, y: 0.4, every: 31, spread: 11 });
+        // an island with one leaning tree and standing stones; a ship far out with its lights on
+        const rockC = mixc(C("#1a2240"), air[3], 0.25), rockLit = mixc(rockC, air[3], 0.4);
+        each(0.12, Math.round(Math.max(150, Math.min(330, W * 0.9))), 30, (x, k) => {
+          dome(x, HZ, 36, 8, rockC);
+          dome(x - 6, HZ - 1, 26, 6, rockLit);
+          dome(x + 2, HZ, 30, 6, rockC);
+          for (let j = 0; j < 14; j++) box(x + 6 + Math.round(j * j * 0.04), HZ - 7 - j, 2, 1, ink);
+          disc(x + 15, HZ - 23, 6, ink);
+          disc(x + 21, HZ - 20, 5, ink);
+          disc(x + 11, HZ - 20, 4, ink);
+          disc(x + 13, HZ - 25, 3, mixc(ink, C("#2f6a5a"), 0.5));
+          for (let i = 0; i < 3; i++) { box(x - 22 + i * 6, HZ - 11 - (i % 2) * 3, 3, 6 + (i % 2) * 3, rockC); box(x - 22 + i * 6, HZ - 11 - (i % 2) * 3, 1, 6 + (i % 2) * 3, rockLit); }
+        }, 50);
+        {
+          const k = Math.floor(t / 53), p = (t - k * 53) / 44, x = lerp(-30, W + 30, p);
+          if (p < 1) { box(x, HZ - 2, 26, 3, ink); box(x - 2, HZ - 3, 3, 1, ink); box(x + 8, HZ - 5, 12, 3, ink); box(x + 11, HZ - 9, 2, 4, ink); box(x + 15, HZ - 9, 2, 4, ink); box(x + 3, HZ - 8, 1, 6, ink); box(x + 11, HZ - 9, 2, 1, red); box(x + 15, HZ - 9, 2, 1, red); for (let i = 0; i < 6; i++) if ((i + st.hat) % 5) dot(x + 2 + i * 4, HZ - 1, warm); }
+        }
+        water(HZ + 1, waterC, mixc(air[2], white, 0.45), { deep: 0.2, flow: 1 }); glitter(Math.round(W * moonAt), HZ + 2, mixc(waterC, C("#fff6d8"), 0.3 + 0.35 * ni));
+        for (let i = 0; i < 9; i++) { // the swell: long lines that roll with the bass
+          const d = Math.round(3 + i * i * (H - HZ) / 90), y = HZ + 1 + d, amp = (0.6 + 2.2 * st.sw) * (1 - 0.8 * st.wide) * (0.4 + i * 0.15), c = mixc(waterC, air[2], 0.55);
+          if (y < H) for (let x = 0; x < W; x++) if (noise((x + st.cam * (0.2 + i * 0.1) + t * (3 + i * 2)) * 0.05, i + 9) > 0.45) dot(x, y + Math.round(Math.sin((x + t * (6 + i * 3)) * (0.16 - i * 0.008)) * amp), c);
+        }
+        // now and then a back rolls out of the water and blows
+        { const k = Math.floor(t / 37), p = (t - k * 37) / 7, x = W * (0.2 + 0.6 * hash(k, 51)) - p * 14; if (p < 1 && grand === 0 && hash(k, 52) < 0.8) { dome(x, wy, 15 * sc, 5 * Math.sin(p * Math.PI) * sc, whale); if (p > 0.25 && p < 0.6) for (let i = 0; i < 12; i++) { const q = (p - 0.25) * 3 + hash(i, 3) * 0.3; dot(x - 8 + (hash(i, 4) - 0.5) * 12 * q, wy - 5 - 12 * Math.sin(Math.min(1, q) * 2.2), white); } } }
+        // the breach: the whale follows its own arc out of the sea and back, with spray where it leaves and where it lands
+        if (grand > 0 && st.gT > 0.3) {
+          const u = (st.gT - 0.3) / 4.2, x0 = W * 0.36, span = 64 * sc, rise = Math.min(HZ * 0.66, span * 1.25), at = (v) => [x0 + span * v, wy + 10 - rise * Math.sin(Math.PI * Math.min(v, 1.2))], seg = [];
+          for (let s = 0; s < PROF.length; s++) { const v = u - s * 0.023, [x, y] = at(v), [xa, ya] = at(v + 0.01), [xb, yb] = at(v - 0.01), m = Math.hypot(xa - xb, ya - yb) || 1; seg.push([x, y, (xa - xb) / m, (ya - yb) / m, PROF[s] * sc * 1.15]); }
+          const back = mixc(whale, C("#3d5c92"), ni * 0.85), top = mixc(whaleLit, C("#8fb2e2"), ni * 0.85), tail = seg[seg.length - 1];
+          for (let side = -1; side <= 1; side += 2) for (let i = 0; i < 14 * sc; i++) for (let j = 0; j < 6 - i / 3; j++) { const fx = tail[0] - tail[2] * (1 + i * 0.45 + j) - tail[3] * side * i * 1.15, fy = tail[1] - tail[3] * (1 + i * 0.45 + j) + tail[2] * side * i * 1.15; if (fy < wy) dot(fx, fy, j ? back : top); }
+          for (let s = seg.length - 1; s >= 0; s--) { const [x, y, tx, ty, r] = seg[s]; disc(x, y, r, back, 1, wy); disc(x + ty * r * 0.45 - 1, y - tx * r * 0.45 - 1, r * 0.5, top, 1, wy); }
+          for (let s = 11; s >= 1; s--) { const [x, y, tx, ty, r] = seg[s]; disc(x - ty * r * 0.62, y + tx * r * 0.62, r * 0.42, belly, 1, wy); }
+          for (let s = 10; s >= 1; s--) for (const o of [0.45, 0.8]) { const [x, y, tx, ty, r] = seg[s], lx = x - ty * r * o, ly = y + tx * r * o; if (ly < wy) { dot(lx, ly, mixc(belly, back, 0.55)); dot(lx - tx * 2, ly - ty * 2, mixc(belly, back, 0.55)); } } // the grooves of its throat
+          { const [x, y, tx, ty, r] = seg[6]; for (let i = 0; i < 24 * sc; i++) for (let j = 0; j < 5 - i / 6; j++) { const fx = x - ty * (r * 0.8 + i * 0.8) - tx * (i * 0.55 + j), fy = y + tx * (r * 0.8 + i * 0.8) - ty * (i * 0.55 + j); if (fy < wy) dot(fx, fy, j ? back : top); } } // the long fin
+          { const [x, y, tx, ty, r] = seg[2]; if (y < wy) { box(x - ty * r * 0.2 - 1, y + tx * r * 0.2 - 1, 2, 2, ink); dot(x - ty * r * 0.2 - 1, y + tx * r * 0.2 - 1, white); } }
+          for (const [te, xe, big] of [[0.3, x0 + 4, 1], [4.6, x0 + span - 2, 1.6]]) {
+            const a = st.gT - te;
+            if (a <= 0) continue;
+            if (a < 2.6) for (let i = 0; i < 50 * big; i++) { const q = a - hash(i, 7) * 0.6; if (q <= 0) continue; const y = wy - (22 + 60 * hash(i, 8)) * big * q + 62 * q * q; if (y < wy) box(xe + (hash(i, 9) - 0.5) * 80 * big * q, y, i % 5 ? 1 : 2, i % 5 ? 1 : 2, i % 3 ? white : mixc(white, air[2], 0.4)); }
+            for (let i = 0; i < 3; i++) ring(xe, wy + 1, (6 + 9 * a) * big * (1 - i * 0.3), mixc(white, air[2], 0.2), 0.9 - a * 0.13, 0.2);
+          }
+        }
+        // nearer: a skiff at anchor with somebody in it and a lamp on its mast, rocking on the swell; and now and then a fish jumps
+        each(0.7, Math.round(Math.max(120, Math.min(260, W * 0.8))), 74, (x, k) => {
+          const y = HZ + Math.round((H - HZ) * 0.42) + Math.round(Math.sin(t * 1.1 + k) * (0.6 + 1.5 * st.bs)) + st.wide * H * 0.03, hull = mixc(C("#6a4a3a"), ink, 0.5 * ni);
+          put(SKIFF, x - 8, y - 8, { l: warm, m: ink, p: ink, h: hull, k: mixc(hull, ink, 0.5) }, k % 2 === 0);
+          disc(x, y - 8, 2 + 3 * st.kick, warm, 0.25);
+          box(x - 7, y + 1, 15, 1, mixc(waterC, white, 0.4), 0.5);
+          box(x, y + 2, 1, 5, warm, 0.5);
+        }, 30);
+        { const k = Math.floor(t / 2.7), p = (t - k * 2.7) / 0.8;
+          if (p < 1.7 && hash(k, 64) < 0.7) {
+            const dir = hash(k, 65) < 0.5 ? 1 : -1, x0 = W * (0.08 + 0.84 * hash(k, 66)), y0 = HZ + (H - HZ) * (0.3 + 0.6 * hash(k, 67)), fx = x0 + dir * p * 15, fy = y0 - Math.sin(p * Math.PI) * 9 * sc, silver = mixc(belly, air[2], 0.5 * ni), q = p < 1 ? p : (p - 1) / 0.7;
+            if (p < 1) { box(fx - 2, fy, 4, 2, silver); dot(fx + dir * 2, fy + (p > 0.5 ? 1 : 0), silver); dot(fx - dir * 3, fy - 1, silver); dot(fx - dir * 3, fy + 1, silver); }
+            ring(p < 1 ? x0 : x0 + dir * 15, y0 + 1, 2 + 7 * q, mixc(waterC, white, 0.5), 0.8 - 0.6 * q, 0.3); // a ring where it leaves the water, and another where it lands
+          }
+        }
+        // a buoy in front, bobbing; its lamp swells on the kick
+        each(1, Math.round(Math.max(130, Math.min(300, W * 0.9))), 70, (x, k) => {
+          const y = H - Math.round(24 * TALL) + Math.round(Math.sin(t * 1.3 + k) * (1 + 2 * st.bs)) + st.wide * H * 0.05;
+          box(x - 4, y, 9, 9, red);
+          box(x - 4, y + 3, 9, 2, white);
+          box(x - 4, y, 2, 9, mixc(red, white, 0.35));
+          box(x - 6, y + 9, 13, 2, ink);
+          box(x, y - 9, 1, 9, ink);
+          box(x - 2, y - 5, 5, 1, ink);
+          box(x - 1, y - 12, 3, 3, warm);
+          disc(x, y - 11, 3 + 4 * st.kick, warm, 0.25);
+          ring(x, y + 12, 9 + 2 * Math.sin(t * 1.3 + k), mixc(waterC, white, 0.4), 0.6, 0.25);
+        }, 30);
+      } };
+    })();
+
+    // Meadow (music of no known kind, at dusk; and under a bright sky for game music): hills, a windmill, an oak and a stag, balloons, sunflowers, grass that is the spectrum, fireflies; on the drop, lanterns rise.
+    const meadowOf = (bright) => {
+      const DUSK = [["#3a4a8a", "#8a6aa0", "#f0906a", "#ffd890"], ["#141a40", "#3a2a68", "#8a4a78", "#e07a5a"], ["#03050f", "#080e26", "#0e1a3a", "#182c4a"], ["#101a3a", "#2e4474", "#7a7aa8", "#f4b890"]], DAY = [["#2f6fd0", "#58a0e8", "#9ad0f0", "#e0f0e0"], ["#27408f", "#7a5aa8", "#f08a7a", "#ffd890"], ["#060a20", "#0c1638", "#142450", "#243e6a"], ["#1c3070", "#4a6ab0", "#b0a0c8", "#ffd0a0"]];
+      const SKY = (bright ? DAY : DUSK).map((r) => r.map(C)), NIGHT = bright ? [0, 0.4, 1, 0.45] : [0.15, 0.55, 1, 0.6];
+      const ink = C("#07101a"), g1 = C("#123a2c"), g2 = C("#1f6a3a"), g3 = C("#58b04a"), g4 = C("#b4e060"), bark = C("#3a2418"), warm = C("#ffd27a"), white = C("#fff8ea"), fly = C("#e8ff7a"), stripes = [[C("#e0483c"), C("#fff0d0")], [C("#3c8ae0"), C("#ffe066")], [C("#a050d0"), C("#ff9a5a")]];
+      const STAG = ["..a...a...........", ".a.a.a.a..........", "..aa.aa...........", "...aaa............", "...hhh............", "..hhhhh...........", ".hhehhh...........", ".nhhhhhh..........", "...hhhhhhhhhhhhh..", "....hhhhhhhhhhhhh.", "....hhhhhhhhhhhhht", "....hhbbbbbbbbhhh.", "....hh.h....hh.h..", "....hh.h....hh.h..", "....h..h....h..h..", "....h..h....h..h..", "....k..k....k..k.."];
+      const farH = (x) => 10 + 24 * fbm(x * 0.008, land + 1), midH = (x) => 5 + 22 * fbm(x * 0.012, land + 11), nearH = (x) => (30 + 34 * fbm(x * 0.006, land + 21)) * TALL;
+      return { SKY, NIGHT, draw() {
+        const t = st.t, sc = SC, dim = 0.15 + 0.5 * ni, lift = st.wide * H * 0.07;
+        stars(Math.round(W * 0.5), (ni - 0.25) * 1.4, mixc(air[1], white, 0.5), white, HZ * 0.9);
+        for (let i = 0; i < W * 0.6; i++) { const x = Math.floor(hash(i, 91) * W), y = Math.floor(HZ * 0.75 - x * 0.28 * (HZ / W) * 2 + (hash(i, 92) + hash(i, 93) - 1) * HZ * 0.16); if (hash(i, 94) < (ni - 0.5) * 2 && y >= 0) dot(x, y, mixc(air[1], white, 0.35)); } // the milky way, when it is dark enough
+        moon(Math.round(W * moonAt), Math.round(HZ * 0.18), Math.round(9 * sc), C("#fff6d8"), mixc(air[0], C("#fff6d8"), 0.12), mixc(air[1], white, 0.4));
+        each(0.05, 110, 20, (x, k, r) => cloud(x, HZ * (0.25 + 0.4 * hash(k, 3)), 6 + r * 9, k, mixc(air[3], white, 0.45 - 0.3 * ni), mixc(air[2], air[1], 0.3), mixc(air[1], air[2], 0.5)), 60, t * 0.8);
+        // balloons drift over; each lights its burner on its own beat, and the whole balloon glows
+        for (let i = 0; i < 3; i++) { const span = W + 90, x = ((((hash(i, 5) * span + t * (2.2 + i * 0.9) - st.cam * 0.1) % span) + span) % span) - 45, y = HZ * (0.24 + 0.17 * i) + 3 * Math.sin(t * 0.3 + i * 2), r = Math.round((9 - i * 1.5) * sc), fire = st.beat % 3 === i ? st.kick : 0, [ca, cb] = stripes[i];
+          for (let j = -r; j <= r * 1.5; j++) { const half = j < 0 ? Math.floor(Math.sqrt(r * r - j * j) + 0.4) : Math.round(r * (1 - (j / (r * 1.5)) ** 1.6) + 0.5); for (let q = -half; q <= half; q++) { const c = Math.floor((q + r + 0.5) / Math.max(2, r / 2)) % 2 ? ca : cb; dot(x + q, y + j, mixc(mixc(c, air[1], dim * (q > 0 ? 1 : 0.6)), warm, fire * 0.6)); } }
+          box(x - 1, y + r * 1.5 + 3, 3, 2, bark); dot(x - 1, y + r * 1.5 + 2, ink); dot(x + 1, y + r * 1.5 + 2, ink); if (fire > 0.3) dot(x, y + r * 1.5 + 1, white); }
+        flock(BIRD_A, BIRD_B, { b: mixc(ink, air[2], 0.3) }, { n: 7, y: 0.5, every: 35 });
+        // three ranges of hills; a windmill whose sails turn with the beat, and a hamlet below it
+        const farC = mixc(mixc(g1, C("#2a5a6a"), 0.6), air[3], 0.42), midC = mixc(mixc(mixc(g1, g2, 0.6), air[3], 0.14), ink, 0.35 * ni), midLit = mixc(mixc(g3, air[3], 0.3), ink, 0.35 * ni);
+        ridge(farH, 0.08, HZ, farC, mixc(farC, air[3], 0.35), { litDeep: 3, to: HZ + 8 });
+        ridge(midH, 0.2, HZ + 6, midC, midLit, { litDeep: 2, tex: (x, y, wx) => { for (let d = 4; d < 60; d += 4) if (hash(wx * 7 + d, 5) < 0.07) dot(x, y + d, hash(wx + d, 6) < 0.25 ? mixc(white, midC, 0.4 + 0.4 * ni) : midLit); if (hash(Math.floor(wx / 6), 3) < 0.4 && wx % 6 === 0) { dome(x, y + 1, 3, 4, mixc(g1, ink, 0.4)); dot(x - 1, y - 2, midLit); } } });
+        each(0.2, Math.round(Math.max(130, Math.min(270, W * 0.85))), 30, (x, k) => { const off = Math.floor(st.cam * 0.2), by = HZ + 6 - Math.round(midH(x + off)), a0 = (st.bc / 16) * TAU, body = mixc(C("#c8b8a8"), air[1], dim);
+          for (let j = 0; j < 17; j++) { const half = 2 + Math.floor(j / 6); box(x - half, by - 17 + j, half * 2 + 1, 1, mixc(body, ink, 0.45)); box(x - half, by - 17 + j, half, 1, body); } box(x - 3, by - 20, 7, 3, mixc(C("#7a2f3f"), air[1], dim)); dot(x, by - 6, st.hat % 4 < 2 ? warm : ink);
+          for (let i = 0; i < 4; i++) { const a = a0 + i * Math.PI * 0.5, ex = x + Math.cos(a) * 14, ey = by - 18 + Math.sin(a) * 14; line(x, by - 18, ex, ey, ink); line(x + Math.cos(a + 0.22) * 5, by - 18 + Math.sin(a + 0.22) * 5, x + Math.cos(a + 0.16) * 14, by - 18 + Math.sin(a + 0.16) * 14, mixc(white, air[1], dim)); }
+          for (let j = 0; j < 3; j++) put(CABIN, x + 24 + j * 19, by - 5 + j * 2, { r: mixc(C("#7a2f3f"), air[1], dim), s: mixc(C("#a04a3a"), air[1], dim), b: mixc(C("#5a4038"), air[1], dim), w: hash(k * 8 + j, Math.floor((st.hat + j * 3) / 8)) < 0.3 + 0.6 * ni ? warm : ink, d: ink }); }, 80);
+        // the near hill with the oak and the stag
+        const nearC = mixc(g2, ink, 0.25 + 0.45 * ni), nearLit = mixc(g3, air[2], 0.2 + 0.4 * ni), base = H + lift;
+        ridge(nearH, 0.5, base, nearC, nearLit, { litDeep: 2, tex: (x, y, wx) => { for (let d = 3; d < H - y; d += 3) if (hash(wx * 13 + d, 2) < 0.12) dot(x, y + d, d % 2 ? nearLit : mixc(nearC, ink, 0.3)); } });
+        each(0.5, Math.round(Math.max(150, Math.min(330, W * 0.9))), 35, (x, k) => {
+          const off = Math.floor(st.cam * 0.5), by = Math.round(base - nearH(x + off)), dk = mixc(g1, ink, 0.3 + 0.4 * ni), md = mixc(g2, ink, 0.1 + 0.5 * ni), lt = mixc(g3, air[2], 0.1 + 0.5 * ni), sw = Math.round(Math.sin(t * 0.7) * st.bs * 2);
+          const L = [[0, -30, 16], [-13, -24, 11], [13, -25, 12], [0, -41, 10], [-8, -36, 8], [9, -37, 8]].map(([a, b, r]) => [a * TALL, b * TALL, r * TALL]);
+          for (let j = 0; j < 20 * TALL; j++) box(x - 2 - (j < 3 ? 2 - j : 0), by - j + 2, 5 + (j < 3 ? 4 - 2 * j : 0), 1, mixc(bark, ink, 0.3 + 0.4 * ni));
+          line(x, by - 14, x - 9, by - 24, bark); line(x + 1, by - 14, x + 9, by - 25, bark);
+          for (const [a, b, r] of L) disc(x + a + sw + 1, by + b + 2, r, dk);
+          for (const [a, b, r] of L) disc(x + a + sw, by + b, r - 1, md);
+          for (const [a, b, r] of L) {
+            disc(x + a + sw - r * 0.3, by + b - r * 0.35, r * 0.5, lt);
+            disc(x + a + sw - r * 0.1, by + b - r * 0.15, r * 0.45, md);
+            for (let i = 0; i < 5; i++) dot(x + a + sw + (hash(i, r) - 0.5) * r * 1.5, by + b + (hash(i, r + 1) - 0.2) * r, i % 2 ? dk : lt);
+          }
+          const sx = x - 44, sy = Math.round(base - nearH(sx + off));
+          put(STAG, sx, sy - 16, { a: mixc(C("#d8c8a8"), ink, 0.5 * ni), h: mixc(C("#6a4028"), ink, 0.3 + 0.4 * ni), e: ink, n: ink, b: mixc(C("#b08a60"), ink, 0.3 + 0.4 * ni), t: white, k: ink }, k % 2 === 0);
+        }, 70);
+        // on the drop: paper lanterns rise from behind the hill, hundreds of them, and drift off into the sky
+        if (grand > 0) for (let i = 0, n = Math.round(W * 0.34); i < n; i++) {
+          const a = st.gT - hash(i, 41) * 5;
+          if (a <= 0) continue;
+          const f = hash(i, 42), x = hash(i, 43) * W + a * (3 + 5 * f) + 3 * Math.sin(t * 0.6 + i), y = HZ + 20 - a * (9 + 9 * f) * TALL, big = f > 0.55;
+          if (y < -4 || hash(i, 44) >= grand * 4) continue;
+          if (big) { box(x - 1, y - 1, 3, 4, C("#ff9a3a")); box(x, y + 1, 1, 2, warm); dot(x, y - 2, C("#c0502a")); } else { dot(x, y, C("#ff9a3a")); dot(x, y + 1, warm); }
+        }
+        // a fence along the front, and sunflowers behind it that lean with the bass and nod on the kick, every other one in turn
+        const fy = H - Math.round(15 * TALL) + lift, rail = mixc(C("#9a7a58"), ink, 0.25 + 0.5 * ni), railSh = mixc(bark, ink, 0.3 + 0.4 * ni), petal = mixc(C("#ffd23a"), ink, 0.1 + 0.45 * ni), stem = mixc(g2, ink, 0.15 + 0.4 * ni);
+        each(1, 27, 88, (x, k, r) => {
+          if (r > 0.6) return;
+          const hh = Math.round((24 + r * 36) * TALL), lean = Math.sin(t * 0.9 + k) * (1 + 3 * st.bs), by = H + lift, hx = x + Math.round(lean), hy = by - hh + ((k + st.beat) % 2 ? 0 : Math.round(st.kick * 2));
+          for (let j = 0; j < hh; j++) dot(x + Math.round(lean * (j / hh) ** 2), by - j, stem);
+          for (const [u, side] of [[0.45, -1], [0.62, 1]]) { const lx = x + Math.round(lean * u * u), ly = by - Math.round(hh * u); box(side < 0 ? lx - 4 : lx + 1, ly, 4, 1, stem); box(side < 0 ? lx - 3 : lx + 1, ly - 1, 3, 1, stem); }
+          disc(hx, hy, 4, petal); disc(hx, hy, 2, mixc(bark, ink, 0.4 * ni)); dot(hx - 1, hy - 1, mixc(bark, petal, 0.4));
+        }, 20);
+        for (let x = -((((Math.floor(st.cam) % 13) + 13) % 13)); x < W; x += 13) { box(x, fy - 3, 2, 12, railSh); box(x, fy - 3, 1, 12, rail); }
+        box(0, fy, W, 1, rail); box(0, fy + 1, W, 1, railSh); box(0, fy + 5, W, 1, rail); box(0, fy + 6, W, 1, railSh);
+        // grass in front: its height is the spectrum laid across the meadow; fireflies that blink on the hi-hats and gather through a build
+        const off = Math.floor(st.cam);
+        for (let x = -3; x < W + 3; x++) {
+          const k = x + off;
+          if (k % 2) continue;
+          const hh = Math.round((5 + 9 * hash(k, 4) + 16 * band(x)) * TALL - lift), lean = Math.sin(t * 1.3 + k * 0.11) * (0.8 + 3 * st.bs), c = hash(k, 5) < 0.35 ? mixc(g3, ink, 0.2 + 0.5 * ni) : mixc(g2, ink, 0.3 + 0.4 * ni);
+          for (let j = 0; j < hh; j++) dot(x + Math.round(lean * (j / hh) ** 2), H - j, c);
+          if (hash(k, 6) < 0.1) dot(x + Math.round(lean), H - hh, hash(k, 7) < 0.5 ? white : C("#ff8ab0"));
+          else if (band(x) > 0.6) dot(x + Math.round(lean), H - hh, mixc(g4, ink, 0.5 * ni));
+        }
+        for (let i = 0, n = Math.round(W * 0.09); i < n; i++) {
+          if (hash(i, Math.floor((st.hat + i) / 3)) > 0.25 + 0.7 * ni) continue;
+          let x = (((hash(i, 31) * W * 1.3 - st.cam * 0.7) % W) + W) % W + 9 * Math.sin(t * 0.5 + i * 1.7), y = H * 0.93 - hash(i, 32) * (H - HZ) * 0.9 + 6 * Math.sin(t * 0.7 + i);
+          x = lerp(x, W / 2 + (x - W / 2) * 0.3, st.build);
+          y -= st.build * HZ * 0.5 * hash(i, 33);
+          dot(x, y, fly);
+          if ((i + st.hat) % 4 === 0 && st.he > 0.3) { dot(x - 1, y, mixc(fly, ink, 0.5)); dot(x + 1, y, mixc(fly, ink, 0.5)); dot(x, y - 1, mixc(fly, ink, 0.5)); dot(x, y + 1, mixc(fly, ink, 0.5)); }
+        }
+      } };
+    };
+    WORLDS.meadow = meadowOf(false); WORLDS.day = meadowOf(true);
+
+    function paint() {
+      if (pick !== st.world) { coming = !!pick && st.over < 1; if (coming) old.set(B); pick = st.world; } // another place: keep the last picture of the old one, for the new one to come through
+      const wd = WORLDS[pick] || WORLDS.meadow;
+      land = PLACE_LANDS.indexOf(V.land) + 1 || 1; moonAt = land % 2 ? 0.74 : 0.26; weather = V.weather ?? 1;
+      day = (((st.day + (PLACE_HOUR[pick] || 0) + (V.hour || 0)) % 1) + 1) % 1;
+      HZ = Math.round(H * (WIDE ? 0.62 : 0.6) + st.wide * H * 0.07);
+      air = hour(wd.SKY); ni = hour(wd.NIGHT); grand = clamp(Math.min(st.gT / (0.4 + 2.6 * st.soft), 1 - st.gT / 12)); // the grand thing comes in over a moment (never in one frame) and is gone after twelve seconds
+      paintSky(air, HZ + 2);
+      wd.draw();
+      if (coming && st.over < 1) { for (let y = 0; y < H; y++) { const row = y * W, my = (y & 3) << 2; for (let x = 0; x < W; x++) if ((M[(x & 3) | my] + 0.5) / 16 >= st.over * 1.5 - (x / W) * 0.5) B[row + x] = old[row + x]; } } // the new place comes through the old one from the left, dot by dot
+      else coming = false;
+      S.x.putImageData(img, 0, 0);
+    }
+    return { S, paint };
+  }
+  function placesFx() { // Places: the clocks step once a frame, the picture is painted at most thirty times a second (every dot of it is worked out here, not by the graphics card) and shown every frame
+    const st = placeSt;
+    let size = Math.max(2, Math.round(Math.min(w, h) / 180)); // a dot is this many of the picture's own: about 180 dots along the short side,
+    while (w / size > 400) size++; // and never more than 400 across, which keeps the work small on a very wide picture
+    const S = pixelScreen(Math.round(w / size));
+    if (!placeView || placeView.S !== S) { placeView = placeMake(S); st.painted = -1e9; } // a picture of another shape: the place is laid out again for it, and placeSt carries on (the view and the sky do not start again)
+    if (st.stepped !== realNow) { st.stepped = realNow; placeStep(); } // (this can be called twice in one frame: the clocks step once)
+    const look = st.world + V.land;
+    if (Math.abs(realNow - st.painted) >= 30 || look !== st.look) { st.painted = realNow; st.look = look; placeView.paint(); } // (another lie of the land is painted at once, behind the old picture going away)
+    S.show();
+  }
+  /* ==== places: end ==== */
+  const DRAW = { places: placesFx, arcade: arcadeFx, runner: runnerFx, forms: formsFx, faces, ribbon, silk, helix, strings, bars, mirror, leds, terrain, scope, trails, tunnel, vortex, prism, ripple, comets, stars: starfield, whirl, dust, links, fireworks, halo, sun, rings, mandala, rays, space, warp: space, drift: space, orbit: space, visitors: space, well,
     kaleido, plasma, fractal, julia, mandel, newton, ocean, neonroad, aurora, tube: tubeFx, heads: headsFx, sphere: sphereFx, solids: solidsFx, city: cityFx };
 
   /* From one effect to another. The change waits for the next frame, which draws the old picture once more with nobody visiting and keeps it.
@@ -6699,6 +7414,7 @@ window.Effects = (() => {
     name = next;
     formsKept.started = false;
     runner.fresh = true;
+    placeSt.world = ""; placeSt.over = 1; placeSt.gT = Math.max(placeSt.gT, 12); // Places opens straight in the place for the music playing now: no wipe from where it was last time, and no grand thing left half done
     afterImages.ghosts.length = 0; // the last effect's after-images go with it, and a fold starts open
     afterImages.rate = afterImages.span = 0;
     trippy.fold = 0;
