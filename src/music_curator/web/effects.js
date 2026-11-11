@@ -9240,12 +9240,12 @@ window.Effects = (() => {
     // colors lights them; how keen to clap, and to tick along with the hi-hats; the hand they lead with (1 the right); how many beats their sway runs behind the beat, so they do not
     // all lean the same way at once; how their arms go up in a build (0 both hands together and open, 1 one hand and then the other, 2 only the leading hand, the other by the
     // shoulder, 3 both fists together); the beats one sway takes, and one bounce of the knees
-    // (the head still nods on every beat; in the hard mood everyone stamps on every beat, and those who bounce every other beat stamp harder on one and lighter on the next); sways a second when it is calm; whether they hold up a light then; whether they may turn round on a drop; and the moves they like, best first (see bandArmFor)
-    { energy: 0.9, late: 0, size: 1.04, hair: 1, tone: 0, clap: 0.7, tick: 0.5, lead: 1, sway: 0, rise: 1, cycle: 2, knees: 1, calm: 0.2, light: false, spin: true, likes: [0, 2, 5, 1, 4, 6, 3] },
-    { energy: 1.15, late: 0.05, size: 0.97, hair: 4, tone: 1, clap: 0.3, tick: 0.75, lead: -1, sway: 1, rise: 3, cycle: 2, knees: 1, calm: 0.24, light: false, spin: false, likes: [3, 5, 0, 6, 2, 4, 1] },
-    { energy: 0.7, late: -0.03, size: 1, hair: 2, tone: 2, clap: 0.55, tick: 0.3, lead: 1, sway: 1, rise: 2, cycle: 4, knees: 2, calm: 0.16, light: true, spin: false, likes: [1, 4, 0, 6, 2, 5, 3] },
-    { energy: 1, late: 0.025, size: 0.94, hair: 5, tone: 0, clap: 0.9, tick: 0.35, lead: 1, sway: 0.5, rise: 0, cycle: 2, knees: 1, calm: 0.21, light: false, spin: true, likes: [5, 6, 2, 3, 0, 4, 1] },
-    { energy: 0.8, late: 0.08, size: 1.02, hair: 3, tone: 1, clap: 0.45, tick: 0.6, lead: -1, sway: 2.5, rise: 2, cycle: 4, knees: 2, calm: 0.18, light: true, spin: false, likes: [0, 1, 2, 4, 6, 5, 3] }];
+    // (the head still nods on every beat; in the hard mood everyone stamps on every beat, and those who bounce every other beat stamp harder on one and lighter on the next); sways a second when it is calm; whether they hold up a light then; whether they may turn round on a drop; the moves they like, best first (see bandArmFor); and their glasses, if they wear any (1 round ones, 2 sunglasses)
+    { energy: 0.9, late: 0, size: 1.04, hair: 1, tone: 0, clap: 0.7, tick: 0.5, lead: 1, sway: 0, rise: 1, cycle: 2, knees: 1, calm: 0.2, light: false, spin: true, specs: 0, likes: [0, 2, 5, 1, 4, 6, 3] },
+    { energy: 1.15, late: 0.05, size: 0.97, hair: 4, tone: 1, clap: 0.3, tick: 0.75, lead: -1, sway: 1, rise: 3, cycle: 2, knees: 1, calm: 0.24, light: false, spin: false, specs: 2, likes: [3, 5, 0, 6, 2, 4, 1] },
+    { energy: 0.7, late: -0.03, size: 1, hair: 2, tone: 2, clap: 0.55, tick: 0.3, lead: 1, sway: 1, rise: 2, cycle: 4, knees: 2, calm: 0.16, light: true, spin: false, specs: 0, likes: [1, 4, 0, 6, 2, 5, 3] },
+    { energy: 1, late: 0.025, size: 0.94, hair: 5, tone: 0, clap: 0.9, tick: 0.35, lead: 1, sway: 0.5, rise: 0, cycle: 2, knees: 1, calm: 0.21, light: false, spin: true, specs: 1, likes: [5, 6, 2, 3, 0, 4, 1] },
+    { energy: 0.8, late: 0.08, size: 1.02, hair: 3, tone: 1, clap: 0.45, tick: 0.6, lead: -1, sway: 2.5, rise: 2, cycle: 4, knees: 2, calm: 0.18, light: true, spin: false, specs: 0, likes: [0, 1, 2, 4, 6, 5, 3] }];
   const BAND_SEATS = [3, 1, 0, 2, 4]; // where they stand, from the left: the first to come stands in the middle
   const BAND_SUITS = [[3, 5, 2, 0, 6], [4, 6, 2], [0, 1, 2, 5, 6, 3]]; // the moves the music asks for: the hard mood; euphoric and trance (only those with the arms up); anything else
   const BAND_CURLS = Float32Array.from({ length: 14 }, (_, k) => (k & 1 ? Math.cos : Math.sin)(-1.75 + (k >> 1) * 0.583)); // where the curls sit round the top of the head
@@ -9423,6 +9423,24 @@ window.Effects = (() => {
       for (let k = 0; k < 7; k++) { const x = K(0.47 * BAND_CURLS[k * 2], 0.06 + lift + 0.42 * BAND_CURLS[k * 2 + 1]), y = L(0.47 * BAND_CURLS[k * 2], 0.06 + lift + 0.42 * BAND_CURLS[k * 2 + 1]); g.moveTo(x + 0.17 * U, y); g.arc(x, y, 0.17 * U, 0, TAU); }
     }
   }
+  function bandSpecs(p, rim) { // glasses, seen from behind: an arm along each side of the head at eye level, the edge of each lens sticking out a little past the side, and on the kick the lenses catch the lights
+    const J = p.J, U = bandOu, dark = p.who.specs === 2, al = J[6], ca = Math.cos(al), sa = Math.sin(al), cx = bandAX(bandKu), cy = bandAY(bandKv), A = bandArt, tone = p.who.tone;
+    const fine = Math.max(1, U * 0.04), shine = clamp(sound.kick * 1.4 - 0.25) * (dark ? 0.9 : 0.6), rx = U * (dark ? 0.08 : 0.05), ry = U * (dark ? 0.11 : 0.11);
+    g.lineCap = "round";
+    for (let e = -1; e <= 1; e += 2) { // (along the head is ca, sa; down it is -sa, ca: the head leans with the sway)
+      const x0 = cx + e * 0.3 * U * ca - 0.04 * U * sa, y0 = cy + e * 0.3 * U * sa + 0.04 * U * ca, x1 = cx + e * 0.5 * U * ca - 0.03 * U * sa, y1 = cy + e * 0.5 * U * sa + 0.03 * U * ca, lx = cx + e * 0.54 * U * ca - 0.05 * U * sa, ly = cy + e * 0.54 * U * sa + 0.05 * U * ca;
+      g.strokeStyle = dark ? A.rim[tone] : A.palm[tone]; g.lineWidth = fine;
+      g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke(); // the arm, a fine bright line
+      g.beginPath(); g.moveTo(lx + rx * ca, ly + rx * sa); g.ellipse(lx, ly, rx, ry, al + e * 0.25, 0, TAU); // the lens's edge, from behind a narrow upright oval
+      if (dark) { // sunglasses: a dark lens with a rim of light and a glossy streak on it
+        g.fillStyle = "#050507"; g.fill(); g.lineWidth = Math.max(1, rim * 1.6); g.stroke();
+        g.globalAlpha = 0.55; g.strokeStyle = A.spark; g.lineWidth = Math.max(1, U * 0.025);
+        g.beginPath(); g.moveTo(lx - 0.4 * rx * ca + 0.55 * ry * sa, ly - 0.4 * rx * sa - 0.55 * ry * ca); g.lineTo(lx + 0.3 * rx * ca + 0.05 * ry * sa, ly + 0.3 * rx * sa - 0.05 * ry * ca); g.stroke(); g.globalAlpha = 1;
+      } else g.stroke(); // round glasses: a fine bright frame
+      if (shine > 0.02) { g.globalCompositeOperation = "lighter"; g.globalAlpha = shine; g.fillStyle = A.spark; g.beginPath(); g.arc(lx + e * rx * 0.3 * ca, ly - ry * 0.35, Math.max(1, U * (dark ? 0.055 : 0.04)), 0, TAU); g.fill(); g.globalCompositeOperation = "source-over"; g.globalAlpha = 1; }
+    }
+    g.strokeStyle = A.rim[tone]; // (the arms are drawn next with the rim's color)
+  }
   function bandArmsPath(p) { // both arms: shoulder to elbow to hand
     const J = p.J;
     g.beginPath();
@@ -9467,6 +9485,7 @@ window.Effects = (() => {
       g.globalAlpha = 0.95; g.lineWidth = rim * 2; g.stroke(); // the rim of light: half of it is covered by the dark, so only the outline of the whole of them shows
       g.globalAlpha = 0.93; g.fillStyle = "#050507"; g.fill(); // the dark of them, so they read over a bright picture
       g.globalAlpha = 1; g.fillStyle = A.hair[tone]; g.beginPath(); bandHair(p); g.fill(); // the hair a shade lighter, so a ponytail shows against the back
+      if (p.who.specs) bandSpecs(p, rim); // two of them wear glasses
       bandArmsPath(p); g.lineWidth = arm + rim * 2; g.stroke(); // the arms: the same dark with the same rim
       g.globalAlpha = 1; g.strokeStyle = "#050507"; g.lineWidth = arm; g.stroke();
       g.globalAlpha = 0.6; g.fillStyle = "#000"; bandHandsPath(p, 1.3); g.fill();
