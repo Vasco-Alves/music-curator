@@ -2936,7 +2936,7 @@ function setVibe(s) {
   vibe = acidFor ? "acid" : (vibesOn && s && moodOf(s)) || "";
   document.body.dataset.vibe = vibe;
   paintTime();
-  if (FX) { FX.mood(vibe); FX.song(s ? songName(s) || s.file : ""); }
+  if (FX) { FX.mood(vibe); FX.song(s ? songName(s) || s.file : "", s ? genresOf(s).join(", ") : ""); }
   document.querySelectorAll(".ambient canvas").forEach((c) => c.getAnimations().forEach((a) => { if (a.animationName === "ambient-turn") a.updatePlaybackRate(DRIFT[vibe] || 1); }));
   if (vibe !== "acid" && vibe !== "psy") $("#play").style.filter = "";
 }

@@ -9,7 +9,7 @@ window.Effects = (() => {
   const stage = canvas.getContext("2d", { alpha: false }), spare = document.createElement("canvas"), back = spare.getContext("2d", { alpha: false });
   let g = stage; // what's being drawn on: the picture, or for a moment the visitors' own layer over the app
   const sound = { bands: new Float32Array(BANDS), wave: new Float32Array(POINTS), bass: 0, mid: 0, treble: 0, level: 0, kick: 0, hat: 0, kickHit: 0, hatHit: 0, t: 0, dt: 0.016 };
-  const T = { light: 1, react: 1, speed: 1, drag: 1, spark: 1, nod: 1, turns: 1, moves: 1, shots: 1, folk: 1, pit: 1, tilt: 1, vary: 1, dream: 1, falls: 1 }; // what's been adjusted for the effect showing: 1 is how it was designed
+  const T = { light: 1, react: 1, speed: 1, drag: 1, spark: 1, nod: 1, turns: 1, moves: 1, shots: 1, folk: 1, pit: 1, tilt: 1, vary: 1, dream: 1, falls: 1, color: 1, echo: 1, breathe: 1 }; // what's been adjusted for the effect showing: 1 is how it was designed
   const STYLES = { // each effect and its styles, by the name a style goes by
     ribbon: [["ribbon", "Classic"], ["silk", "Silk"], ["helix", "Helix"], ["strings", "Strings"]],
     bars: [["bars", "Classic"], ["mirror", "Mirror"], ["leds", "LEDs"], ["terrain", "Landscape"], ["scope", "Scope"]],
@@ -20,14 +20,16 @@ window.Effects = (() => {
     trip: [["kaleido", "Kaleidoscope"], ["plasma", "Plasma"], ["fractal", "Fractal"], ["julia", "Julia"], ["mandel", "Mandelbrot"], ["newton", "Newton"]],
     journey: [["ocean", "Under the sea"], ["neonroad", "Neon road"], ["aurora", "Northern lights"]],
     worlds: [["tube", "Energy tube"], ["heads", "Neon heads"], ["sphere", "Sound sphere"], ["solids", "Shapes in space"], ["city", "Neon city"]],
+    pixel: [["runner", "Runner"]],
+    visions: [["faces", "Faces"], ["forms", "Forms"]],
   };
   const FOLK_OF = { ocean: ["jelly", "whale", "jelly", "shapes"], neonroad: ["neon", "shapes", "saucer", "neon"], aurora: ["saucer", "astronaut", "neon", "saucer"], // some places have their own visitors
     tube: ["shapes", "neon", "eye", "saucer"], heads: ["saucer", "eye", "shapes", "neon"], sphere: ["astronaut", "saucer", "shapes", "jelly"], solids: ["shapes", "saucer", "neon", "astronaut"], city: ["saucer", "neon", "saucer", "shapes"] };
   const FAMILY = Object.fromEntries(Object.entries(STYLES).flatMap(([family, list]) => list.map(([style]) => [style, family])));
-  const KNOBS = { light: ["Brightness", 0.3, 1.7], react: ["Reacts to the music", 0.2, 1.8], speed: ["Speed", 0.3, 2], spark: ["Glints on the hi-hats", 0, 2], drag: ["Length of the trails", 0.4, 2.5], nod: ["Nodding to the beat", 0, 2], turns: ["Changes of course", 0, 3], moves: ["Jumps and stops", 0, 3], pit: ["Cockpit", 0, 1], shots: ["Shooting stars", 0, 3], folk: ["Visitors", 0, 3], tilt: ["Turning now and then", 0, 3], vary: ["Changes by itself", 0, 3], dream: ["Dreamy lights", 0, 2], falls: ["Falling into planets", 0, 3] };
+  const KNOBS = { light: ["Brightness", 0.3, 1.7], react: ["Reacts to the music", 0.2, 1.8], speed: ["Speed", 0.3, 2], spark: ["Glints on the hi-hats", 0, 2], drag: ["Length of the trails", 0.4, 2.5], nod: ["Nodding to the beat", 0, 2], turns: ["Changes of course", 0, 3], moves: ["Jumps and stops", 0, 3], pit: ["Cockpit", 0, 1], shots: ["Shooting stars", 0, 3], folk: ["Visitors", 0, 3], tilt: ["Turning now and then", 0, 3], vary: ["Changes by itself", 0, 3], dream: ["Dreamy lights", 0, 2], falls: ["Falling into planets", 0, 3], color: ["Colors that travel", 0, 1.5], echo: ["After-images", 0, 2], breathe: ["Breathing", 0, 2] };
   const LEAVES_TRAILS = new Set(["trails", "tunnel", "vortex", "prism", "ripple", "comets", "stars", "whirl", "fireworks", "scope"]);
   const raw = new Float32Array(BANDS), leadHold = new Float32Array(BANDS), leadMid = new Float32Array(512), leadSum = new Float32Array(513), peaks = new Float32Array(160), stars = new Float32Array(STARS * 3), HEADS = 9, past = new Float32Array(HEADS * 2).fill(NaN), orbits = new Float32Array(HEADS);
-  let nowSong = "", mood = "", name = "", alone = false, w = 0, h = 0, quality = 1, colors = PLAIN, picture = null, last = 0, slowTime = 0, slowFrames = 0, top = 0.3, waveTop = 0.1, freq = null, time = null, binHz = 23.4;
+  let nowSong = "", genre = "", mood = "", name = "", alone = false, w = 0, h = 0, quality = 1, colors = PLAIN, picture = null, last = 0, slowTime = 0, slowFrames = 0, top = 0.3, waveTop = 0.1, freq = null, time = null, binHz = 23.4;
   let pending = "", morph = null, slowNext = false, quiet = false, dirty = false, clean = null, realNow = 0, hearing = false; // changing from one effect to another: see blend()
   let base = PLAIN, V = {}; // the record's own colors (colors is them as this version of the effect has them), and the version's dials: see VERSIONS
   for (let i = 0; i < STARS; i++) { stars[i * 3] = Math.random() * 2 - 1; stars[i * 3 + 1] = Math.random() * 2 - 1; stars[i * 3 + 2] = Math.random(); }
@@ -3145,18 +3147,142 @@ window.Effects = (() => {
   const CARD_CORNERS = `#version 300 es
     void main() { gl_Position = vec4(float(gl_VertexID & 1) * 4.0 - 1.0, float(gl_VertexID >> 1) * 4.0 - 1.0, 0.0, 1.0); }
 `;
+  const FRACTALS = new Set(["julia", "mandel", "newton"]); // the three that share the card's top below, and with it colors that travel, after-images, breathing and a fold in the breaks
   const CARD_TOP = `#version 300 es
     precision highp float;
     uniform vec2 size; uniform vec3 toneA, toneB, toneC; uniform float light, time, glow;
+    uniform vec4 roam;   // the colors that travel. x: how far along their way they are (rounds, 0..1), y: how far from home they may go (degrees), z: rounds of the way per round of the bands (so deeper is further on), w: how far the far colors have grown in along the stripes (0 none)
+    uniform vec4 roam2;  // x: how far round the far colors are (degrees), y: how far the stripes push the bands along (rounds), z: how much the stripes shade, w: how much a turned color is brought back to the lightness it had (0..1)
+    uniform vec4 breath; // x: the lens (over 0 the middle swells), y: the sway's size, z and w: where the sway is, across and up
+    uniform vec4 folds;  // x: how far in the mirror has come (0 none, 1 through the middle), y: half the fan's opening (pi: open), z: how far the fold is turned, w: how far out the mirror starts
+    uniform vec4 thump;  // two rings going out from the middle, one for each of the last two hard kicks. x and z: how far out each has got, y and w: how far each pushes the picture where it is (0 none)
     out vec4 color;
+    float stripe = 0.5; // set by a sum before it calls outside(): 0..1, which way round the middle the dot's last steps went
     vec2 mul(vec2 a, vec2 b) { return vec2(a.x * b.x - a.y * b.y, a.x * b.y + a.y * b.x); }
-    vec2 spot() { return (gl_FragCoord.xy * 2.0 - size) / size.y; }
-    vec3 pal(float x) { x = fract(x) * 3.0; float f = smoothstep(0.0, 1.0, fract(x)); return x < 1.0 ? mix(toneA, toneB, f) : x < 2.0 ? mix(toneB, toneC, f) : mix(toneC, toneA, f); }
-    vec4 lit(float x, float shade, float edge) { vec3 p = pal(x); return vec4((p * shade + mix(p, vec3(1.0), 0.6) * edge) * light, 1.0); }
-    vec4 outside(float x, float nu, float far, float e) { float soft = smoothstep(1.0, 6.0, e * size.y * 0.5); return lit(x + time * 0.03, mix(0.7, 0.3 + 0.7 * abs(sin(nu * 3.14159265)), soft) * (1.0 - exp(-far * 0.15)), glow / (1.0 + e * e * 4900.0)); }
+    float way(vec2 z) { return 0.5 + z.x * z.y / max(dot(z, z), 1e-20); } // which way round the middle a step went: half the sine of twice its angle, 0..1
+    void stripes(vec2 z, vec2 was, float part) { stripe = mix(way(z), way(was), clamp(part, 0.0, 1.0)); } // from the last place a dot's sum went through and the one before, by how far past the line the dot got: so there is no seam where the count changes
+    vec2 spot() {
+      vec2 p = (gl_FragCoord.xy * 2.0 - size) / size.y;
+      if (folds.x > 0.0) { // a mirror that slides in from the edge, and then a fan of mirrors that closes: the picture is whole and sharp all the way
+        float co = cos(folds.z), si = sin(folds.z), slide = (1.0 - folds.x) * folds.w;
+        p = vec2(p.x * co + p.y * si, p.y * co - p.x * si);
+        p.y = abs(p.y + slide) - slide;
+        if (folds.y > 0.0 && folds.y < 3.14159) { float a = atan(p.y, p.x); a = abs(mod(a + folds.y, 2.0 * folds.y) - folds.y); p = length(p) * vec2(cos(a), sin(a)); }
+        p = vec2(p.x * co - p.y * si, p.y * co + p.x * si);
+      }
+      if (thump.y + thump.w > 0.0) { float far = max(length(p), 1e-4), k1 = (far - thump.x) / 0.11, k2 = (far - thump.z) / 0.11; p -= p / far * (thump.y * exp(-k1 * k1) + thump.w * exp(-k2 * k2)); } // a hard kick's ring: the picture is pushed outward where the ring is, and falls back behind it
+      p *= 1.0 - breath.x / (1.0 + 2.0 * dot(p, p)); // the breath: the middle swells and sinks with the bass, the edges nearly stay
+      p += breath.y * sin(p.yx * 2.2 + breath.zw); // and a slow sway
+      return p;
+    }
+    vec3 turnHue(vec3 c, float degrees) { // round the color wheel about the grey in the middle, as turnHue() in the page does, and then most of the way back to the lightness it had: turned yellow would be a dark blue otherwise, and the picture would dim and brighten as the colors travel
+      float k = radians(degrees), co = cos(k), m = (1.0 - co) / 3.0, q = sin(k) * 0.57735027; vec3 t = vec3(co + m, m - q, m + q), to = clamp(vec3(dot(c, t), dot(c, t.zxy), dot(c, t.yzx)), 0.0, 1.0), W = vec3(0.2126, 0.7152, 0.0722);
+      return min(to * mix(1.0, min(dot(c, W) / max(dot(to, W), 0.04), 2.2), roam2.w), 1.0);
+    }
+    vec3 pal(float x) {
+      float at = fract(x) * 3.0, f = smoothstep(0.0, 1.0, fract(at));
+      vec3 p = at < 1.0 ? mix(toneA, toneB, f) : at < 2.0 ? mix(toneB, toneC, f) : mix(toneC, toneA, f);
+      if (roam.y == 0.0 && roam.w == 0.0) return p;
+      float turn = roam.y * sin(6.2831853 * (roam.x + roam.z * x)), far = roam.w > 0.0 ? smoothstep(0.95 - 0.6 * roam.w, 1.07 - 0.6 * roam.w, stripe) : 0.0; // on a leash round home; and the far colors grow in along the stripes like veins, whole where they are and not a grey half-way mix
+      vec3 home = turnHue(p, turn);
+      return far > 0.0 ? mix(home, turnHue(p, turn + roam2.x), far) : home;
+    }
+    vec4 lit(float x, float shade, float edge) { vec3 p = pal(x + roam2.y * (stripe - 0.5)); return vec4((p * shade * (1.0 + roam2.z * (2.0 * stripe - 1.0)) + mix(p, vec3(1.0), 0.6) * edge) * light, 1.0); } // the stripes push the bands along a little and shade them, lighter and darker about the middle so the picture is no darker over all
+    vec4 outside(float x, float nu, float far, float e) { float soft = smoothstep(1.0, 6.0, e * size.y * 0.5), deep = 1.0 - exp(-far * 0.15); stripe = mix(0.5, stripe, smoothstep(0.25, 0.75, deep) * soft); return lit(x + time * 0.03, mix(0.7, 0.3 + 0.7 * abs(sin(nu * 3.14159265)), soft) * deep, glow / (1.0 + e * e * 4900.0)); } // (no stripes far from the set, where a stripe is a wedge across the picture, or where the bands are finer than a dot)
     vec4 inside(float near, float wild) { return lit(near * 0.9 + time * 0.03, 0.12 + 0.2 * abs(sin(near * 10.0 - time * 0.8)), glow * wild); }
     float wildness(vec2 dz, float big) { return smoothstep(4.0, 14.0, 0.5 * log(dot(dz, dz) + 1e-30) + big); }
 `;
+  /* Colors that travel, after-images, breathing, and a fold in the breaks: shared by the three fractals, worked out once a frame by trippyOn() and handed to the card (and to byHand).
+     The colors: each mood's three tones swing round the color wheel on a leash about home, further along the deeper a band is, and a second set of far colors grows in along the stripes like
+     veins and goes again; a drop throws them along. The breath: the middle of the picture swells and sinks with the bass, and it sways a little. The fold: through a break and a build a mirror
+     slides in from the edge and then a fan of mirrors closes to a flower; the drop opens it again. The after-images: on each kick the picture leaves a copy of itself that swells, turns and fades. */
+  const COLOR_ROAM = { // how far each mood's colors may go from home (degrees either side), seconds for there and back in a steady groove, rounds of the way per round of the bands, the far colors (degrees round from home) and how much of them may show, and how far a drop throws them along (a quarter of a round is from home to the end of the leash)
+    "": { reach: 150, round: 120, deep: 0.3, far: 140, most: 0.7, jump: 0.25 }, // a record's own colors, or none: nearly the whole wheel
+    psy: { reach: 60, round: 90, deep: 0.3, far: 120, most: 0.7, jump: 0.25 }, // already turning through the rainbow: this is on top
+    euphoric: { reach: 70, round: 100, deep: 0.3, far: 110, most: 0.5, jump: 0.25 },
+    acid: { reach: 26, round: 70, deep: 0.45, far: 200, most: 0.6, jump: 0.25 }, // yellow from orange to green, with violet let in along the stripes
+    hard: { reach: 24, round: 70, deep: 0.45, far: 215, most: 0.5, jump: 0.25 }, // red from crimson to orange, with cold blue-green let in along the stripes
+  };
+  const trippy = { at: Math.random(), owed: 0, far: Math.random(), grown: 0, breath: 0.4, own: 0, seen: 0, wave: 0, fold: 0, turn: 0, kind: "", shutFor: 0, kickLight: 1, values: {}, stepped: -1, rings: [9, 0, 9, 0], ring: 0 }; // rings: for each of the last two hard kicks, the seconds since it and how hard it was
+  const TRIPPY_OFF = { roam: [4, [0, 0, 0, 0]], roam2: [4, [0, 0, 0, 0]], breath: [4, [0, 0, 0, 0]], folds: [4, [0, Math.PI, 0, 0]], thump: [4, [0, 0, 0, 0]] }; // what a picture is told when it did not ask for the trip this frame: nothing of it
+  function trippyOn() { // once a frame, before a fractal is drawn: moves the colors, the breath and the fold on by the clock, and leaves what the card is told in trippy.values
+    if (trippy.stepped === sound.t && trippy.values.roam) return; // (a frame can draw the picture twice, when the effect changes: once is enough)
+    trippy.stepped = sound.t;
+    const dt = Math.min(Math.max(sound.dt, 0), 0.1), R = COLOR_ROAM[mood] || COLOR_ROAM[""], K = T.color, B = T.breathe, pace = (0.35 + flow.intensity) * (1 + flow.build); // 1 in a steady groove, 0.6 in a break, up to 2.5 at the top of a build
+    if (flow.dropHit) trippy.owed += R.jump; // a drop throws the colors along, over a second or so and not at once
+    const pay = trippy.owed * (1 - Math.exp(-dt / 1.3));
+    trippy.owed -= pay;
+    trippy.at = (trippy.at + (dt * pace) / R.round + pay) % 1;
+    trippy.far = (trippy.far + (dt * pace) / 47) % 1; // the far colors come and go on a round of their own, so the two never line up the same way twice running
+    trippy.grown += (R.most * clamp(0.5 - 0.5 * Math.cos(TAU * trippy.far) + 0.6 * flow.drop) - trippy.grown) * (1 - Math.exp(-dt / 0.7));
+    trippy.breath += (sound.bass - trippy.breath) * (1 - Math.exp(-dt / 0.4)); // the bass, followed slowly, and a slow breath of its own so a break is not still
+    trippy.wave = (trippy.wave + dt * (0.2 + 0.5 * flow.intensity)) % TAU;
+    const real = Math.min(0.1, Math.max(0, (realNow - (trippy.seen || realNow)) / 1000)); // the clock on the wall, which is what the song keeps time by (sound.dt runs slower in a calm part)
+    const rings = trippy.rings, hard = mood === "hard" ? (T.stomp ?? 1) : 0; // hardcore, gabber and their kin: every kick sends a ring out from the middle, which bends the picture as it passes
+    rings[0] += real; rings[2] += real;
+    if (hard > 0 && sound.kickHit > 0) { const i = (trippy.ring ^= 1) * 2; rings[i] = 0; rings[i + 1] = Math.min(1, sound.kickHit) * Math.min(1.5, hard); }
+    const left1 = Math.max(0, 1 - rings[0] / 0.9), left2 = Math.max(0, 1 - rings[2] / 0.9); // a ring is gone in nine tenths of a second, by when it has passed the corners
+    trippy.seen = realNow;
+    trippy.own = (trippy.own + real * (flow.bpm ? (TAU * flow.bpm) / 480 : 0.8)) % TAU; // a breath of its own, one every two bars of the song: a steady bass gives the breath above nothing to follow
+    const lens = Math.max(-0.3, Math.min(0.45, B * (0.55 * (trippy.breath - 0.4) + 0.13 * Math.sin(trippy.own)))); // (never so far that the middle turns inside out)
+    if (trippy.fold === 0) trippy.kind = V.fold || ""; // the version's fold, taken only while none is showing
+    const kind = trippy.kind, held = kind && (flow.part === "calm" || flow.part === "build");
+    trippy.shutFor = held ? trippy.shutFor + dt : 0;
+    const closing = held && trippy.shutFor < 45; // (music with no kick at all is one long break: there it opens again after three quarters of a minute, and stays open)
+    trippy.fold = clamp(trippy.fold + (closing ? dt / 10 : -dt / 1.6)); // closes over ten seconds through a break and a build (the calm part: quicker, and the fan sweeps the picture round faster than anything else in it), opens in a second and a half when the drop lands
+    trippy.turn += dt * 0.04 * trippy.fold;
+    const upright = kind === "mirror" || kind === "quad", turn = upright ? Math.PI / 2 : trippy.turn, fanTo = { quad: 2, kal6: 3, kal8: 4 }[kind] || 1, mirror = eased(clamp(trippy.fold / 0.4)), fan = eased(clamp((trippy.fold - 0.4) / 0.6));
+    trippy.kickLight = (1 - 0.55 * trippy.fold) * (1 - 0.25 * clamp(T.echo)) * (1 - 0.1 * clamp(B)); // the kick lights it less to pay for what the fold, the after-images and the breath add
+    trippy.values = {
+      roam: [4, [trippy.at, R.reach * K, R.deep, Math.min(0.75, trippy.grown * K)]], roam2: [4, [R.far, 0.1 * K, 0.35 * K, 0.7]], // (far colors never past 0.75, where they would cover a picture with no stripes)
+      breath: [4, [lens, 0.03 * B, trippy.wave, trippy.wave * 0.73 + 1.3]],
+      folds: [4, [mirror, Math.PI * Math.pow(fanTo, -fan), turn, Math.abs(Math.cos(turn)) + (w / h) * Math.abs(Math.sin(turn))]],
+      thump: [4, [rings[0] * 2.4, 0.1 * rings[1] * left1 * left1 * Math.min(1, rings[0] / 0.06), rings[2] * 2.4, 0.1 * rings[3] * left2 * left2 * Math.min(1, rings[2] / 0.06)]], // (a ring swells up over its first moments: at full strength from nothing it is a bubble popping up in the middle)
+    };
+  }
+  const afterImages = { ghosts: [], last: -9, rate: 0, span: 0, mid: null, due: false }; // up to four small copies of the picture as it was when a kick landed, when the last was taken, and how fast the picture flows outwards
+  function echoes(span, hand) { // after a fractal is drawn. Just after a kick the picture leaves a copy of itself (in a break, one every second and a half), drawn over the canvas a little bigger and further round the older it is,
+    // and fainter, with "lighten": the new picture is never dulled or blurred, an after-image only shows where it is brighter than what is there now, and at the moment one is left nothing changes (it is the same picture).
+    // Nothing is fed back into itself. span: how big the view is now, from which comes how fast the picture flows outwards, for the after-images to ride on. hand: no graphics card, so it is put together small and stretched once
+    const A = afterImages, dt = Math.min(Math.max(sound.dt, 0), 0.1), t = sound.t, fast = clamp(Math.max(0, A.rate) / 1.5), show = 0.5 * T.echo * (1 - 0.5 * fast); // (fast: the picture itself is flowing by quickly, and after-images on top of that are a smear: they show less and push ahead less)
+    if (span > 0) { if (A.span > 0 && dt > 0) { const d = Math.log(A.span / span); if (Math.abs(d) < Math.max(0.03, 3.5 * dt)) A.rate = Math.max(-3, Math.min(3, A.rate + (d / dt - A.rate) * (1 - Math.exp(-dt / 0.5)))); } A.span = span; } // (a wrap or a swap changes the numbers and not the picture: let go)
+    if (!(show > 0)) { A.ghosts.length = 0; return; }
+    let onto = g, W = w, H = h;
+    if (hand) { const MW = 256, MH = Math.max(2, Math.round((256 * h) / w)); if (!A.mid || A.mid.width !== MW || A.mid.height !== MH) A.mid = paper(MW, MH)[0]; onto = A.mid.getContext("2d"); onto.setTransform(1, 0, 0, 1, 0, 0); onto.globalCompositeOperation = "source-over"; onto.globalAlpha = 1; onto.drawImage(g.canvas, 0, 0, MW, MH); W = MW; H = MH; }
+    const calm = clamp(1.4 - 2 * flow.intensity), life = 1.5 * (1 + 0.8 * calm), ew = Math.max(2, Math.round(W * 0.5)), eh = Math.max(2, Math.round(H * 0.5));
+    if (t < A.last) A.last = -9; // the clock went back
+    const oldest = A.ghosts[0], free = A.ghosts.length < 4 || t - oldest.born > 0.9 * oldest.life || t < oldest.born; // a new one only when there is a paper spare or the oldest has faded right out, so none is cut off while it shows
+    if (sound.kickHit > 0) A.due = true; // a kick asks for a copy, and it is taken once the kick has died down: on the hit the picture is at its brightest and most swollen, and a copy of that held over the resting picture is a haze, not an echo
+    if (free && ((A.due && sound.kick < 0.3 && t - A.last > life / 4) || t - A.last > 1.4)) {
+      A.due = false;
+      let ghost = A.ghosts.length < 4 ? null : A.ghosts.shift();
+      if (!ghost || ghost.c.width !== ew || ghost.c.height !== eh) { const [c, x] = paper(ew, eh); ghost = { c, x }; }
+      ghost.x.globalCompositeOperation = "source-over"; ghost.x.globalAlpha = 1;
+      ghost.x.drawImage(onto.canvas, 0, 0, ew, eh);
+      ghost.x.globalCompositeOperation = "destination-in"; // its edges fade out, so a copy that has turned a little never shows a straight edge across the picture
+      for (const [x1, y1] of [[ew, 0], [0, eh]]) { const soft = ghost.x.createLinearGradient(0, 0, x1, y1); soft.addColorStop(0, "rgba(0,0,0,0)"); soft.addColorStop(0.14, "#000"); soft.addColorStop(0.86, "#000"); soft.addColorStop(1, "rgba(0,0,0,0)"); ghost.x.fillStyle = soft; ghost.x.fillRect(0, 0, ew, eh); }
+      ghost.x.globalCompositeOperation = "source-over";
+      Object.assign(ghost, { born: t, life, grow: 0, turn: 0, cut: false, fade: 1 }); // (it keeps the life it was born with: a break lengthens the next ones, not this one)
+      A.ghosts.push(ghost);
+      A.last = t;
+    }
+    if (flow.dropHit) for (const ghost of A.ghosts) ghost.cut = true; // a drop is a new picture: the old one's after-images are let go within half a second, or they would lie over it like fog
+    onto.save();
+    onto.globalCompositeOperation = "lighten"; onto.imageSmoothingEnabled = true;
+    for (const ghost of A.ghosts) {
+      if (ghost.cut) ghost.fade *= Math.exp(-dt / 0.2);
+      ghost.grow += (Math.max(0, A.rate) + 0.3 * (1 - 0.7 * fast) * (0.5 + flow.intensity + 1.2 * flow.drop)) * dt; // with the picture's own flow outwards, and a little ahead of it; quicker just after a drop. (While the journey backs out they keep growing slowly: a copy shrinking into the middle is a picture in a picture)
+      ghost.turn += 0.12 * dt;
+      const left = 1 - (t - ghost.born) / ghost.life;
+      if (left <= 0 || left > 1) continue;
+      const k = Math.exp(Math.max(-4, Math.min(4, ghost.grow))), co = k * Math.cos(ghost.turn), si = k * Math.sin(ghost.turn);
+      onto.globalAlpha = Math.min(1, show * left * left * ghost.fade);
+      onto.setTransform(co, si, -si, co, W / 2, H / 2);
+      onto.drawImage(ghost.c, -W / 2, -H / 2, W, H);
+    }
+    onto.restore();
+    if (hand) { g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.globalCompositeOperation = "source-over"; g.globalAlpha = 1; g.imageSmoothingEnabled = true; g.drawImage(A.mid, 0, 0, w, h); g.restore(); }
+  }
   function cardProgram(gl, key, body) { // one of the sums made into a program for the card, or null when the card won't take it
     const part = (kind, text) => { const s = gl.createShader(kind); gl.shaderSource(s, text); gl.compileShader(s); return s; };
     const program = gl.createProgram(), corners = part(gl.VERTEX_SHADER, CARD_CORNERS), sum = part(gl.FRAGMENT_SHADER, CARD_TOP + body);
@@ -3167,7 +3293,7 @@ window.Effects = (() => {
     if (!gl.isContextLost()) console.warn("Effects: the graphics card wouldn't take " + key + ":", gl.getShaderInfoLog(sum) || gl.getProgramInfoLog(program));
     return null;
   }
-  function onCard(key, body, values) { // draws one of them with the graphics card, a triangle over the whole picture; false when it can't, and then it's worked out by hand
+  function onCard(key, body, values, alpha = 1, wide = 1280) { // draws one of them with the graphics card, a triangle over the whole picture; false when it can't, and then it's worked out by hand. alpha: how solid, for one picture fading into another. wide: the most dots across, less for a sum that costs more than it shows
     if (card.off) return false;
     if (!card.gl) {
       card.c = document.createElement("canvas");
@@ -3181,75 +3307,336 @@ window.Effects = (() => {
     if (card.made[key] === undefined) card.made[key] = cardProgram(gl, key, body);
     const made = card.made[key];
     if (!made) return false;
-    const across = Math.max(2, Math.min(w, 1280)), down = Math.max(2, Math.round((across * h) / w)), tones = moodColors(3);
+    const across = Math.max(2, Math.round(Math.min(w, wide))), down = Math.max(2, Math.round((across * h) / w)), tones = moodColors(3);
     if (card.c.width !== across || card.c.height !== down) { card.c.width = across; card.c.height = down; }
     gl.viewport(0, 0, across, down);
     gl.useProgram(made.program);
-    const all = { size: [2, [across, down]], light: [1, [0.6 + 0.5 * sound.kick + 0.2 * flow.drop]], time: [1, [sound.t]], glow: [1, [V.glow ?? 1]], toneA: [3, tones[0].map((v) => v / 255)], toneB: [3, tones[1].map((v) => v / 255)], toneC: [3, tones[2].map((v) => v / 255)], ...values };
+    const all = { size: [2, [across, down]], light: [1, [0.6 + 0.5 * sound.kick * trippy.kickLight + 0.2 * flow.drop]], time: [1, [sound.t]], glow: [1, [V.glow ?? 1]], toneA: [3, tones[0].map((v) => v / 255)], toneB: [3, tones[1].map((v) => v / 255)], toneC: [3, tones[2].map((v) => v / 255)], ...(trippy.stepped === sound.t ? trippy.values : TRIPPY_OFF), ...values }; // (the trip's numbers only for a picture that asked for them this frame)
     for (const k in all) { const at = k in made.at ? made.at[k] : (made.at[k] = gl.getUniformLocation(made.program, k)); if (at) gl["uniform" + all[k][0] + "fv"](at, all[k][1]); }
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     g.globalCompositeOperation = "source-over";
     g.imageSmoothingEnabled = true;
+    g.globalAlpha = alpha;
     g.drawImage(card.c, 0, 0, w, h);
+    g.globalAlpha = 1;
     return true;
   }
-  function byHand(sum, light = 0.6 + 0.5 * sound.kick + 0.2 * flow.drop) { // the same sum worked out here for a small picture: sum(across, up, dot) says how far round the colors a dot is, how bright, and how much of the edge's glow it has
+  const hueHome = [0, 0, 0], HUE_ROUNDS = 20, HUE_STEPS = 64, hueTable = new Float32Array(HUE_ROUNDS * HUE_STEPS * 6); // by hand the travelling colors are looked up: the home color and the far color for every 64th of a round of the bands, over twenty rounds, which is where the bands and the colors' way round both come back to where they started (so a mood's "deep" has to be a twentieth of something)
+  function turnedHue(r, gr, b, degrees, sameLight, out) { // the card's turnHue(): round the wheel about grey, then most of the way back to the lightness it had. Colors here are 0..255, and the answer goes into out (nothing is made anew for every dot)
+    const k = (degrees * Math.PI) / 180, co = Math.cos(k), m = (1 - co) / 3, q = Math.sin(k) * 0.57735027, same = co + m, back = m - q, on = m + q;
+    const t0 = clamp((r * same + gr * back + b * on) / 255) * 255, t1 = clamp((r * on + gr * same + b * back) / 255) * 255, t2 = clamp((r * back + gr * on + b * same) / 255) * 255;
+    const was = 0.2126 * r + 0.7152 * gr + 0.0722 * b, now = 0.2126 * t0 + 0.7152 * t1 + 0.0722 * t2, f = 1 + (Math.min(was / Math.max(now, 0.04 * 255), 2.2) - 1) * sameLight;
+    out[0] = Math.min(255, t0 * f); out[1] = Math.min(255, t1 * f); out[2] = Math.min(255, t2 * f);
+  }
+  function byHand(sum, light = 0.6 + 0.5 * sound.kick * trippy.kickLight + 0.2 * flow.drop, tones = moodColors(3), alpha = 1) { // the same sum worked out here for a small picture: sum(across, up, dot) says how far round the colors a dot is, how bright, and how much of the edge's glow it has. The fold, the breath and the colors that travel are done here per dot as the card does them
     const W = 128, H = Math.max(32, Math.round((128 * h) / w));
     if (!card.art || card.art.W !== W || card.art.H !== H) { const [c, x] = paper(W, H); card.art = { W, H, c, x, img: x.createImageData(W, H) }; }
-    const tones = moodColors(3), d = card.art.img.data, dot = { x: 0, shade: 0, edge: 0, half: H / 2, t: sound.t, glow: V.glow ?? 1 };
+    const d = card.art.img.data, dot = { x: 0, shade: 0, edge: 0, stripe: 0.5, half: H / 2, t: sound.t, glow: V.glow ?? 1 }, z4 = [0, 0, 0, 0], tv = trippy.stepped === sound.t ? trippy.values : TRIPPY_OFF;
+    const [hueAt, reach, deep, grownTo] = (tv.roam || [0, z4])[1], [farTurn, pullBy, shadeAs, sameLight] = (tv.roam2 || [0, z4])[1], grown = grownTo * 0.5, pull = pullBy * 0.5, shadeBy = shadeAs * 0.5, // (the stripes do half as much here: on a picture this coarse they are finer than a dot, and came out as speckle)
+      [lens, wave, waveX, waveY] = (tv.breath || [0, z4])[1], [mirror, fan, turn, far] = (tv.folds || [0, z4])[1], [ring1, push1, ring2, push2] = (tv.thump || [0, z4])[1];
+    const co = Math.cos(turn), si = Math.sin(turn), slide = (1 - mirror) * far, plain = !reach && !grown;
+    if (!plain) for (let i = 0, o = 0; i < HUE_ROUNDS * HUE_STEPS; i++, o += 6) { // the card's pal(), once for each place round the bands: on a leash round home, and the far colors beside it
+      const X = (i + 0.5) / HUE_STEPS, pos = (X - Math.floor(X)) * 3, a = Math.floor(pos) % 3, f = eased(pos - Math.floor(pos)), c1 = tones[a], c2 = tones[(a + 1) % 3], home = reach * Math.sin(TAU * (hueAt + deep * X));
+      const p0 = c1[0] + (c2[0] - c1[0]) * f, p1 = c1[1] + (c2[1] - c1[1]) * f, p2 = c1[2] + (c2[2] - c1[2]) * f;
+      turnedHue(p0, p1, p2, home, sameLight, hueHome);
+      hueTable[o] = hueHome[0]; hueTable[o + 1] = hueHome[1]; hueTable[o + 2] = hueHome[2];
+      if (grown > 0) turnedHue(p0, p1, p2, home + farTurn, sameLight, hueHome);
+      hueTable[o + 3] = hueHome[0]; hueTable[o + 4] = hueHome[1]; hueTable[o + 5] = hueHome[2];
+    }
     for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
-      sum(((i + 0.5) * 2 - W) / H, (H - (j + 0.5) * 2) / H, dot);
-      const pos = (dot.x - Math.floor(dot.x)) * 3, a = Math.floor(pos) % 3, f = eased(pos - Math.floor(pos)), c1 = tones[a], c2 = tones[(a + 1) % 3], o = (j * W + i) * 4;
-      for (let k = 0; k < 3; k++) { const p = c1[k] + (c2[k] - c1[k]) * f; d[o + k] = (p * dot.shade + (p + (255 - p) * 0.6) * dot.edge) * light; }
+      let u = ((i + 0.5) * 2 - W) / H, v = (H - (j + 0.5) * 2) / H;
+      if (mirror > 0) { // the card's spot(): the mirror that slides in, then the fan
+        let a = u * co + v * si, b = Math.abs(v * co - u * si + slide) - slide;
+        if (fan > 0 && fan < 3.14159) { const r = Math.hypot(a, b), at = Math.atan2(b, a) + fan, ang = Math.abs(at - 2 * fan * Math.floor(at / (2 * fan)) - fan); a = r * Math.cos(ang); b = r * Math.sin(ang); }
+        u = a * co - b * si; v = b * co + a * si;
+      }
+      if (push1 + push2 > 0) { const out = Math.hypot(u, v) || 1e-4, k1 = (out - ring1) / 0.11, k2 = (out - ring2) / 0.11, push = (push1 * Math.exp(-k1 * k1) + push2 * Math.exp(-k2 * k2)) / out; u -= u * push; v -= v * push; } // a hard kick's ring, as the card does it
+      const lensed = 1 - lens / (1 + 2 * (u * u + v * v)), lu = u * lensed, lv = v * lensed; // the breath, then the sway
+      dot.stripe = 0.5;
+      sum(lu + wave * Math.sin(lv * 2.2 + waveX), lv + wave * Math.sin(lu * 2.2 + waveY), dot);
+      const X = dot.x + pull * (dot.stripe - 0.5), pos = (X - Math.floor(X)) * 3, a = Math.floor(pos) % 3, f = eased(pos - Math.floor(pos)), c1 = tones[a], c2 = tones[(a + 1) % 3], o = (j * W + i) * 4;
+      let p0 = c1[0] + (c2[0] - c1[0]) * f, p1 = c1[1] + (c2[1] - c1[1]) * f, p2 = c1[2] + (c2[2] - c1[2]) * f;
+      if (!plain) { // the colors as they are just now at this place round the bands, with the far colors grown in along the stripes
+        const at = (Math.floor((X - HUE_ROUNDS * Math.floor(X / HUE_ROUNDS)) * HUE_STEPS) % (HUE_ROUNDS * HUE_STEPS)) * 6, into = grown > 0 ? eased(clamp((dot.stripe - (0.95 - 0.6 * grown)) / 0.12)) : 0;
+        p0 = hueTable[at] + (hueTable[at + 3] - hueTable[at]) * into; p1 = hueTable[at + 1] + (hueTable[at + 4] - hueTable[at + 1]) * into; p2 = hueTable[at + 2] + (hueTable[at + 5] - hueTable[at + 2]) * into;
+      }
+      const shade = dot.shade * (1 + shadeBy * (2 * dot.stripe - 1)), edge = dot.edge;
+      d[o] = (p0 * shade + (p0 + (255 - p0) * 0.6) * edge) * light; d[o + 1] = (p1 * shade + (p1 + (255 - p1) * 0.6) * edge) * light; d[o + 2] = (p2 * shade + (p2 + (255 - p2) * 0.6) * edge) * light;
       d[o + 3] = 255;
     }
     card.art.x.putImageData(card.art.img, 0, 0);
     g.globalCompositeOperation = "source-over";
     g.imageSmoothingEnabled = true;
+    g.globalAlpha = alpha;
     g.drawImage(card.art.c, 0, 0, w, h);
+    g.globalAlpha = 1;
   }
-  const dotOutside = (dot, x, nu, far, e) => { const soft = eased(clamp((e * dot.half - 1) / 5)); dot.x = x + dot.t * 0.03; dot.shade = (0.7 + (0.7 * Math.abs(Math.sin(nu * Math.PI)) - 0.4) * soft) * (1 - Math.exp(-far * 0.15)); dot.edge = dot.glow / (1 + e * e * 4900); }; // off the set: bands that count the steps it took to get away, and a glow where the set is near
+  const wayRound = (x, y) => 0.5 + (x * y) / Math.max(x * x + y * y, 1e-20); // the card's way(): which way round the middle a step went
+  const dotOutside = (dot, x, nu, far, e) => { const soft = eased(clamp((e * dot.half - 1) / 5)), deep = 1 - Math.exp(-far * 0.15); dot.stripe = 0.5 + (dot.stripe - 0.5) * eased(clamp((deep - 0.25) / 0.5)) * soft; dot.x = x + dot.t * 0.03; dot.shade = (0.7 + (0.7 * Math.abs(Math.sin(nu * Math.PI)) - 0.4) * soft) * (1 - Math.exp(-far * 0.15)); dot.edge = dot.glow / (1 + e * e * 4900); }; // off the set: bands that count the steps it took to get away, and a glow where the set is near
   const dotInside = (dot, near, wild) => { dot.x = near * 0.9 + dot.t * 0.03; dot.shade = 0.12 + 0.2 * Math.abs(Math.sin(near * 10 - dot.t * 0.8)); dot.edge = dot.glow * eased(clamp((Math.log(wild + 1e-30) - 4) / 10)); }; // never got away: dim rings by how near the middle it ever came, and the edge's glow where its neighbours were flying apart (wild is how fast), which is the set's edge and not its body
+  /* The Julia set that travels. The camera never rests: in from the whole set to the middle of its spirals, and before that middle turns into a blob, across to another spiral off to one side
+     and into that one. That spiral is a small copy of the one it left, so when it fills the picture the same view is there again and the next is picked: for as long as the song lasts.
+     A drop pulls the camera back out to the whole set, which puffs to dust, slides round to another shape, and the journey starts again from there.
+     Words used below. z0 is the resting place of the sum that only just fails to hold: the middle of the spirals. Every other spiral middle p is a point the sum sends onto z0 after k steps,
+     and near p those k steps are nearly a plain scale-and-turn by D, their slope at p. "Nearly" would show as a jump, so the card is given a dial, blend: at 0 it draws the true picture about p,
+     at 1 the picture about z0 through that plain scale-and-turn, which is number for number what a view about z0 itself draws. A flight turns the dial up over its last part and then swaps one
+     for the other with nothing to see. Lengths are kept as they will be after the swap ("eq" lengths: true lengths times the size of D), so the swap changes none of the camera's numbers. */
+  const JULIA_PATH = 64, JULIA_REACH = 60; // how much of a target's own path the card is handed, and the most steps a flight's target may be from z0
   const JULIA_SUM = `
-    uniform vec2 c, turn; uniform float span, power;
+    uniform vec2 orbit[${JULIA_PATH}], c, view, shift, jump; uniform float power, reach, blend, ahead, tall, pen, limit, wide;
     void main() {
-      vec2 z = mul(spot() * span, turn), dz = vec2(1.0, 0.0);
+      vec2 e = shift + mul(spot(), view), lin = mul(jump, e), dz = vec2(1.0, 0.0), z = orbit[0] + e;
       float trap = 1e9, n = -1.0, m2 = 0.0, big = 0.0;
-      for (int i = 0; i < 96; i++) {
-        vec2 z2 = mul(z, z), p = power < 2.5 ? z : power < 3.5 ? z2 : mul(z2, z);
-        dz = power * mul(p, dz);
+      int k = int(reach);
+      vec2 was = z; // (the place before the last, for the stripes)
+      for (int i = 0; i < 200; i++) {
+        if (float(i) >= limit) break;
+        was = z;
+        if (i < k) {
+          vec2 Z = orbit[i], w = Z + e, w2 = mul(w, w), Z2 = mul(Z, Z);
+          dz = power * mul(power < 2.5 ? w : power < 3.5 ? w2 : mul(w2, w), dz);
+          e = mul(power < 2.5 ? 2.0 * Z + e : power < 3.5 ? 3.0 * Z2 + mul(3.0 * Z + e, e) : 4.0 * mul(Z2, Z) + mul(6.0 * Z2 + mul(4.0 * Z + e, e), e), e);
+          if (i == k - 1 && big == 0.0) { e = mix(e, lin, blend); dz = mix(dz, jump, blend); }
+          z = orbit[i + 1] + e;
+        } else {
+          vec2 z2 = mul(z, z), p = power < 2.5 ? z : power < 3.5 ? z2 : mul(z2, z);
+          dz = power * mul(p, dz);
+          z = mul(p, z) + c;
+        }
         if (dot(dz, dz) > 1e20) { dz *= 1e-10; big += 23.02585; }
-        z = mul(p, z) + c;
         m2 = dot(z, z);
-        trap = min(trap, m2);
+        trap = min(trap, i < k ? m2 + pen : m2);
         if (m2 > 1e4) { n = float(i); break; }
       }
-      if (n < 0.0) { color = inside(sqrt(trap), wildness(dz, big)); return; }
-      float nu = n + 1.0 - log(log(m2) / 9.2103) / log(power);
-      color = outside(nu * 0.045, nu, nu, exp(log(sqrt(m2) * 0.5 * log(m2)) - log(length(dz)) - big) / span);
+      vec4 on = inside(sqrt(trap), wildness(dz, big + log(tall / 1.7)));
+      if (n < 0.0) { color = on; return; }
+      float part = log(log(m2) / 9.2103) / log(power), nu = n + 1.0 - part;
+      stripes(z, was, part);
+      color = mix(outside((nu + ahead) * 0.045, nu, nu - blend * reach + 8.0 * wide, exp(log(sqrt(m2) * 0.5 * log(m2)) - log(length(dz)) - big) / tall), on, clamp(nu - limit + 1.0, 0.0, 1.0)); // (+ wide: seen from far off the dots that get away at once are most of the picture, and are not left nearly black)
     }
 `;
-  let juliaAt = Math.random() * TAU;
-  function julia() { // the Julia set of a point going round the edge of the Mandelbrot set's heart: islands and spirals that grow together and come apart, puffed towards dust by the bass and the kick; a drop jumps somewhere else on the way round
-    const { dt, kick, bass } = sound, n = V.power || 2;
-    juliaAt += dt * (0.02 + 0.05 * flow.intensity) * (1 + flow.build) + (flow.dropHit ? rnd(1, 5) : 0);
-    const r = 1.01 + 0.07 * bass + 0.09 * kick, m = (r / n) ** (1 / (n - 1)), a = juliaAt / (n - 1), zx = m * Math.cos(a), zy = m * Math.sin(a), kx = 1 - (r / n) * Math.cos(juliaAt), ky = -(r / n) * Math.sin(juliaAt), cx = zx * kx - zy * ky, cy = zx * ky + zy * kx; // the point whose resting place only just fails to hold: mu = r e^(i at), z0 = (mu / n)^(1 / (n - 1)), c = z0 (1 - mu / n)
-    const spin = turned("julia", 0.05), cos = Math.cos(spin), sin = Math.sin(spin), span = (n > 3 ? 1.3 : n > 2 ? 1.4 : 1.7) * (1 - 0.05 * kick);
-    if (onCard("julia", JULIA_SUM, { c: [2, [cx, cy]], turn: [2, [cos, sin]], span: [1, [span]], power: [1, [n]] })) return;
-    byHand((u, v, dot) => {
-      let x = (u * cos - v * sin) * span, y = (u * sin + v * cos) * span, dx = 1, dy = 0, trap = 1e9, count = -1, m2 = 0;
-      for (let i = 0; i < 96; i++) {
-        const x2 = x * x - y * y, y2 = 2 * x * y, px = n < 3 ? x : n < 4 ? x2 : x2 * x - y2 * y, py = n < 3 ? y : n < 4 ? y2 : x2 * y + y2 * x, ex = n * (px * dx - py * dy), nx = px * x - py * y + cx; // p is z to the power less one
-        dy = n * (px * dy + py * dx); dx = ex;
-        y = px * y + py * x + cy; x = nx;
-        m2 = x * x + y * y;
-        if (m2 < trap) trap = m2;
-        if (m2 > 1e4) { count = i; break; }
+  const juliaWays = (() => {
+    function nums(at, r, n = 2) { // as julia() in effects.js: mu = r e^(i at), z0 = (mu / n)^(1 / (n - 1)), c = z0 (1 - mu / n)
+      const m = (r / n) ** (1 / (n - 1)), a = at / (n - 1), zx = m * Math.cos(a), zy = m * Math.sin(a), kx = 1 - (r / n) * Math.cos(at), ky = -(r / n) * Math.sin(at);
+      return { n, r, at, zx, zy, cx: zx * kx - zy * ky, cy: zx * ky + zy * kx };
+    }
+    function power(x, y, n) { let px = x, py = y; for (let j = 1; j < n; j++) { const t = px * x - py * y; py = px * y + py * x; px = t; } return [px, py]; } // z^n
+    function forward(x, y, q) { const [px, py] = power(x, y, q.n); return [px + q.cx, py + q.cy]; }
+    function roots(x, y, q) { // every w with w^n + c = (x, y)
+      const dx = x - q.cx, dy = y - q.cy, m = Math.hypot(dx, dy) ** (1 / q.n), a = Math.atan2(dy, dx) / q.n, out = [];
+      for (let j = 0; j < q.n; j++) out.push([m * Math.cos(a + (j * TAU) / q.n), m * Math.sin(a + (j * TAU) / q.n)]);
+      return out;
+    }
+    function back(x, y, q, gx, gy) { let best = null, far = 1e99; for (const w of roots(x, y, q)) { const d = (w[0] - gx) ** 2 + (w[1] - gy) ** 2; if (d < far) { far = d; best = w; } } return best; } // the one of them nearest (gx, gy)
+    function slope(orbit, k, n) { // D = (f^k)'(p) = product of n z^(n-1) along the orbit
+      let dx = 1, dy = 0;
+      for (let j = 0; j < k; j++) { const [px, py] = n > 2 ? power(orbit[j * 2], orbit[j * 2 + 1], n - 1) : [orbit[j * 2], orbit[j * 2 + 1]], t = n * (px * dx - py * dy); dy = n * (px * dy + py * dx); dx = t; }
+      return [dx, dy];
+    }
+    function orbitFrom(px, py, k, q, orbit) { let x = px, y = py; for (let j = 0; j < k; j++) { orbit[j * 2] = x; orbit[j * 2 + 1] = y; [x, y] = forward(x, y, q); } orbit[k * 2] = q.zx; orbit[k * 2 + 1] = q.zy; return Math.hypot(x - q.zx, y - q.zy); } // p's path to z0; returns how far the k-th point missed z0 by
+    function retrack(orbit, k, q) { // c has moved a little: the same target for the new c, found by running the sum backwards from the new z0, each time taking the root nearest where that point was
+      let x = q.zx, y = q.zy; orbit[k * 2] = x; orbit[k * 2 + 1] = y;
+      for (let j = k - 1; j >= 0; j--) { [x, y] = back(x, y, q, orbit[j * 2], orbit[j * 2 + 1]); orbit[j * 2] = x; orbit[j * 2 + 1] = y; }
+    }
+    function targets(q, depth = q.n > 3 ? 2 : q.n > 2 ? 3 : 4) { // spiral middles: points the sum sends onto z0. A few from far away (every choice of root, `depth` steps back), and each of those carried in towards z0 by the root nearest z0, step after step
+      const far = [];
+      let level = roots(q.zx, q.zy, q).filter((w) => Math.hypot(w[0] - q.zx, w[1] - q.zy) > 1e-9).map((w) => ({ x: w[0], y: w[1], k: 1 }));
+      far.push(...level);
+      for (let d = 2; d <= depth; d++) { const next = []; for (const p of level) for (const w of roots(p.x, p.y, q)) next.push({ x: w[0], y: w[1], k: p.k + 1 }); far.push(...next); level = next; }
+      const all = [];
+      for (const f of far) { let x = f.x, y = f.y; for (let k = f.k; k <= JULIA_REACH; k++) { all.push({ x, y, k }); [x, y] = back(x, y, q, q.zx, q.zy); } }
+      return all;
+    }
+    const TUNE = { r: 1.09, wide: [0, 0, 1.25, 1.1, 1.0], arrive: [0.13, 0.2], morphFrom: 0.3, steps: 100, stepsByHand: 64, swirl: 0.15, pull: 2.4, glide: 1.2, bass: 0.06, dust: [0, 0, 0.56, 0.72, 0.88], cusp: [0, 0, 0.6, 0.85, 0.95], breath: 0.03, clear: [0, 0, 0.12, 0.25, 0.3] };
+    function travel(n) { // the journey for one power of the set: what it keeps between frames, and step(), which moves it on and says what this frame shows
+      const U = { ...TUNE, dust: TUNE.dust[n], cusp: TUNE.cusp[n], clear: TUNE.clear[n] }, between = rnd, wideSpan = U.wide[n];
+      const J = { n, at: rnd(0, TAU), r: U.r, mode: "wide", wait: 2.5, anchor: 0, k: 0, orbit: new Float64Array(JULIA_PATH * 2), sent: new Float32Array(JULIA_PATH * 2), jx: 1, jy: 0, ox: 0, oy: 0, ls: Math.log(wideSpan), turn: 0, a: 0, pen: 0, soft: 0, ahead: 0, fl: null, pl: null, rSlow: U.r + U.dust, touchy: 0, puff: 0, deep: 3, glide: 0, way: 1, asked: -9, still: false, pulse: 0, glow: 0, hue: 0, hueTo: 0, clock: 0, pulledAt: -99, glidAt: 0, gentle: false, next: null };
+      let q = nums(J.at, J.r, n);
+      const open = (at) => { if (at < U.cusp || at > TAU - U.cusp) return false; for (let j = 0; j < 68; j++) { const c = nums(at, j < 28 ? U.r - 0.035 + 0.065 * (j / 27) : U.r + 0.03 + (U.dust - 0.03) * ((j - 27) / 40), n); let x = 0, y = 0, away = false; for (let i = 0; i < 45 && !away; i++) { [x, y] = forward(x, y, c); away = x * x + y * y > 16; } if (!away) return false; } return true; }; // is the set dust there (the middle point gets away within 45 steps), even when r is at its least?
+      J.at = Math.max(U.cusp, Math.min(TAU - U.cusp, ((J.at % TAU) + TAU) % TAU));
+      const elsewhere = () => { let spare = J.at; for (let i = 0; i < 200; i++) { const to = between(U.cusp, TAU - U.cusp), far = Math.abs(to - J.at); if (far < 0.3 || !open(to)) continue; if (far > 0.8 && far < 2.4) return to - J.at; spare = to; } return spare - J.at; }; // how far to glide to get to another shape
+      for (let i = 0; i < 300 && !open(J.at); i++) J.at = between(U.cusp, TAU - U.cusp);
+      const leave = (gentle) => { J.mode = "pull"; J.pl = null; J.pullFor = 0; J.glide = elsewhere(); J.gentle = gentle; J.pulledAt = J.glidAt = J.clock; J.next = null; }; // out to the whole set and round to another shape: hard on a drop, gently when the scenery has been the same for a minute
+      const view = () => { const s = Math.exp(J.ls); return [s * Math.cos(J.turn), s * Math.sin(J.turn)]; };
+      const over = (ax, ay, bx, by) => { const d = bx * bx + by * by; return [(ax * bx + ay * by) / d, (ay * bx - ax * by) / d]; }; // a / b
+      const anchorAt = () => (J.anchor === 0 ? [0, 0] : J.anchor === 1 ? [q.zx, q.zy] : [J.orbit[0], J.orbit[1]]);
+
+      const nudged = new Float64Array(JULIA_PATH * 2);
+      function touchy(orbit, k) { // |d log D| per unit of dr / r and per unit of d(at), the larger
+        const [dx, dy] = slope(orbit, k, n), e = 1e-5; let most = 0;
+        for (const q2 of [nums(J.at, J.r + e * J.r, n), nums(J.at + e, J.r, n)]) { nudged.set(orbit); retrack(nudged, k, q2); const [ex, ey] = slope(nudged, k, n), [qx, qy] = over(ex, ey, dx, dy); most = Math.max(most, Math.hypot(Math.log(Math.hypot(qx, qy)), Math.atan2(qy, qx)) / e); }
+        return most;
       }
-      if (count < 0) return dotInside(dot, Math.sqrt(trap), Math.hypot(dx, dy));
-      const nu = count + 1 - Math.log(Math.log(m2) / 9.2103) / Math.log(n);
-      dotOutside(dot, nu * 0.045, nu, nu, (Math.sqrt(m2) * 0.5 * Math.log(m2)) / Math.hypot(dx, dy) / span);
-    });
+      function pick(aspect, ls = J.ls, ox = J.ox, oy = J.oy) { // the next place to fly to: a spiral middle that is in the picture (as it is now, or as it will be: ls is the size of the view asked about, ox and oy its middle from z0), off to one side, and between 6 and 45 times smaller than the one in the middle
+        const size0 = Math.exp(ls), vx = size0 * Math.cos(J.turn), vy = size0 * Math.sin(J.turn), cx = q.zx + ox, cy = q.zy + oy, wide = 0.85 * Math.min(aspect, 1.5), spare = new Float64Array(JULIA_PATH * 2), good = [], fair = [];
+        for (const p of targets(q)) {
+          const [sx, sy] = over(p.x - cx, p.y - cy, vx, vy), d = Math.hypot(sx, sy);
+          if (d < 0.3 || Math.abs(sx) > wide || Math.abs(sy) > 0.85) continue;
+          if (orbitFrom(p.x, p.y, p.k, q, spare) > 1e-6) continue;
+          let least = 9; for (let j = 0; j < p.k; j++) least = Math.min(least, Math.hypot(spare[j * 2], spare[j * 2 + 1]));
+          if (least < U.clear) continue;
+          const [dx, dy] = slope(spare, p.k, n), size = Math.hypot(dx, dy);
+          if (touchy(spare, p.k) > 3 * p.k + 15) continue; // thrown about by the least change of c
+          if (size >= 6 && size <= 45) good.push(p); else if (size >= 3 && size <= 150) fair.push(p);
+        }
+        const from = good.length ? good : fair;
+        if (from.length) return from[Math.floor(Math.random() * from.length)];
+        return { x: q.zx, y: q.zy, k: Math.min(JULIA_REACH, Math.round(Math.log(12) / Math.log(q.r))) }; // none: straight down the middle of this spiral, which comes round the same every step
+      }
+      function begin(p) { // from a view about z0 to a flight towards p: the camera's numbers are turned into eq lengths, which the picture does not notice
+        const zx = q.zx + J.ox - p.x, zy = q.zy + J.oy - p.y; // the middle of the picture, from p
+        orbitFrom(p.x, p.y, p.k, q, J.orbit);
+        const [dx, dy] = slope(J.orbit, p.k, n), size = Math.hypot(dx, dy);
+        J.anchor = 2; J.k = p.k; J.jx = dx; J.jy = dy;
+        J.ox = dx * zx - dy * zy; J.oy = dx * zy + dy * zx; J.ls += Math.log(size); J.turn += Math.atan2(dy, dx);
+        const [vx, vy] = view(), [ux, uy] = over(J.ox, J.oy, vx, vy), ls1 = Math.log(between(U.arrive[0], U.arrive[1])), lsA = Math.min(Math.log(U.morphFrom), J.ls - 0.5);
+        J.fl = { ls0: J.ls, ls1, lsA, ux, uy, uc: (J.ls - lsA) / (J.ls - ls1), deep0: Math.log(1.6 / Math.exp(J.ls - Math.log(size))) / Math.log(J.r) };
+        J.touchy = touchy(J.orbit, p.k);
+        J.hueTo = Math.max(-22, Math.min(22, J.hueTo + between(-22, 22))); // every flight turns the colors a little
+      }
+      function ahead(aspect, ls) { // the next place, chosen a second or so before the swap (it takes several thousandths of a second, which would be a late frame right on the seam): its own path is kept, and followed as c moves on
+        const p = pick(aspect, ls, 0, 0), orbit = new Float64Array(JULIA_PATH * 2);
+        orbitFrom(p.x, p.y, p.k, q, orbit);
+        return { k: p.k, orbit };
+      }
+      function arrive(aspect) { // the swap: by now the picture is drawn wholly from the straightened view (a = 1), which is exactly the view about z0 with the same camera numbers
+        if (J.anchor === 2) J.ahead = (J.ahead + J.k) % 200;
+        J.anchor = 1; J.k = 0; J.jx = 1; J.jy = 0; J.a = 0; J.pen = 0; J.soft = 0;
+        const next = J.next; J.next = null;
+        if (next) retrack(next.orbit, next.k, q); // the same spiral for c as it is now
+        begin(next ? { x: next.orbit[0], y: next.orbit[1], k: next.k } : pick(aspect));
+      }
+      function toWhole() { // any view to the same view measured from the origin in true lengths (only ever done where the picture is drawn truly: a = 0)
+        const [ax, ay] = anchorAt(), [ex, ey] = over(J.ox, J.oy, J.jx, J.jy), size = Math.hypot(J.jx, J.jy);
+        J.ox = ax + ex; J.oy = ay + ey; J.ls -= Math.log(size); J.turn -= Math.atan2(J.jy, J.jx);
+        J.anchor = 0; J.k = 0; J.jx = 1; J.jy = 0; J.a = 0; J.pen = 0; J.soft = 0; J.fl = null;
+      }
+
+      function step(sound, flow, aspect, byHand, spin) {
+        const dt = Math.min(Math.max(sound.dt, 0), 0.1), kick = sound.kick, calm = flow.calm, wideSpan = U.wide[n] * Math.min(1.6, Math.max(1, 0.9 / aspect));
+        if (!J.clock) J.ls = Math.log(wideSpan);
+        J.clock += dt;
+        // the set's shape: r nearer 1 through a build (finer, more arms), a little over in a break (airier); the bass puffs it a little; the kick no longer does
+        const wideNow = clamp((Math.exp(J.ls) / Math.hypot(J.jx, J.jy) - 0.3) / 0.6), puffed = J.mode === "wide" && J.glide ? 1 : J.mode === "pull" && J.anchor === 0 ? wideNow * wideNow : 0, rTo = U.r - 0.025 * flow.build + 0.02 * calm + U.dust * puffed;
+        const rStep = (rTo - J.rSlow) * (1 - Math.exp(-dt / (puffed || J.mode === "wide" ? 0.35 : 0.8))), rMost = puffed || J.mode === "wide" ? 9 : ((J.anchor === 2 ? 0.35 : 1) * J.rSlow * dt) / J.deep;
+        J.rSlow += Math.max(-rMost, Math.min(rMost, rStep));
+        J.puff += (sound.bass - 0.5 - J.puff) * (1 - Math.exp(-dt / 0.25));
+        J.r = J.rSlow + (U.bass * J.rSlow * J.puff) / J.deep;
+        // how many steps a dot of this view takes to leave: each of them turns the dot's surroundings by however much "at" moved, so "at" moves that many times slower
+        const deep = J.deep = Math.max(1.5, J.anchor === 2 ? Math.max(J.fl.deep0, (1 - J.a) * J.touchy) : 0, (1 - J.a) * J.k + Math.log(1.6 / Math.exp(J.ls)) / Math.log(J.r));
+        if (Math.abs(J.at - J.asked) > 0.002) { J.asked = J.at; if (!open(J.at + J.way * 0.02)) { J.way = -J.way; J.still = !open(J.at + J.way * 0.02); } else J.still = false; } // asked again only when it has moved
+        if (!J.still) J.at += (J.way * dt * U.swirl * (0.4 + flow.intensity) * (1 + flow.build)) / deep;
+        if (J.mode === "wide" && J.glide) { const g = Math.sign(J.glide) * Math.min(Math.abs(J.glide), U.glide * dt * clamp((J.rSlow - U.r - 0.92 * U.dust) / (0.06 * U.dust))); J.at += g; J.glide -= g; if (Math.abs(J.glide) < 1e-9) { J.glide = 0; J.asked = -9; } } // after a drop: on round the heart's edge to another shape, while the whole set is in view
+        q = nums(J.at, J.r, n);
+        if (J.anchor === 2) { retrack(J.orbit, J.k, q); [J.jx, J.jy] = slope(J.orbit, J.k, n); J.touchy = touchy(J.orbit, J.k); }
+        const size = Math.hypot(J.jx, J.jy), trueSpan = Math.exp(J.ls) / size, wideness = clamp((trueSpan - 0.3) / 0.6);
+        J.turn += dt * 0.05 * spin;
+        J.hue += (J.hueTo - J.hue) * (1 - Math.exp(-dt / 3));
+
+        if (flow.dropHit && J.mode === "fly") { // a drop: out to the whole set and on to another shape. Not if it was out there in the last 24 s (a song can drop three times in a burst, and a flight needs half a minute to get anywhere): then the drop only turns the colors
+          J.hueTo = -Math.sign(J.hueTo || 1) * between(10, 22);
+          if (J.clock - J.pulledAt > 24) leave(false);
+        } else if (flow.dropHit && J.mode === "wide" && !J.glide) { J.glide = elsewhere(); J.glidAt = J.clock; }
+
+        if (J.mode === "wide") {
+          J.wait -= dt; J.ls -= dt * 0.03;
+          if (J.wait <= 0 && !J.glide) { // in towards the middle of the spirals
+            J.anchor = 1; J.ox -= q.zx; J.oy -= q.zy;
+            const [vx, vy] = view(), [ux, uy] = over(J.ox, J.oy, vx, vy), ls1 = Math.log(between(U.arrive[0], U.arrive[1]));
+            J.fl = { ls0: J.ls, ls1, lsA: ls1, ux, uy, uc: 0.8 }; J.mode = "fly";
+          }
+        } else if (J.mode === "fly") {
+          const F = J.fl, speed = (0.07 + 0.36 * flow.intensity ** 2) * (1 + 1.2 * flow.build) * (1 + 1.5 * wideness + 1.5 * flow.drop * wideness);
+          J.ls -= dt * speed;
+          if (!J.next && J.ls > F.ls1 && J.ls - F.ls1 < speed) J.next = ahead(aspect, F.ls1); // about a second from the swap
+          if (J.ls <= F.ls1) { J.ox = 0; J.oy = 0; arrive(aspect); if (J.clock - J.glidAt > 60) leave(true); } // every arrival is the same kind of picture: after a minute of them, gently out and round to another shape, as a drop does hard
+        } else { // pull
+          if (J.anchor === 1 || (J.anchor === 2 && J.ls >= J.fl.ls0)) toWhole();
+          const [ax, ay] = anchorAt(), size = Math.hypot(J.jx, J.jy), trueSpan = Math.exp(J.ls) / size, end = Math.log(wideSpan * size);
+          if (!J.pl) { const [ex, ey] = over(J.ox, J.oy, J.jx, J.jy); J.pl = { span: trueSpan, x: ax + ex, y: ay + ey }; }
+          J.ls = Math.max(J.ls, Math.min(end, J.ls + dt * U.pull * (n > 2 ? 0.625 : 1) * (J.gentle ? 0.33 : 1) * (0.35 + 0.65 * clamp(J.pullFor / 0.5)))); J.pullFor += dt; // it gets going over half a second. Slower for the sets of three and four arms, whose brightness would halve in a quarter second; and a third as fast when no drop sent it
+          const left = 1 - clamp((Math.exp(J.ls) / size - J.pl.span) / Math.max(1e-6, wideSpan - J.pl.span)), mx = J.pl.x * left - ax, my = J.pl.y * left - ay;
+          J.ox = mx * J.jx - my * J.jy; J.oy = mx * J.jy + my * J.jx;
+          if (J.anchor === 0 && J.ls >= end - 1e-9) { J.mode = "wide"; J.wait = 0.6; J.ox = 0; J.oy = 0; }
+        }
+        if (J.fl && J.mode !== "wide" && J.anchor !== 0) { // where along the flight the camera is (by how far in it is, not by the clock, so a pull-back runs the same film backwards)
+          const F = J.fl, u = clamp((F.ls0 - J.ls) / (F.ls0 - F.ls1));
+          if (J.mode === "fly") { const left = 1 - eased(clamp(u / F.uc)), [vx, vy] = view(); J.ox = (F.ux * vx - F.uy * vy) * left; J.oy = (F.ux * vy + F.uy * vx) * left; } // the target comes to the middle of the picture as the picture closes in on it
+          J.a = J.anchor === 2 ? eased(clamp((F.lsA - J.ls) / (F.lsA - F.ls1))) : 0; // the straightening of the view, done over the last of the flight
+          J.pen = J.anchor === 2 ? 4 * u * u : 0; J.soft = J.anchor === 2 ? J.k * eased(clamp(u / 0.3)) : 0;
+        }
+
+        // ---- the numbers for this frame ----
+        J.pulse += (kick - J.pulse) * (1 - Math.exp(-dt / 0.05));
+        const s = Math.exp(J.ls) * (1 - U.breath * J.pulse), drift = [0.1 * Math.sin(J.clock * 0.11), 0.08 * Math.sin(J.clock * 0.17 + 1)];
+        const Vx = s * Math.cos(J.turn), Vy = s * Math.sin(J.turn), [vx, vy] = over(Vx, Vy, J.jx, J.jy), [sx, sy] = over(J.ox + drift[0] * Vx - drift[1] * Vy, J.oy + drift[0] * Vy + drift[1] * Vx, J.jx, J.jy);
+        const orbit = J.sent; // what the view is measured from: a target's own path, or the resting place, or the middle of the whole set
+        if (J.anchor === 2) orbit.set(J.orbit.subarray(0, J.k * 2 + 2)); else { orbit[0] = J.anchor ? q.zx : 0; orbit[1] = J.anchor ? q.zy : 0; }
+        return { n, cx: q.cx, cy: q.cy, zx: q.zx, zy: q.zy, orbit, k: J.k, vx, vy, sx, sy, jx: J.jx, jy: J.jy, blend: J.a, ahead: J.ahead, tall: Math.hypot(vx, vy), pen: J.pen, limit: Math.min(byHand ? 120 : 200, (byHand ? U.stepsByHand : U.steps) * Math.min(1.5, Math.log(U.r) / Math.log(Math.min(J.r, U.r))) + J.soft),
+          light: 0.62 + 0.25 * wideness + (0.1 + 0.25 * wideness) * J.pulse + 0.2 * (J.glow += (flow.drop - J.glow) * (1 - Math.exp(-dt / 0.15))), kicked: (0.1 + 0.25 * wideness) * J.pulse, wide: wideness, edge: n > 2 ? 0.5 : 1, hue: J.hue, // lighter while the whole set is in view, which is mostly dark; close in, where the edge fills the picture, the kick lights it half as much. edge: the sets of three and four arms have twice the edge in the picture, so it glows half as much
+          eqSpan: Math.exp(J.ls), trueSpan: Math.exp(J.ls) / Math.hypot(J.jx, J.jy), mode: J.mode, anchor: J.anchor, deep, r: J.r, at: J.at };
+      }
+      return { n, step };
+    }
+    function sumOf(P) { // the same sum worked out by hand, for a computer with no graphics card to do it: P is what step() gave for this frame
+      const { n, cx, cy, orbit, k, vx, vy, sx, sy, jx, jy, blend, ahead, tall, pen, limit, wide, edge } = P;
+      return (u, v, dot) => {
+        let ex = sx + u * vx - v * vy, ey = sy + u * vy + v * vx, dx = 1, dy = 0, x = orbit[0] + ex, y = orbit[1] + ey, trap = 1e9, count = -1, m2 = 0, i = 0, lastX = x, lastY = y; // (last: the place before, for the stripes)
+        const lx = jx * ex - jy * ey, ly = jx * ey + jy * ex;
+        for (; i < limit; i++) {
+          lastX = x; lastY = y;
+          if (i < k) { // beside the target's own path: only how far the dot strays from it is worked out, which stays exact however near the picture is
+            const X = orbit[i * 2], Y = orbit[i * 2 + 1], wx = X + ex, wy = Y + ey;
+            let px = wx, py = wy, qx, qy; // p = w^(n-1) for the slope; q = ((Z + e)^n - Z^n) / e
+            if (n < 3) { qx = 2 * X + ex; qy = 2 * Y + ey; }
+            else {
+              const X2 = X * X - Y * Y, Y2 = 2 * X * Y;
+              px = wx * wx - wy * wy; py = 2 * wx * wy;
+              if (n < 4) { const ax = 3 * X + ex, ay = 3 * Y + ey; qx = 3 * X2 + ax * ex - ay * ey; qy = 3 * Y2 + ax * ey + ay * ex; }
+              else {
+                const tx = px * wx - py * wy; py = px * wy + py * wx; px = tx;
+                const ax = 4 * X + ex, ay = 4 * Y + ey, bx = 6 * X2 + ax * ex - ay * ey, by = 6 * Y2 + ax * ey + ay * ex;
+                qx = 4 * (X2 * X - Y2 * Y) + bx * ex - by * ey; qy = 4 * (X2 * Y + Y2 * X) + bx * ey + by * ex;
+              }
+            }
+            const hx = n * (px * dx - py * dy); dy = n * (px * dy + py * dx); dx = hx;
+            const nx = qx * ex - qy * ey; ey = qx * ey + qy * ex; ex = nx;
+            if (i === k - 1 && blend > 0) { ex += (lx - ex) * blend; ey += (ly - ey) * blend; dx += (jx - dx) * blend; dy += (jy - dy) * blend; } // the straightening: from where the dot truly lands to where a plain scale-and-turn would land it
+            x = orbit[i * 2 + 2] + ex; y = orbit[i * 2 + 3] + ey;
+          } else {
+            const x2 = x * x - y * y, y2 = 2 * x * y, px = n < 3 ? x : n < 4 ? x2 : x2 * x - y2 * y, py = n < 3 ? y : n < 4 ? y2 : x2 * y + y2 * x, hx = n * (px * dx - py * dy), nx = px * x - py * y + cx;
+            dy = n * (px * dy + py * dx); dx = hx;
+            y = px * y + py * x + cy; x = nx;
+          }
+          m2 = x * x + y * y;
+          const t = i < k ? m2 + pen : m2;
+          if (t < trap) trap = t;
+          if (m2 > 1e4) { count = i; break; }
+        }
+        if (count < 0) { dotInside(dot, Math.sqrt(trap), (Math.hypot(dx, dy) * tall) / 1.7); dot.edge *= edge; return; }
+        const part = Math.log(Math.log(m2) / 9.2103) / Math.log(n), nu = count + 1 - part, late = clamp(nu - limit + 1), now = wayRound(x, y);
+        dot.stripe = now + (wayRound(lastX, lastY) - now) * clamp(part);
+        dotOutside(dot, (nu + ahead) * 0.045, nu, nu - blend * k + 8 * wide, (Math.sqrt(m2) * 0.5 * Math.log(m2)) / Math.hypot(dx, dy) / tall);
+        if (late > 0) { const shade = dot.shade, glow = dot.edge; dotInside(dot, Math.sqrt(trap), (Math.hypot(dx, dy) * tall) / 1.7); dot.shade = shade + (dot.shade - shade) * late; dot.edge = glow + (dot.edge - glow) * late; }
+        dot.edge *= edge;
+      };
+    }
+    return { travel, sumOf };
+  })();
+  let juliaTrip = null, juliaPale = 0.2;
+  const juliaSeen = { x: 0, shade: 0, edge: 0, stripe: 0.5, half: 36, t: 0, glow: 1 };
+  function julia() { // the Julia set of a point on the edge of the Mandelbrot set's heart, a dust of spirals, flown through for as long as the song lasts: quicker through a build, slow and airy in a break, back out to the whole set on a drop
+    const n = V.power || 2, hand = card.off || card.lost || card.made.julia === null;
+    trippyOn();
+    if (!juliaTrip || juliaTrip.n !== n) juliaTrip = juliaWays.travel(n); // another power is another set: its journey starts from the whole of it
+    const F = juliaTrip.step(sound, flow, w / h, hand, V.spin ?? 1), light = F.light - (1 - trippy.kickLight) * F.kicked, probe = juliaWays.sumOf(F), share = mood === "acid" || mood === "hard" ? 0.12 : mood === "euphoric" ? 0.5 : 1, tones = moodColors(3).map((tone) => turnHue(tone, F.hue * share)); // the flight's turn of the colors goes as far as the mood lets a version's turn go, so acid stays yellow and hardcore red
+    let pale = 0; // how much of the picture lies right on the set's edge, from forty dots worked out here. Where that is most of it (a shape that is a dust of fine branches) the edge glows less, or the whole picture goes pale
+    for (let i = 0; i < 40; i++) { probe((((i % 8) - 3.5) / 4) * Math.min(w / h, 1.6), ((Math.floor(i / 8) - 2) / 2.5) * 0.9, juliaSeen); pale += juliaSeen.edge / 40; }
+    juliaPale += (pale - juliaPale) * (1 - Math.exp(-Math.min(0.1, Math.max(0, sound.dt)) / 0.7));
+    F.edge *= Math.min(1, 0.2 / Math.max(0.2, juliaPale));
+    if (!onCard("julia", JULIA_SUM, { orbit: [2, F.orbit], c: [2, [F.cx, F.cy]], view: [2, [F.vx, F.vy]], shift: [2, [F.sx, F.sy]], jump: [2, [F.jx, F.jy]], power: [1, [n]], reach: [1, [F.k]], blend: [1, [F.blend]], ahead: [1, [F.ahead]], tall: [1, [F.tall]], pen: [1, [F.pen]], limit: [1, [F.limit]], wide: [1, [F.wide]],
+      light: [1, [light]], glow: [1, [(V.glow ?? 1) * F.edge]], toneA: [3, tones[0].map((v) => v / 255)], toneB: [3, tones[1].map((v) => v / 255)], toneC: [3, tones[2].map((v) => v / 255)] })) byHand(juliaWays.sumOf(F), light, tones);
+    echoes(F.trueSpan, hand);
   }
   const DIVES = [ // places on the edge of the Mandelbrot set where the same picture comes round again and again on the way in: across, up, how many steps the sum takes there before it starts going round, how long its round is, and how many rounds bring the picture back the same way up
     [-0.10109636384562216, 0.9562865108091415, 4, 1, 3], // three arms meeting
@@ -3261,14 +3648,17 @@ window.Effects = (() => {
     [-1.2603629819786144, 0.35532647572323955, 6, 2, 3], // a spiral of pairs
   ];
   const MANDEL_SUM = `
-    uniform vec2 orbit[16], view, shift; uniform float wrapAt, backTo, limit, ahead, tall;
+    uniform vec2 orbit[16], view, shift, bend; uniform float wrapAt, backTo, limit, ahead, tall, gain, own, calm, hue;
     void main() {
       vec2 d = shift + mul(spot(), view), e = vec2(0.0), dz = vec2(0.0), z = vec2(0.0);
-      float trap = 1e9, n = -1.0, m2 = 0.0, big = 0.0;
+      d += mul(bend, mul(d, d));
+      float trap = 1e9, mine = 1e9, n = -1.0, m2 = 0.0, big = 0.0;
       int at = 0, last = int(wrapAt), back = int(backTo);
-      for (int i = 0; i < 240; i++) {
+      vec2 was = z; // (the place before the last, for the stripes)
+      for (int i = 0; i < 320; i++) {
         if (float(i) >= limit) break;
         vec2 Z = orbit[at];
+        was = z;
         dz = 2.0 * mul(Z + e, dz) + vec2(big > 0.0 ? 0.0 : 1.0, 0.0);
         if (dot(dz, dz) > 1e20) { dz *= 1e-10; big += 23.02585; }
         e = mul(2.0 * Z + e, e) + d;
@@ -3277,100 +3667,424 @@ window.Effects = (() => {
         z = orbit[at] + e;
         m2 = dot(z, z);
         trap = min(trap, m2);
+        if (at == 0) mine = min(mine, m2);
         if (m2 > 1e4) { n = float(i); break; }
       }
-      vec4 on = inside(sqrt(trap), wildness(dz, big));
+      float near = mix(sqrt(trap), sqrt(min(mine, 4.0) * gain), own);
+      vec4 on = lit(near * 0.9 + hue + time * 0.03, 0.12 + 0.2 * abs(sin(near * 10.0 - time * 0.8)), glow * wildness(dz, big - calm));
       if (n < 0.0) { color = on; return; }
-      float nu = n + 1.0 - log2(log(m2) / 9.2103), away = exp(log(sqrt(m2) * 0.5 * log(m2)) - log(length(dz)) - big) / tall;
-      color = mix(outside((nu + ahead) * 0.045, nu, max(-log2(max(away, 1e-12)), 0.0), away), on, clamp(nu - limit + 1.0, 0.0, 1.0));
+      float part = log2(log(m2) / 9.2103), nu = n + 1.0 - part, away = exp(log(sqrt(m2) * 0.5 * log(m2)) - log(length(dz)) - big) / tall;
+      stripes(z, was, part);
+      color = mix(outside((nu + ahead) * 0.045 + hue, nu, max(-log2(max(away, 1e-12)), 0.0), away), on, clamp(nu - limit + 1.0, 0.0, 1.0));
     }
 `;
-  const dive = { place: -1, x: 0, orbit: new Float32Array(32), k: 0, p: 1, per: 1, step: 1, level: 1, around: 0, cx: 0, cy: 0 };
-  function diveAt(i) { // the sum's own path at one of those places (the same for every dot, so a dot only works out how far it strays from it, which stays exact however near the picture goes), and from the size and the turn of its round, how much nearer brings the same picture back and how far round it has turned by then
-    const [cx, cy, k, p, rounds] = DIVES[i];
-    let x = 0, y = 0, lx = 1, ly = 0;
-    for (let n = 0; n < k + p; n++) {
-      dive.orbit[n * 2] = x; dive.orbit[n * 2 + 1] = y;
-      if (n >= k) { const tx = 2 * (lx * x - ly * y); ly = 2 * (lx * y + ly * x); lx = tx; }
-      const nx = x * x - y * y + cx; y = 2 * x * y + cy; x = nx;
-    }
-    const size = Math.log(Math.hypot(lx, ly)), turn = Math.atan2(ly, lx) * rounds;
-    Object.assign(dive, { place: i, x: 0, k, p, per: p * rounds, step: size / p, level: size * rounds, around: Math.atan2(Math.sin(turn), Math.cos(turn)), cx, cy });
-  }
-  function mandel() { // an endless dive into the Mandelbrot set: the whole of it first, then in towards a place on its edge where arms meet, where the same picture comes round again for as long as you like. Quicker with the song and through a build; a drop goes back out to the whole set
-    const { dt, kick } = sound, place = DIVES[V.place] ? V.place : 0;
-    if (dive.place !== place) diveAt(place);
-    if (flow.dropHit) dive.x = 0;
-    dive.x += dt * ((0.25 + 0.45 * flow.intensity) * (1 + flow.build) + 0.9 * Math.max(0, 1 - dive.x / 8));
-    const spin = turned("mandel", 0.04), pan = Math.exp(-dive.x) * Math.max(0, 1 - dive.x / 3) ** 2, sx = (-0.6 - dive.cx) * pan, sy = -dive.cy * pan, stop = dive.k + dive.p, orbit = dive.orbit, light = 0.6 + 0.2 * kick + 0.2 * flow.drop; // the edge fills far more of this picture than of the Julia set's, so the kick lights it less
-    const seen = (nearest, more) => { // what the picture shows now: once it's nearer than `nearest` the picture a size up is drawn in its place, being the same one
-      const whole = Math.log(1.5 / nearest), s = (dive.x - whole) / dive.level, part = s > 0 ? s - Math.floor(s) : s, tall = nearest * Math.exp(-part * dive.level) * (1 - 0.04 * kick), a = spin - (whole / dive.level + part) * dive.around;
-      return { vx: tall * Math.cos(a), vy: tall * Math.sin(a), tall, limit: Math.min(236, Math.max(56, dive.k + Math.log(1 / tall) / dive.step + more)), ahead: s > 0 ? Math.floor(s) * dive.per : 0 }; // limit: the sum gives up `more` steps after the count at which dots this near begin to get away. ahead: the steps the pictures already gone by would have added, so the colors carry on round and don't start again with each
-    };
-    const fine = seen(1e-4, 45);
-    if (onCard("mandel", MANDEL_SUM, { light: [1, [light]], orbit: [2, orbit], view: [2, [fine.vx, fine.vy]], shift: [2, [sx, sy]], wrapAt: [1, [stop]], backTo: [1, [dive.k]], limit: [1, [fine.limit]], ahead: [1, [fine.ahead]], tall: [1, [fine.tall]] })) return;
-    const { vx, vy, tall, limit, ahead } = seen(1e-2, 30); // by hand it turns back sooner, which saves most of the steps and can't be told apart on a picture this coarse
-    byHand((u, v, dot) => {
-      const ax = sx + u * vx - v * vy, ay = sy + u * vy + v * vx;
-      let ex = 0, ey = 0, gx = 0, gy = 0, at = 0, trap = 1e9, count = -1, m2 = 0;
-      for (let i = 0; i < limit; i++) {
-        const X = orbit[at * 2], Y = orbit[at * 2 + 1], zx = X + ex, zy = Y + ey, hx = 2 * (zx * gx - zy * gy) + 1, bx = 2 * X + ex, by = 2 * Y + ey, nx = bx * ex - by * ey + ax;
-        gy = 2 * (zx * gy + zy * gx); gx = hx;
-        ey = bx * ey + by * ex + ay; ex = nx;
-        if (++at === stop) at = dive.k;
-        const x = orbit[at * 2] + ex, y = orbit[at * 2 + 1] + ey;
-        m2 = x * x + y * y;
-        if (m2 < trap) trap = m2;
-        if (m2 > 1e4) { count = i; break; }
+  /* The Mandelbrot journey. One lap: the whole set; a fall towards one of the places above; a stay there, the same picture coming round and round; then the dive turns and backs out until a
+     tiny copy of the whole set on one of the place's arms is in the picture, swings over to it and goes in. The copy grows out of a star of arms until it fills the picture exactly as the whole
+     set fills the first one, its hair fades, and it is the real whole set, already on its way to the next place. Each place has two copies, taken turn about, so fourteen laps go by before one
+     comes again. A drop cuts to the whole set and another place. Through a build a stay isn't left: the place's picture spins in faster and faster until the drop. */
+  const mandelWays = (() => {
+    const COPIES = [ // two tiny copies of the whole set on the arms of each place: across, up (its middle: the point whose path comes back to 0), after how many steps, and its bend (see copyPath). From find_copies.js, shape.js and table.js
+      [[-0.074470451380031735, 0.97054213689920987, 8, 0.0000024983861298636268, 0.000018026933301582915], [-0.11396965502340839, 0.96916041911241468, 10, 6.1166535727955138e-8, 0.000003835753088380576]],
+      [[0.38653917659615805, 0.5693247113031028, 7, 0.000062947008834974302, -0.000017467840313517297], [0.36040230538631673, 0.61490698107520536, 9, 0.000024191258734428209, 0.000043209378791460762]],
+      [[0.45682328582331666, 0.34775870088348193, 7, -0.000035784032170774476, -0.000008622994230357995], [0.43670943694043307, 0.32504731299543793, 9, -4.7250323319703458e-7, -0.000030701767648593254]],
+      [[-0.56396729573493265, 0.66719020725101963, 9, -0.000016319779068946742, -0.000014190472331981549], [-0.5804250995479967, 0.65233297150049607, 11, 0.000014654562018323928, 0.0000051250052940242277]],
+      [[0.43728392949717315, 0.21038120059847942, 8, -0.000022837218667840669, -0.000010065952788708478], [0.43286411943482361, 0.20179240578025323, 9, 9.0637551973688239e-7, 0.0000085139946513447453]],
+      [[-1.2417651915241865, 0.32363630683360478, 9, -0.0000022570489165511234, -0.0000039666943475623524], [-1.2064100208256765, 0.31642223808429698, 10, -0.0000024074649753313016, 0.0000069452945420398014]],
+      [[-1.2527358840120379, 0.34247064788975096, 7, -0.000024404100018322731, -0.0000066560966767940238], [-1.2674433668560492, 0.35548937661823732, 9, -0.0000010192046112315477, 0.0000020488955857513838]],
+    ];
+    const NEAREST = 1e-4, MORE = 45, CAP = 316, STAY = 4.5; // the size at which a place's picture is swapped for the same one a round up; steps past the count at which dots begin to get away; the most steps; how long a stay at a place is, in e-folds of the dive
+    function placePath(i) { // the sum's own path at one of the places (the same for every dot, so a dot only works out how far it strays from it, which stays exact however near the picture goes), and from the size and the turn of its round, how much nearer brings the same picture back and how far round it has turned by then
+      const [cx, cy, k, p, rounds] = DIVES[i], orbit = new Float32Array(32);
+      let x = 0, y = 0, lx = 1, ly = 0;
+      for (let n = 0; n < k + p; n++) {
+        orbit[n * 2] = x; orbit[n * 2 + 1] = y;
+        if (n >= k) { const tx = 2 * (lx * x - ly * y); ly = 2 * (lx * y + ly * x); lx = tx; }
+        const nx = x * x - y * y + cx; y = 2 * x * y + cy; x = nx;
       }
-      if (count < 0) return dotInside(dot, Math.sqrt(trap), Math.hypot(gx, gy));
-      const nu = count + 1 - Math.log2(Math.log(m2) / 9.2103), away = (Math.sqrt(m2) * 0.5 * Math.log(m2)) / Math.hypot(gx, gy) / tall; // away: about how far off the set is, in half pictures. The further, the darker, so the set glows out of the dark at every place and every depth alike
-      dotOutside(dot, (nu + ahead) * 0.045, nu, Math.max(0, -Math.log2(away)), away);
-    }, light);
+      const size = Math.log(Math.hypot(lx, ly)), turn = Math.atan2(ly, lx) * rounds;
+      return { copy: false, i, cx, cy, k, stop: k + p, orbit, per: p * rounds, step: size / p, level: size * rounds, around: Math.atan2(Math.sin(turn), Math.cos(turn)) };
+    }
+    function copyPath(place, which) { // a tiny copy: its path goes round for ever from the start. Its size and turn s = 1 / (beta L^2) from the derivatives along the path; the real set's number m sits in the copy at  c + s m + b m^2
+      const [cx, cy, P, bx, by] = COPIES[place][which], orbit = new Float32Array(32);
+      let x = 0, y = 0, lx = 1, ly = 0, ex = 1, ey = 0;
+      for (let n = 0; n < P; n++) {
+        orbit[n * 2] = x; orbit[n * 2 + 1] = y;
+        if (n > 0) { const tx = 2 * (x * lx - y * ly); ly = 2 * (x * ly + y * lx); lx = tx; const m = lx * lx + ly * ly; ex += lx / m; ey -= ly / m; }
+        const nx = x * x - y * y + cx; y = 2 * x * y + cy; x = nx;
+      }
+      const l2x = lx * lx - ly * ly, l2y = 2 * lx * ly, qx = ex * l2x - ey * l2y, qy = ex * l2y + ey * l2x, q2 = qx * qx + qy * qy, sx = qx / q2, sy = -qy / q2, s2 = sx * sx + sy * sy;
+      const tx = sx * sx - sy * sy, ty = 2 * sx * sy, t2 = tx * tx + ty * ty; // bend / s^2: what the shader multiplies d^2 by
+      // (the path is kept to 7 digits on the card, but that moves nothing: a dot at the middle strays 0 from the path at every step whatever the path's digits, so the copy sits at exactly d = 0)
+      const A = DIVES[place], swell = Math.hypot(lx, ly);
+      return { copy: true, i: place, which, cx, cy, k: 0, stop: P, P, orbit, sx, sy, size: Math.sqrt(s2), turn: Math.atan2(sy, sx), gain: swell * swell, calm: -Math.log(swell * Math.sqrt(s2)), bendX: (bx * tx + by * ty) / t2, bendY: (by * tx - bx * ty) / t2,
+        fromX: A[0] - cx, fromY: A[1] - cy, far: Math.hypot(A[0] - cx, A[1] - cy) }; // from: the place, measured from the copy
+    }
+    function makeTrip(place) { // the journey: what it keeps between frames, and step(), which moves it on and says what to draw
+      const T = { phase: "fall", A: placePath(place), B: null, L: 0, dir: 1, held: 0, ahead: 0, L0: 0, a0: 0, since: 0, slow: 0, hue: 0, laps: 0, fade: null, drawn: false };
+      function start(i, cut) { // the top of a lap: the whole set, on the way to place i. cut: on a drop (the old picture goes, and the fall starts a little way in, where the set's edge already fills the picture: from the brightest picture to a small set on black would be the one hard change in the journey); otherwise from a copy just arrived at (it fades into the real set, lined up)
+        T.fade = cut ? (T.drawn ? { cut: true, t: 0, len: 0.8, fresh: true } : null) : { cut: false, t: 0, len: 1.5, path: T.B, ahead: T.ahead, fresh: true };
+        Object.assign(T, { phase: "fall", A: placePath(i), B: null, L: cut && T.drawn ? 1.2 : 0, dir: 1, held: 0, ahead: 0, since: 0, slow: cut ? 0 : 2.5, laps: T.laps + 1 });
+      }
+      const limitAt = (path, tall, more) => Math.min(236, Math.max(56, path.k + Math.log(1 / tall) / path.step + more));
+      function step(sound, flow, aspect, spin, byHand) { // moves the journey on and says what to draw: one picture, or two while one fades into the other. byHand: no graphics card, so the stay is drawn from less near, which saves most of the steps and can't be told apart on a picture that coarse
+        const dt = Math.min(sound.dt, 0.1), kick = sound.kick, more = byHand ? 30 : MORE;
+        if (flow.dropHit && !(T.cutAt < 0.5)) { start((T.A.i + 3) % 7, true); T.cutAt = 0; } // (a drop is one frame; said twice running, the second is let go)
+        const A = T.A, rate = (0.25 + 0.45 * flow.intensity) * (1 + flow.build), breath = 1 - 0.04 * kick;
+        T.since += dt; T.cutAt = (T.cutAt ?? 9) + dt; T.hue += dt * rate * 0.02;
+        const wrapL = Math.log(1.5 / (byHand ? 1e-2 : NEAREST));
+        let draw;
+        if (T.phase === "fall" || T.phase === "hold" || T.phase === "back") {
+          if (T.phase === "back") {
+            T.dir += (-(2 + 2 * flow.intensity) - T.dir) * (1 - Math.exp(-dt / 0.35));
+            T.L += dt * rate * T.dir;
+            if (T.L <= T.Lturn) { T.phase = "in"; T.L0 = T.L; T.a0 = -(T.L / A.level) * A.around; }
+          } else {
+            const from = T.slow ? eased(clamp(T.since / T.slow)) : 1; // a lap that began at a copy starts from rest
+            const move = dt * (rate + 0.9 * Math.max(0, 1 - T.L / 8)) * from;
+            T.L += move;
+            if (T.phase === "fall" && T.L >= wrapL) T.phase = "hold";
+            if (T.phase === "hold") {
+              T.held += move;
+              if (T.held >= (A.i > 4 ? 0.55 * STAY : STAY) && flow.build < 0.3 && !T.fade) { // (the two spirals are thin lines on black: a shorter stay) // time to go: one of this place's two copies, turn about. From here L is the true depth again, which a round or more of "the same picture a size up" had left behind
+                const s = (T.L - wrapL) / A.level;
+                T.B = copyPath(A.i, (T.laps + A.i) % 2); T.ahead = Math.floor(s) * A.per; T.L = wrapL + (s - Math.floor(s)) * A.level; T.phase = "back"; T.dir = 1;
+                T.Lturn = Math.log(1.5 / ((1.3 * T.B.far) / Math.min(1, aspect))); // back out until the copy is in the picture
+              }
+            }
+          }
+        }
+        if (T.phase === "in") {
+          const B = T.B, Larr = Math.log(1 / B.size); // arrived when the picture is 1.5 times the copy's size: the copy fills it as the whole set fills the first picture
+          T.dir += (1 - T.dir) * (1 - Math.exp(-dt / 0.35));
+          T.L += dt * rate * T.dir;
+          if (T.L >= Larr) start((A.i + 3) % 7, false);
+        }
+        const now = T.A;
+        if (T.phase === "in") {
+          const B = T.B, Larr = Math.log(1 / B.size), q = clamp((T.L - T.L0) / (Larr - T.L0)), e = eased(q), tall = 1.5 * Math.exp(-T.L) * breath;
+          const gx = -0.6 * B.sx, gy = -0.6 * B.sy, keep = Math.min(1, Math.exp(-(T.L - T.L0))) * (1 - q) * (1 - q); // the copy's own middle of the picture, and how much of the way from the place is still to go
+          let da = B.turn - T.a0; da = Math.atan2(Math.sin(da), Math.cos(da));
+          const a = spin + T.a0 + da * e, w = Math.min(1, Math.exp(-2 * (Larr - T.L))), own = eased(clamp((q - 0.45) / 0.4));
+          const limTurn = limitAt(A, 1.5 * Math.exp(-T.L0), more), limArr = Math.min(CAP, 12 + 30 * B.P);
+          draw = { path: B, mx: gx + (B.fromX - gx) * keep, my: gy + (B.fromY - gy) * keep, vx: tall * Math.cos(a), vy: tall * Math.sin(a), tall, limit: limTurn + (limArr - limTurn) * q * q, ahead: T.ahead, bend: w, own };
+        } else {
+          const A = now, deep = T.phase === "hold", s = (T.L - wrapL) / A.level, part = deep ? s - Math.floor(s) : 0, Ltrue = deep ? wrapL + part * A.level : T.L; // in a hold the picture a size up is drawn in its place, being the same one
+          const tall = 1.5 * Math.exp(-Ltrue) * breath, a = spin - (Ltrue / A.level) * A.around, pan = T.phase === "back" ? 0 : Math.exp(-Ltrue) * Math.max(0, 1 - Ltrue / 3) ** 2; // (on the way back out the middle stays on the place)
+          draw = { path: A, mx: (-0.6 - A.cx) * pan, my: -A.cy * pan, vx: tall * Math.cos(a), vy: tall * Math.sin(a), tall, limit: limitAt(A, tall, more), ahead: deep ? Math.floor(s) * A.per : T.ahead, bend: 0, own: 0 };
+        }
+        draw.hue = T.hue; draw.alpha = 1;
+        const draws = [draw];
+        if (T.fade) {
+          const F = T.fade; F.t += dt / F.len;
+          if (F.t >= 1) T.fade = null;
+          else if (F.cut || byHand) draws.push({ old: true, fresh: F.fresh, alpha: 1 - eased(F.t) }); // what was on the picture when the drop landed, going away: kept as a picture, which costs nothing, where working it out again every frame cost more than anything else in the journey
+          else { // the copy drawn over the real set: the same picture through  c + s m + b m^2, so the two stay lined up while the new lap gets going. Its steps are let go as it fades
+            const B = F.path, mx = draw.mx + draw.path.cx, my = draw.my + draw.path.cy;
+            draws.push({ path: B, mx: B.sx * mx - B.sy * my, my: B.sx * my + B.sy * mx, vx: B.sx * draw.vx - B.sy * draw.vy, vy: B.sx * draw.vy + B.sy * draw.vx, tall: draw.tall * B.size, limit: Math.min(CAP, 12 + (14 + 16 * (1 - eased(F.t))) * B.P), ahead: F.ahead, bend: 1, own: 1, hue: T.hue, alpha: 1 - eased(F.t) });
+          }
+          F.fresh = false;
+        }
+        T.drawn = true;
+        return draws;
+      }
+      return { step };
+    }
+    // what the card is told for one picture
+    const told = (d, light) => { const p = d.path, c = p.copy; return { light: [1, [light]], orbit: [2, p.orbit], view: [2, [d.vx, d.vy]], shift: [2, [d.mx, d.my]], bend: [2, c ? [p.bendX * d.bend, p.bendY * d.bend] : [0, 0]], wrapAt: [1, [p.stop]], backTo: [1, [p.k]],
+      limit: [1, [d.limit]], ahead: [1, [d.ahead]], tall: [1, [d.tall]], gain: [1, [c ? p.gain : 0]], own: [1, [c ? d.own : 0]], calm: [1, [c ? p.calm * d.own : 0]], hue: [1, [d.hue]] }; };
+    function sumOf(d) { // the same sum worked out by hand for one picture, for a computer with no graphics card to do it
+      const p = d.path, c = p.copy, orbit = p.orbit, stop = p.stop, back = p.k, sx = d.mx, sy = d.my, bx = c ? p.bendX * d.bend : 0, by = c ? p.bendY * d.bend : 0, gain = c ? p.gain : 0, own = c ? d.own : 0, calm = c ? p.calm * d.own : 0;
+      const { vx, vy, tall, limit, ahead, hue } = d;
+      return (u, v, dot) => {
+        let ax = sx + u * vx - v * vy, ay = sy + u * vy + v * vx;
+        { const qx = ax * ax - ay * ay, qy = 2 * ax * ay; ax += bx * qx - by * qy; ay += bx * qy + by * qx; }
+        let ex = 0, ey = 0, gx = 0, gy = 0, at = 0, trap = 1e9, mine = 1e9, n = -1, m2 = 0, big = 0, i = 0, px = 0, py = 0, lastX = 0, lastY = 0; // (p: the place now, last: the one before, for the stripes)
+        for (; i < limit; i++) {
+          const X = orbit[at * 2], Y = orbit[at * 2 + 1], zx = X + ex, zy = Y + ey, hx = 2 * (zx * gx - zy * gy) + (big > 0 ? 0 : 1), ux = 2 * X + ex, uy = 2 * Y + ey, nx = ux * ex - uy * ey + ax;
+          gy = 2 * (zx * gy + zy * gx); gx = hx;
+          if (gx * gx + gy * gy > 1e20) { gx *= 1e-10; gy *= 1e-10; big += 23.02585; }
+          ey = ux * ey + uy * ex + ay; ex = nx;
+          if (++at === stop) at = back;
+          const x = orbit[at * 2] + ex, y = orbit[at * 2 + 1] + ey;
+          lastX = px; lastY = py; px = x; py = y;
+          m2 = x * x + y * y;
+          if (m2 < trap) trap = m2;
+          if (at === 0 && m2 < mine) mine = m2;
+          if (m2 > 1e4) { n = i; break; }
+        }
+        const near = Math.sqrt(trap) + (Math.sqrt(Math.min(mine, 4) * gain) - Math.sqrt(trap)) * own, wild = 0.5 * Math.log(gx * gx + gy * gy + 1e-30) + big - calm;
+        const inX = near * 0.9 + hue + dot.t * 0.03, inShade = 0.12 + 0.2 * Math.abs(Math.sin(near * 10 - dot.t * 0.8)), inEdge = dot.glow * eased(clamp((wild - 4) / 10));
+        if (n < 0) { dot.x = inX; dot.shade = inShade; dot.edge = inEdge; return; }
+        const part = Math.log2(Math.log(m2) / 9.2103), nu = n + 1 - part, away = Math.exp(Math.log(Math.sqrt(m2) * 0.5 * Math.log(m2)) - 0.5 * Math.log(gx * gx + gy * gy) - big) / tall, far = Math.max(0, -Math.log2(Math.max(away, 1e-12)));
+        const soft = eased(clamp((away * dot.half - 1) / 5)), on = clamp(nu - limit + 1), now = wayRound(px, py);
+        dot.stripe = 0.5 + (now + (wayRound(lastX, lastY) - now) * clamp(part) - 0.5) * eased(clamp((1 - Math.exp(-far * 0.15) - 0.25) / 0.5)) * soft; // (no stripes far from the set, or where the bands are finer than a dot)
+        dot.x = (nu + ahead) * 0.045 + hue + dot.t * 0.03; // (the card mixes the two colors where a dot only just got away; by hand the nearer one is taken)
+        dot.shade = (0.7 + (0.7 * Math.abs(Math.sin(nu * Math.PI)) - 0.4) * soft) * (1 - Math.exp(-far * 0.15)); dot.edge = dot.glow / (1 + away * away * 4900);
+        if (on > 0) { dot.shade += (inShade - dot.shade) * on; dot.edge += (inEdge - dot.edge) * on; if (on > 0.5) dot.x = inX; }
+      };
+    }
+    return { makeTrip, told, sumOf };
+  })();
+  let mandelTrip = null, mandelWas = null;
+  function mandel() { // a journey through the Mandelbrot set that keeps finding new places: in to where arms meet, round and round there, out and over to a tiny copy of the whole set, and in through that to the next place. Quicker with the song and through a build; a drop cuts back out to the set and somewhere else
+    trippyOn();
+    const hand = card.off || card.lost || card.made.mandel === null, light = Math.min(0.9, 0.6 + 0.2 * sound.kick * trippy.kickLight + 0.2 * flow.drop); // the edge fills far more of this picture than of the Julia set's, so the kick lights it less, and never to where the arms burn out white
+    if (!mandelTrip) mandelTrip = mandelWays.makeTrip(Math.floor(rnd(0, DIVES.length)));
+    const draws = mandelTrip.step(sound, flow, w / h, turned("mandel", 0.04), hand), old = draws.find((d) => d.old);
+    if (old && old.fresh) mandelWas = copyOf(mandelWas); // the picture as it stands, taken before the new one is drawn over it
+    for (const d of draws) {
+      if (d.old) { g.globalAlpha = d.alpha; g.drawImage(mandelWas, 0, 0, w, h); g.globalAlpha = 1; }
+      else if (!onCard("mandel", MANDEL_SUM, mandelWays.told(d, light), d.alpha)) byHand(mandelWays.sumOf(d), light, undefined, d.alpha);
+    }
+    echoes(draws[0].tall, hand);
   }
   const NEWTON_SUM = `
-    uniform vec2 view, lean; uniform float roots, rate, ahead, calm;
+    uniform vec2 view, mid, lean, bendQ, bendK; uniform float roots, rate, turn, ahead, world;
     void main() {
-      vec2 w = mul(spot(), view), z = vec2(w.x, -w.y) / max(dot(w, w), 1e-9), p = z;
-      float was = 1e9, now = 1e9, n = -1.0;
+      vec2 u = mid + mul(spot(), view), z, dz, mu = vec2(1.0, 0.0) - lean; // dz: how the dot's z moves when the dot moves, kept along with the sum; from it comes how fast the step count changes across the picture
+      float tall = length(view);
+      if (world > 0.5) { vec2 ku = mul(bendK, u); z = mul(u, vec2(1.0, 0.0) + mul(u, bendQ + ku)); dz = (vec2(1.0, 0.0) + mul(u, 2.0 * bendQ + 3.0 * ku)) * tall; } // a bead's inside: the pole straight on, with what is left of the bend it was handed over with
+      else { z = vec2(u.x, -u.y) / max(dot(u, u), 1e-30); dz = -mul(z, z) * tall; } // the well: one over the dot, which puts far away in the middle
+      vec2 p = z, f = vec2(1.0, 0.0), pWas = p, fWas = f, dWas = dz;
+      float was = 1e9, now = 1e9, n = -1.0, skipped = 0.0;
       int count = int(roots);
       for (int i = 0; i < 64; i++) {
+        float m2 = dot(z, z);
+        if (m2 > 4096.0) { float j = floor(0.5 * log(m2 / 1024.0) / rate); vec2 r = exp(-j * rate) * vec2(cos(j * turn), sin(j * turn)); z = mul(z, r); dz = mul(dz, r); skipped += j; } // far out a step only shrinks and turns: all of those at once
+        pWas = p; fWas = f;
         p = z;
         for (int j = 2; j < 5; j++) { if (j >= count) break; p = mul(p, z); }
-        vec2 f = mul(p, z) - vec2(1.0, 0.0);
+        f = mul(p, z) - vec2(1.0, 0.0);
         was = now; now = dot(f, f);
         if (now < 1e-4) { n = float(i); break; }
-        z += mul(lean, vec2(p.x, -p.y) / max(dot(p, p), 1e-12) - z);
+        dWas = dz;
+        vec2 ip = vec2(p.x, -p.y) / max(dot(p, p), 1e-36), iz = vec2(z.x, -z.y) / max(dot(z, z), 1e-36);
+        dz = mul(dz, mu - (roots - 1.0) * mul(lean, mul(ip, iz)));
+        z += mul(lean, ip - z);
       }
-      float nu = n < 0.0 ? 64.0 : n - 1.0 + log(was / 1e-4) / log(was / max(now, 1e-30));
-      float soft = smoothstep(1.5, 5.0, length(spot()) * size.y * 0.5 * rate), rel = nu + log(max(length(w), 1e-9)) / rate - calm;
+      float nu = skipped + 64.0, fine = 1.0; // fine: how many steps the count changes from one dot to the next. A dot that never arrived counts as too fine to show
+      if (n >= 0.0) {
+        float L1 = log(was), L2 = log(max(now, 1e-30)), D = L1 - L2;
+        nu = skipped + n - 1.0 + (L1 + 9.2103404) / D;
+        vec2 h2 = mul(mul(p, dz), vec2(f.x, -f.y)) / max(now, 1e-30), h1 = mul(mul(pWas, dWas), vec2(fWas.x, -fWas.y)) / max(dot(fWas, fWas), 1e-30);
+        fine = 4.0 * roots * length(h1 * (-9.2103404 - L2) + h2 * (L1 + 9.2103404)) / (D * D * size.y);
+        fine = fine < 1.0 ? fine : 1.0; // (also when it came out as no number at all)
+      }
       float root = floor(mod(atan(z.y, z.x) / 6.2831853 * roots + 0.5, roots));
-      color = lit(root / roots + (nu + ahead) * 0.03125 + time * 0.03, mix(0.25, mix(0.7, 0.3 + 0.7 * abs(sin(nu * 3.14159265)), 1.0 - smoothstep(2.0, 5.0, rel)), soft), glow * 0.8 * mix(1.0, smoothstep(1.5, 6.0, rel), soft));
+      color = lit(root / roots + (nu + ahead) * 0.03125 + time * 0.03, mix(0.5, 0.3 + 0.7 * abs(sin(nu * 3.14159265)), 1.0 - smoothstep(0.2, 0.67, fine)), glow * 0.8 * smoothstep(0.06, 0.6, fine));
     }
 `;
-  let newtonAt = 0;
-  function newton() { // Newton's method hunting the roots of z^n = 1, seen from far outside looking in: a well of rings with a color for each root, and chains of beads where their lands meet. It never ends, because far out one step of the method only shrinks the picture and turns it, so each ring is the last one a size smaller
-    const { dt, kick } = sound, n = V.roots || 3, twist = V.twist || 0, bx = 1 / n, by = twist / n, rate = -Math.log(Math.hypot(1 - bx, by)), turn = Math.atan2(by, 1 - bx), calm = 1.65 + 12 * twist * twist; // rate and turn: how much one step shrinks and turns the far picture. calm: the steps a dot out between the chains takes on top of that; dots that take more are near where the lands meet, and glow
-    newtonAt += (dt * (0.25 + 0.45 * flow.intensity) * (1 + flow.build)) / rate;
-    const part = newtonAt - Math.floor(newtonAt), ahead = Math.floor(newtonAt) % 32, tall = 0.05 * Math.exp(-part * rate) * (1 - 0.04 * kick), a = turned("newton", 0.05) - part * turn, vx = tall * Math.cos(a), vy = tall * Math.sin(a), light = 0.6 + 0.2 * kick + 0.2 * flow.drop; // the chains fill a good part of the picture, so the kick lights it less than it does the Julia set. part: how far through this ring's worth of falling. ahead: the rings gone by, so the colors carry on round (32 rings take them once round)
-    if (onCard("newton", NEWTON_SUM, { light: [1, [light]], view: [2, [vx, vy]], lean: [2, [bx, by]], roots: [1, [n]], rate: [1, [rate]], ahead: [1, [ahead]], calm: [1, [calm]] })) return;
-    byHand((u, v, dot) => {
-      const wx = u * vx - v * vy, wy = u * vy + v * vx, r2 = Math.max(wx * wx + wy * wy, 1e-9);
-      let x = wx / r2, y = -wy / r2, was = 1e9, now = 1e9, count = -1; // the sum starts from one over the dot, which puts far away in the middle
-      for (let i = 0; i < 48; i++) {
-        let px = x, py = y;
-        for (let j = 2; j < n; j++) { const q = px * x - py * y; py = px * y + py * x; px = q; } // p is z to the power less one
-        const fx = px * x - py * y - 1, fy = px * y + py * x;
+  /* Newton's method that travels. Hunting the roots of z^n = 1, relaxed a little, each dot is colored by the root it ends at and banded by how many steps it took. Two "worlds", one sum.
+     The well is the far field seen inside out, so far away is the middle: each ring is the last one a size smaller, and it never ends. A bead world looks straight at one of the beads on the
+     chains where the lands meet: every bead is a point the method sends onto the pole, and the pole is sent far away in one step, so the inside of a bead is the well again seen through
+     z^(n-1), with n(n-1) arms in place of n. The journey: fall down the middle; now and then pick a bead on one of the arms, glide it to the middle of the picture while still falling, fall
+     into it, and well inside hand the picture over to a bead world drawn from its own middle, so it is never short of digits. From there the next bead is a bead world again: endless.
+     Meanwhile the shapes move: the twist swings slowly and is wound up by a build, the relaxing follows the bass, and the middle of things wanders about the picture. In a build it closes in
+     on a bead and all but waits at its mouth for the drop, which sends it plunging in. Another number of roots opens as a ring of light from where the eye is looking. */
+  const newtonWays = (() => {
+    const ZERO = [0, 0];
+    // ---- complex numbers as [re, im] ----
+    const add = (a, b) => [a[0] + b[0], a[1] + b[1]], sub = (a, b) => [a[0] - b[0], a[1] - b[1]], mul = (a, b) => [a[0] * b[0] - a[1] * b[1], a[0] * b[1] + a[1] * b[0]];
+    const div = (a, b) => { const d = b[0] * b[0] + b[1] * b[1]; return [(a[0] * b[0] + a[1] * b[1]) / d, (a[1] * b[0] - a[0] * b[1]) / d]; };
+    const abs = (a) => Math.hypot(a[0], a[1]), arg = (a) => Math.atan2(a[1], a[0]), scale = (a, k) => [a[0] * k, a[1] * k];
+    const cpow = (a, e) => { const r = abs(a) ** e, t = arg(a) * e; return [r * Math.cos(t), r * Math.sin(t)]; };
+    const polar = (r, t) => [r * Math.cos(t), r * Math.sin(t)];
+
+    // ---- the method ----
+    function numbers(n, twist = 0, relax = 1) {
+      const a = [relax, twist], lean = [relax / n, twist / n], mu = [1 - lean[0], -lean[1]];
+      return { n, a, lean, mu, rate: -Math.log(abs(mu)), bend: arg(mu), twist, relax, mu1: cpow(mu, 1 / (n - 1)) }; // mu1: what one step is worth in a bead world, where the well is seen through z^(n-1)
+    }
+    const step = (P, z) => add(mul(P.mu, z), mul(P.lean, cpow(z, 1 - P.n))); // N(z) = mu z + (a/n) z^(1-n)
+    const step1 = (P, z) => add(P.mu, scale(mul(P.lean, cpow(z, -P.n)), 1 - P.n)); // N'
+    const step2 = (P, z) => scale(mul(P.lean, cpow(z, -P.n - 1)), (1 - P.n) * -P.n); // N''
+    const step3 = (P, z) => scale(mul(P.lean, cpow(z, -P.n - 2)), (1 - P.n) * -P.n * (-P.n - 1)); // N'''
+
+    // ---- the sum for one dot. u = C + S * spot. world 0: the well (z = 1/u). world 1: a bead's inside (z = u (1 + u (q + k u))) ----
+    const FAR2 = 4096, HOME2 = 1024; // further out than 64 the method only shrinks and turns, so those steps are taken in one go, down to 32. (Where the number of steps taken at once changes the picture is out by (|a/n| / |mu|) (32 / |mu|)^-n of its distance: under 0.2 of a dot even deep in a bead. Down to 16 it would be over a dot.)
+    function trace(P, cam, ux, uy, out, steps = 64) { // cam: { world, q, k, tall } with tall the view's height (|view|). Gives out.nu (the smooth step count), out.root, out.ok, and out.grad: how fast nu changes across the picture, per half picture height
+      const { n } = P, bx = P.lean[0], by = P.lean[1], mx = P.mu[0], my = P.mu[1], tall = cam.tall || 0;
+      let x, y, dx, dy, skipped = 0; // dx, dy: how the dot's z moves when the dot moves (only its size and its turn against itself two steps apart matter, so the view's own turn is left out)
+      if (cam.world) {
+        const q = cam.q, k = cam.k, kx = k[0] * ux - k[1] * uy, ky = k[0] * uy + k[1] * ux, ax = q[0] + kx, ay = q[1] + ky, cx = 1 + ax * ux - ay * uy, cy = ax * uy + ay * ux; x = ux * cx - uy * cy; y = ux * cy + uy * cx;
+        const ex = 2 * q[0] + 3 * kx, ey = 2 * q[1] + 3 * ky; dx = (1 + ex * ux - ey * uy) * tall; dy = (ex * uy + ey * ux) * tall; // z = u (1 + u (q + k u)), dz = 1 + u (2 q + 3 k u)
+      } else { const r2 = Math.max(ux * ux + uy * uy, 1e-30); x = ux / r2; y = -uy / r2; dx = -(x * x - y * y) * tall; dy = -2 * x * y * tall; } // z = 1/u, dz = -z^2
+      let was = 1e9, now = 1e9, count = -1, px = 0, py = 0, fx = 1, fy = 0, wpx = 0, wpy = 0, wfx = 1, wfy = 0, wdx = 0, wdy = 0;
+      for (let i = 0; i < steps; i++) {
+        const m2 = x * x + y * y;
+        if (m2 > FAR2) { const j = Math.floor((0.5 * Math.log(m2 / HOME2)) / P.rate), s = Math.exp(-j * P.rate), c = Math.cos(j * P.bend) * s, d = Math.sin(j * P.bend) * s; let t = x * c - y * d; y = x * d + y * c; x = t; t = dx * c - dy * d; dy = dx * d + dy * c; dx = t; skipped += j; }
+        wpx = px; wpy = py; wfx = fx; wfy = fy; // the step before's, for the slope at the end
+        px = x; py = y;
+        for (let j = 2; j < n; j++) { const t = px * x - py * y; py = px * y + py * x; px = t; }
+        fx = px * x - py * y - 1; fy = px * y + py * x;
         was = now; now = fx * fx + fy * fy;
         if (now < 1e-4) { count = i; break; }
-        const p2 = Math.max(px * px + py * py, 1e-12), qx = px / p2 - x, qy = -py / p2 - y, nx = x + bx * qx - by * qy;
-        y += bx * qy + by * qx; x = nx;
+        wdx = dx; wdy = dy;
+        const p2 = Math.max(px * px + py * py, 1e-36), ipx = px / p2, ipy = -py / p2, z2 = Math.max(x * x + y * y, 1e-36), izx = x / z2, izy = -y / z2;
+        const gx = ipx * izx - ipy * izy, gy = ipx * izy + ipy * izx, hx = mx - (n - 1) * (bx * gx - by * gy), hy = my - (n - 1) * (bx * gy + by * gx), t = dx * hx - dy * hy; // N'(z) = mu - (n-1) (a/n) z^-n
+        dy = dx * hy + dy * hx; dx = t;
+        const qx = ipx - x, qy = ipy - y, u = x + bx * qx - by * qy;
+        y += bx * qy + by * qx; x = u;
       }
-      const nu = count < 0 ? 48 : count - 1 + Math.log(was / 1e-4) / Math.log(was / Math.max(now, 1e-30)), soft = eased(clamp((Math.hypot(u, v) * dot.half * rate - 1.5) / 3.5)), rel = nu + Math.log(r2) / (2 * rate) - calm, root = (Math.round((Math.atan2(y, x) * n) / TAU) + n) % n;
-      dot.x = root / n + (nu + ahead) * 0.03125 + dot.t * 0.03;
-      dot.shade = 0.25 + (0.45 + (0.7 * Math.abs(Math.sin(nu * Math.PI)) - 0.4) * (1 - eased(clamp((rel - 2) / 3)))) * soft; // rings that count the steps, going flat where they'd be finer than the picture can show and where the lands meet
-      dot.edge = dot.glow * 0.8 * (1 + (eased(clamp((rel - 1.5) / 4.5)) - 1) * soft);
-    }, light);
+      out.ok = count >= 0; out.steps = count < 0 ? steps : count + 1; // (steps: how many times round the loop, for counting the cost)
+      out.root = (Math.round((Math.atan2(y, x) * n) / TAU) + n) % n;
+      if (count < 0) { out.nu = skipped + steps; out.grad = 1e9; return; }
+      const L1 = Math.log(was), L2 = Math.log(Math.max(now, 1e-30)), D = L1 - L2, T = -9.2103404; // T: log of the 1e-4 that counts as arrived
+      out.nu = skipped + count - 1 + (L1 - T) / D;
+      // the slope of that: log |f|^2 changes by 2 |n p dz / f| per unit, for this step and the one before, each weighed by how much it counts in nu
+      const f2 = Math.max(now, 1e-30), ax = px * dx - py * dy, ay = px * dy + py * dx, h2x = (ax * fx + ay * fy) / f2, h2y = (ay * fx - ax * fy) / f2;
+      const g2 = Math.max(wfx * wfx + wfy * wfy, 1e-30), cx = wpx * wdx - wpy * wdy, cy = wpx * wdy + wpy * wdx, h1x = (cx * wfx + cy * wfy) / g2, h1y = (cy * wfx - cx * wfy) / g2;
+      const w1 = T - L2, w2 = L1 - T, grad = (2 * n * Math.hypot(h1x * w1 + h2x * w2, h1y * w1 + h2y * w2)) / (D * D);
+      out.grad = grad < 1e9 ? grad : 1e9;
+    }
+    const smooth = (lo, hi, x) => eased(clamp((x - lo) / (hi - lo)));
+    function shadeOf(nu, fine, glow, out) { // fine: how many steps the count changes from one dot to the next. Bands where they are wide enough to see, a glow where they are not
+      const band = 0.3 + 0.7 * Math.abs(Math.sin(nu * Math.PI)), soft = 1 - smooth(0.2, 0.67, fine);
+      out.shade = 0.5 + (band - 0.5) * soft; out.edge = glow * 0.8 * smooth(0.06, 0.6, fine);
+    }
+
+    // ---- beads ----
+    function solveStep(P, target, z, rounds = 8) { for (let i = 0; i < rounds; i++) z = sub(z, div(sub(step(P, z), target), step1(P, z))); return z; } // the z near the start with N(z) = target
+    function chainBead(P, ray, depth) { // in z: the bead "depth" steps from the pole on chain number ray (0..n-1). The first is N(z) = 0; each next one is the far solution of N(z) = the one before
+      const first = div(P.a, [P.n - P.a[0], -P.a[1]]); // z^n = -a / (n - a), written so that the same chain keeps the same number as the twist goes through nothing
+      let z = polar(abs(first) ** (1 / P.n), (Math.PI + arg(first) + TAU * ray) / P.n);
+      for (let k = 1; k < depth; k++) z = solveStep(P, z, div(z, P.mu));
+      return z;
+    }
+    function bead(P, cam, ray, depth, last) { // last: where it was a frame ago (bead.v), so that it is the same bead when the twist has moved it // in the picture's own numbers. In a bead world every chain shows n-1 times, so ray runs 0..n(n-1)-1
+      if (!cam.world) return div([1, 0], chainBead(P, ray, depth));
+      const far = chainBead(P, ray % P.n, depth), turn = polar(1, (TAU * Math.floor(ray / P.n)) / (P.n - 1));
+      const v = solveStep(P, far, last || mul(cpow(div(P.lean, far), 1 / (P.n - 1)), turn)); // the near solution of N(z) = far
+      let u = v; // and back through what is left of the bend: u (1 + u (q + k u)) = v
+      for (let i = 0; i < 6; i++) { const u2 = mul(u, u); u = sub(u, div(sub(add(u, add(mul(cam.q, u2), mul(cam.k, mul(u2, u)))), v), add([1, 0], add(scale(mul(cam.q, u), 2), scale(mul(cam.k, u2), 3))))); }
+      u.v = v;
+      return u;
+    }
+    const beadSteps = (world, depth) => (world ? depth + 1 : depth); // the steps that bring it onto the pole
+    function inside(P, cam, at, steps) { // the map from the picture's numbers near a bead onto the pole's neighbourhood, by the chain rule three deep: value, slope d1, and the bends q and k
+      let z, d1, d2, d3;
+      if (cam.world) { const k = cam.k, at2 = mul(at, at); z = add(at, add(mul(cam.q, at2), mul(k, mul(at2, at)))); d1 = add([1, 0], add(scale(mul(cam.q, at), 2), scale(mul(k, at2), 3))); d2 = add(scale(cam.q, 2), scale(mul(k, at), 6)); d3 = scale(k, 6); }
+      else { z = div([1, 0], at); d1 = scale(mul(z, z), -1); d2 = scale(mul(z, mul(z, z)), 2); d3 = scale(mul(mul(z, z), mul(z, z)), -6); }
+      for (let i = 0; i < steps; i++) {
+        const a1 = step1(P, z), a2 = step2(P, z), a3 = step3(P, z);
+        d3 = add(add(mul(a3, mul(d1, mul(d1, d1))), scale(mul(a2, mul(d1, d2)), 3)), mul(a1, d3)); d2 = add(mul(a2, mul(d1, d1)), mul(a1, d2)); d1 = mul(a1, d1); z = step(P, z);
+      }
+      return { z, d1, q: scale(div(d2, mul(d1, d1)), 0.5), k: scale(div(d3, mul(d1, mul(d1, d1))), 1 / 6) }; // with v = d1 (u - at): the pole's number is v + q v^2 + k v^3
+    }
+
+    // ---- the journey ----
+    const T0 = 0.05, SWAP = 0.07, HOLD = 0.55; // T0: the view's height when falling down the middle (as today). SWAP: how far into a bead the picture is handed over to the bead world. HOLD: how near a build is allowed to come before the drop
+    function newJourney(n, world = 0) { return { n, world, S: [T0, 0], off: [0, 0], q: [0, 0], k: [0, 0], ahead: 0, extra: [0, 0], aim: null, wait: 5, twist: 0, relax: 1, bassSlow: 0.4, plunge: 0, pace: 1, carry: [0, 0], clock: 0, inner: null, ring: 0 }; }
+    function pickAim(J, P, aspect) { // the bead to go for: on any arm, the one that is in the picture now and about half way out
+      const arms = J.world ? P.n * (P.n - 1) : P.n, per = J.world ? P.rate / (P.n - 1) : P.rate, want = 0.62 * Math.min(1, aspect * 1.15), size = abs(J.S), cam = { world: J.world, q: J.q, k: J.k };
+      let best = null;
+      for (let ray = 0; ray < arms; ray++) {
+        const b0 = bead(P, cam, ray, 6), depth = Math.max(4, Math.min(160, 6 + Math.round(Math.log(abs(b0) / (want * size)) / per)));
+        const b = bead(P, cam, ray, depth), at = add(div(b, J.S), J.off), edge = Math.max(Math.abs(at[0]) / (0.8 * aspect), Math.abs(at[1]) / 0.8), fit = edge + Math.random() * 0.25; // edge: how near the picture's edge it is: under 1 is well inside. A little chance, so it is not always the same arm
+        if (!best || fit < best.fit) best = { ray, depth, fit, edge, at };
+      }
+      return best;
+    }
+    function advance(J, dt, song, dials = {}, aspect = 16 / 9) { // song: { t, kick, bass, flow: { part, intensity, build, drop, dropHit } }. dials: { twist, spin } from the version. Gives back what the shader needs
+      dt = Math.min(dt, 0.1);
+      const flow = song.flow, quiet = flow.part === "break" || flow.part === "calm";
+      J.clock += dt;
+      // the twist: the version's own, swinging slowly, wound up by a build, leaning on the bass; never faster than 0.12 a second, so the picture turns and curls but does not shake
+      J.bassSlow += (song.bass - J.bassSlow) * (1 - Math.exp(-dt / 0.6));
+      const wantTwist = dials.still ? dials.twist || 0 : (dials.twist || 0) + (0.3 + 0.15 * (quiet ? 1 : 0)) * Math.sin(J.clock * 0.11) + 0.12 * Math.sin(J.clock * 0.043 + 2) + 0.25 * flow.build + 0.15 * (J.bassSlow - 0.4);
+      J.twist += Math.max(-0.12 * dt, Math.min(0.12 * dt, (0.62 * Math.tanh(wantTwist / 0.62) - J.twist) * (1 - Math.exp(-dt / 0.8)))); // past 0.65 the chains froth over; at 1 the method stops finding roots at all
+      J.relax += Math.max(-0.06 * dt, Math.min(0.06 * dt, ((dials.still ? 1 : 0.92 + 0.3 * J.bassSlow) - J.relax) * (1 - Math.exp(-dt / 0.8)))); // the plain part of the relaxing: over 1 and "eyes" open along the lands, so they open with the bass
+      const P = numbers(J.n, J.twist, J.relax), cam = { world: J.world, q: J.q, k: J.k };
+      const logMu = [-P.rate, P.bend], moved = J.logMu ? sub(logMu, J.logMu) : ZERO; J.logMu = logMu; // how much one step's shrink and turn changed since the last frame (the twist and the relaxing move it)
+      // how fast it falls (the view's height shrinks by e that many times a second): as today, times a pace that glides, plus a plunge that the drop sets off and that dies away
+      if (flow.dropHit) J.plunging = 0.12; // (it gets going over a tenth of a second: set off at a stroke, it was the one step in speed anywhere in the journey)
+      if (J.plunging > 0) { J.plunging -= dt; J.plunge += (1 - J.plunge) * (1 - Math.exp(-dt / 0.04)); } else J.plunge *= Math.exp(-dt / 0.9);
+      let pace = 1; // how much faster or slower than plain falling: glides, so the picture never changes speed at a stroke
+      const turn = polar(1, dt * 0.05 * (dials.spin ?? 1));
+      const wander = (J.wander = [0.22 * Math.min(1, aspect) * Math.sin(J.clock * 0.23 + 1), 0.2 * Math.sin(J.clock * 0.31)]); // where on the picture the middle of things is held: never nailed to the centre
+      let b = ZERO, f = null, steps = 0;
+      if (J.aim) {
+        steps = beadSteps(J.world, J.aim.depth); b = bead(P, cam, J.aim.ray, J.aim.depth, J.aim.v); J.aim.v = b.v; f = inside(P, cam, b, steps);
+        const tall = abs(f.d1) * abs(J.S), slope = [Math.log(abs(f.d1)), arg(f.d1)]; // tall: the view's height in the bead's own numbers: 1 is the bead about filling the picture, SWAP is well inside
+        if (J.aim.slope && dt > 0) { const around = slope[1] - J.aim.slope[1], now = [(slope[0] - J.aim.slope[0]) / dt, Math.atan2(Math.sin(around), Math.cos(around)) / dt], mix = 1 - Math.exp(-dt / 0.15); J.aim.drift = add(J.aim.drift, scale(sub(now, J.aim.drift), mix)); } // drift: how fast the twist is growing and turning the bead's inside, which the eye is following
+        J.aim.slope = slope;
+        pace = tall < 1.5 && tall > 0.3 ? 0.5 : 1.5; // once it has a bead to go to it goes a little faster, and slower through the bead's mouth, where the picture is least like anywhere else
+        if (flow.part === "build" && J.aim.free === undefined) J.aim.free = tall < HOLD * 1.5; // a build that finds it already inside the bead lets it carry on
+        if (flow.part === "build" && !J.aim.free && J.plunge < 0.05) { // in a build it closes in on the bead and all but waits at its mouth for the drop. Not for ever: a build that never ends lets it go again
+          J.aim.held = (J.aim.held || 0) + dt;
+          const hold = Math.max(0.1, smooth(0, 0.7, Math.log(tall / HOLD)));
+          pace *= hold + (1 - hold) * (1 - Math.exp(-J.aim.held / 10));
+        }
+      }
+      J.pace += (pace - J.pace) * (1 - Math.exp(-dt / 0.4));
+      const speed = ((0.25 + 0.45 * flow.intensity) * (1 + flow.build) * J.pace + 1.6 * J.plunge) * (J.world ? 2 / (P.n - 1) : 1); // counted in bands going by, not in view heights: inside a bead the well is seen through z^(n-1), which would send n-1 times as many past every dot
+      if (J.aim) {
+        J.aim.gone += speed * dt;
+        const e = eased(clamp(J.aim.gone / J.aim.pan)); J.off = add(scale(J.aim.from, 1 - e), scale(wander, e)); // the bead glides to the middle of the picture over the first part of the way in
+        b = add(J.aim.first, scale(sub(b, J.aim.first), e)); // and the eye, fixed at first on where the bead was, takes up the bead's own movement as it goes
+      } else { J.extra = scale(J.extra, Math.exp(-dt / 0.7)); J.off = add(wander, J.extra); } // (extra: only a world that opened off the middle has any)
+      // A view that is w steps further in than the picture it is tied to is carried round by w times that change. Falling down the middle the picture is tied at the height T0, so that the wrap, which puts the view back a step, changes nothing about how it moves
+      const tied = J.aim ? J.aim.tied * (1 - eased(clamp(J.aim.gone / J.aim.pan))) : Math.log(T0 / abs(J.S)) / P.rate;
+      J.S = mul(J.S, polar(Math.exp(moved[0] * tied), moved[1] * tied));
+      J.carry = scale(J.carry, Math.exp(-dt / 0.8));
+      J.S = mul(J.S, polar(Math.exp(J.carry[0] * dt), J.carry[1] * dt)); // (after a swap: the bead's drift, dying away, so the picture does not check its turning)
+      J.S = scale(mul(J.S, turn), Math.exp(-speed * dt));
+      if (J.aim && abs(f.d1) * abs(J.S) < SWAP && J.aim.gone >= J.aim.pan) { // far enough in: the same picture is now drawn as a bead world, from its own middle
+        J.S = mul(f.d1, J.S); J.q = f.q; J.k = f.k; J.world = 1; J.ahead = (J.ahead + steps) % 32; J.carry = dt > 0 ? sub(J.aim.drift, scale(moved, Math.log(T0 / abs(J.S)) / P.rate / dt)) : ZERO; J.aim = null; J.extra = [0, 0]; b = ZERO;
+        J.wait = 1 + 2 * Math.random(); // (not long: the way to a bead and through its mouth is where the picture differs, the middle of a world is the same star each time)
+      }
+      if (!J.aim) {
+        const m = J.world ? P.mu1 : P.mu, edge = T0 * abs(m);
+        for (let i = 0; i < 400 && abs(J.S) < edge; i++) { J.S = div(J.S, m); J.q = mul(J.q, m); J.k = mul(J.k, mul(m, m)); J.ahead = (J.ahead + 1) % 32; } // the wrap: a step's worth further in is the same picture, so it never runs out of numbers (after a long sleep it wraps many times at once)
+        const fade = Math.exp(-dt / 1.5); J.q = scale(J.q, fade); J.k = scale(J.k, fade); // the last of the bend eases out
+        J.wait -= dt * (quiet ? 0.3 : 1);
+        if ((J.wait < 0 || (flow.part === "build" && flow.build < 0.6)) && abs(J.S) < T0 * 1.3 && abs(J.extra) < 0.02 && J.plunge < 0.05) { // time to go somewhere: at once when a build begins, so the bead is reached as it ends
+          const aim = pickAim(J, P, aspect);
+          if (aim.edge < 1.1) { const to = bead(P, cam, aim.ray, aim.depth), far = inside(P, cam, to, beadSteps(J.world, aim.depth)); J.aim = { ray: aim.ray, depth: aim.depth, v: to.v, first: to.slice(0, 2), drift: [0, 0], slope: null, tied: Math.log(T0 / abs(J.S)) / P.rate, from: aim.at, gone: 0, pan: 0.45 * Math.log((abs(far.d1) * abs(J.S)) / SWAP) }; J.off = aim.at; J.extra = [0, 0]; b = to; }
+          else J.wait = 1;
+        }
+      }
+      const mid = sub(J.aim ? b : ZERO, mul(J.off, J.S)), pulse = 1 - 0.04 * song.kick * (J.world ? 1 / (P.n - 1) : 1) * (P.rate / 0.405); // a kick nudges the view by about a tenth of a band, in whichever world and with however many roots
+      return { P, world: J.world, mid, view: scale(J.S, pulse), q: J.q, k: J.k, ahead: J.ahead, light: Math.min(0.9, 0.6 + 0.2 * song.kick + 0.2 * flow.drop), eye: J.off };
+    }
+    // ---- another number of roots cannot glide. The new picture opens as a ring from where the eye is looking (the middle, or the bead it is going to) and the old one is left behind outside it ----
+    function changeRoots(J, n) {
+      if (J.inner || n === J.n || J.clock - (J.ringAt ?? -9) < 4) return; // (a change that comes while a ring is still opening waits for it, and for a few seconds more: frame() asks again every frame)
+      J.inner = Object.assign(newJourney(n, 1), { S: polar(T0, arg(J.S)), extra: sub(J.off, J.wander || ZERO), twist: J.twist, relax: J.relax, bassSlow: J.bassSlow, clock: J.clock, wait: 4 }); J.ring = 0; }
+    function frame(J, dt, song, dials, aspect) { // one frame of the whole thing: the picture, and while a ring is opening the picture inside it
+      if (dials && dials.roots) changeRoots(J, dials.roots);
+      const outer = advance(J, dt, song, dials, aspect);
+      if (!J.inner) return { outer, inner: null, ring: 0 };
+      const inner = advance(J.inner, dt, song, dials, aspect), ring = (J.ring += Math.min(dt, 0.1) * (0.5 + 1.6 * J.ring)); // slow to open, then quicker: about a second and a half to pass the corners
+      if (ring > Math.hypot(aspect, 1) + abs(inner.eye) + 0.15) { const next = J.inner; for (const key in next) J[key] = next[key]; J.ring = 0; J.ringAt = J.clock; return { outer: inner, inner: null, ring: 0 }; }
+      return { outer, inner, ring };
+    }
+    return { newJourney, frame, trace, shadeOf };
+  })();
+  let newtonTrip = null;
+  function newton() { // Newton's method hunting the roots of z^n = 1: down a well of rings with a color for each root, over to the chains of beads where their lands meet, into a bead, and on from inside it, for as long as the song lasts
+    trippyOn();
+    if (!newtonTrip) newtonTrip = newtonWays.newJourney(V.roots || 3);
+    const R = newtonWays.frame(newtonTrip, sound.dt, sound, { twist: V.twist || 0, spin: V.spin ?? 1, roots: V.roots || 3 }, w / h), hand = card.off || card.lost || card.made.newton === null;
+    const light = Math.min(0.9, 0.6 + 0.2 * sound.kick * trippy.kickLight + 0.2 * flow.drop); // (as the journey has it, with the kick's share turned down to pay for the trip)
+    const world = (F) => { // one world over the whole picture, or over as much of it as the canvas is clipped to
+      const n = F.P.n, glow = (V.glow ?? 1) * (F.world ? 2 / (n - 1) : 1), wide = (R.inner ? 900 : 1280) * (n > 4 ? 0.75 : n > 3 ? 0.875 : 1); // a bead world with more roots is all fine lines: less glow, or it goes pale, and fewer dots, which it has no use for and which cost the most there. Two pictures at once, while a ring opens, are drawn smaller too
+      if (onCard("newton", NEWTON_SUM, { light: [1, [light]], glow: [1, [glow]], view: [2, F.view], mid: [2, F.mid], lean: [2, F.P.lean], bendQ: [2, F.q], bendK: [2, F.k], roots: [1, [n]], rate: [1, [F.P.rate]], turn: [1, [F.P.bend]], ahead: [1, [F.ahead]], world: [1, [F.world]] }, 1, wide)) return;
+      const cam = { world: F.world, q: F.q, k: F.k, tall: Math.hypot(F.view[0], F.view[1]) }, out = {};
+      byHand((u, v, dot) => {
+        newtonWays.trace(F.P, cam, F.mid[0] + u * F.view[0] - v * F.view[1], F.mid[1] + u * F.view[1] + v * F.view[0], out, 48);
+        newtonWays.shadeOf(out.nu, out.ok ? Math.min(1, (out.grad * 0.45) / dot.half) : 1, glow, out); // (its dots are big and are smoothed when the small picture is drawn large, so bands half as wide still read)
+        dot.x = out.root / F.P.n + (out.nu + F.ahead) * 0.03125 + dot.t * 0.03; dot.shade = out.shade; dot.edge = out.edge;
+      }, light);
+    };
+    world(R.outer);
+    if (!R.inner) { echoes(Math.hypot(R.outer.view[0], R.outer.view[1]), hand); return; }
+    const half = h / 2, x = w / 2 + R.inner.eye[0] * half, y = half - R.inner.eye[1] * half, r = R.ring * half, tone = mix(moodColors(3)[0], [255, 255, 255], 0.5); // another number of roots can't glide: the new picture opens as a ring from where the eye is looking, the old one left outside it
+    g.save(); g.beginPath(); g.arc(x, y, r, 0, TAU); g.clip(); world(R.inner); g.restore();
+    g.save(); g.globalCompositeOperation = "lighter"; // the ring itself: a soft band of light over the join, never the whole picture
+    for (const [wide, a] of [[0.07, 0.1], [0.035, 0.18], [0.012, 0.35]]) { g.strokeStyle = rgba(tone, a); g.lineWidth = wide * h * (0.5 + Math.min(1, R.ring)); g.beginPath(); g.arc(x, y, r, 0, TAU); g.stroke(); }
+    g.restore();
+    echoes(Math.hypot(R.outer.view[0], R.outer.view[1]), hand);
   }
   const bubbles = [];
   function ocean() { // swimming along under the sea: light coming down from the surface, the seabed going by, bubbles rising faster as the song lifts
@@ -4227,12 +4941,15 @@ window.Effects = (() => {
     rings: { count: [13, 8, 18], arcs: [2, 1, 3, 4] },
     mandala: { folds: [8, 5, 6, 12] },
     rays: { count: [60, 30, 90], spin: [1, -1, 3] },
+    faces: { stack: [0, 0.4, 0.8], bands: [5, 4, 7], glow: [1, 0.6, 1.5] },
+    forms: { form: ["tunnel", "tunnel", "spiral", "rays", "honeycomb", "lattice", "cobweb"], arms: [6, 8, 5, 12, 4], twist: [0, 0, 1, -1, 2, 3], drift: [1, 1, -1, 0.5], bends: [1, 0, 2], veil: [0, 0, 0, 0.5], glow: [1, 0.6, 1.5], spin: [1, -1, 0] },
+    runner: { gait: [1, 0.85, 1.12], kin: [0.5, 0, 1], wings: [2, 3, 4, 1], flair: [1, 0, 1], course: [0, 1, 2, 3] },
     kaleido: { blobs: [5, 3, 8], line: ["wave", "ring", "none"], spin: [1, -1, 2] },
     plasma: { scale: [1, 0.55, 1.7], stripes: [2, 1, 4], swirl: [0, 1, 2] },
     fractal: { sides: [0, 3, 4, 5, 6, 8], child: [0.22, 0.32, 0.15], spin: [1, -1] },
-    julia: { power: [2, 2, 3, 4], glow: [1, 0.6, 1.5], spin: [1, -1, 0], fold: ["", "", "", "mirror", "kal6"] },
-    mandel: { place: [0, 1, 2, 3, 4, 5, 6], glow: [1, 0.6, 1.5], spin: [1, -1, 0], fold: ["", "", "", "mirror", "kal6"] },
-    newton: { roots: [3, 4, 5], twist: [0, 0.35, -0.35], glow: [1, 0.6, 1.5], spin: [1, -1, 0], fold: ["", "", "", "mirror", "kal6"] },
+    julia: { power: [2, 2, 3, 4], glow: [1, 0.6, 1.5], spin: [1, -1, 0], fold: ["kal6", "kal6", "mirror", "quad", "kal8", ""] }, // (the fractals' fold is the one that closes in the next break: see trippyOn)
+    mandel: { glow: [1, 0.6, 1.5], spin: [1, -1, 0], fold: ["kal6", "kal6", "mirror", "quad", "kal8", ""] }, // (where it goes is the journey's own business: see mandelWays)
+    newton: { roots: [3, 4, 5], twist: [0, 0.35, -0.35], glow: [1, 0.6, 1.5], spin: [1, -1, 0], fold: ["kal6", "kal6", "mirror", "quad", "kal8", ""] },
     ocean: { night: [false, true] },
     neonroad: { sun: ["sun", "moon", "planet"], hills: ["hills", "city", "flat"], curve: [0, 1, -1, 1.6] },
     aurora: { lake: [false, true], curtains: [3, 2, 4] },
@@ -4242,9 +4959,9 @@ window.Effects = (() => {
     solids: { mode: ["field", "nested", "orbit", "field"], forms: ["mixed", "cube", "icosa", "tetra", "dodeca"], spin: [1, 2, 0.5] },
     city: { heights: [1, 0.6, 1.5], weave: [1, 0, 2], look: ["neon", "glass", "neon"] },
   };
-  const GLIDES = new Set(["hue", "order", "waves", "twists", "loops", "floor", "height", "glow", "spin", "roll", "drift", "flat", "size", "reach", "scale", "swirl", "child", "curve", "twist", "bends", "twirl", "swell", "depth", "wobble", "heights", "weave"]);
+  const GLIDES = new Set(["gait", "kin", "wings", "flair", "course", "veil", "stack", "hue", "order", "waves", "twists", "loops", "floor", "height", "glow", "spin", "roll", "drift", "flat", "size", "reach", "scale", "swirl", "child", "curve", "twist", "bends", "twirl", "swell", "depth", "wobble", "heights", "weave"]);
   const dialsOf = (style) => VERSIONS[style] && { hue: HUES, order: [0, 0, 1, 2], ...VERSIONS[style] };
-  const LIVE = new Set(["fold", "form", "glasses"]), TAKES = { fold: 0.45, form: 1, glasses: 0.16 }; // these go over in the picture itself: the old fold lets go as the new one takes hold, a ring bends from one shape into the other, and a head takes its glasses off and puts others on. Each takes this much of a slow change
+  const LIVE = new Set(["fold", "form", "glasses", "roots"]), TAKES = { fold: 0.45, form: 1, glasses: 0.16, roots: 0.5 }; // these go over in the picture itself: the old fold lets go as the new one takes hold, a ring bends from one shape into the other, a head takes its glasses off and puts others on, and Newton's new roots open as a ring of light. Each takes this much of a slow change
   const vary = { aim: {}, on: 0, due: 40, turned: {}, was: {}, over: {}, trip: null }; // where each dial is going, what a fold or a shape was and how far over it is, and the slow change that's on
   const anyOf = (list) => (Math.random() < 0.3 ? list[0] : list[Math.floor(Math.random() * list.length)]); // as designed now and then, otherwise any of them
   const otherThan = (list, now) => { const rest = list.filter((v) => v !== now); return rest.length ? rest[Math.floor(Math.random() * rest.length)] : now; };
@@ -4376,7 +5093,1037 @@ window.Effects = (() => {
     g.restore();
   }
 
-  const DRAW = { ribbon, silk, helix, strings, bars, mirror, leds, terrain, scope, trails, tunnel, vortex, prism, ripple, comets, stars: starfield, whirl, dust, links, fireworks, halo, sun, rings, mandala, rays, space, warp: space, drift: space, orbit: space, visitors: space, well,
+  /* ==== pixel: begin ==== */
+  /* ---------- Pixel worlds: what the pixel-art effects share. A small screen of big square dots, the way old consoles and arcade machines drew: everything is drawn on it in whole dots, never smoothed,
+     and show() puts it on the picture with every dot a clean square. And one place that says which kind of world the music playing belongs to. ---------- */
+  const pixelCss = (col, a = 1) => (typeof col === "string" ? col : `rgba(${col[0] | 0},${col[1] | 0},${col[2] | 0},${a})`);
+  function pixelSprite(rows, tones) { // a little picture written as rows of characters, one character a dot: tones says which color each character is ({ a: [r, g, b] }), and any character not in it is see-through
+    const sw = rows[0].length, sh = rows.length, [sc, sx] = paper(sw, sh), img = sx.createImageData(sw, sh);
+    rows.forEach((row, j) => { for (let i = 0; i < sw; i++) { const col = tones[row[i]]; if (col) { const o = (j * sw + i) * 4; img.data[o] = col[0]; img.data[o + 1] = col[1]; img.data[o + 2] = col[2]; img.data[o + 3] = 255; } } });
+    sx.putImageData(img, 0, 0);
+    return sc;
+  }
+  const PIXEL_DIGITS = { 0: "111101101101111", 1: "010110010010111", 2: "111001111100111", 3: "111001111001111", 4: "101101111001001", 5: "111100111001111", 6: "111100111101111", 7: "111001001001001", 8: "111101111101111", 9: "111101111001111" }; // each figure in 3 by 5 dots, for a score
+  const pixelScreens = new Map();
+  function pixelScreen(across = 320) { // the small screen for the picture's shape as it is now: so many dots across, and as many down as keeps the dots square. Made once for each size and kept, so what is drawn on it stays from frame to frame; ask for it again every frame (the window can change shape)
+    across = Math.max(32, Math.min(Math.round(across), Math.floor(w / 2))); // (a dot is never smaller than two of the picture's own)
+    const down = Math.max(2, Math.round((across * h) / w / 2) * 2), key = across + "x" + down;
+    let S = pixelScreens.get(key);
+    if (S) return S;
+    if (pixelScreens.size > 8) pixelScreens.clear(); // (a window dragged through many shapes)
+    const [c, x] = paper(across, down);
+    x.imageSmoothingEnabled = false;
+    function put(s, px, py, { flip = false, alpha = 1, lighter = false } = {}) { // a sprite (or any small canvas) with its top left corner at px, py, on whole dots
+      x.globalAlpha = alpha; x.globalCompositeOperation = lighter ? "lighter" : "source-over";
+      if (flip) { x.save(); x.scale(-1, 1); x.drawImage(s, -Math.round(px) - s.width, Math.round(py)); x.restore(); } else x.drawImage(s, Math.round(px), Math.round(py));
+      x.globalAlpha = 1; x.globalCompositeOperation = "source-over";
+    }
+    const rect = (col, px, py, wide, tall, a = 1) => { x.fillStyle = pixelCss(col, a); x.fillRect(Math.round(px), Math.round(py), Math.round(wide), Math.round(tall)); };
+    const dot = (col, px, py, a = 1) => rect(col, px, py, 1, 1, a);
+    function digits(n, px, py, col) { String(Math.max(0, Math.floor(n))).split("").forEach((d, k) => { for (let i = 0; i < 15; i++) if (PIXEL_DIGITS[d][i] === "1") dot(col, px + k * 4 + (i % 3), py + Math.floor(i / 3)); }); } // a number, each figure 3 dots wide and 5 tall
+    function show(alpha = 1) { g.save(); g.setTransform(1, 0, 0, 1, 0, 0); g.imageSmoothingEnabled = false; g.globalCompositeOperation = "source-over"; g.globalAlpha = alpha; g.drawImage(c, 0, 0, w, h); g.restore(); g.imageSmoothingEnabled = true; } // onto the picture, every dot a clean square
+    S = { c, x, across, down, sprite: pixelSprite, put, rect, dot, digits, show, css: pixelCss };
+    pixelScreens.set(key, S);
+    return S;
+  }
+  function musicWorld() { // which kind of world the music playing belongs to: "acid", "psy", "hard", "trance", "techno", "house", "jungle", "ambient", "game", or "" when nothing says. The four the app has moods for go by the mood, which a pack can teach new genres; the rest, and everything while moods are switched off, go by words in the song's genres
+    const byMood = { acid: "acid", psy: "psy", hard: "hard", euphoric: "trance" }[mood];
+    if (byMood) return byMood;
+    const words = " " + genre.toLowerCase().replace(/[^a-z0-9]+/g, " ") + " ", has = (...list) => list.some((word) => words.includes(word));
+    if (has("acid")) return "acid";
+    if (has(" psy", " goa", "full on")) return "psy";
+    if (has(" ost ", "soundtrack", " score ", "chiptune", " chip ", "8 bit", "game", "vgm")) return "game";
+    if (has("happy hard", "nightcore")) return "trance";
+    if (/[^s]core /.test(words) || has("gabber", "terror", "hardstyle", "rawstyle", "jumpstyle", "industrial", "hard techno", "schranz", "makina", "tekno")) return "hard"; // ("core" but not "score")
+    if (has("drum", "jungle", "dnb", " d n b ", "break", "liquid", "neuro", "dubstep")) return "jungle";
+    if (has("ambient", "chill", "downtempo", "new age", "drone", "lounge")) return "ambient";
+    if (has("house", "disco", "funk", "hi nrg", "italo", "euro", "synth pop", "synthpop", "electro pop")) return "house";
+    if (has("trance")) return "trance";
+    if (has("techno", "minimal", "electro", "ebm", "idm", "detroit")) return "techno";
+    return "";
+  }
+  /* ==== pixel: end ==== */
+  /* ==== faces: begin ==== */
+  /* Faces: seeing faces in things. One picture, folded about its upright middle line, made of three things laid on each other. Flowing stuff: every dot is carried about by a few rounds
+     of sines, and how high the stuff is where it ends up is drawn as glowing contour lines, like a map's. Four beings: each a low hill in that same land with the lie of a face (a rounded head,
+     a bump for each eye socket, a ridge down the middle, a dip where a mouth goes, sometimes ears), so the lines ring the sockets the way wood grain rings a knot. And eyes that open over the
+     sockets. Each being is 3.3 times the size of the one inside it, the newest is born small in the middle and each grows until it is past the picture, so the picture travels inwards through
+     a face inside a face inside a face for as long as the song lasts. One number, clarity, says how much of it can be made out: an inkblot with its eyes shut in a break, one pair of eyes
+     opening after another through a build, every pair wide open and looking at you when the drop lands. The card works it out; where there is none the same sum is done by hand below. */
+  const FACES_SUM = `
+    uniform vec4 bA[4], bB[4], bC[4], bD[4]; // each being: (how far up it sits, its size, how much it is there, eyes apart) (eye size, lid, tilt, eyes up) (how long the head, mouth, ears, the iris's color) (round eyes, the brow pair's lid, the wing pair's lid, the brow pair's tilt)
+    uniform vec4 flowIs;                     // the two layers of flowing stuff: (the size of one, how much of it, the size of the other, how much of it)
+    uniform vec3 gaze;                       // where the eyes look (across, up) and how big the dark middle is
+    uniform float clear, melt, mid, flowAt, swell, bandsN, crawl, rush;
+    float px, side, eMask, eX, eShade, eEdge, rim, dark, form;
+    vec3 flowed(vec2 p, float at) { // stuff that folds over itself: where a dot is carried (xy) and how high the stuff is there (z)
+      vec2 q = p;
+      for (int i = 1; i <= 4; i++) { float k = float(i); q += (0.62 / k) * sin(q.yx * (1.25 * k) + vec2(1.7, 4.1) * k + at * vec2(0.9, 0.7) * (1.0 + 0.2 * k)); }
+      return vec3(q - p, 0.5 * (sin(q.x * 1.7) + sin(q.y * 1.3)));
+    }
+    void eye(vec2 v, float er, float lid, float tilt, float roundness, float S, float there, float hue) { // one eye of a pair: v is the dot from the eye's middle, in the being's own measure
+      float d2 = dot(v, v) / (er * er);
+      if (d2 > 9.0 || there < 0.004) return;
+      float fade = 1.0 - d2 / 9.0;
+      form += there * (0.35 + 0.65 * min(lid * 3.0, 1.0)) * exp(-d2 / 2.6) * fade * fade; // its socket: the land rises round it, so the lines ring it (and it is level again three eye sizes out, where this sum stops)
+      float ct = cos(tilt), st = sin(tilt);
+      vec2 w = vec2(v.x * ct + v.y * st, v.y * ct - v.x * st); // turned, so the outer corner lifts
+      float X = w.x / (er * mix(1.6, 1.0, roundness)), in1 = max(0.0, 1.0 - X * X), arch = mix(in1, sqrt(in1), roundness);
+      float lo = -er * mix(0.42, 0.98, roundness) * arch, hi = mix(lo, er * 0.98 * arch, lid);
+      float din = min(w.y - lo, hi - w.y) * S, soft = px * 1.5, fine = soft / (S * er); // din: how far inside the open eye the dot is, in the picture's own measure
+      float m = smoothstep(0.0, soft, din) * step(0.0001, in1) * smoothstep(0.25, 0.7, there);
+      rim = max(rim, exp(-(din * din) / (soft * soft * 2.5 + S * S * er * er * 0.004)) * smoothstep(0.0, 0.08, in1) * there); // the lids' bright rim; a shut eye is this line alone
+      dark = max(dark, there * exp(-d2 / 2.4) * fade * (0.15 + 0.5 * lid));
+      if (m <= eMask) return;
+      vec2 iw = (w - vec2(gaze.x * side, gaze.y) * er * 0.22) / er;
+      float rr = length(iw), ir = 0.84 * (1.0 + 0.1 * swell), pr = ir * gaze.z;
+      float fibre = 0.5 + 0.5 * sin(atan(iw.y, iw.x + 1e-6) * 22.0 + sin(rr * 26.0) * 1.2);
+      float inIris = 1.0 - smoothstep(ir - fine, ir + fine, rr), inPupil = 1.0 - smoothstep(pr - fine, pr + fine, rr);
+      float t01 = clamp((rr - pr) / max(ir - pr, 0.001), 0.0, 1.0);
+      float sh = (0.5 + 0.55 * (1.0 - t01) + 0.3 * fibre * t01) * (1.0 - 0.8 * smoothstep(0.8, 1.0, t01));
+      sh = mix(mix(0.13, sh, inIris), 0.012, inPupil) * mix(1.0, 0.6, inIris * (1.0 - inPupil));
+      float ed = mix(0.07, 0.3 + 0.25 * fibre * (1.0 - t01), inIris) * (1.0 - inPupil); // a good deal of white in the iris: a pale jewel in any mood's colors, rose and gold in the reds and never a plain red eye
+      ed += 1.5 * (1.0 - smoothstep(0.11, 0.15 + fine, length(iw - vec2(0.27 * side, 0.3)))); // the glint, on the same side in every eye
+      ed += 0.5 * (1.0 - smoothstep(0.04, 0.07 + fine, length(iw + vec2(0.3 * side, 0.3))));
+      sh *= 0.4 + 0.6 * smoothstep(0.0, er * 0.55, hi - w.y); // the upper lid's shadow
+      eMask = m; eShade = sh; eEdge = ed; eX = hue + 0.3 * t01;
+    }
+    void main() {
+      vec2 s0 = spot(); side = s0.x < 0.0 ? -1.0 : 1.0; px = 2.0 / size.y;
+      eMask = 0.0; eX = 0.0; eShade = 0.0; eEdge = 0.0; rim = 0.0; dark = 0.0; form = 0.0;
+      vec2 p = vec2(abs(s0.x), s0.y - mid); // folded about the upright middle line; mid is the point everything grows out of
+      vec3 f0 = flowed(p / flowIs.x + vec2(0.0, 3.0), flowAt), f1 = flowed(p / flowIs.z + vec2(5.0, 9.0), flowAt + 7.0);
+      float still = smoothstep(0.0, 0.22, p.x); // nothing is carried across the middle line, so shapes on it close up whole
+      vec2 carried = (f0.xy * flowIs.x * flowIs.y + f1.xy * flowIs.z * flowIs.w) * vec2(still, 1.0);
+      float stuff = f0.z * flowIs.y + f1.z * flowIs.w, hold = 0.0;
+      vec2 pw = p + carried * melt;
+      for (int i = 0; i < 4; i++) {
+        vec4 A = bA[i], B = bB[i], C = bC[i], D = bD[i];
+        if (A.z < 0.004) continue;
+        float S = A.y;
+        vec2 u = vec2(pw.x, pw.y - A.x) / S, ue = vec2(p.x, p.y - A.x) / S; // the land melts with the flow; the eyes are not carried by it (ue), or in a break they would be bent into slanted wedges
+        if (dot(u, u) > 16.0) continue; // too far from this one for it to matter (its head is under a thousandth there)
+        float head = exp(-(u.x * u.x + u.y * u.y / (C.x * C.x)) * 0.9); // the lie of the land: a head, a ridge down the middle, a mouth, ears (the sockets come with the eyes)
+        float nose = exp(-(u.x * u.x * 38.0 + (u.y + 0.16) * (u.y + 0.16) * 7.0));
+        float my = u.y + 0.6 - 0.45 * u.x * u.x;
+        float mouth = exp(-(my * my * 70.0 + u.x * u.x * 6.0));
+        vec2 ev = u - vec2(0.6, 0.86 * C.x);
+        float ear = exp(-(ev.x * ev.x * 14.0 + ev.y * ev.y * 5.0));
+        form += A.z * (0.55 * head + 0.45 * nose - 0.75 * C.y * mouth + 0.7 * C.z * ear);
+        hold = max(hold, A.z * exp(-dot(u, u) * 0.55));
+        rim = max(rim, 0.8 * clear * C.y * A.z * exp(-(my * my * S * S) / (px * px * 5.0 + S * S * 0.00008)) * (1.0 - smoothstep(0.17, 0.3, u.x))); // the line of the mouth
+        for (int e = 0; e < 3; e++) { // its own pair of eyes, a smaller pair on the brow, and a round pair far out at the sides like the eye spots on a moth's wings (one loop and not three calls: the card is ready with the sum much sooner)
+          vec2 at = e == 0 ? vec2(A.w, B.w) : e == 1 ? vec2(A.w * 0.5, B.w + 0.47) : vec2(1.32, -0.08);
+          vec4 how = e == 0 ? vec4(B.x, B.y, B.z, D.x) : e == 1 ? vec4(B.x * 0.5, D.y, D.w, 0.6) : vec4(B.x * 1.25, D.z, 0.0, 1.0); // eye size, lid, tilt, how round
+          eye(ue - at, how.x, how.y, how.z, how.w, S, e == 0 ? A.z : A.z * step(0.02, how.y), C.w + 0.33 * float(e));
+        }
+      }
+      float calmed = hold * clear; // the flow is calmed near a face that is clear, so its lines are clean
+      float H = stuff * (1.0 - 0.7 * calmed) + form * (0.35 + 1.25 * clear);
+      float wave = 0.5 + 0.5 * cos((H * bandsN - crawl) * 6.2831853);
+      float keep = (1.0 - smoothstep(0.3, 0.7, (abs(dFdx(H)) + abs(dFdy(H))) * bandsN)) * (1.0 - rush); // lines too fine for the dots they are drawn with go over to their even grey and never shimmer; so do all of them, part of the way, while the picture rushes inwards after a drop (lines sweeping past would make the whole picture flutter)
+      float relief = 1.0 - clamp(dFdy(H) / px * 0.18, -0.45, 0.45); // lit from above, so the land looks carved
+      float shade = (0.2 + 0.8 * mix(0.375, wave * wave, keep)) * (0.55 + 0.45 * smoothstep(-0.9, 0.9, H)) * (1.0 - dark * clear) * relief;
+      float edge = glow * 0.5 * mix(0.1, pow(wave, 12.0), keep) * (0.3 + 0.7 * calmed);
+      shade = mix(shade, eShade, eMask); edge = mix(edge, eEdge, eMask) + rim * (0.25 + 0.5 * clear) * glow * (1.0 - eMask * 0.6);
+      color = lit((eMask > 0.5 ? eX : H * 0.21) + time * 0.03, shade, edge);
+    }
+`;
+  const FACES_COUNT = 4, FACES_LEVEL = Math.log(3.3), FACES_SMALL = 0.07; // four beings alive at once, each 3.3 times the size of the one inside it; the newest is born 0.07 of half the picture's height across (less in an upright picture)
+  let facesIs = null, facesSum = null; // what is kept from frame to frame, and the sum by hand: both made the first time they are wanted
+  function facesLooks(b) { // a new being's own proportions: every one comes out a different mask or creature
+    b.apart = rnd(0.34, 0.5); b.eye = rnd(0.13, 0.2); b.tilt = rnd(-0.14, 0.14); b.eyesUp = rnd(0.04, 0.32); b.long = rnd(0.78, 1.55);
+    b.mouth = rnd(0, 1) < 0.7 ? rnd(0.5, 1) : 0; b.ears = rnd(0, 1) < 0.5 ? rnd(0.5, 1) : 0; b.hue = rnd(0, 1); b.blink = rnd(1, 6);
+    b.round = rnd(0, 1) < 0.3 ? 1 : rnd(0, 0.3);
+    if (b.round === 1) b.tilt = 0; else b.eye = Math.min(b.eye, (b.apart - 0.07) / 1.6); // (almond eyes are 1.6 eye sizes from middle to corner: the pair must not meet over the nose)
+    b.brow = rnd(0, 1) < 0.6 ? 1 : 0; b.wing = rnd(0, 1) < 0.7 ? 1 : 0; b.lid = b.browLid = b.wingLid = b.open = b.more = b.most = 0;
+  }
+  function facesStep() { // once a frame: moves everything on by the clock, and leaves in "told" the numbers the card and the sum by hand are both given
+    if (!facesIs) {
+      const none = [0, 0, 0, 0], one = () => [1, [0]], four = () => [4, new Float32Array(16)];
+      facesIs = { z: 0, clarity: 0.3, flowAt: rnd(0, 50), crawl: 0, swell: 0, lit: 0, gx: 0, gy: 0, lookX: 1, lookY: 0, peek: 0, hush: 0, stepped: -1, beings: [],
+        told: { bA: four(), bB: four(), bC: four(), bD: four(), flowIs: [4, [0, 0, 0, 0]], gaze: [3, [0, 0, 0]], clear: one(), melt: one(), mid: one(), flowAt: one(), swell: one(), bandsN: one(), crawl: one(), rush: one(), light: one(),
+          roam: [4, none], roam2: [4, none], breath: [4, none], folds: [4, none], thump: [4, none] } }; // (the fractals' breath, their fold and a hard kick's ring are told to keep out: this picture has a fold of its own, and a face that is bent stops being one)
+      for (let k = 0; k < FACES_COUNT; k++) { const b = { age: 0 }; facesLooks(b); facesIs.beings.push(b); }
+    }
+    const F = facesIs, told = F.told;
+    if (F.stepped === sound.t) return F; // (a frame can draw the picture twice, when the effect or its version changes: one step is enough)
+    F.stepped = sound.t;
+    const dt = Math.min(Math.max(sound.dt, 0) || 0, 0.1), aspect = w / h, narrow = Math.min(1, aspect), towards = (rate) => 1 - Math.exp(-dt * rate), ramp = (a, b, x) => eased(clamp((x - a) / (b - a)));
+    const drop = clamp(3 * flow.drop - 2), plunge = drop * drop * (1 - drop); // the drop as this picture feels it: all there as it lands and gone four seconds on (the song's own lingers for twelve). The plunge inwards starts a moment after it lands, not on it
+    // the one number: how clear the forms are
+    F.hush = flow.part === "calm" ? F.hush + dt : 0; // how long it has been quiet. Music with no kick at all is one long break: after the first quarter of a minute of it the faces surface by themselves and sink again, like a slow tide
+    if (F.hush > 16 + 40) F.hush -= 40; // (one tide on, the count starts the next: it never grows without end)
+    const tide = F.hush > 16 ? 0.5 - 0.5 * Math.cos((TAU * (F.hush - 16)) / 40) : 0;
+    const aim = Math.max(flow.drop, flow.part === "calm" ? 0.08 + 0.2 * flow.intensity + 0.42 * tide : flow.part === "build" ? 0.3 + 0.6 * flow.build : 0.4 + 0.45 * flow.intensity);
+    if (flow.part === "build" && aim > F.clarity) F.clarity += Math.min(aim - F.clarity, dt * 0.1); // through a build it climbs steadily, so one pair of eyes opens after another all the way up to the drop (the song follower's own "build" is full within two seconds)
+    else F.clarity += (aim - F.clarity) * towards(aim > F.clarity ? 1.4 : 0.45); // otherwise quickly clearer, slowly back: a break lets the faces melt over four seconds or so
+    const c = F.clarity;
+    // travel inwards: a face's worth every fourteen seconds or so in the groove, slower in a break, quicker through a build, a plunge after the drop; it lingers when a face is at its best size
+    F.z = (F.z + dt * ((0.035 + 0.11 * flow.intensity) * (1 + 0.8 * flow.build) * (1 - 0.75 * Math.cos(TAU * (F.z - 0.6))) + 1.8 * plunge)) % FACES_COUNT;
+    F.flowAt = (F.flowAt + dt * (0.12 + 0.2 * flow.intensity + 0.25 * sound.bass)) % (100 * Math.PI); // every speed in the flow is a whole number of fiftieths, so it comes round whole at 100 pi and the number stays small enough for the card
+    F.crawl = (F.crawl + dt * (0.1 + 0.35 * flow.intensity)) % 1; // the lines crawl outwards
+    F.swell += (sound.kick - F.swell) * towards(14); // the kick, softened: the iris swells with it
+    F.lit += (drop - F.lit) * towards(drop > F.lit ? 8 : 30); // the drop, coming up over a quarter of a second: its light, the softening of the lines and the wide pupils are an event, not a flash
+    F.lookX = (F.lookX + dt * 0.23) % TAU; F.lookY = (F.lookY + dt * 0.31) % TAU; F.peek = (F.peek + dt * 0.4) % TAU;
+    const lock = ramp(0.45, 0.9, c); // the gaze wanders while the faces are dim, and settles straight on you as they clear
+    F.gx += ((1 - lock) * 0.9 * Math.sin(F.lookX) - F.gx) * towards(3); F.gy += ((1 - lock) * 0.6 * Math.sin(F.lookY) - F.gy) * towards(3);
+    const fit = Math.max(0.4, Math.min(1, 0.8 * aspect)), stack = V.stack ?? 0, mid = 0.69 * stack, below = stack / (1 - Math.exp(-FACES_LEVEL)); // fit: in an upright picture every face is smaller, so the pair of eyes a face lingers at still fits across it. stack 0: each face inside the last, about the middle. 0.8: each on the last one's crown, a totem that narrows to a point above the middle (mid: how far above; below: how far under that point a being sits, in its own sizes)
+    const inside = (S, across, up, size) => ((across + size) * S < aspect && Math.abs(mid + (up - below) * S) + size * S < 1 ? 1 : 0); // whether an eye of a being of size S is whole inside the picture: how far it is from the middle line, how far up the face, and how big
+    const A = told.bA[1], B = told.bB[1], C = told.bC[1], D = told.bD[1];
+    for (let k = 0; k < FACES_COUNT; k++) {
+      const b = F.beings[k], age = (((F.z - k) % FACES_COUNT) + FACES_COUNT) % FACES_COUNT, o = k * 4; // 0 when born, 4 when it has grown out of sight
+      if (age < b.age) facesLooks(b); // born again, as somebody else
+      b.age = age;
+      const S = FACES_SMALL * fit * Math.exp(FACES_LEVEL * age), there = ramp(0, 0.7, age) * (1 - ramp(2.85, 3.5, age));
+      const awake = age > 0.35 && age < 2.8 + 0.25 * F.lit ? inside(S, b.apart, b.eyesUp, 0.9 * b.eye) : 0; // a face that has grown so far that an iris would reach the edge of the picture shuts its eyes (as quickly as a blink) and then fades; the biggest one holds them open a little longer while the drop's light is up
+      const opens = 0.26 + 0.06 * (k % 3); // one pair first, then the next: never a half-shut stare, an eye is open or it is shut
+      if (c > opens + 0.03) b.open = 1; else if (c < opens - 0.03) b.open = 0;
+      const peek = c > 0.1 && Math.sin(F.peek + k * 2.1) > 0.88; // in the quiet one peeks now and then: about two and a half seconds in every sixteen
+      let lid = (b.open || peek ? 1 + 0.12 * F.lit : 0) * awake;
+      b.blink -= dt; // a blink takes a third of a second and comes every few seconds, each being in its own time
+      if (flow.dropHit) b.blink = rnd(1.5, 4); // nobody blinks as the drop lands
+      if (b.blink < -0.34) b.blink = rnd(2.5, 7); else if (b.blink < 0) lid *= 1 - Math.sin((Math.PI * -b.blink) / 0.34) ** 2;
+      b.lid += (lid - b.lid) * towards(lid > b.lid ? 5 : 10);
+      if (c > 0.76) b.more = 1; else if (c < 0.68) b.more = 0; // the further pairs open when it is clearer still: the brow pair first, the wing pair near the height. Open or shut, as the first pair is
+      if (c > 0.88) b.most = 1; else if (c < 0.8) b.most = 0;
+      const prime = age > 0.9 && age < 2.6 ? Math.min(1, lid) : 0, shut = Math.min(1, b.lid); // the further eyes are for the faces of a good size, and only while the first pair is open
+      const brow = b.brow * b.more * prime * (stack < 0.3 ? 1 : 0) * inside(S, b.apart * 0.5, b.eyesUp + 0.47, 0.5 * b.eye), wing = b.wing * b.most * prime * inside(S, 1.32, -0.08, 1.3 * b.eye); // (in a totem the next face sits where the brow pair would; and each pair only while it is whole inside the picture)
+      b.browLid += (brow - b.browLid) * towards(brow > b.browLid ? 5 : 10);
+      b.wingLid += (wing - b.wingLid) * towards(wing > b.wingLid ? 4 : 10);
+      A[o] = -below * S; A[o + 1] = S; A[o + 2] = there; A[o + 3] = b.apart;
+      B[o] = b.eye * (1 + 0.04 * F.swell * narrow); B[o + 1] = b.lid; B[o + 2] = b.tilt * shut - 0.16 * (1 - shut); B[o + 3] = b.eyesUp; // a half-shut eye's outer corner droops: sleepy, never a glare
+      C[o] = b.long; C[o + 1] = b.mouth; C[o + 2] = b.ears; C[o + 3] = b.hue;
+      D[o] = b.round; D[o + 1] = b.browLid; D[o + 2] = b.wingLid; D[o + 3] = (0.5 * b.tilt + 0.2) * Math.min(1, b.browLid) - 0.16 * (1 - Math.min(1, b.browLid)); // (the brow pair's own tilt: it droops as it shuts, like the first pair)
+    }
+    for (let l = 0; l < 2; l++) { const f = (F.z + l * 0.5) % 1; told.flowIs[1][l * 2] = 0.55 * Math.exp(FACES_LEVEL * (f - 0.5)); told.flowIs[1][l * 2 + 1] = Math.sin(Math.PI * f) ** 2; } // two layers of the stuff, one fading in small as the other fades out big, so the travel has no seam
+    told.gaze[1][0] = F.gx; told.gaze[1][1] = F.gy; told.gaze[1][2] = 0.42 + 0.16 * F.lit - 0.1 * F.swell; // the dark middle: wide on the drop, a little smaller on each kick
+    told.clear[1][0] = c; told.melt[1][0] = 0.03 + 0.4 * (1 - ramp(0, 0.55, c)); told.mid[1][0] = mid; told.flowAt[1][0] = F.flowAt; told.swell[1][0] = F.swell * narrow; told.bandsN[1][0] = Math.round(V.bands ?? 5); told.crawl[1][0] = F.crawl;
+    told.rush[1][0] = 0.6 * Math.max(F.lit * F.lit, Math.min(1, 6.75 * plunge));
+    told.light[1][0] = 0.78 + 0.1 * F.swell * narrow + 0.14 * F.lit; // the kick through the same soft follower as the iris: a breath of light on the beat, a twentieth or so, not a flash; and less of it in an upright picture, where a face fills more of what there is
+    return F;
+  }
+  function facesByHand() { // the same sum by hand, line for line with the card's. Gives back a function that takes this frame's numbers and hands byHand() its sum: (across, up, dot) fills dot.x (how far round the colors), dot.shade and dot.edge
+    const ROW = 128, row = new Float32Array(ROW), keptX = new Float64Array(ROW / 2), keptShade = new Float32Array(ROW / 2), keptEdge = new Float32Array(ROW / 2), turns = new Float32Array(16); // (byHand asks for the dots in reading order, 128 to a row: this counts on it)
+    let bA, bB, bC, bD, flowIs, gaze, clear = 0, melt = 0, mid = 0, flowAt = 0, swell = 0, bandsN = 5, crawl = 0, rush = 0, count = 0, before = 0, calmed = 0;
+    let px = 0, eMask = 0, eX = 0, eShade = 0, eEdge = 0, rim = 0, dark = 0, form = 0, fx = 0, fy = 0, fz = 0;
+    const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a)); return t * t * (3 - 2 * t); }, blend = (a, b, t) => a + (b - a) * t, small = (a) => (a > 14 ? 0 : Math.exp(-a)); // small: e to the minus a, not worked out where it is under a millionth
+    const sine = (x) => { x *= 0.15915494309189535; x -= Math.floor(x + 0.5); const y = x * (8 - 16 * Math.abs(x)); return y * (0.775 + 0.225 * Math.abs(y)); }; // the sine to a thousandth, five times quicker than the real one: the flow takes twenty a dot
+    const flowed = (x, y, at) => {
+      let qx = x, qy = y;
+      for (let k = 1; k <= 4; k++) { const a = 0.62 / k, r = 1.25 * k, s = 1 + 0.2 * k, nx = qx + a * sine(qy * r + 1.7 * k + at * 0.9 * s); qy += a * sine(qx * r + 4.1 * k + at * 0.7 * s); qx = nx; }
+      fx = qx - x; fy = qy - y; fz = 0.5 * (sine(qx * 1.7) + sine(qy * 1.3));
+    };
+    const eye = (vx, vy, er, lid, ct, st, roundness, S, there, hue) => {
+      const d2 = (vx * vx + vy * vy) / (er * er);
+      if (d2 > 9 || there < 0.004) return;
+      const fade = 1 - d2 / 9;
+      form += there * (0.35 + 0.65 * Math.min(lid * 3, 1)) * Math.exp(-d2 / 2.6) * fade * fade;
+      const wx = vx * ct + vy * st, wy = vy * ct - vx * st;
+      const X = wx / (er * blend(1.6, 1, roundness)), in1 = Math.max(0, 1 - X * X), arch = blend(in1, Math.sqrt(in1), roundness);
+      const lo = -er * blend(0.42, 0.98, roundness) * arch, hi = blend(lo, er * 0.98 * arch, lid);
+      const din = Math.min(wy - lo, hi - wy) * S, soft = px * 1.5, fine = soft / (S * er);
+      const m = sstep(0, soft, din) * (in1 >= 0.0001 ? 1 : 0) * sstep(0.25, 0.7, there);
+      if (in1 > 0) rim = Math.max(rim, small((din * din) / (soft * soft * 2.5 + S * S * er * er * 0.004)) * sstep(0, 0.08, in1) * there);
+      dark = Math.max(dark, there * Math.exp(-d2 / 2.4) * fade * (0.15 + 0.5 * lid));
+      if (m <= eMask) return;
+      const ix = wx / er, iy = (wy - gaze[1] * er * 0.22) / er; // (by hand the eyes do not glance sideways: see below)
+      const rr = Math.hypot(ix, iy), ir = 0.84 * (1 + 0.1 * swell), pr = ir * gaze[2];
+      const fibre = 0.5 + 0.5 * Math.sin(Math.atan2(iy, ix) * 22 + Math.sin(rr * 26) * 1.2);
+      const inIris = 1 - sstep(ir - fine, ir + fine, rr), inPupil = 1 - sstep(pr - fine, pr + fine, rr);
+      const t01 = clamp((rr - pr) / Math.max(ir - pr, 0.001));
+      let sh = (0.5 + 0.55 * (1 - t01) + 0.3 * fibre * t01) * (1 - 0.8 * sstep(0.8, 1, t01));
+      sh = blend(blend(0.13, sh, inIris), 0.012, inPupil) * blend(1, 0.6, inIris * (1 - inPupil));
+      let ed = blend(0.07, 0.3 + 0.25 * fibre * (1 - t01), inIris) * (1 - inPupil);
+      ed += 1.5 * (1 - sstep(0.11, 0.15 + fine, Math.hypot(ix + 0.27, iy - 0.3)));
+      ed += 0.5 * (1 - sstep(0.04, 0.07 + fine, Math.hypot(ix - 0.3, iy + 0.3)));
+      sh *= 0.4 + 0.6 * sstep(0, er * 0.55, hi - wy);
+      eMask = m; eShade = sh; eEdge = ed; eX = hue + 0.3 * t01;
+    };
+    const land = (x, y) => { // how high the land is at a dot; what an eye there looks like is left in eMask, eX, eShade and eEdge, and the lids' rim and the sockets' shadow in rim and dark
+      eMask = eX = eShade = eEdge = rim = dark = form = 0;
+      flowed(x / flowIs[0], y / flowIs[0] + 3, flowAt);
+      let cx = fx * flowIs[0] * flowIs[1], cy = fy * flowIs[0] * flowIs[1], stuff = fz * flowIs[1], hold = 0;
+      flowed(x / flowIs[2] + 5, y / flowIs[2] + 9, flowAt + 7);
+      cx += fx * flowIs[2] * flowIs[3]; cy += fy * flowIs[2] * flowIs[3]; stuff += fz * flowIs[3];
+      const wx = x + cx * sstep(0, 0.22, x) * melt, wy = y + cy * melt;
+      for (let i = 0; i < 16; i += 4) {
+        const there = bA[i + 2];
+        if (there < 0.004) continue;
+        const S = bA[i + 1], ux = wx / S, uy = (wy - bA[i]) / S, vx = x / S, vy = (y - bA[i]) / S, long = bC[i], mouthIs = bC[i + 1];
+        if (ux * ux + uy * uy > 16) continue;
+        const head = small((ux * ux + (uy * uy) / (long * long)) * 0.9), nose = small(ux * ux * 38 + (uy + 0.16) * (uy + 0.16) * 7);
+        const my = uy + 0.6 - 0.45 * ux * ux, mouth = small(my * my * 70 + ux * ux * 6), ex = ux - 0.6, ey = uy - 0.86 * long, ear = small(ex * ex * 14 + ey * ey * 5);
+        form += there * (0.55 * head + 0.45 * nose - 0.75 * mouthIs * mouth + 0.7 * bC[i + 2] * ear);
+        hold = Math.max(hold, there * small((ux * ux + uy * uy) * 0.55));
+        if (ux < 0.3 && mouthIs > 0) rim = Math.max(rim, 0.8 * clear * mouthIs * there * small((my * my * S * S) / (px * px * 5 + S * S * 0.00008)) * (1 - sstep(0.17, 0.3, ux)));
+        eye(vx - bA[i + 3], vy - bB[i + 3], bB[i], bB[i + 1], turns[i], turns[i + 1], bD[i], S, there, bC[i + 3]);
+        if (bD[i + 1] >= 0.02) eye(vx - bA[i + 3] * 0.5, vy - bB[i + 3] - 0.47, bB[i] * 0.5, bD[i + 1], turns[i + 2], turns[i + 3], 0.6, S, there, bC[i + 3] + 0.33);
+        if (bD[i + 2] >= 0.02) eye(vx - 1.32, vy + 0.08, bB[i] * 1.25, bD[i + 2], 1, 0, 1, S, there, bC[i + 3] + 0.66);
+      }
+      calmed = hold * clear;
+      return stuff * (1 - 0.7 * calmed) + form * (0.35 + 1.25 * clear);
+    };
+    const sum = (across, up, dot) => {
+      const at = count % ROW, line = (count++ - at) / ROW, sparse = dot.half > 48 ? 2 : 1; // sparse: an upright picture has several times the rows of a wide one, so there every other row is the row above once more, which halves the work again
+      if (at >= ROW / 2) { const m = ROW - 1 - at; dot.x = keptX[m]; dot.shade = keptShade[m]; dot.edge = keptEdge[m]; return; } // the right half is the left half in a mirror, which halves the work (so by hand the eyes look up and down but never sideways)
+      if (line % sparse) { dot.x = keptX[at]; dot.shade = keptShade[at]; dot.edge = keptEdge[at]; return; }
+      px = 1 / dot.half;
+      const x = Math.abs(across), y = up - mid;
+      if (!line) row[at] = land(x, y + px * sparse); // the slope comes from the dot before and the dot above; the top row and the first dot of a row have none, so there the land is worked out once more a dot away
+      if (!at) before = land(x + px, y);
+      const H = land(x, y), wave = 0.5 + 0.5 * Math.cos((H * bandsN - crawl) * TAU), across1 = H - before, up1 = (row[at] - H) / sparse;
+      row[at] = before = H;
+      const keep = (1 - sstep(0.3, 0.7, (Math.abs(across1) + Math.abs(up1)) * bandsN)) * (1 - rush), relief = 1 - Math.max(-0.45, Math.min(0.45, (up1 / px) * 0.18));
+      const shade = (0.2 + 0.8 * blend(0.375, wave * wave, keep)) * (0.55 + 0.45 * sstep(-0.9, 0.9, H)) * (1 - dark * clear) * relief, edge = dot.glow * 0.5 * blend(0.1, wave ** 12, keep) * (0.3 + 0.7 * calmed);
+      dot.x = (eMask > 0.5 ? eX : H * 0.21) + dot.t * 0.03;
+      dot.shade = blend(shade, eShade, eMask);
+      dot.edge = blend(edge, eEdge, eMask) + rim * (0.25 + 0.5 * clear) * dot.glow * (1 - eMask * 0.6);
+      keptX[at] = dot.x; keptShade[at] = dot.shade; keptEdge[at] = dot.edge;
+    };
+    return (told) => {
+      bA = told.bA[1]; bB = told.bB[1]; bC = told.bC[1]; bD = told.bD[1]; flowIs = told.flowIs[1]; gaze = told.gaze[1];
+      clear = told.clear[1][0]; melt = told.melt[1][0]; mid = told.mid[1][0]; flowAt = told.flowAt[1][0]; swell = told.swell[1][0]; bandsN = told.bandsN[1][0]; crawl = told.crawl[1][0]; rush = told.rush[1][0]; count = 0;
+      for (let i = 0; i < 16; i += 4) { turns[i] = Math.cos(bB[i + 2]); turns[i + 1] = Math.sin(bB[i + 2]); turns[i + 2] = Math.cos(bD[i + 3]); turns[i + 3] = Math.sin(bD[i + 3]); } // the cosine and sine of each being's two tilted pairs of eyes, worked out once and not at every dot
+      return sum;
+    };
+  }
+  function faces() { // faces in things: a face inside a face inside a face, growing out of flowing stuff, with eyes that open as the song gathers
+    const told = facesStep().told;
+    trippyOn(); // the fractals' travelling colors come along (their breath and their fold do not)
+    told.roam = trippy.values.roam; told.roam2 = trippy.values.roam2;
+    if (onCard("faces", FACES_SUM, told)) return;
+    const theirs = trippy.values;
+    trippy.values = told; // byHand takes the travelling colors, the breath and the fold from here, so for this one picture it is handed ours (no breath, no fold) and then the fractals' own are put back
+    byHand((facesSum ??= facesByHand())(told), told.light[1][0]);
+    trippy.values = theirs;
+  }
+  /* ==== faces: end ==== */
+  /* ==== forms: begin ==== */
+  /* Forms: the shapes people see with their eyes shut early in a trip, much the same for everybody: tunnels, spirals, rays, honeycombs, lattices and cobwebs, each flowing into the next.
+     They are all one sum. Every dot is taken to a place where a ring round the middle is a straight line and so is a ray out of it (how far out, as a logarithm, and how far round), and up to
+     four plain waves are laid there. A glowing line runs where the waves' sum crosses a level, and the cells between the lines are softly lit. One wave is stripes: rings, a spiral or rays, by
+     which way it lies. Two at right angles are a lattice of squares, three a third of a turn apart a honeycomb, and the sum and the difference of two are a cobweb of rings and rays. So any
+     pattern becomes any other by gliding the numbers, with no cut. Only the count of arms round the middle can't glide: it has to be a whole number or the picture tears along a ray. It changes
+     by a front, a ring of forks that sweeps through the picture with the old count on one side of it and the new one on the other. Drifting outwards is flying down the tunnel, and since the
+     tunnel has no far end nothing ever has to start again. The card does the sum (FORMS_SUM); where there is no card the same sum is done here for a small picture (formsDot). */
+  const FORMS_SUM = `
+    uniform vec2 turn;            // the picture's turn (cos, sin)
+    uniform vec4 wave;            // for the two waves: rings per step outwards, and how far along each has drifted
+    uniform vec2 arms;            // arms round the middle for the two waves (whole numbers)
+    uniform vec4 frontA, frontB;  // for each wave a front on its way: which side of it is new (-1, 0 for no front, 1), how many arms it adds, how far out it is, how sharp
+    uniform vec4 lit4;            // how strongly each of the four waves is lit
+    uniform vec4 look;            // the level the lines run along, the third wave's shift, the lines' half width, how bright the cells are
+    uniform vec4 grow;            // how bent, the bend's two clocks, and the kick's push outwards
+    uniform vec3 hue;             // where the colors are, how fast they go round with depth, and how much with the pattern
+    uniform vec4 veil;            // a second layer over the first: how strong, how many times finer, its own drift, its turn
+    const float U0 = -1.0;        // the rings stretch and tighten about this depth, a third of the way out, so a change of spacing doesn't sweep the whole picture
+    vec3 form(vec2 p, vec2 bendBy, float scale, float drift) {   // one layer: x is the lines' glow, y the cells' light, z how far round the colors
+      float r = max(length(p), 1e-5), px = 2.0 / (size.y * r);
+      float u = log(r) - grow.w + bendBy.x, v = atan(p.y, p.x) + bendBy.y;
+      vec2 g1 = vec2(wave.x, arms.x) * scale, g2 = vec2(wave.y, arms.y) * scale;
+      float f1 = g1.x * (u - U0) + g1.y * v + wave.z * scale + drift, f2 = g2.x * (u - U0) + g2.y * v + wave.w * scale;
+      float cap1 = 2.0 * max(length(g1), 3.0), cap2 = 2.0 * max(length(g2), 3.0);
+      if (frontA.x != 0.0) { float a = exp(clamp(frontA.w * (u - frontA.z), -30.0, 30.0)), th = frontA.y * scale * v; vec2 w = a * vec2(cos(th), sin(th)), d = vec2(1.0 + w.x, w.y), q = vec2(dot(w, d), w.y) / max(dot(d, d), 1e-6);
+        f1 += frontA.x * atan(w.y, 1.0 + w.x); g1 += frontA.x * vec2(frontA.w * q.y, frontA.y * scale * q.x); }   // inside the front's ring the wave is left alone, outside it gains the arms, and on the ring are the forks where one stripe becomes two
+      if (frontB.x != 0.0) { float a = exp(clamp(frontB.w * (u - frontB.z), -30.0, 30.0)), th = frontB.y * scale * v; vec2 w = a * vec2(cos(th), sin(th)), d = vec2(1.0 + w.x, w.y), q = vec2(dot(w, d), w.y) / max(dot(d, d), 1e-6);
+        f2 += frontB.x * atan(w.y, 1.0 + w.x); g2 += frontB.x * vec2(frontB.w * q.y, frontB.y * scale * q.x); }
+      vec2 g3 = g1 + g2, g4 = g1 - g2;
+      float f3 = f1 + f2 + look.y, f4 = f1 - f2;
+      vec4 a = lit4 * (1.0 - smoothstep(0.5, 1.6, vec4(length(g1), length(g2), length(g3), length(g4)) * px));   // a wave finer than the picture can show goes flat: down at the far end of the tunnel, and in the two or three dots at the heart of a fork
+      float whole = lit4.x + lit4.y + lit4.z + lit4.w + 1e-4, there = (a.x + a.y + a.z + a.w) / whole;
+      float s = a.x * cos(f1) + a.y * cos(f2) + a.z * cos(f3) + a.w * cos(f4);
+      g1 *= min(1.0, cap1 / max(length(g1), 1e-4)); g2 *= min(1.0, cap2 / max(length(g2), 1e-4)); g3 = g1 + g2; g4 = g1 - g2;   // for the lines a wave's slope counts no more than twice what it is away from a front, so a line keeps its body into a fork instead of thinning to a hair
+      vec4 plain = lit4 * (1.0 - smoothstep(0.5, 1.6, vec4(length(g1), length(g2), length(g3), length(g4)) * px));
+      float lines = (plain.x + plain.y + plain.z + plain.w) / whole;   // how much of the lines is left: like there, but not dying in the heart of a fork, so a line runs on through it
+      vec2 gs = a.x * sin(f1) * g1 + a.y * sin(f2) * g2 + a.z * sin(f3) * g3 + a.w * sin(f4) * g4;
+      float off = s - look.x * there, bowl = a.x * dot(g1, g1) + a.y * dot(g2, g2) + a.z * dot(g3, g3) + a.w * dot(g4, g4);   // bowl: how fast the slope itself changes, which is what tells the distance where the slope is nothing (a crossing of lines, the middle of a cell)
+      float d = abs(off) / sqrt(dot(gs, gs) + 0.5 * bowl * abs(off) + 1e-6), wide = max(look.z / scale, 1.2 * px);
+      float edge = lines / (1.0 + d * d / (wide * wide));
+      float cell = look.w * (0.25 + 0.75 * smoothstep(-0.35, 1.1, off / whole * 2.0)) * there + 0.3 * (1.0 - there);   // where the waves have gone flat, their middle light
+      return vec3(edge, cell, hue.x + hue.y * u + hue.z * s / whole);
+    }
+    void main() {
+      vec2 p0 = spot(), p = mul(p0, turn);
+      vec2 bendBy = grow.x * vec2(sin(1.9 * p0.x + 1.3 * p0.y + grow.y) + 0.6 * sin(2.3 * p0.y - 1.1 * p0.x + 1.7 * grow.z + 2.0) + 0.4 * sin(2.9 * p0.x - 0.7 * p0.y - 0.6 * grow.y + 4.0),
+                                  sin(1.6 * p0.y - 1.4 * p0.x + grow.z + 1.0) + 0.6 * sin(2.6 * p0.x + 0.9 * p0.y - 1.3 * grow.y + 3.0) + 0.4 * sin(3.1 * p0.y + 0.5 * p0.x + 0.7 * grow.z + 5.0));   // bent a little, slowly, by where the dot is in the picture, so it looks grown and not ruled
+      vec3 one = form(p, bendBy, 1.0, 0.0);
+      float far = 0.45 + 0.55 * smoothstep(0.0, 0.7, length(p0));   // a little darker down the tunnel
+      vec4 c = lit(one.z, one.y * far, glow * one.x * (0.35 + 0.65 * far));
+      if (veil.x > 0.0) { vec3 two = form(mul(p, vec2(cos(veil.w), sin(veil.w))), bendBy * 0.5, veil.y, veil.z); c.rgb += veil.x * 0.8 * glow * two.x * light * pal(two.z + 0.33); }   // the second layer: lines only, a third of the way round the colors from the first, added so the first shows through
+      color = c;
+    }
+`;
+  const FORM_PATTERNS = { // for each pattern: which of the four waves are lit, the level its lines run along, how wide the lines are (as a share of the pattern's fineness) and how bright the cells. The three made of stripes also say how many rings there are to an arm, whether there are arms at all, and how fast they roll round
+    tunnel: { lit: [1, 0, 0, 0], level: 0, line: 0.3, cell: 0.55, rings: 1.7, armed: 0, roll: 0 },
+    spiral: { lit: [1, 0, 0, 0], level: 0, line: 0.3, cell: 0.55, rings: 0.8, armed: 1, roll: 0 },
+    rays: { lit: [1, 0, 0, 0], level: 0, line: 0.3, cell: 0.55, rings: 0, armed: 1, roll: 0.9 },
+    honeycomb: { lit: [1, 1, 1, 0], level: -0.68, line: 0.27, cell: 0.6, six: true },
+    lattice: { lit: [1, 1, 0, 0], level: 0, line: 0.24, cell: 0.55 },
+    cobweb: { lit: [0, 0, 1, 1], level: 0, line: 0.17, cell: 0.3 },
+  };
+  const FORM_NAMES = Object.keys(FORM_PATTERNS), FORM_SHARP = 3, FORM_ROOT3 = Math.sqrt(3); // (how sharp a front is: its forks take about a third of a step outwards to heal on either side)
+  const formsKept = { started: false, stepped: -1, pattern: "tunnel", before: "", dial: "", since: 0, sinceDrop: 9, tight: 0, loose: 0, burst: 0, // what it keeps between frames: which pattern, the one before it, what the version's dial last said, how long this pattern has been showing, and how wound up the song has it
+    rings: [10, 0], arms: [0, 6], fine: 10, fine4: [10, 6, 12, 12], lit: [1, 0, 0, 0], level: 0, line: 0.3, cell: 0.55, roll: 0, way: 1, bend: 0.5, veil: 0, spin: 0, hue: 0, swell: 0, lift: 0, clockA: 0, clockB: 0, // the two waves as they are now, how fine the pattern is (and each of the four waves), and everything that glides
+    fronts: [{ side: 0, adds: 0, gone: 0, takes: 2.6 }, { side: 0, adds: 0, gone: 0, takes: 2.6 }] }; // a front for each wave: which side of it is new (0: none on its way), how many arms it adds, how far through the picture it has got (0..1) and how long it takes
+  const formsNow = { light: [0.64], turn: [1, 0], wave: [10, 0, 0, 0], arms: [0, 6], frontA: [0, 0, 0, FORM_SHARP], frontB: [0, 0, 0, FORM_SHARP], lit4: [1, 0, 0, 0], look: [0, 0, 0.03, 0.55], grow: [0, 0, 0, 0], hue: [0, 0.26, 0.12], veil: [0, 3, 0, 0] }; // what the sum is given this frame: the card's values, as FORMS_SUM names them
+  const FORMS_STILL = { roam: [4, [0, 0, 0, 0]], roam2: [4, [0, 0, 0, 0]], breath: [4, [0, 0, 0, 0]], folds: [4, [0, 0, 0, 0]], thump: [4, [0, 0, 0, 0]] }; // what the fractals' shared top is told so that it leaves this picture alone: no travelling colors, no breath, no fold and no ring from a hard kick. The pattern drifts, bends and breathes by itself
+  const formsGive = { ...FORMS_STILL, ...Object.fromEntries(Object.entries(formsNow).map(([key, value]) => [key, [value.length, value]])) }; // the same lists as onCard wants them, and those zeros with them
+  const formsToward = (now, aim, dt, takes) => now + (aim - now) * (1 - Math.exp(-dt / takes)); // gliding by the clock: a late frame only arrives, it never overshoots
+  const formsRound = (x, round) => ((x % round) + round) % round; // an angle or a phase kept within its round, so nothing grows without end
+  function formsTurn(pattern) { // over to another pattern, remembering the one it leaves
+    const S = formsKept;
+    if (S.since > 0.5) S.before = S.pattern;
+    else for (let i = 0; i < 2; i++) { const f = S.fronts[i]; if (f.side && !f.gone) { if (f.side < 0) S.arms[i] -= f.adds; f.side = f.adds = 0; } } // unless it never really showed. When a version changes on a drop, the drop picks a pattern and one frame later the version's dial picks another: the one-frame pattern is not remembered, and a front it has only just sent (still out of sight) is called back
+    S.pattern = pattern; S.since = 0;
+  }
+  function formsStep() { // moves everything on by the clock: once a frame, however often the picture is drawn
+    const S = formsKept, N = formsNow, dt = Math.max(0, sound.dt), dial = FORM_PATTERNS[V.form] ? V.form : "tunnel", building = flow.part === "build" || flow.build > 0.35;
+    if (!S.started) { S.pattern = S.dial = dial; S.before = ""; S.since = S.sinceDrop = 0; S.tight = S.loose = 0; } // (it starts as the version has it, and a drop in its first seconds leaves it be)
+    S.since += dt; S.sinceDrop += dt;
+    if (dial !== S.dial) { // the version has picked another pattern: over to it, unless a drop has only just left that very one
+      S.dial = dial;
+      if (dial !== S.pattern && !(S.since < 2 && dial === S.before)) formsTurn(dial);
+    } else if (S.started && ((flow.dropHit && S.sinceDrop > 4) || (S.since > 30 && (!building || S.since > 60) && (sound.kickHit > 0 || S.since > 34)))) { // on to another pattern at every drop (one drop can land two or three times: once is enough), and after half a minute without one: on a kick if there is a kick, and not in the middle of a build, which a drop is about to end. Never the one showing, nor the one before it, and never three of plain stripes running: so from the tunnel it starts as, the first change is to a honeycomb, a lattice or a cobweb
+      const stripes = (key) => !key || FORM_PATTERNS[key].rings !== undefined, others = FORM_NAMES.filter((key) => key !== S.pattern && key !== S.before && !(stripes(key) && stripes(S.pattern) && stripes(S.before)));
+      if (flow.dropHit) S.sinceDrop = 0;
+      formsTurn(others[Math.floor(Math.random() * others.length)]);
+    }
+    // Where the dials and the song want the two waves. The arms are whole numbers: they go up in two steps through a build and down one in a calm part, each step a front of several forks (a lone fork looks like a flaw). The rings glide, so they follow the song smoothly.
+    // A build has to be well on before it counts (with no kick at all the follower's "build" sits at a quarter for ever), and each step lets go a little lower than it took hold, so a song hovering on the line doesn't send fronts to and fro
+    const F = FORM_PATTERNS[S.pattern], count = Math.max(2, Math.round(V.arms || 6)), by = Math.max(2, Math.round(count / 3)), twist = Math.round(vary.aim.twist ?? V.twist ?? 0), build = flow.build; // (the twist dial glides through fractions on its way and only whole arms will do, so it is read where it is going: a change of three is then one front of three forks, not three lone forks one after another)
+    S.tight = build > 0.7 ? 2 : build > 0.6 ? Math.max(S.tight, 1) : build > 0.35 ? 1 : build >= 0.3 ? Math.min(S.tight, 1) : 0;
+    S.loose = flow.calm > 0.5 ? 1 : flow.calm < 0.35 ? 0 : S.loose;
+    const most = Math.max(2, count + by * (S.tight - S.loose)), smooth = count * (1 + 0.67 * build - 0.3 * flow.calm);
+    let rings1, rings2, arms1;
+    if (F.six) { const a = (2 * smooth + twist) / FORM_ROOT3; rings1 = a; rings2 = -(a + twist * FORM_ROOT3) / 2; arms1 = twist; } // three waves a third of a turn apart: the second is the first turned, and has exactly the full count of arms
+    else if (F.rings === undefined) { rings1 = smooth; rings2 = -twist; arms1 = twist; } // two waves at right angles and of the same length. The twist gives the first wave arms of its own, which winds the cells into spirals as the seeds sit in a sunflower
+    else { arms1 = F.armed * (twist < 0 ? -1 : 1) * most; rings1 = F.rings * smooth; rings2 = -arms1; } // stripes: rings, or arms wound one way or the other, or rays
+    const fine = Math.hypot(rings1, arms1);
+    if (!S.started) { // from its first frame it is simply there
+      S.started = true;
+      Object.assign(S, { rings: [rings1, rings2], arms: [arms1, most], fine, lit: F.lit.slice(), level: F.level, line: F.line, cell: F.cell, roll: F.roll || 0, way: V.drift ?? 1, bend: 0.5 * (V.bends ?? 1), veil: V.veil || 0, burst: 0, swell: 0, lift: flow.drop });
+      for (const f of S.fronts) f.side = f.adds = f.gone = 0;
+    }
+    if (flow.dropHit) { S.burst = 1.6; for (const f of S.fronts) if (f.side) f.takes = Math.min(f.takes, 0.5); } // a drop: a front already on its way is hurried through, and for a moment new ones go outwards and fast, so the wound-up pattern lets go from the middle
+    S.burst = Math.max(0, S.burst - dt);
+    S.way = formsToward(S.way, V.drift ?? 1, dt, 1.5); S.bend = formsToward(S.bend, 0.5 * (V.bends ?? 1), dt, 2); S.veil = formsToward(S.veil, V.veil || 0, dt, 2);
+    for (let i = 0; i < 4; i++) S.lit[i] = formsToward(S.lit[i], F.lit[i], dt, 0.9);
+    S.level = formsToward(S.level, F.level, dt, 0.9); S.line = formsToward(S.line, F.line, dt, 0.9); S.roll = formsToward(S.roll, F.roll || 0, dt, 1.5);
+    S.cell = formsToward(S.cell, mood === "hard" ? Math.min(F.cell, 0.3) : F.cell, dt, 0.9); // red and black: there the lines carry the picture, and the cells stay dark
+    const waits = (S.fronts[0].side || S.arms[0] !== arms1) && Math.abs(rings1) < 2; // going to rays from rings, the rings may not go flat before the arms have come through, or the part the front hasn't reached is left with no pattern at all
+    S.rings[0] = formsToward(S.rings[0], waits ? (S.rings[0] < 0 ? -2 : 2) : rings1, dt, 2.5); S.rings[1] = formsToward(S.rings[1], rings2, dt, 2.5); // slower than the rest: a change of spacing moves every line in the picture
+    S.fine = formsToward(S.fine, fine, dt, 0.9);
+    const far = Math.log(Math.hypot(w / h, 1)) + 3 / FORM_SHARP, near = -4.2 - 3 / FORM_SHARP; // where a front is out of sight: past the picture's corner, and down at the tunnel's far end where the waves have gone flat
+    for (let i = 0; i < 2; i++) { // the arms, which can only change by a front going through
+      const f = S.fronts[i], want = i ? most : arms1, at = i ? N.frontB : N.frontA, held = !i && Math.abs(want) < Math.abs(S.arms[0]) && Math.abs(S.rings[0]) < 0.4 * Math.abs(rings1); // (and the other way, from rays to rings: the arms may not leave before the rings have come, or the picture stands nearly empty for a moment. So it winds into a spiral first)
+      if (f.side) { f.gone += dt / f.takes; if (f.gone >= 1) { if (f.side > 0) S.arms[i] += f.adds; f.side = f.adds = 0; } }
+      if (!f.side && S.arms[i] !== want && !held) { // send one: outwards when the picture is flowing outwards or a drop has just landed (the new count is behind it), otherwise inwards (the new count comes in from the edges). A front of one or two forks goes through quickly, or its forks read as flaws in the picture
+        const out = S.burst > 0 || S.way >= 0;
+        f.adds = want - S.arms[i]; f.side = out ? -1 : 1; f.gone = 0; f.takes = S.burst > 0 || Math.abs(f.adds) < 3 ? 1.3 : 2.6;
+        if (out) S.arms[i] += f.adds;
+      }
+      at[0] = f.side; at[1] = f.adds; at[2] = f.side > 0 ? far + (near - far) * f.gone : near + (far - near) * f.gone;
+    }
+    const fastest = Math.max(1, S.lit[0] * Math.abs(S.rings[0]), S.lit[1] * Math.abs(S.rings[1]), S.lit[2] * Math.abs(S.rings[0] + S.rings[1]), S.lit[3] * Math.abs(S.rings[0] - S.rings[1])); // the closest-set rings of any wave that shows
+    const speed = S.way * (0.1 + 0.42 * flow.intensity) * (1 + 0.5 * flow.build + 1.2 * flow.drop), quick = Math.max(1, T.speed * flow.pace), rolls = S.roll * (0.4 + flow.intensity), gone = dt * Math.sign(speed) * Math.min(Math.abs(speed), Math.max(0, (2 * TAU) / quick - rolls) / fastest); // how far it drifts this frame: quicker with the song, but never so quick that more than two stripes pass any one dot in a second, however tight the rings and however hard the drop (the rays' own slow roll is counted in). That is a second by the clock on the wall: the picture's own clock runs up to half as fast again at a drop, and the Speed knob can double it
+    N.wave[0] = S.rings[0]; N.wave[1] = S.rings[1];
+    N.wave[2] = formsRound(N.wave[2] - S.rings[0] * gone + dt * rolls, TAU); N.wave[3] = formsRound(N.wave[3] - S.rings[1] * gone, TAU);
+    S.hue = formsRound(S.hue - 0.26 * gone + 0.03 * dt, 1); // the colors go with depth, so they travel with the drift, and turn slowly by themselves besides
+    S.spin = formsRound(S.spin + dt * 0.05 * (V.spin ?? 1), TAU);
+    S.clockA = formsRound(S.clockA + dt * (0.1 + 0.15 * flow.intensity), TAU * 10); S.clockB = formsRound(S.clockB + dt * (0.08 + 0.1 * flow.intensity), TAU * 10); // (ten rounds: the bend reads these clocks at several speeds, all in tenths)
+    N.veil[2] = formsRound(N.veil[2] + gone * 1.7, TAU);
+    S.swell = formsToward(S.swell, sound.kick, dt, sound.kick > S.swell ? 0.03 : 0.12); // the kick, softened: up in a blink but not in one frame, down in an eighth of a second
+    S.lift = formsToward(S.lift, flow.drop, dt, flow.drop > S.lift ? 0.5 : 0.1); // the drop's own light comes up over half a second, not on the frame it lands: the page already flashes there
+    const breathe = Math.sin(sound.t * 0.5), cells = Math.min(1, 8 / Math.max(S.fine, 1)); // (the bend and the kick's push are measured in cells: a fine lattice is bent and pushed no more cells than a coarse one, or it folds over itself)
+    S.fine4[0] = Math.hypot(S.rings[0], S.arms[0]); S.fine4[1] = Math.hypot(S.rings[1], S.arms[1]); S.fine4[2] = Math.hypot(S.rings[0] + S.rings[1], S.arms[0] + S.arms[1]); S.fine4[3] = Math.hypot(S.rings[0] - S.rings[1], S.arms[0] - S.arms[1]); // how fine each of the four waves is away from any front, for the sum by hand
+    N.turn[0] = Math.cos(S.spin); N.turn[1] = Math.sin(S.spin); N.arms[0] = S.arms[0]; N.arms[1] = S.arms[1];
+    for (let i = 0; i < 4; i++) N.lit4[i] = S.lit[i];
+    N.look[0] = S.level - 0.15 * S.swell + 0.08 * breathe; N.look[1] = 0.5 * Math.sin(sound.t * 0.23); N.look[2] = (S.line / Math.max(S.fine, 2)) * (1 + 0.5 * flow.calm + 0.25 * breathe); N.look[3] = S.cell; // on a kick the level drops, so the cells swell; in a calm part the lines are half as wide again
+    N.grow[0] = 0.2 * S.bend * (1 + 0.3 * flow.calm) * cells; N.grow[1] = S.clockA; N.grow[2] = S.clockB; N.grow[3] = 0.035 * S.swell * cells;
+    N.hue[0] = S.hue; N.veil[0] = S.veil; N.veil[3] = -2 * S.spin + 0.3;
+    N.light[0] = 0.64 + 0.1 * S.swell + 0.12 * S.lift - 0.08 * flow.calm; // the pattern fills the picture, so the kick lights it far less than it does the Julia set, and by the softened kick
+  }
+  const formsLong = (x, y) => Math.sqrt(x * x + y * y); // (not Math.hypot, which is many times slower and is wanted for every dot)
+  const formsFlat = (lit, fine) => { if (lit < 0.002) return 0; const k = clamp((fine - 0.5) / 1.1); return lit * (1 - k * k * (3 - 2 * k)); }; // how much of a wave is left where it is this fine (in dots); a wave that isn't lit costs nothing
+  function formsDot(x, y, dot) { // the same sum by hand, for byHand: fills in how far round the colors the dot is, how bright its cell and how much of a line's glow it has. One layer only: the second would double the cost
+    const N = formsNow, G = N.grow, L = N.lit4, K = formsKept.fine4, px0 = x * N.turn[0] - y * N.turn[1], py0 = x * N.turn[1] + y * N.turn[0];
+    const bx = G[0] * (Math.sin(1.9 * x + 1.3 * y + G[1]) + 0.6 * Math.sin(2.3 * y - 1.1 * x + 1.7 * G[2] + 2) + 0.4 * Math.sin(2.9 * x - 0.7 * y - 0.6 * G[1] + 4));
+    const by = G[0] * (Math.sin(1.6 * y - 1.4 * x + G[2] + 1) + 0.6 * Math.sin(2.6 * x + 0.9 * y - 1.3 * G[1] + 3) + 0.4 * Math.sin(3.1 * y + 0.5 * x + 0.7 * G[2] + 5));
+    const r = Math.max(Math.sqrt(x * x + y * y), 1e-5), px = 1 / (dot.half * r), u = Math.log(r) - G[3] + bx, v = Math.atan2(py0, px0) + by, all = L[0] + L[1] + L[2] + L[3] + 1e-4;
+    let g1x = N.wave[0], g1y = N.arms[0], g2x = N.wave[1], g2y = N.arms[1], f1 = g1x * (u + 1) + g1y * v + N.wave[2], f2 = g2x * (u + 1) + g2y * v + N.wave[3];
+    let a1 = formsFlat(L[0], K[0] * px), a2 = formsFlat(L[1], K[1] * px), a3 = formsFlat(L[2], K[2] * px), a4 = formsFlat(L[3], K[3] * px), lines = (a1 + a2 + a3 + a4) / all; // with no front on its way the waves lie the same way at every dot, and how fine they are was worked out once for the frame
+    for (let i = 0; i < 2; i++) {
+      const f = i ? N.frontB : N.frontA;
+      if (!f[0]) continue;
+      const a = Math.exp(Math.max(-30, Math.min(30, f[3] * (u - f[2])))), th = f[1] * v, wx = a * Math.cos(th), wy = a * Math.sin(th), dx = 1 + wx, d2 = Math.max(dx * dx + wy * wy, 1e-6), qx = (wx * dx + wy * wy) / d2, qy = wy / d2, psi = f[0] * Math.atan2(wy, dx);
+      if (i) { f2 += psi; g2x += f[0] * f[3] * qy; g2y += f[0] * f[1] * qx; } else { f1 += psi; g1x += f[0] * f[3] * qy; g1y += f[0] * f[1] * qx; }
+    }
+    if (N.frontA[0] || N.frontB[0]) { // a front bends the waves near its forks, so there they are measured dot by dot: once as they are, for the cells, and once with their slope held to twice what it is away from the front, for the lines (see FORMS_SUM)
+      const k1 = formsLong(g1x, g1y), k2 = formsLong(g2x, g2y), c1 = Math.min(1, (2 * Math.max(K[0], 3)) / Math.max(k1, 1e-4)), c2 = Math.min(1, (2 * Math.max(K[1], 3)) / Math.max(k2, 1e-4));
+      a1 = formsFlat(L[0], k1 * px); a2 = formsFlat(L[1], k2 * px); a3 = formsFlat(L[2], formsLong(g1x + g2x, g1y + g2y) * px); a4 = formsFlat(L[3], formsLong(g1x - g2x, g1y - g2y) * px);
+      g1x *= c1; g1y *= c1; g2x *= c2; g2y *= c2;
+      lines = (formsFlat(L[0], k1 * c1 * px) + formsFlat(L[1], k2 * c2 * px) + formsFlat(L[2], formsLong(g1x + g2x, g1y + g2y) * px) + formsFlat(L[3], formsLong(g1x - g2x, g1y - g2y) * px)) / all;
+    }
+    const f3 = f1 + f2 + N.look[1], f4 = f1 - f2, g3x = g1x + g2x, g3y = g1y + g2y, g4x = g1x - g2x, g4y = g1y - g2y, there = (a1 + a2 + a3 + a4) / all;
+    let s = 0, gx = 0, gy = 0, bowl = 0;
+    if (a1) { const k = a1 * Math.sin(f1); s += a1 * Math.cos(f1); gx += k * g1x; gy += k * g1y; bowl += a1 * (g1x * g1x + g1y * g1y); }
+    if (a2) { const k = a2 * Math.sin(f2); s += a2 * Math.cos(f2); gx += k * g2x; gy += k * g2y; bowl += a2 * (g2x * g2x + g2y * g2y); }
+    if (a3) { const k = a3 * Math.sin(f3); s += a3 * Math.cos(f3); gx += k * g3x; gy += k * g3y; bowl += a3 * (g3x * g3x + g3y * g3y); }
+    if (a4) { const k = a4 * Math.sin(f4); s += a4 * Math.cos(f4); gx += k * g4x; gy += k * g4y; bowl += a4 * (g4x * g4x + g4y * g4y); }
+    const off = s - N.look[0] * there, d = Math.abs(off) / Math.sqrt(gx * gx + gy * gy + 0.5 * bowl * Math.abs(off) + 1e-6), wide = Math.max(N.look[2], 1.2 * px), far = 0.45 + 0.55 * eased(clamp(r / 0.7));
+    dot.x = N.hue[0] + N.hue[1] * u + (N.hue[2] * s) / all;
+    dot.shade = (N.look[3] * (0.25 + 0.75 * eased(clamp(((off / all) * 2 + 0.35) / 1.45))) * there + 0.3 * (1 - there)) * far;
+    dot.edge = ((dot.glow * lines) / (1 + (d * d) / (wide * wide))) * (0.35 + 0.65 * far);
+  }
+  function formsFx() { // the forms seen with closed eyes: one pattern over the whole picture, drifting down its own tunnel and turning into the next
+    if (!formsKept.started || formsKept.stepped !== sound.t) { formsKept.stepped = sound.t; formsStep(); } // (a frame can draw the picture twice, when the effect changes: one step is enough)
+    if (onCard("forms", FORMS_SUM, formsGive)) return;
+    const lent = trippy.values;
+    trippy.values = FORMS_STILL; // byHand reads the trip's numbers for itself and can't be handed others: it is lent the zeros for this one picture, so that what a fractal drawn in the same frame left does not lie on it
+    byHand(formsDot, formsNow.light[0]);
+    trippy.values = lent;
+  }
+  /* ==== forms: end ==== */
+  /* ==== runner: begin ==== */
+  /* ---------- Runner: a little game that plays itself in time with the song. A small cream figure with headphones and a scarf runs through a world picked by the kind of music. A beat clock, kept in step
+     by the kick, lays the course a few beats ahead, so every hop lands on a kick and every pickup is taken on the off-beat, and a counter rings up. A break drops the path away and the figure floats along
+     a line of pickups; a build tilts the path into stairs towards a great gate; on the drop the gate bursts and the world's other sky opens out of it as a growing circle. All of it is drawn on the pixel
+     screen, and every figure and place in it is our own drawing. ---------- */
+  const RUNNER_DITHER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]; // the order in which the dots of a patch of four by four come on, so one color goes over to the next in a pattern and not a blur
+  const runnerGrain = (x, y) => (RUNNER_DITHER[(y & 3) * 4 + (x & 3)] + 0.5) / 16;
+  const runnerChance = (n, k = 0) => { const v = Math.sin(n * 127.1 + k * 311.7 + 74.7) * 43758.5453; return v - Math.floor(v); }; // the same number from 0 to 1 every time for the same two numbers: where things stand is worked out, not kept
+  const runnerMix = (a, b, f) => a + (b - a) * f;
+  const RUNNER_PHRASES = [[1, 1, 1, 1], [1, 0, 1, 1], [1, 1, 1, 0], [1, 0, 1, 0]], RUNNER_ONE = [0.5], RUNNER_THREE = [0.75, 0.5, 0.25]; // on which beats of a bar something stands, and how far before a beat the pickups hang (three over a gap)
+  const RUNNER_WORLD_OF = { acid: "sump", psy: "mycel", hard: "foundry", trance: "aerie", techno: "city", house: "city", jungle: "city", ambient: "aerie", game: "board", "": "board" }; // which of the six worlds each answer of musicWorld() gets
+  const RUNNER_WEARS = { O: [22, 16, 40], C: [252, 242, 218], S: [255, 84, 70], T: [176, 40, 66], B: [255, 170, 60], D: [190, 96, 40] }; // the figure's outline and cream, its scarf in two reds, its boots in two oranges
+  const RUNNER_BODY = [["....oooooooo....", "..oohhhhhhbboo..", ".ohhhbbbbhhbbbo.", ".ohhbbbbbbbbbbo.", "oaaaobbbbbbbbbbo", "oadaobbbbwwbwwbo", "oadaobbbbwkbwkbo", "oaaaobbbbwkbwkbo", ".ooobbbbbbbbbbso", ".obbbbbbbbbbbbso", ".osbbbbbbbmmbsso", "..osbbbbbbbssso.", "...oossssssoo...", ".....oooooo....."],
+    { o: [22, 16, 40], b: [252, 242, 218], s: [198, 178, 196], h: [60, 222, 212], a: [60, 222, 212], d: [18, 104, 116], w: [255, 255, 255], k: [22, 16, 40], m: [226, 110, 120] }]; // the figure itself, the same in every world; its feet and scarf are drawn as it moves
+
+  /* The six worlds. Each has its colors by letter (k the outline, a b c the three bright ones, s the shade of a, l the lightest, h m n what the path is made of from light to dark, g what grows on top,
+     F E the far scenery and its lit edge, M I the nearer scenery and its lit edge, X Y Z what lies under the path from its surface down), two skies with a sun or moon each, what drifts in the air,
+     two things to hop over, two who live there (each in two poses), what there is to pick up, who flies by, the scenery, and one dot-wide slice of the path. */
+  const RUNNER_WORLDS = {
+    sump: { // acid: a flooded chemical works at night, a catwalk over green sludge
+      pal: { k: [10, 18, 22], a: [170, 240, 60], s: [86, 168, 44], b: [246, 230, 50], c: [255, 140, 30], l: [236, 255, 200], h: [120, 170, 160], m: [58, 96, 100], n: [30, 56, 62], g: [120, 170, 160], F: [22, 54, 50], E: [53, 114, 93], M: [10, 28, 32], I: [44, 84, 84], X: [170, 240, 60], Y: [60, 150, 50], Z: [20, 70, 36] },
+      skies: [[[8, 20, 26], [12, 36, 40], [29, 80, 69], [69, 128, 66]], [[20, 26, 14], [52, 62, 22], [110, 116, 34], [190, 180, 60]]],
+      orb: [{ kind: "moon", x: 0.74, y: 0.3, r: 13, col: [200, 236, 120], dark: [16, 44, 46] }, { kind: "sun", x: 0.7, y: 0.52, r: 17, col: [250, 246, 170], halo: [226, 214, 90] }],
+      swell: "wave", float: "bubble", weather: { up: 9, side: 2, tones: "as" },
+      low: [["..kkkkkkk..", ".kaalaaaak.", "kaaaaaaaaak", "kkaakkkakkk", "khmammmamnk", "khmammmmmnk", "kkkkkkkkkkk", "khmmmmmmnnk", "khmmmmmmnnk", "kkkkkkkkkkk", ".kkkkkkkkk."],
+        [".....k.....", "....kbk....", "...kbbbk...", "...kbkbk...", "..kbbkbbk..", "..kbbbbbk..", ".kbbbkbbbk.", ".kkkkkkkkk.", "....khk....", "....khk....", "...kkhkk..."]],
+      creature: [[["....kkkkkk....", "...kaaaaaak...", "..kalaaaaask..", "..kaalllaask..", ".kaaalkklaask.", ".kaaalkklaask.", ".kaaaalllassk.", "kaaaaaaaaasssk", "kaasaaaasasssk", ".kkkkkkkkkkkk."],
+        ["..............", "..............", "....kkkkkk....", "..kkaaaaaakk..", ".kalalllaaask.", ".kaaalkklaask.", "kaaaalkklaassk", "kaaaaalllasssk", "kaasaaaasasssk", ".kkkkkkkkkkkk."]],
+        [["............", "..kk...kk...", ".klakkkalk..", ".kaaaaaaakk.", "kaaaaaaaaask", "kabbbaaaassk", "kkabbaakkssk", ".kkkkkk.kkk."],
+          ["..kk...kk...", ".klakkkalk..", ".kaaaaaaakk.", "kaaaaaaaaask", "kabbbbaaassk", "kabbbbaaassk", "kkabbaakkssk", ".kkkkkk.kkk."]]],
+      gem: ["..k..", ".kbk.", ".kbk.", "klbbk", "kbbbk", "kbbck", ".kkk."],
+      flyer: [["....kkkkk...", "b..khhhhhk..", "bbkhhhhlkhk.", "bbkmmmmmmmk.", "b..kmmmmmk..", "....kkkkk..."], ["....kkkkk...", "...khhhhhk..", ".bkhhhhlkhk.", ".bkmmmmmmmk.", "...kmmmmmk..", "....kkkkk..."]],
+      layers({ GY, DN, WL, HS }, far, mid, hot) {
+        const rd = Math.round, ch = runnerChance, base = GY - 8;
+        far.R("F", 0, base, WL, DN);
+        for (let i = 0; i * 43 < WL - 20; i++) {
+          const x = rd(i * 43 + ch(i, 1) * 18), kind = ch(i, 2);
+          if (kind < 0.4) { const wd = rd(18 + ch(i, 3) * 14), ht = rd((18 + ch(i, 4) * 26) * HS); far.R("F", x, base - ht, wd, ht); far.dome("F", x + wd / 2, base - ht, wd / 2, 6, "E"); far.R("E", x, base - ht, 2, ht); for (let j = 4; j < ht - 4; j += 7) far.R("E", x + 3, base - ht + j, wd - 3, 1); } // tanks with domed tops
+          else if (kind < 0.78) { const ht = rd((42 + ch(i, 3) * 46) * HS); far.R("F", x, base - ht, 5, ht); far.R("E", x, base - ht, 1, ht); far.R("F", x - 1, base - ht, 7, 2); far.R("F", x - 1, base - ht + 9, 7, 2); hot.push({ x: x + 2, y: base - ht - 3, sp: 0.1, kind: "lamp" }); } // stacks, each with a lamp that winks
+          else { const ht = rd(40 * HS); for (let j = 0; j < ht; j++) { const half = rd(9 + 6 * ((j / ht) * 2 - 0.9) ** 2); far.R("F", x - half, base - j - 1, half * 2, 1); far.R("E", x - half, base - j - 1, 2, 1); } } // cooling towers, waisted
+        }
+        mid.R("M", 0, GY - 2, WL, DN);
+        for (const [py, tall, from, to] of [[GY - rd(30 * HS), 6, 0, WL], [GY - rd(54 * HS), 4, 60, 250], [GY - rd(46 * HS), 4, 440, 690]]) { // runs of pipe on legs, with flanges, and valves that drip on the kick
+          mid.R("M", from, py, to - from, tall); mid.R("I", from, py, to - from, 1);
+          for (let x = from + 6; x < to; x += 32) { mid.R("M", x, py - 1, 3, tall + 2); mid.R("I", x, py - 1, 1, tall + 2); }
+          for (let x = from + 20; x < to; x += 64) { mid.R("M", x, py, 4, GY - py); mid.R("I", x, py + tall, 1, GY - py); }
+          for (let x = from + 44; x < to; x += 96) { mid.R("M", x - 2, py + tall, 5, 4); mid.R("I", x - 3, py + tall + 4, 7, 1); hot.push({ x, y: py + tall + 6, sp: 0.3, kind: "drip" }); }
+        }
+        for (let i = 0; i < 8; i++) { const x = 30 + i * 96 + rd(ch(i, 8) * 30), ht = rd((22 + ch(i, 9) * 12) * HS); mid.R("M", x, GY - ht, 26, ht); mid.dome("M", x + 13, GY - ht, 13, 5, "I"); mid.R("I", x, GY - ht, 2, ht); mid.R("k", x + 9, GY - ht + 6, 8, 5); hot.push({ x: x + 10, y: GY - ht + 7, sp: 0.3, kind: "gauge", n: i }); } // vats, each with a gauge that shows its band of the spectrum
+      },
+      column(R, x, y, wx, DN) { // a catwalk with warning stripes, on thin legs braced crosswise
+        R("h", x, y, 1, 1); R("m", x, y + 1, 1, 2);
+        for (let r = 0; r < 3; r++) R((wx + r) % 8 < 4 ? "b" : "k", x, y + 3 + r, 1, 1);
+        R("n", x, y + 6, 1, 2);
+        const u = wx % 48;
+        if (u < 3) R(u === 1 ? "m" : "n", x, y + 8, 1, DN); else { const d = Math.round((u - 3) * 0.5); R("n", x, y + 8 + d, 1, 1); R("n", x, y + 30 - d, 1, 1); }
+      },
+    },
+    mycel: { // psy and goa: a mushroom forest at night that glows
+      pal: { k: [14, 8, 30], a: [255, 70, 190], s: [168, 40, 150], b: [60, 230, 230], c: [255, 160, 50], l: [240, 230, 255], h: [170, 140, 240], m: [96, 64, 170], n: [44, 26, 96], g: [170, 255, 90], F: [30, 14, 66], E: [62, 32, 112], M: [22, 10, 50], I: [96, 56, 156], X: [60, 230, 230], Y: [24, 70, 110], Z: [14, 24, 60], u: [190, 96, 40], v: [30, 140, 170], w: [70, 150, 70], d: [30, 16, 70], t: [20, 90, 110] },
+      skies: [[[14, 8, 40], [36, 16, 76], [76, 28, 116], [140, 44, 136]], [[6, 16, 36], [8, 44, 70], [16, 90, 100], [40, 150, 130]]],
+      orb: [{ kind: "rings", x: 0.72, y: 0.3, r: 16, col: [255, 160, 50], dark: [255, 70, 190], stars: 1 }, { kind: "rings", x: 0.3, y: 0.34, r: 14, col: [170, 255, 90], dark: [60, 230, 230], stars: 1 }],
+      swell: "wave", float: "seed", weather: { up: 3, side: 7, tones: "abc" },
+      low: [["...kkkkkk...", ".kkaalaaakk.", "kaalaaaalaak", "kaaaaalaaask", "kslaaaaaassk", ".kkkkkkkkkk.", "...khllnk...", "...khllnk...", "...khllnk...", "..khlllnnk..", "..kkkkkkkk.."],
+        ["....k....", "...kck...", "..kcclk..", "..kccck..", "...kck...", "g...m...g", "mg..m..gm", ".mg.m.gm.", "..mgmgm..", "...mmm..."]],
+      creature: [[["......kkkkk..", ".a.a.kbbbbbk.", ".l.lkbblbbmbk", ".llkkbbkkbbmk", "kllkkbbkbbmmk", "klllkkbbbbmkk", "khlllllllllhk", ".kkkkkkkkkkk."],
+        ["......kkkkk..", "a.a..kbbbbbk.", "l.l.kbblbbmbk", "lll.kbbkkbbmk", "kllkkbbkbbmmk", "kllllkbbbbmkk", "khlllllllllhk", ".kkkkkkkkkkk."]],
+        [["..............", "..kk...kk.....", ".kggk.kggkkk..", "kglgkkgggkggk.", "kgkggggggggggk", "kgggkggkgggkgk", ".kkk.kk.kkk.k."],
+          ["..............", "..............", ".kkk..........", "kglgkkkkkkkkk.", "kgkggggggggggk", "kgggkggkgggkgk", ".kkk.kk.kkk.k."]]],
+      gem: ["..bbb..", ".bbtbb.", "bbtltbb", "btlcltb", "bbtltbb", ".bbtbb.", "..bbb.."],
+      flyer: [["aa.......aa", "ala.....ala", ".aaak.kaaa.", "..asklksa..", "....klk....", "....klk....", ".....k....."], ["...........", "...........", "....k.k....", "..asklksa..", ".aaaklkaaa.", "ala..k..ala", "aa.......aa"]],
+      layers({ GY, DN, WL, HS }, far, mid, hot) {
+        const rd = Math.round, ch = runnerChance, caps = "acb", shades = "suv";
+        far.R("F", 0, GY - 6, WL, DN);
+        for (let i = 0; i * 48 < WL - 20; i++) { const x = rd(i * 48 + ch(i, 1) * 26), ht = rd((34 + ch(i, 2) * 60) * HS), rx = rd(13 + ch(i, 3) * 14), sw = 3 + (rx > 20 ? 2 : 0); // giant mushrooms far off
+          far.R("F", x - sw / 2, GY - 6 - ht, sw, ht); far.R("E", x - sw / 2, GY - 6 - ht, 1, ht); far.dome("F", x, GY - 6 - ht + 3, rx, rd(rx * 0.55), "E"); far.R("M", x - rx + 3, GY - 6 - ht + 2, rx * 2 - 6, 1); }
+        mid.R("M", 0, GY - 2, WL, DN);
+        for (let i = 0; i * 55 < WL - 30; i++) { const x = rd(14 + i * 55 + ch(i, 5) * 24), ht = rd((16 + ch(i, 6) * 34) * HS), rx = rd(9 + ch(i, 7) * 9), ry = rd(rx * 0.6), top = GY - ht, tone = i % 3; // nearer ones with spotted caps: a ring of light answers the kick over each
+          mid.R("I", x - 2, top, 4, ht); mid.R("l", x - 2, top, 1, ht); mid.R("M", x + 1, top, 1, ht);
+          mid.dome(shades[tone], x, top + 2, rx, ry); mid.dome(caps[tone], x - 1, top + 1, rx - 2, ry - 1); mid.R("k", x - rx + 2, top + 2, rx * 2 - 4, 1);
+          for (let sp = 0; sp < 3; sp++) mid.R("l", x - rd(rx * 0.55) + sp * rd(rx * 0.5), top + 1 - rd(ry * (sp === 1 ? 0.7 : 0.4)), 2, 2);
+          hot.push({ x, y: top + 2 - ry, sp: 0.3, kind: "pulse", rx, n: i }); }
+        for (let i = 0; i * 21.3 < WL - 8; i++) { const x = rd(i * 21.3 + ch(i, 11) * 12), ht = 3 + rd(ch(i, 12) * 6); for (let j = 0; j < ht; j++) mid.R(j % 2 ? "I" : "m", x + rd(Math.sin(j * 0.9 + i) * 1.5), GY - 2 - j, 1 + (j < ht - 2), 1); } // ferns
+      },
+      column(R, x, y, wx, DN) { // turf over dark soil, with roots and a few specks that glow
+        const ch = runnerChance, tuft = ch(wx, 5) < 0.28 ? 2 : ch(wx, 6) < 0.5 ? 1 : 0, root = wx % 48;
+        R("g", x, y - tuft, 1, tuft + 1); R("w", x, y + 1, 1, 1); R("n", x, y + 2, 1, 5); R("d", x, y + 7, 1, DN);
+        if (wx & 1) R("d", x, y + 5 + ((wx >> 1) & 1), 1, 1);
+        if (ch(wx, 7) < 0.07) R(ch(wx, 8) < 0.5 ? "b" : "a", x, y + 6 + Math.round(ch(wx, 9) * 26), 1, 1);
+        if (root < 9) R("m", x, y + 9 + Math.round(root * 1.6 + Math.sin(root) * 2), 1, 1);
+      },
+    },
+    foundry: { // hard trance, hardcore, hardstyle: a steelworks, black and red, with drop hammers
+      pal: { k: [10, 8, 10], a: [255, 140, 40], s: [190, 80, 20], b: [255, 226, 150], c: [230, 50, 30], l: [255, 244, 220], h: [140, 144, 160], m: [74, 76, 90], n: [38, 36, 46], g: [140, 144, 160], F: [34, 13, 15], E: [78, 28, 20], M: [16, 10, 12], I: [84, 52, 46], X: [255, 226, 150], Y: [255, 140, 40], Z: [116, 24, 18], d: [104, 36, 18] },
+      skies: [[[12, 8, 12], [36, 12, 16], [84, 22, 18], [160, 52, 20]], [[8, 10, 22], [20, 26, 54], [60, 40, 70], [150, 70, 50]]],
+      orb: [{ kind: "sun", x: 0.76, y: 0.62, r: 20, col: [255, 170, 60], halo: [200, 70, 24] }, { kind: "moon", x: 0.26, y: 0.26, r: 11, col: [220, 220, 240], dark: [20, 26, 54], stars: 1 }],
+      swell: "wave", float: "chute", weather: { up: 26, side: 5, tones: "abc" },
+      low: [["kkkkkkkkkkkk.", "khhhhhhhhhmkk", ".kmmmmmmmmnk.", "..kkkmmnkkk..", "....kmmnk....", "....kmmnk....", "...kkmmnkk...", "..khmmmmnnk..", "..kkkkkkkkk.."],
+        [".kkkkkkk.", "khhhhhmmk", "kkkkkkkkk", "khmmmmmnk", "kakkakkak", "kkakkakkk", "khmmmmmnk", "kkkkkkkkk", "khmmmmmnk", "khmmmmmnk", ".kkkkkkk."]],
+      creature: [[["....kkkk....", "..kkkhhkkk..", ".khhhhhhhmk.", ".khkkkkkkmk.", ".khkcckkkmk.", ".khkkkkkkmk.", ".khmmmmmmnk.", ".kmmbmmbmnk.", ".kkkkkkkkkk.", "..kmk..kmk..", "..kmk..kmk..", ".kkmk..kmkk.", ".kkkk..kkkk."],
+        ["............", "....kkkk....", "..kkkhhkkk..", ".khhhhhhhmk.", ".khkkkkkkmk.", ".khkkcckkmk.", ".khkkkkkkmk.", ".khmmmmmmnk.", ".kmmbmmbmnk.", ".kkkkkkkkkk.", "..kmk..kmk..", ".kkmk..kmkk.", ".kkkk..kkkk."]],
+        [["..b.....b....", ".kkkkkkkkkkk.", ".kabbbbbbbak.", ".kmaaaaaaank.", "..kmmmmmmnk..", "..kmmmmmmnk..", ".kkkkkkkkkkk.", ".khk.....khk.", "..k.......k.."],
+          ["....b....b...", ".kkkkkkkkkkk.", ".kbabbbbabbk.", ".kmaaaaaaank.", "..kmmmmmmnk..", "..kmmmmmmnk..", ".kkkkkkkkkkk.", ".kkh.....kkh.", "..k.......k.."]]],
+      gem: ["..kkk..", ".kblbk.", "kbbbbbk", "kbbabbk", "kbaaabk", ".kaaak.", "..kkk.."],
+      flyer: [["hhhhh.hhhhh.", ".....k......", "..kkkkkkk...", ".kmhhhmmck..", ".knmmmmmmk..", "..kkkkkkk...", "...k...k...."], ["..hhh.hhh...", ".....k......", "..kkkkkkk...", ".kmhhhmmck..", ".knmmmmmmk..", "..kkkkkkk...", "...k...k...."]],
+      layers({ GY, DN, WL, HS }, far, mid, hot) {
+        const rd = Math.round, ch = runnerChance, base = GY - 8, gy = GY - rd(52 * HS);
+        far.R("F", 0, base, WL, DN);
+        for (let i = 0; i * 48 < WL - 20; i++) { const x = rd(i * 48 + ch(i, 1) * 16);
+          if (ch(i, 2) < 0.45) { const ht = rd((46 + ch(i, 3) * 48) * HS); far.R("F", x, base - ht, 6, ht); far.R("E", x, base - ht, 1, ht); far.R("E", x, base - ht + 5, 6, 1); far.R("E", x, base - ht + 9, 6, 1); hot.push({ x: x + 3, y: base - ht - 1, sp: 0.1, kind: "flame", n: i }); } // chimneys, each with a flame that stands as high as its band of the spectrum
+          else { const wd = 40, ht = rd((14 + ch(i, 3) * 12) * HS); far.R("F", x, base - ht, wd, ht); for (let r = 0; r < 4; r++) far.tri("F", x + 5 + r * 10, base - ht, 5, 6, "E"); for (let j = 3; j < wd - 3; j += 6) far.R("E", x + j, base - ht + 5, 3, 2); } // sheds with saw-tooth roofs
+        }
+        mid.R("M", 0, GY - 2, WL, DN);
+        mid.R("M", 0, gy, WL, 6); mid.R("I", 0, gy, WL, 1); mid.R("I", 0, gy + 5, WL, 1); // a gantry of lattice girder on legs
+        for (let x = 0; x < WL; x += 8) for (let j = 0; j < 4; j++) mid.R("I", x + j, gy + 1 + j, 1, 1);
+        for (let x = 12; x < WL; x += 96) { mid.R("M", x, gy, 7, GY - gy); mid.R("I", x, gy, 1, GY - gy); for (let j = gy + 8; j < GY - 4; j += 8) mid.R("I", x + 2, j, 3, 1); }
+        for (let i = 0; i < 8; i++) { const x = 52 + i * 96; hot.push({ x, y: gy + 6, sp: 0.3, kind: "hammer", n: i, reach: Math.max(4, GY - gy - 22) }); mid.R("M", x - 9, GY - 10, 18, 10); mid.R("I", x - 9, GY - 10, 18, 1); mid.R("s", x - 5, GY - 6, 10, 2); } // hammers that fall on the kick, each over its block
+        for (let i = 0; i < 8; i++) { const x = 84 + i * 96, len = rd(10 + ch(i, 4) * 16); for (let j = 0; j < len; j += 2) mid.R("I", x, gy + 6 + j, 1, 1); mid.R("I", x - 1, gy + 6 + len, 3, 1); mid.R("I", x - 1, gy + 7 + len, 1, 2); } // chains with hooks
+      },
+      column(R, x, y, wx, DN) { // a deck of plate with warning stripes over a wall of trestle, and a row of lights let into it (dark here: lights() below lights them by the spectrum)
+        const u = wx % 24, v = wx % 48;
+        R("h", x, y, 1, 1); R("m", x, y + 1, 1, 3); if (u % 6 === 2) R("h", x, y + 2, 1, 1);
+        for (let r = 0; r < 4; r++) R((wx + r) % 8 < 4 ? "c" : "k", x, y + 4 + r, 1, 1);
+        R("n", x, y + 8, 1, DN); R("m", x, y + 9, 1, 1); R("k", x, y + 20, 1, 1); R("m", x, y + 21, 1, 1);
+        if (v < 4) R(v === 3 ? "k" : "m", x, y + 22, 1, DN); else { const d = Math.round((v - 4) * 0.8); R("k", x, y + 22 + d, 1, 1); R("k", x, y + 57 - d, 1, 1); }
+        if (u >= 8 && u < 16) { R("d", x, y + 12, 1, 4); R("c", x, y + 16, 1, 1); } else if (u === 7 || u === 16) R("k", x, y + 12, 1, 5);
+      },
+      lights: { every: 3, at: 1, draw(R, x, y, v) { if (v > 0.3) R("a", x, y + 12, 8, 4); if (v > 0.65) R("b", x, y + 12, 8, 2); } },
+    },
+    aerie: { // trance, and ambient: a stone bridge above the clouds at dusk, peaks and islands that float
+      pal: { k: [28, 22, 58], a: [255, 214, 90], s: [224, 150, 70], b: [120, 224, 255], c: [255, 130, 180], l: [250, 248, 255], h: [176, 166, 220], m: [112, 100, 160], n: [70, 60, 116], g: [80, 206, 170], F: [128, 100, 176], E: [244, 226, 240], M: [86, 72, 146], I: [200, 190, 240], X: [250, 248, 255], Y: [200, 190, 240], Z: [140, 124, 200], u: [152, 124, 198], v: [214, 196, 232], w: [186, 166, 222] },
+      skies: [[[44, 44, 120], [100, 76, 170], [206, 116, 176], [255, 184, 150]], [[12, 12, 46], [28, 28, 86], [66, 56, 136], [140, 100, 180]]],
+      orb: [{ kind: "sun", x: 0.7, y: 0.74, r: 22, col: [255, 244, 200], halo: [255, 214, 150] }, { kind: "moon", x: 0.74, y: 0.3, r: 14, col: [250, 248, 255], dark: [28, 28, 86], stars: 1 }],
+      swell: "puffs", float: "chute", weather: { up: 2, side: 12, tones: "cl" },
+      low: [[".....kk....", "....klbk...", "....klbk.k.", ".k..klbkklk", "klk.klbkkbk", "klbkklbklbk", "klbkllbklbk", "klbbklbbbbk", "kkkkkkkkkkk"],
+        ["....k....", "...khk...", "..khhhk..", ".kkkkkkk.", "..kaalk..", "..kaaak..", ".kkkkkkk.", "...khk...", "...kmk...", "..kkmkk..", ".kmmmmnk."]],
+      creature: [[["...kkkkkkk...", "..klllllllk..", ".kkllllllllk.", "knnnklllllllk", "knlnkhllllllk", "knnnkhhllllhk", ".kkkkhhhhhhk.", "....kkkkkkk..", "....nk...nk..", "....nk...nk.."],
+        [".............", "...kkkkkkk...", "..klllllllk..", ".kkllllllllk.", "knnnklllllllk", "knlnkhllllllk", "knnnkhhllllhk", ".kkkkhhhhhhk.", "....kkkkkkk..", ".....nk.nk..."]],
+        [["..kk.kk.....", "..klkklk....", "..klkklk....", ".kkllllkkkk.", "klkllllllllk", "kllllllllllk", ".kclllllhhhk", "..kkllhhhhk.", "...klk.klk..", "...kkk.kkk.."],
+          ["............", "...kkkkk....", "..kllkllk...", ".kkllllkkkk.", "klkllllllllk", "kllllllllllk", ".kclllllhhhk", "..kkllhhhhk.", "..klk...klk.", "..kk.....kk."]]],
+      gem: ["...a...", "...a...", "..ala..", "aalllaa", "..ala..", "...a...", "...a..."],
+      flyer: [["..ll.......", "..lll......", "...lll.....", "kkllllllla.", "..hllllh...", "....hh....."], ["...........", "...........", "kkllllllla.", "..lllllh...", "..lll......", "..ll......."]],
+      layers({ GY, DN, WL, HS }, far, mid, hot) {
+        const rd = Math.round, ch = runnerChance;
+        for (let i = 0; i * 64 < WL - 30; i++) { const x = rd(i * 64 + ch(i, 1) * 30), half = rd(30 + ch(i, 2) * 22), ht = rd((40 + ch(i, 3) * 44) * HS), cap = rd(ht * 0.3); far.tri("F", x, GY + 4, half, ht, "u"); // peaks, lit from the left, each with a cap of snow
+          for (let j = 0; j < cap + 4; j++) { const hw = rd(half * (j / ht)); for (let xx = -hw; xx <= hw; xx++) if (j < cap - 2 + (((xx + 400) >> 1) % 3) * 2) far.R(xx > hw * 0.3 ? "v" : "E", x + xx, GY + 4 - ht + j, 1, 1); } }
+        for (let i = 0; i * 32 < WL - 10; i++) far.dome("w", rd(i * 32 + ch(i, 4) * 20), GY + 8, rd(14 + ch(i, 5) * 12), rd(6 + ch(i, 6) * 6), "v");
+        far.R("w", 0, GY + 8, WL, DN);
+        for (let i = 0; i < 8; i++) { const x = rd(40 + i * 96 + ch(i, 7) * 30), top = GY - rd((34 + ch(i, 8) * 40) * HS), half = rd(14 + ch(i, 9) * 10); // islands that float, each with a tower whose lamp answers the spectrum
+          for (let j = 0; j < half; j++) { const hw = rd(half * (1 - (j / half) ** 1.4)); mid.R(j < 3 ? "I" : "M", x - hw, top + j, hw * 2, 1); mid.R("I", x - hw, top + j, Math.max(1, rd(hw * 0.3)), 1); if (j > 2 && j & 1) mid.R("n", x + rd(hw * 0.4), top + j, rd(hw * 0.6), 1); }
+          mid.R("g", x - half, top - 1, half * 2, 2); mid.R("M", x + 3, top - 13, 4, 12); mid.R("I", x + 3, top - 13, 1, 12); mid.tri("c", x + 5, top - 13, 3, 4); hot.push({ x: x + 4, y: top - 9, sp: 0.3, kind: "beacon", n: i });
+          for (let j = 0; j < 18; j += 2) mid.R("b", x - half + 4, top + 2 + j, 1, 1); }
+        for (let i = 0; i * 77 < WL - 40; i++) { const x = rd(i * 77 + ch(i, 10) * 40), y = GY - rd((8 + ch(i, 11) * 70) * HS); for (let k = 0; k < 3; k++) { mid.dome("h", x + k * 9 + 1, y + 2, 8 - k, 5 - (k & 1)); mid.dome("l", x + k * 9, y, 8 - k, 5 - (k & 1)); } mid.R("h", x - 8, y, 34, 2); } // clouds
+      },
+      column(R, x, y, wx, DN) { // a bridge of stone with grass on top, on piers with round arches between
+        const u = (wx % 48) - 24, tuft = runnerChance(wx, 5) < 0.25 ? 1 : 0;
+        R("g", x, y - tuft, 1, 2 + tuft); R("h", x, y + 2, 1, 1); R("m", x, y + 3, 1, 5); if (wx % 8 === 4) R("n", x, y + 4, 1, 3);
+        if (u >= 19 || u < -19) R(u >= 19 ? "m" : "n", x, y + 8, 1, DN); else { const dip = 19 - Math.round(Math.sqrt(361 - u * u)); R(u < 0 ? "n" : "m", x, y + 8, 1, dip + 1); R("k", x, y + 9 + dip, 1, 1); }
+      },
+    },
+    board: { // game music, and whatever nothing else claims: the inside of the machine, a land of circuit board
+      pal: { k: [10, 16, 34], a: [255, 206, 70], s: [200, 136, 40], b: [90, 240, 190], c: [255, 90, 120], l: [240, 255, 236], h: [80, 196, 128], m: [34, 124, 92], n: [16, 72, 64], g: [150, 240, 130], F: [16, 44, 66], E: [36, 84, 96], M: [12, 28, 48], I: [50, 110, 110], X: [90, 240, 190], Y: [30, 120, 130], Z: [14, 50, 70] },
+      skies: [[[10, 18, 44], [16, 40, 74], [26, 84, 104], [70, 160, 130]], [[26, 10, 44], [60, 20, 80], [130, 40, 110], [230, 100, 120]]],
+      orb: [{ kind: "tile", x: 0.72, y: 0.5, r: 15, col: [250, 244, 170], halo: [150, 214, 140] }, { kind: "moon", x: 0.26, y: 0.3, r: 12, col: [255, 226, 232], dark: [60, 20, 80], stars: 1 }],
+      swell: "wave", float: "chute", weather: { up: 6, side: 3, tones: "bl" },
+      low: [[".kkkkk.", "khhhhmk", "kkkkkkk", "kbbbbck", "kbbbbck", "kbbbbck", "kbbbbck", "kkkkkkk", ".h...h.", ".h...h."],
+        [".kkkkkkkkkkk.", "kmmmmmmmmmmmk", "kmlmmmbbbbmmk", "kmmmmmmmmmmmk", ".kkkkkkkkkkk.", ".h.h.h.h.h.h.", ".h.h.h.h.h.h."]],
+      creature: [[["l..l........", ".kk.kkkkkk..", ".kkkcccaccck", "klkkccccccck", "kkkkcaccccak", ".kkkkkkkkkk.", ".h.h..h..h..", "h..h..h...h."],
+        [".l.l........", ".kk.kkkkkk..", ".kkkcccaccck", "klkkccccccck", "kkkkcaccccak", ".kkkkkkkkkk.", "..h.h..h.h..", "..h..h.h..h."]],
+        [[".kkkkkkkk.", "kbbbbbbbbk", "kblkbblkbk", "kblkbblkbk", "kbbbbbbbbk", "kbbkkkkbbk", "kbbbbbbbmk", ".kkkkkkkk.", "..h....h..", ".hh...hh.."],
+          ["..........", ".kkkkkkkk.", "kbbbbbbbbk", "kblkbblkbk", "kbbbbbbbbk", "kbbkkkkbbk", "kbbbbbbbmk", ".kkkkkkkk.", ".h......h.", "hh......hh"]]],
+      gem: ["...kkkk", "...kaak", "...kakk", "...kak.", ".kkkak.", "kaaaak.", "kaaaak.", ".kkkk.."],
+      flyer: [["ll.......ll", "lhl..k..lhl", ".lhlklklhl.", "..llklkll..", "....klk....", "....k.k...."], ["...........", "....k.k....", "..llklkll..", ".lhlklklhl.", "lhl.klk.lhl", "ll.......ll"]],
+      layers({ GY, DN, WL, HS }, far, mid, hot) {
+        const rd = Math.round, ch = runnerChance, base = GY - 6;
+        far.R("F", 0, base, WL, DN);
+        for (let i = 0; i * 56 < WL - 30; i++) { const x = rd(i * 56 + ch(i, 1) * 22), kind = ch(i, 2);
+          if (kind < 0.5) { const wd = rd(26 + ch(i, 3) * 20), ht = rd((16 + ch(i, 4) * 22) * HS), top = base - ht - 5; far.R("F", x, top, wd, ht); far.R("E", x, top, wd, 1); far.R("E", x + 3, top + 3, 2, 2); for (let j = 2; j < wd - 1; j += 4) far.R("F", x + j, top + ht, 1, 5); } // great chips standing on their legs, each with its mark in one corner
+          else if (kind < 0.8) { const ht = rd((40 + ch(i, 3) * 40) * HS); for (let j = 0; j < ht; j += 4) far.R(j % 8 ? "F" : "E", x - (j % 8 ? 4 : 5), base - j - 3, j % 8 ? 8 : 10, 3); far.R("F", x - 1, base - ht - 6, 2, 8); hot.push({ x, y: base - ht - 8, sp: 0.1, kind: "lamp" }); } // coils wound up a core, a lamp on top
+          else { const ht = rd(24 * HS); far.R("F", x, base - 4, 30, 4); for (let j = 0; j < 30; j += 4) far.R("F", x + j, base - ht, 2, ht); far.R("E", x, base - ht, 1, ht); } // cooling fins
+        }
+        mid.R("M", 0, GY - 2, WL, DN);
+        for (let i = 0; i * 64 < WL - 30; i++) { const x = rd(20 + i * 64 + ch(i, 5) * 26), kind = i % 3;
+          if (kind === 0) { const ht = rd((22 + ch(i, 6) * 18) * HS); mid.R("M", x, GY - ht, 14, ht); mid.dome("M", x + 7, GY - ht, 7, 3, "I"); mid.R("I", x, GY - ht, 2, ht); mid.R("c", x + 10, GY - ht + 2, 3, ht - 4); } // capacitors, each with its stripe
+          else if (kind === 1) { const ht = rd((30 + ch(i, 6) * 16) * HS), rows = Math.max(3, Math.min(6, Math.floor((ht - 6) / 4))); mid.R("M", x, GY - ht, 9, ht); mid.R("I", x, GY - ht, 9, 1); mid.R("I", x, GY - ht, 1, ht); hot.push({ x: x + 3, y: GY - ht + 3, sp: 0.3, kind: "meter", n: i, rows }); } // a tower of lights that stands as high as its band of the spectrum
+          else { const ht = rd(10 * HS) + 4; mid.R("I", x, GY - ht, 1, ht); mid.R("I", x + 21, GY - ht, 1, ht); mid.R("M", x + 3, GY - ht - 3, 16, 7); mid.R("I", x + 3, GY - ht - 3, 16, 1); for (let j = 0; j < 4; j++) mid.R("abca"[j], x + 5 + j * 3, GY - ht - 2, 2, 5); } // a resistor lying across two posts, with its colored bands
+        }
+        for (let x = 6; x < WL; x += 48) { mid.R("I", x, GY - 3, 30, 1); mid.R("I", x + 30, GY - 6, 1, 4); } // tracks along the ground
+      },
+      column(R, x, y, wx, DN) { // a slab of board with a gold track along it and a small light let in every so often, standing on pins
+        const u = wx % 24, v = wx % 48;
+        R("g", x, y, 1, 1); R("h", x, y + 1, 1, 1); R("m", x, y + 2, 1, 6); R("n", x, y + 8, 1, 2);
+        if (u >= 8 && u < 16) { R("a", x, y + 7, 1, 1); if (u >= 10 && u < 14) R("n", x, y + 4, 1, 2); } else R("a", x, y + 6, 1, 1);
+        if (v < 4) R(v === 0 || v === 3 ? "n" : "m", x, y + 10, 1, DN); else { R("n", x, y + 18, 1, 1); if (v % 6 < 3) R("n", x, y + 24, 1, 1); }
+      },
+      lights: { every: 3, at: 1, draw(R, x, y, v) { if (v > 0.3) R("b", x + 2, y + 4, 4, 2); if (v > 0.65) R("l", x + 3, y + 4, 2, 1); } },
+    },
+    city: { // techno, house, drum and bass: over the roofs of a city at night, on a railway carried high above the street
+      pal: { k: [8, 10, 26], a: [255, 84, 170], s: [164, 44, 130], b: [90, 220, 255], c: [255, 184, 70], l: [238, 240, 255], h: [132, 142, 176], m: [72, 80, 116], n: [38, 42, 72], g: [132, 142, 176], F: [22, 22, 56], E: [64, 61, 128], M: [12, 14, 36], I: [62, 66, 112], X: [255, 184, 70], Y: [58, 34, 76], Z: [16, 14, 40], r: [230, 60, 70] },
+      skies: [[[8, 8, 28], [18, 18, 54], [44, 30, 92], [104, 52, 124]], [[26, 34, 84], [70, 66, 140], [190, 104, 140], [255, 176, 124]]],
+      orb: [{ kind: "moon", x: 0.24, y: 0.26, r: 12, col: [238, 240, 255], dark: [18, 18, 54], stars: 1 }, { kind: "sun", x: 0.7, y: 0.8, r: 20, col: [255, 236, 180], halo: [255, 190, 130] }],
+      swell: "street", float: "balloons", weather: { up: -40, side: 6, tones: "hb" },
+      low: [[".kkkkkkkkk.", "khhhhhhhhmk", "kmkkkkkkknk", "kmkbkbkbknk", "kmkkkkkkknk", "kmmmmmmmmnk", "kkkkkkkkkkk", ".kn.....nk."],
+        ["......kk..", "....kkhk..", "..kkhhhk.c", ".khhhhmk..", ".khhhmmk..", "..khmmk...", "...kkkk...", "....km....", "....km....", "..kkkkkk.."]],
+      creature: [[["..kkk......", ".khhhk.....", "ckkhhk.....", ".khhhkkkk..", "..khhhhhhk.", "..khllllhhk", "...khlllkk.", "....kkkk...", "....a.a...."],
+        ["...........", ".kkk.......", "khhhk......", "ckkhhkkkk..", ".kkhhhhhhk.", "..khllllhhk", "...khlllkk.", "....kkkk...", "...a...a..."]],
+        [["l..l......", "llll....l.", "lklkl...l.", "lllll..hl.", ".aaaalll..", ".llllllll.", ".lhllllll.", ".lhllllll.", ".lll.llll.", ".l.l.l..l."],
+          ["l..l......", "llll......", "lklkl.....", "lllll.....", ".aaaalll..", ".llllllll.", ".lhlllllll", ".lhlllllll", ".lll.llll.", ".l.l.l..l."]]],
+      gem: ["..hhh..", ".hnnnh.", "hnnannh", "hnalanh", "hnnannh", ".hnnnh.", "..hhh.."],
+      flyer: [["...kkkkkkk...", ".khhhhhhhhhkm", "khhbbhhhhhmmm", ".kmmmmmmmmkm.", "...kkkkkkk...", ".....kak....."], ["...kkkkkkk...", ".khhhhhhhhhkm", "khhbbhhhhhmmm", ".kmmmmmmmmkm.", "...kkkkkkk...", ".....kck....."]],
+      layers({ GY, DN, WL, HS }, far, mid, hot) {
+        const rd = Math.round, ch = runnerChance, base = GY - 6;
+        far.R("F", 0, base, WL, DN);
+        for (let x = 0, i = 0; x < WL - 14; i++) { const wd = rd(14 + ch(i, 1) * 18), ht = rd((24 + ch(i, 2) ** 2 * 70) * HS), top = base - ht; far.R("F", x, top, wd, ht); far.R("E", x, top, 1, ht); far.R("E", x, top, wd, 1); // the skyline: tower blocks with one edge and the roof line a little lighter (so they still read against the night sky), a few windows lit, a mast with a lamp on the tall ones
+          for (let j = 0; j < 7; j++) far.R(j % 3 ? "E" : "c", x + 2 + rd(ch(i, 20 + j) * (wd - 5)), top + 3 + rd(ch(i, 10 + j) * Math.max(0, ht - 8)), 2, 1);
+          if (ht > 66 * HS) { far.R("F", x + (wd >> 1), top - 9, 1, 9); hot.push({ x: x + (wd >> 1), y: top - 11, sp: 0.1, kind: "lamp" }); }
+          x += wd + rd(ch(i, 3) * 8); }
+        mid.R("M", 0, GY - 2, WL, DN);
+        for (let i = 0; i * 96 < WL - 40; i++) { const x = rd(10 + i * 96 + ch(i, 5) * 30), wd = rd(34 + ch(i, 6) * 16), ht = rd((30 + ch(i, 7) * 34) * HS), top = GY - ht; // nearer blocks with rows of windows, and on each roof a water tank or a sign whose bars are the spectrum
+          mid.R("M", x, top, wd, ht); mid.R("I", x, top, wd, 1); mid.R("I", x, top, 1, ht);
+          for (let wy = top + 4; wy < GY - 6; wy += 6) for (let wx = x + 3; wx < x + wd - 3; wx += 5) { const lit = ch(wx, wy); if (lit < 0.3) mid.R(lit < 0.07 ? "b" : lit < 0.17 ? "c" : "n", wx, wy, 3, 3); }
+          if (i % 2) { mid.R("M", x + 5, top - 9, 9, 7); mid.R("I", x + 5, top - 9, 1, 7); mid.R("M", x + 6, top - 2, 1, 2); mid.R("M", x + 12, top - 2, 1, 2); mid.tri("M", x + 9, top - 9, 5, 3, "I"); }
+          else { mid.R("I", x + 4, top - 14, 22, 12); mid.R("k", x + 5, top - 13, 20, 10); mid.R("M", x + 8, top - 2, 1, 2); mid.R("M", x + 21, top - 2, 1, 2); hot.push({ x: x + 7, y: top - 5, sp: 0.3, kind: "sign", n: i }); } }
+        for (let x = 30; x < WL; x += 96) { const top = GY - rd(22 * HS); mid.R("I", x, top, 1, GY - top); mid.R("I", x, top, 5, 1); mid.R("c", x + 4, top + 1, 2, 1); } // street lamps
+      },
+      column(R, x, y, wx, DN) { // a deck of concrete with a row of studs, on a girder that zigzags between square piers
+        const v = wx % 64;
+        R("h", x, y, 1, 1); R("m", x, y + 1, 1, 3); R("n", x, y + 4, 1, 4); if (wx % 4 === 0) R("m", x, y + 5, 1, 1);
+        if (v < 8) R(v < 4 ? "m" : "n", x, y + 8, 1, DN); else { R("n", x, y + 8, 1, 2); R("n", x, y + 10 + Math.abs(((v - 8) % 28) - 14), 1, 1); R("n", x, y + 24, 1, 1); }
+      },
+      lights: { every: 4, at: 2, draw(R, x, y, v) { R(v > 0.65 ? "l" : v > 0.3 ? "b" : "s", x + 3, y + 5, 2, 2); } },
+    },
+  };
+
+  const runner = { fresh: true, seen: 0, bands: new Float32Array(16), tops: new Int16Array(800), past: new Float32Array(18), body: null }, runnerBits = [], runnerLooks = new Map(); // the game as it stands, the sparks in the air, and what has been drawn ready for each world
+  const runnerCourse = Array.from({ length: 128 }, () => ({ n: -99, kind: 0, which: 0, taken: 0 })), RUNNER_BLANK = { n: -99, kind: 0, which: 0, taken: 7 }; // what stands at each of the beats near by: 0 nothing, 1 something low, 2 someone who lives here, 3 a gap in the path, 4 nothing but three pickups; which of the two it is, and which of its pickups are taken (128 places: more than the widest picture shows at the slowest pace)
+  const runnerItem = (n) => { const it = runnerCourse[n & 127]; return it.n === n ? it : RUNNER_BLANK; };
+  function runnerBegin() { // a new game: nothing on the course, nothing counted, the first sky
+    Object.assign(runner, { fresh: false, beat: 0, period: 60 / 128, owe: 0, heard: false, sinceHit: 0, lastErr: 0, inStep: 0, off: 0, sure: 0, gaps: 0, pastN: 0, own: 0, ownFor: 0, cycle: 0, astray: 0, calmFor: 9, along: 0, dpb: 0, air: 0, gust: 0, fly: 0, swell: 0,
+      gone: 0, floating: false, step: 0, lift: 0, sink: 0, laid: -1, noThings: 0, score: 0, due: 0, dueWait: 0, ring: 0, cheer: 0, zone: 0, iris: 0, irisAt: 0, turn: 0, skyFor: 32, gate: null, leap: null, stumble: 0, skip: 0, land: 0, inAir: false,
+      scarf: 0, feetWas: 0, fliers: -1, blink: 0, glint: 0, pound: 0, world: "", was: "", fade: 0, want: "", wantFor: 0 });
+    runner.bands.fill(0);
+    runnerBits.length = 0;
+    for (const it of runnerCourse) it.n = -99;
+  }
+  const runnerSpark = (x, y, vx, vy, life, tone, size = 1, fall = 0) => { if (runnerBits.length < 70) runnerBits.push({ x, y, vx, vy, life, all: life, tone, size, fall }); };
+
+  function runnerLook(key, S) { // everything that is drawn once for one world on one shape of screen and then only copied: its two skies, the two strips of scenery that slide by, a strip of the path, its sprites and its colors
+    const id = key + " " + S.across + "x" + S.down, had = runnerLooks.get(id);
+    if (had) { runnerLooks.delete(id); runnerLooks.set(id, had); return had; } // (asked for again, so it is the last to go)
+    if (runnerLooks.size > 3) runnerLooks.delete(runnerLooks.keys().next().value); // four are kept at most: the one asked for longest ago goes
+    const W = RUNNER_WORLDS[key], A = S.across, DN = S.down, TALL = DN > A * 1.2, HS = (TALL ? 1.35 : 1) * Math.min(1, DN / 180), rd = Math.round; // HS: how tall things stand: taller on a phone held upright, lower on a screen that is short of dots
+    const K = { A, DN, TALL, HS, GY: rd(DN * (TALL ? 0.74 : 0.72)), HX: rd(A * (TALL ? 0.3 : 0.28)), DPB: TALL ? 30 : 40, WL: 768, PW: 384, DEEP: DN - rd(DN * 0.09) }; // where the path lies, where the figure runs, how many dots a beat carries it, how wide the strips are, where the surface under the path lies
+    const css = W.css || (W.css = Object.fromEntries(Object.entries({ ...W.pal, ...RUNNER_WEARS }).map(([letter, tone]) => [letter, pixelCss(tone)])));
+    const art = W.art || (W.art = { low: W.low.map((rows) => pixelSprite(rows, W.pal)), creature: W.creature.map((poses) => poses.map((rows) => pixelSprite(rows, W.pal))), gem: pixelSprite(W.gem, W.pal), flyer: W.flyer.map((rows) => pixelSprite(rows, W.pal)) });
+    function sky(z) { // bands of color with a patterned edge between them, the sun or moon, and stars
+      const ramp = W.skies[z], orb = W.orb[z], [c, x] = paper(A, DN), img = x.createImageData(A, DN), ink = img.data, hz = K.GY + 8, n = ramp.length - 1, ox = rd(A * orb.x), oy = rd(K.GY * orb.y), r = rd(orb.r * (TALL ? 1.1 : 1) * Math.max(0.6, Math.min(1, DN / 180))), reach = r * 2.1 + 2;
+      const dot = (xx, y, col) => { const o = (y * A + xx) * 4; ink[o] = col[0]; ink[o + 1] = col[1]; ink[o + 2] = col[2]; ink[o + 3] = 255; };
+      for (let y = 0; y < DN; y++) {
+        const f = Math.min(n - 0.001, (y / hz) * n), i = Math.floor(f), edge = (f - i - 0.36) / 0.28, near = Math.abs(y - oy) < reach;
+        for (let xx = 0; xx < A; xx++) {
+          let col = edge > runnerGrain(xx, y) ? ramp[i + 1] : ramp[i];
+          if (near && Math.abs(xx - ox) < reach) { // (only the dots near the sun or moon are asked how far from it they are)
+            const dx = xx - ox, dy = y - oy, d = orb.kind === "tile" ? Math.max(Math.abs(dx), Math.abs(dy)) : Math.hypot(dx, dy);
+            if (orb.kind === "moon") { if (d < r) col = Math.hypot(dx - r * 0.45, dy + r * 0.3) < r * 0.85 ? orb.dark : orb.col; }
+            else if (orb.kind === "rings") { if (d < r) col = (Math.floor(d / 3) + Math.floor(((Math.atan2(dy, dx) / TAU + 1) % 1) * 12)) & 1 ? orb.col : orb.dark; else if (d < r + 1.2) col = W.pal.l; } // a disc of rings and wedges
+            else if (d < r) col = orb.col; else if ((1 - (d - r) / (r * 1.1)) * 0.75 > runnerGrain(xx, y)) col = orb.halo; // a round sun, or a square one, in its haze
+          }
+          dot(xx, y, col);
+        }
+      }
+      if (orb.stars) for (let k = 0; k < A * hz * 0.0045; k++) { const sx = Math.floor(runnerChance(k, 4 + z) * A), sy = Math.floor(runnerChance(k, 6 + z) * hz * 0.75); if (Math.hypot(sx - ox, sy - oy) > r + 2) dot(sx, sy, runnerChance(k, 8) < 0.4 ? W.pal.l : ramp[Math.min(n, Math.floor((sy / hz) * n) + 2)]); }
+      x.putImageData(img, 0, 0);
+      return c;
+    }
+    function strip() { // a strip of scenery that joins up with itself, and the three shapes the worlds are built from: a block, a dome and a peak, each with a lit edge if wanted
+      const [c, x] = paper(K.WL, DN);
+      const R = (tone, px, py, wide, tall) => { px = rd(px); wide = rd(wide); x.fillStyle = css[tone]; x.fillRect(px, rd(py), wide, rd(tall)); if (px < 0) x.fillRect(px + K.WL, rd(py), wide, rd(tall)); else if (px + wide > K.WL) x.fillRect(px - K.WL, rd(py), wide, rd(tall)); }; // (what runs off one end comes in at the other)
+      const dome = (tone, cx, base, rx, ry, lit) => { for (let j = 1; j <= ry; j++) { const half = rd(rx * Math.sqrt(1 - ((j - 0.5) / ry) ** 2)); R(tone, cx - half, base - j, half * 2, 1); if (lit) R(lit, cx - half, base - j, Math.max(1, rd(half * 0.35)), 1); } };
+      const tri = (tone, cx, base, half, tall, lit) => { for (let j = 0; j < tall; j++) { const hw = rd(half * (1 - j / tall)); R(tone, cx - hw, base - j - 1, hw * 2 + 1, 1); if (lit) R(lit, cx - hw, base - j - 1, Math.max(1, rd(hw * 0.4)), 1); } };
+      return { c, R, dome, tri };
+    }
+    const far = strip(), mid = strip(), hot = [], [path, px] = paper(K.PW, DN + 4), [dots, dx] = paper(A, 1);
+    W.layers(K, far, mid, hot);
+    for (let wx = 0; wx < K.PW; wx++) W.column((tone, x, y, wide, tall) => { px.fillStyle = css[tone]; px.fillRect(x, y, wide, tall); }, wx, 4, wx, DN); // the path, drawn once along a strip that joins up with itself (four dots of room above it for what grows on top)
+    dx.fillStyle = css.Y; for (let x = 0; x < A; x += 2) dx.fillRect(x, 0, 1, 1); // a row of every other dot, for the edge between two bands under the path
+    const L = { K, W, css, art, sky, skies: [null, null], far: far.c, mid: mid.c, hot, path, dots, made: realNow }; // (each sky is drawn when it is first wanted: see runnerFx)
+    runnerLooks.set(id, L);
+    return L;
+  }
+
+  function runnerTrack(pos, K) { // where its feet are at a place along the beat, in dots above the level path, and how it is in the air: 0 on the ground, 1 a hop, 2 the great leap of a drop. A hop runs from the off-beat to the kick; a gap is cleared from kick to kick
+    const st = runner, n = Math.ceil(pos), it = runnerItem(n), ph = pos - (n - 1), tread = (p) => (Math.floor(p + 0.25) - st.beat) * st.step, leap = st.leap;
+    if (leap && pos > leap.a && pos < leap.b) { const u = (pos - leap.a) / (leap.b - leap.a); return { y: runnerMix(tread(leap.a), tread(leap.b), u) + leap.high * 4 * u * (1 - u), air: 2, u, flip: false }; }
+    const u = it.kind === 3 ? ph : (ph - 0.5) * 2, high = it.kind === 3 ? Math.max(16, 26 * K.HS) : it.kind === 2 ? Math.max(19, 24 * K.HS) : it.kind === 1 ? Math.max(16, 18 * K.HS) : st.step > 1.5 ? 7 + st.step : 0;
+    if (high && u > 0 && u < 1) return { y: runnerMix(tread(n - 1), tread(n), u) + high * (1 + 0.3 * flow.drop) * 4 * u * (1 - u), air: 1, u, flip: (V.flair ?? 1) > 0.5 && (n % 4 === 0 || it.kind === 3) };
+    return { y: tread(pos), air: 0, u: 0, flip: false };
+  }
+  const runnerFloat = (pos, K) => Math.max(K.DN * 0.4, 40 + K.DN * 0.105) + Math.sin(pos * 0.8) * K.DN * 0.075 + Math.sin(pos * 0.31) * K.DN * 0.03; // the line it drifts along in a break (kept low enough on a short screen for what carries it to stay in the picture)
+  const runnerFeet = (pos, K) => runnerMix(K.GY - runner.lift - runnerTrack(pos, K).y, runnerFloat(pos, K), eased(runner.gone));
+  const runnerX = (pos, K) => K.HX + (pos - runner.beat) * runner.dpb;
+  const runnerFlierX = (i, A) => { const span = A + 60; return span - ((((runner.fly * (1 + (i % 3) * 0.5) + runnerChance(i, 61) * 900) % span) + span) % span) - 30; }; // where the flier with this number is: each crosses from right to left at its own pace, and is out of the picture for a little on either side
+  function runnerLay(n, building) { // what is laid at beat n, decided when it is laid from how the song is going just then
+    const st = runner, it = runnerCourse[n & 127], bar = n & 3, r = runnerChance(n, 20), busy = flow.intensity + 0.5 * flow.drop, rhythm = RUNNER_PHRASES[(Math.round(V.course ?? 0) + (n >> 5)) & 3];
+    it.n = n; it.taken = 0; it.kind = 0;
+    if (st.floating) { if ((n & 7) === 7) it.kind = 4; return; } // afloat there is nothing to hop over, but every eighth beat carries three pickups in a row (kind 4)
+    if (n < st.noThings || building || (st.period < 0.36 && n & 1)) return; // (a very fast song gets something on every other beat at most, or there would be no room to land)
+    if (busy < 0.4 ? bar % 2 === 0 : busy > 0.8 || rhythm[bar]) it.kind = bar === 3 && r < 0.3 ? 3 : r > 0.72 ? 2 : 1;
+    it.which = runnerChance(n, 21) < (it.kind === 2 ? V.kin ?? 0.5 : 0.4) ? 1 : 0;
+  }
+
+  function runnerPattern(gap) { // broken beats. Kicks that do not fall one to a beat (two or three a bar, as in drum and bass) fool the follower, whose tempo is the usual gap between kicks. But they come round the same every bar: so when the last gaps repeat in a cycle of two to six kicks, three times over, and fit a bar, the tempo (runner.own) is worked out from the bar. It is given the gap since the kick before
+    const st = runner, P = st.past, same = (a, b) => Math.abs(a - b) < 0.045;
+    if (gap > 3) { st.pastN = 0; return; } // after a silence the gaps are gathered afresh; the tempo is kept, a song does not change its own in a break
+    P.copyWithin(0, 1); P[17] = gap; st.pastN = Math.min(18, st.pastN + 1); // the last eighteen gaps, the newest last
+    if (st.pastN >= 4 && same(P[17], P[16]) && same(P[16], P[15]) && same(P[15], P[14])) st.ownFor += 4; // evenly spaced kicks: the follower has those right, and a tempo of our own is soon let go
+    else for (let k = 2; k <= 6 && k * 3 <= st.pastN; k++) {
+      let fits = true, bar = 0;
+      for (let i = 0; i < 2 * k && fits; i++) fits = same(P[17 - i], P[17 - i - k]);
+      if (!fits) continue;
+      for (let i = 0; i < 3 * k; i++) bar += P[17 - i] / 3;
+      for (const beats of [4, 8, 2, 1]) { // a bar of four beats if that gives a tempo music has, between 86 and 200 beats a minute; if not, of eight, two or one. And every gap in it must be a whole number of half beats: a likeness by chance seldom is
+        const half = bar / beats / 2; let even = half >= 0.15 && half < 0.35;
+        for (let i = 0; i < k && even; i++) even = Math.abs(P[17 - i] / half - Math.round(P[17 - i] / half)) * half < 0.045;
+        if (even) { st.own = half * 2; st.cycle = k; st.ownFor = 0; return; }
+      }
+    }
+    if (++st.ownFor > 20) st.own = 0; // twenty kicks with no such pattern: back to the follower's tempo
+  }
+
+  function runnerStep(K, real, wanted) { // the game moves on by one frame. real is the time by the clock on the wall, which is what the song keeps its beat by; everything that only moves in the picture goes by sound.dt
+    const st = runner, { A, DN, GY, HX, HS } = K, dt = sound.dt, ease = (from, to, tau, by = dt) => from + (to - from) * Math.min(1, by / tau);
+    const building = flow.part === "build" || flow.build > 0.35, climb = building ? clamp((flow.build - 0.25) / 0.6) : 0; // (with no kick at all the follower's build creeps up to a quarter and stays: that is not a build)
+    if (st.fade) { st.fade += dt / 1.6; if (st.fade >= 1) { st.fade = 0; st.was = ""; } } // another kind of music came on: the new world fades in over the old one, and the game goes on
+    else if (wanted !== st.world) { st.wantFor = wanted === st.want ? st.wantFor + real : 0; st.want = wanted; if (st.wantFor > 0.4) { st.was = st.world; st.world = wanted; st.fade = 0.001; } } // (once the answer has stood still a moment: the song's name and its mood do not arrive together)
+
+    // The beat clock. It runs at the song's tempo and each kick near the beat pulls it into step. A kick off the beat is let pass while the clock is not yet sure of itself (broken beats have many);
+    // only after eight kicks running were in step does a stray one make the figure skip, and a second at the same place move the beat there with a tumble
+    const tempo = st.own || (flow.bpm > 40 ? 60 / flow.bpm : 0); // (the tempo worked out from a pattern of broken beats, while there is one, is truer than the follower's)
+    if (tempo) st.period = ease(st.period, tempo, 0.5, real);
+    st.sinceHit += real;
+    if (sound.kickHit > 0) {
+      const at = st.beat + st.owe, err = Math.round(at) - at, gap = st.sinceHit, grounded = !st.floating && !st.stumble && !runnerTrack(st.beat, K).air;
+      runnerPattern(gap);
+      if (!tempo && gap > 0.25 && gap < 1.2) st.period = st.gaps++ ? st.period + (gap - st.period) * 0.3 : gap; // until the follower knows the tempo, the first gap between two kicks is taken as it is
+      if (!st.heard || gap > (st.own ? 4.5 : 2.5) * st.period) { st.owe += err; st.inStep = 1; st.off = st.sure = st.astray = 0; } // the first kick after a silence says where the beat is (in broken beats two kicks of one bar can stand well over two beats apart: a silence is then more than a bar)
+      else if (Math.abs(err) < (st.own ? 0.15 : 0.2)) { st.owe += err * 0.7; st.inStep++; st.off = st.astray = 0; } // (in broken beats a kick can fall a quarter of a beat off: it must not tug the clock, so in step is then a narrower thing)
+      else {
+        const sure = st.inStep >= 8 || st.sure > 0;
+        st.off = Math.abs(err - st.lastErr) < 0.12 ? st.off + 1 : 1;
+        if (st.inStep >= 8) st.sure = 2; // (so the next kick still counts as coming after a sure beat)
+        st.inStep = 0;
+        if (st.off >= (sure ? 2 : 3)) { st.owe += err; st.off = 0; st.inStep = 1; if (sure && grounded && st.calmFor > 6) { st.stumble = 1; st.calmFor = 0; } } // the song moved its beat
+        else if (sure && st.off === 1 && grounded) st.skip = 0.18; // a stray kick: a little skip
+        if (st.own && !st.inStep && ++st.astray >= st.cycle) { st.owe += err; st.astray = st.off = 0; st.inStep = 1; } // broken beats, and a whole bar's kicks have gone by with none on the beat: the beat is moved to this one, quietly
+      }
+      st.sure = Math.max(0, st.sure - 1); st.lastErr = err; st.sinceHit = 0; st.heard = true;
+      st.pound = flow.bpm > 150 && Math.round(at) & 1 ? st.pound : 1; // the hammers of the steelworks: on every kick, or every other one in a fast song
+    } else st.pound *= Math.exp(-dt / 0.14);
+    st.calmFor += real;
+    const give = st.owe * Math.min(1, real / 0.2), before = st.beat, fast = T.speed * flow.pace; // (fast: how much quicker than the clock the picture runs just now, by the Speed knob and the song's pace)
+    st.owe -= give; st.beat += Math.max(0, real / st.period + give);
+    st.skyFor += st.beat - before;
+    if (!st.iris && (st.turn || st.skyFor > 96)) { st.turn += (st.beat - before) / 8; if (st.turn >= 1) { st.turn = st.skyFor = 0; st.zone = 1 - st.zone; } } // a song that runs on with no drop still gets to see the other sky: after 96 beats under one it goes over to the other by itself, slowly, over eight beats
+    const carry = Math.min(K.DPB, 85 * (V.gait ?? 1) * st.period) * (fast < 1 ? Math.max(0.6, fast) : 1 + (fast - 1) * 0.4) * (st.floating ? 0.8 : 1); // how many dots one beat carries it: never much more than 85 dots a second, so a fast song hops more often and scrolls no faster; and never under six tenths of its pace however low the Speed knob, or a beat would have less room than the things that stand on it
+    st.dpb = st.dpb ? ease(st.dpb, carry, 1.2) : carry;
+    const went = (st.beat - before) * st.dpb, gust = dt * (1 + 3 * climb + flow.drop);
+    st.along = (st.along + went) % 7680; st.swell = (st.swell + went * 0.7) % (TAU * 1000); st.air = (st.air + went * 0.5) % (4 * A); st.gust = (st.gust + gust) % (4 * A * DN); st.fly = (st.fly + went * 0.5 + dt * 7) % (2 * (A + 60)); // (each wrapped where what it moves comes round to the same place)
+    const wings = Math.min(6, Math.round(V.wings ?? 2) + Math.round(2 * flow.drop + flow.calm)); // who flies by: more of them after a drop and in a break. One joins or leaves only while it is out of the picture, so none appears or is gone in mid-air
+    if (st.fliers < 0) st.fliers = wings;
+    else if (wings !== st.fliers) { const more = wings > st.fliers, x = runnerFlierX(more ? st.fliers : st.fliers - 1, A); if (x < -20 || x > A) st.fliers += more ? 1 : -1; }
+
+    // a break: the path falls away and it floats (it starts when calm is well up and ends when calm is well down, so a song hovering between the two does not flap; or when a whole bar has gone by without a kick:
+    // a shorter gap is a fill, or a kick the listening missed, and real songs are full of those). A build: the path tilts into stairs, the scenery sinks
+    const hushed = st.sinceHit > Math.max(1.6, 4.4 * st.period), floating = st.floating ? !(flow.calm < 0.4 && (building || !hushed)) : flow.calm > 0.6 || (hushed && !building);
+    if (floating !== st.floating) { st.floating = floating; st.noThings = Math.ceil(st.beat) + (floating ? 0 : 4); for (let n = Math.ceil(st.beat) + 1; n <= st.laid; n++) { const got = runnerItem(n).taken; runnerLay(n, building); runnerItem(n).taken = got; } }
+    st.gone = clamp(st.gone + (floating ? dt / 1.6 : -dt / 1.1));
+    st.step = ease(st.step, building && !floating ? Math.min((2 + 8 * climb) * HS, ((GY * 0.8 - 26 * HS * climb) * st.dpb) / (A - HX)) : 0, building ? 1.2 : 0.5); // (never so steep that the stairs climb out of the top of the picture before they reach its right edge, as they would in a very flat window or at a slow pace)
+    st.lift = ease(st.lift, 26 * HS * climb * (1 - st.gone), 1.2); st.sink = ease(st.sink, 60 * HS * climb, 1.5);
+    while (st.laid < st.beat + Math.min(100, Math.ceil((A - HX) / st.dpb)) + 2) runnerLay(++st.laid, building); // the course is laid as far ahead as the picture shows at the pace it runs at now, so everything comes in from the right edge
+
+    // the gate: it draws near through a build, and on the drop it bursts, the other sky pours out of it, and the figure leaps through to land on a kick
+    const reach = (A - HX) / st.dpb + 1.2;
+    let G = st.gate;
+    if (!G && building) G = st.gate = { ahead: reach + 2, at: 0, slip: 0, open: 0, locked: false, quiet: 0, up: 1 };
+    if (G && !G.locked) { G.ahead = ease(G.ahead, 1.6 + (reach - 1.6) * (1 - climb) ** 1.3, 0.8); G.quiet = building ? 0 : G.quiet + dt; if (G.quiet > 3) { G.ahead += dt * 4; if (G.ahead > reach + 2) G = st.gate = null; } } // (a build that came to nothing: it draws off again)
+    if (flow.dropHit && !st.iris && !(G && G.locked) && st.skyFor >= 32) { // (a second drop while the sky is still opening, or the last gate still stands, or under a sky not yet 32 beats old, is let pass: a song that fools the follower must not swap the sky every few seconds)
+      const b = Math.round(st.beat + st.owe);
+      if (!G) G = st.gate = { ahead: Math.min(4, reach - 1.5), at: 0, slip: 0, open: 0, locked: false, quiet: 0, up: 0 }; // no build came before this drop: the gate rises out of the ground
+      G.at = Math.min(b + 3, Math.max(b + 1, Math.round(st.beat + G.ahead))); G.slip = st.beat + G.ahead - G.at; G.locked = true; G.open = 0.001; // it stands at most three beats off: if it was farther it slides in over a moment
+      st.leap = { a: st.beat, b: Math.max(b + 2, G.at + 1), high: DN * 0.3 }; st.noThings = st.leap.b + 2; st.iris = 0.001; st.irisAt = G.at; st.due += 12; st.stumble = 0;
+      for (let n = Math.ceil(st.beat); n <= st.laid; n++) if (n <= st.leap.b + 1) runnerItem(n).kind = 0;
+      for (let i = 0; i < 26; i++) runnerSpark(runnerX(G.at + G.slip, K) + (runnerChance(i, 31) - 0.5) * 24, GY - st.lift - 20 - runnerChance(i, 32) * DN * 0.35, (runnerChance(i, 33) - 0.5) * 170, -30 - runnerChance(i, 34) * 110, 0.9 + runnerChance(i, 35) * 0.8, "nmhab"[i % 5], i % 3 ? 2 : 3, 220);
+    }
+    if (G && G.up < 1) G.up = Math.min(1, G.up + dt / 0.3);
+    if (G && G.locked) { G.open = Math.min(1, G.open + dt / 0.4); G.slip *= Math.exp(-dt / 0.2); if (st.beat - G.at > (HX + 60) / st.dpb) st.gate = null; }
+    if (st.iris) { const cx = runnerX(st.irisAt, K); st.iris += (dt * Math.hypot(A, DN)) / 1.8; if (st.iris > Math.hypot(Math.max(cx, A - cx), DN) + 2) { st.iris = st.turn = st.skyFor = 0; st.zone = 1 - st.zone; } } // the circle of the other sky grows until it is the whole sky
+    if (st.leap && st.beat >= st.leap.b) { st.leap = null; st.land = 0.25; }
+
+    // taking what there is to take as it passes, and the counter ringing up: every hundred sends a ring of pickups flying
+    const had = st.score;
+    for (let n = Math.floor(before); n <= Math.ceil(st.beat) + 1; n++) { const it = runnerItem(n); if (it === RUNNER_BLANK) continue;
+      (it.kind >= 3 ? RUNNER_THREE : RUNNER_ONE).forEach((back, k) => { if (!(it.taken & (1 << k)) && st.beat >= n - back) { it.taken |= 1 << k; st.score++; st.ring = 0.12; const y = runnerFeet(n - back, K) - 9; for (let i = 0; i < 4; i++) runnerSpark(HX + 2, y, [-34, 34, 0, 0][i], [0, 0, -34, 34][i], 0.16, "l"); } }); }
+    if (st.due > 0 && (st.dueWait -= dt) <= 0) { st.due--; st.score++; st.ring = 0.12; st.dueWait = 0.07; }
+    if (Math.floor(st.score / 100) > Math.floor(had / 100)) st.cheer = 1;
+    st.score %= 100000;
+    st.ring = Math.max(0, st.ring - dt); st.land = Math.max(0, st.land - dt); st.skip = Math.max(0, st.skip - dt); st.cheer = Math.max(0, st.cheer - dt / 1.3); st.stumble = Math.max(0, st.stumble - real / st.period / 1.5);
+    const now = runnerTrack(st.beat, K), wasAir = st.inAir;
+    st.inAir = now.air > 0;
+    if (wasAir && !st.inAir && st.gone < 0.3) { st.land = Math.max(st.land, 0.1); for (let i = 0; i < 4; i++) runnerSpark(HX - 5 + i * 3, GY - st.lift - now.y - 1, (i - 1.5) * 26, -14 - 8 * (i % 2), 0.22, "h"); } // dust where it lands: on the kick
+    st.glint = Math.max(-1, st.glint - dt); if (sound.hatHit && T.spark > 0 && st.glint < -0.16) st.glint = 0.09; // a glint on the pickups for a hi-hat, four times a second at most
+    st.blink = (st.blink + dt) % 3.7;
+    for (let i = 0; i < 16; i++) st.bands[i] += ((sound.bands[i * 4] + sound.bands[i * 4 + 1] + sound.bands[i * 4 + 2] + sound.bands[i * 4 + 3]) / 4 - st.bands[i]) * Math.min(1, dt / 0.3); // the spectrum in sixteen parts, followed slowly: what the lights and gauges show, so none of them blinks
+    for (let i = runnerBits.length - 1; i >= 0; i--) { const b = runnerBits[i]; b.life -= dt; if (b.life <= 0) { runnerBits.splice(i, 1); continue; } b.vy += b.fall * dt; b.x += b.vx * dt - went * 0.6; b.y += b.vy * dt; }
+    if (st.beat > 4096 && !st.gone && !st.leap && !st.gate && !st.iris) { st.beat -= 4096; st.laid -= 4096; st.noThings -= 4096; for (const it of runnerCourse) it.n -= 4096; } // the count of beats starts again now and then, where nothing shows it
+  }
+
+  function runnerDraw(S, L) { // one frame of the game as it stands, in one world's look
+    const st = runner, { K, W, css, art } = L, { A, DN, GY, HX, HS, WL } = K, X = S.x, t = sound.t, kick = clamp(sound.kick), gone = eased(st.gone), rd = Math.round, beatIn = st.beat - Math.floor(st.beat);
+    const R = (tone, px, py, wide, tall) => { X.fillStyle = css[tone]; X.fillRect(rd(px), rd(py), rd(wide), rd(tall)); };
+    const slide = (c, speed, down) => { const off = -rd((st.along * speed) % WL); X.drawImage(c, off, rd(down)); if (off + WL < A) X.drawImage(c, off + WL, rd(down)); };
+    X.globalAlpha = 1; X.globalCompositeOperation = "source-over";
+    // the sky, and the other sky opening out of the gate after a drop, a row of dots at a time so its edge is a clean circle of dots
+    const skyOf = (z) => L.skies[z] || (L.skies[z] = L.sky(z));
+    X.drawImage(skyOf(st.zone), 0, 0);
+    if (st.turn) { X.globalAlpha = eased(st.turn); X.drawImage(skyOf(1 - st.zone), 0, 0); X.globalAlpha = 1; }
+    if (st.iris) { const cx = rd(runnerX(st.irisAt + (st.gate && st.gate.locked ? st.gate.slip : 0), K)), cy = rd(GY - st.lift - DN * 0.25), r = st.iris, other = skyOf(1 - st.zone);
+      for (let y = Math.max(0, Math.ceil(cy - r)); y < Math.min(DN, cy + r); y++) { const half = Math.floor(Math.sqrt(r * r - (y - cy) ** 2)), x0 = Math.max(0, cx - half), x1 = Math.min(A, cx + half); if (x1 > x0) { X.drawImage(other, x0, y, x1 - x0, 1, x0, y, x1 - x0, 1); R("l", cx - half, y, 1, 1); R("l", cx + half - 1, y, 1, 1); } } }
+    // the distance: two strips at a tenth and three tenths of the pace, sinking as it climbs; and the things in them that answer the music
+    slide(L.far, 0.1, st.sink * 0.25); slide(L.mid, 0.3, st.sink * 0.6);
+    for (const thing of L.hot) { let x = rd((((thing.x - st.along * thing.sp) % WL) + WL) % WL); const y = rd(thing.y + st.sink * (thing.sp < 0.2 ? 0.25 : 0.6)), level = st.bands[((thing.n || 0) * 5 + 2) & 15];
+      if (x > WL - 40) x -= WL;
+      if (x > A + 40) continue;
+      if (thing.kind === "lamp") { if ((t * 0.7 + thing.x) % 2 < 1) R("c", x, y, 2, 2); }
+      else if (thing.kind === "drip") { if (kick > 0.12) { const fall = (1 - kick) * 22; R("a", x, y + fall, 1, 2); R("l", x, y + fall, 1, 1); } }
+      else if (thing.kind === "gauge") { const v = rd(level * 5); R("s", x, y + 3 - v, 6, v); R("a", x, y + 3 - v, 6, 1); }
+      else if (thing.kind === "pulse") { const r = thing.rx + 2 + (1 - kick) * 5; if (kick > 0.25) for (let k = 0; k < 9; k++) { const a = Math.PI * (1 + k / 8); R(k & 1 ? "l" : "b", x + Math.cos(a) * r, y + 6 + Math.sin(a) * r * 0.8, 1, 1); } }
+      else if (thing.kind === "flame") { const v = 2 + rd(level * 9 + runnerChance(thing.n, Math.floor(t * 6) % 64) * 2); R("c", x - 2, y - v + 2, 4, v - 1); R("a", x - 1, y - v, 2, v); R("b", x - 1, y - 1, 1, 1); }
+      else if (thing.kind === "hammer") { const fall = rd(thing.reach * eased(clamp(st.pound * 1.3))); R("m", x - 1, y, 2, fall + 2); R("n", x - 6, y + fall + 2, 12, 10); R("h", x - 6, y + fall + 2, 12, 1); R("h", x - 6, y + fall + 2, 1, 10); R("c", x - 4, y + fall + 9, 8, 1); if (st.pound > 0.8) { R("b", x - 9, GY - 12, 1, 1); R("b", x + 8, GY - 13, 1, 1); R("a", x - 11, GY - 14, 1, 1); R("a", x + 10, GY - 12, 1, 1); } }
+      else if (thing.kind === "beacon") { const v = rd(level * 22 * HS); for (let j = 0; j < v; j++) if ((j + x) & 1 || j < 4) R(j < 4 ? "l" : "a", x + (j > 8 && j % 3 === 0 ? 1 : 0), y - 5 - j, 1, 1); R("a", x - 1, y - 1, 3, 2); }
+      else if (thing.kind === "meter") { const v = rd(level * thing.rows); for (let j = 0; j < thing.rows; j++) R(j >= v ? "n" : j > thing.rows - 2 ? "c" : j > thing.rows - 4 ? "a" : "b", x, y + (thing.rows - 1 - j) * 4, 3, 2); }
+      else if (thing.kind === "sign") for (let j = 0; j < 6; j++) { const v = 1 + rd(st.bands[(thing.n * 3 + j * 2) & 15] * 7); R(j & 1 ? "b" : "a", x + j * 3, y + 1 - v, 2, v); }
+    }
+    // what lies under the path: sludge, a pond, molten steel, a sea of cloud, a street. Bands of color right across, and a surface that swells with the bass
+    const dy = K.DEEP + rd(st.sink * 0.15 - gone * DN * 0.11);
+    R("Y", 0, dy + 4, A, 4); R("Z", 0, dy + 8, A, DN); X.drawImage(L.dots, 0, dy + 8); X.drawImage(L.dots, 1, dy + 9);
+    if (W.swell === "street") { R("Y", 0, dy, A, 4); R("m", 0, dy, A, 1); for (let i = 0; i < 12; i++) { const back = i & 1, span = A + 60, x = ((((runnerChance(i, 70) * span + (back ? 1 : -1) * st.fly * (1 + (i % 3) * 0.5)) % span) + span) % span) - 30; R(back ? "r" : "X", x, dy + 3 + (back ? 0 : 3) + (i % 2), 3, 1); } } // head lamps one way and tail lamps the other
+    else { X.fillStyle = css.Y; X.beginPath();
+      for (let sx = 0; sx < A; sx++) { const wx = sx + st.swell, y = dy + rd(W.swell === "puffs" ? -Math.abs(Math.sin(wx * 0.07)) * 5 - Math.abs(Math.sin(wx * 0.023 + 1)) * 4 : Math.sin(wx * 0.13 + t * 1.7) * (0.8 + 2 * sound.bass) + Math.sin(wx * 0.045 - t * 0.8) * 1.5); st.tops[sx] = y; X.rect(sx, y + 2, 1, dy + 4 - y - 2); }
+      X.fill(); X.fillStyle = css.X; X.beginPath(); for (let sx = 0; sx < A; sx++) X.rect(sx, st.tops[sx], 1, 2); X.fill(); }
+    // the gate, behind the path
+    if (st.gate) runnerGate(R, K, rd(runnerX(st.gate.locked ? st.gate.at + st.gate.slip : st.beat + st.gate.ahead, K)));
+    // the path: copied from its strip in pieces eight dots wide, so each piece can fall on its own in a break, stand a step higher in a build, or be left out where a gap was laid
+    const fallen = DN - GY + 24, whole = Math.floor(st.along), base = GY - st.lift, high = DN + 4, lights = W.lights;
+    const dropOf = (chunk) => eased(clamp(st.gone * 1.9 - runnerChance(chunk % 960, 40) * 0.9)) ** 2 * fallen;
+    for (let sx = -(whole % 8); sx < A; sx += 8) {
+      const chunk = (sx + whole) >> 3, drop = dropOf(chunk), x1 = Math.min(A, sx + 8);
+      if (drop >= fallen - 1) continue;
+      let from = Math.max(0, sx), was = NaN, parts = 0;
+      for (let c = from; c <= x1; c++) { // (the dots of one piece mostly share one height: where they do not, at the edge of a step or of a gap, it is copied in two parts; -999 stands for a gap)
+        let y = NaN;
+        if (c < x1) { const pos = st.beat + (c - HX) / st.dpb, n = Math.ceil(pos), ph = pos - (n - 1); y = runnerItem(n).kind === 3 && ph > 0.24 && ph < 0.78 ? -999 : rd(base - (Math.floor(pos + 0.25) - st.beat) * st.step + drop); }
+        if (c > from && y !== was) { if (was !== -999) X.drawImage(L.path, (from + whole) % K.PW, 0, c - from, high, from, was - 4, c - from, high); parts++; from = c; }
+        if (c < x1) was = y;
+      }
+      if (lights && parts === 1 && x1 - sx === 8 && sx >= 0 && was !== -999 && chunk % lights.every === lights.at) lights.draw(R, sx, was, st.bands[Math.floor(chunk / lights.every) & 15]); // the lights let into the path, each showing its own part of the spectrum
+    }
+    // the things on it: what to hop over, who lives here, what to take
+    for (let n = Math.floor(st.beat - HX / st.dpb) - 1; n <= st.laid; n++) { const it = runnerItem(n); if (it === RUNNER_BLANK) continue;
+      const x = runnerX(n - 0.25, K) - rd(clamp(st.step / 3) * 8), top = base - (n - 1 - st.beat) * st.step + dropOf(Math.floor((x + st.along) / 8));
+      if (x > -20 && x < A + 20 && top < DN + 20) {
+        if (it.kind === 1) { const s = art.low[it.which]; S.put(s, x - s.width / 2, top - s.height + 1); }
+        if (it.kind === 2) { const s = art.creature[it.which][Math.floor(st.beat * 2 + n) & 1]; S.put(s, x - s.width / 2, top - s.height + 1); }
+      }
+      (it.kind >= 3 ? RUNNER_THREE : RUNNER_ONE).forEach((back, k) => { if (it.taken & (1 << k)) return; const gx = runnerX(n - back, K), gy = runnerFeet(n - back, K) - 9 + rd(Math.sin(t * 4 + n) * 1.2);
+        if (gx > -8 && gx < A + 8) { S.put(art.gem, gx - (art.gem.width >> 1), gy - (art.gem.height >> 1)); if (st.glint > 0 && (n + k) % 2 === 0) { R("l", gx - 4, gy, 9, 1); R("l", gx, gy - 4, 1, 9); } } });
+    }
+    const here = runnerTrack(st.beat, K);
+    if (kick > 0.3 && gone < 0.3 && !here.air) { const out = rd((1 - kick) * 30) + 8, y = base - here.y; R("l", HX - out, y, 1, 1); R("l", HX + out, y, 1, 1); R("l", HX - out + 2, y, 1, 1); R("l", HX + out - 2, y, 1, 1); } // each kick it lands on runs out along the path as four dots
+    for (let i = st.fliers - 1; i >= 0; i--) S.put(art.flyer[Math.floor(st.beat * 2 + i) & 1], runnerFlierX(i, A), DN * (0.1 + 0.34 * runnerChance(i, 62)) + Math.sin(t * 1.1 + i * 2.4) * 5 + st.sink * 0.3); // who flies by (how many is settled in runnerStep)
+    runnerFigure(S, L, here, gone, beatIn);
+    for (const b of runnerBits) if (b.life > b.all * 0.25 || Math.floor(b.life * 30) % 2) R(b.tone, b.x, b.y, b.size, b.size);
+    // what drifts in the air: bubbles, spores, embers, petals, rain. Each is placed by a sum, so nothing is kept for them
+    const wth = W.weather, count = rd((K.TALL ? 14 : 22) * (0.4 + 0.6 * flow.intensity + 0.5 * clamp((flow.build - 0.25) / 0.6)));
+    for (let i = 0; i < count; i++) { const f = (2 + (i % 5)) / 4; R(wth.tones[i % wth.tones.length], (((runnerChance(i, 50) * A - (st.air + st.gust * wth.side) * f) % A) + A) % A, (((runnerChance(i, 53) * DN - st.gust * wth.up * f + Math.sin(t * 0.7 + i) * 4) % DN) + DN) % DN, 1, wth.up < 0 ? 3 : 1); }
+    if (st.cheer > 0) { const out = 1 - st.cheer, feet = runnerFeet(st.beat, K); for (let k = 0; k < 10; k++) { const a = (k / 10) * TAU + out * 2; S.put(art.gem, HX + Math.cos(a) * (8 + out * 44 * HS) - (art.gem.width >> 1), feet - 12 - out * 46 * HS + Math.sin(a) * (6 + out * 30 * HS) - (art.gem.height >> 1)); } } // a hundred more on the counter: a ring of pickups flies up and away
+    // the counter: what it has taken so far, top left, in small figures that hop when it rings
+    S.put(art.gem, 4, 4); S.digits(st.score, 6 + art.gem.width, 5 - (st.ring > 0 ? 1 : 0), css[st.ring > 0 ? "l" : "h"]);
+  }
+  function runnerGate(R, K, gx) { // two posts, a beam across with the world's sign on it, and a door of two leaves that slide apart
+    const G = runner.gate, { A, DN, GY } = K, rd = Math.round, wide = K.TALL ? 38 : 48, tall = rd(DN * 0.6), base = GY + 10 - rd(runner.lift * 0.8), top = base - tall + rd((1 - eased(G.up)) * (tall + 14)), post = 8, open = eased(clamp(G.open)), leaf = rd(((wide - post * 2) / 2) * (1 - open)), x0 = rd(gx - wide / 2);
+    if (x0 > A + 4 || x0 + wide < -4) return;
+    for (const side of [0, 1]) { const px = side ? x0 + wide - post : x0, lx = side ? x0 + wide - post - leaf : x0 + post;
+      if (leaf > 0) { R("n", lx, top + 12, leaf, DN); R("m", lx, top + 12, leaf, 1); for (let y = top + 18; y < DN; y += 14) { R("m", lx + 1, y, leaf - 2, 1); if (leaf > 6) R("a", lx + (side ? 2 : leaf - 4), y + 6, 2, 2); } R("k", side ? lx : lx + leaf - 1, top + 12, 1, DN); }
+      R("m", px, top + 4, post, DN); R("h", px, top + 4, 2, DN); R("n", px + post - 2, top + 4, 2, DN); for (let y = top + 16; y < DN; y += 12) R("n", px, y, post, 1); }
+    R("m", x0 - 3, top, wide + 6, 12); R("h", x0 - 3, top, wide + 6, 2); R("n", x0 - 3, top + 10, wide + 6, 2); R("h", x0 - 3, top, 2, 12);
+    R("k", gx - 4, top + 3, 8, 6); R(open ? "b" : "a", gx - 3, top + 4, 6, 4); R("k", gx - 1, top + 5, 2, 2);
+    if (!open && flow.build > 0.45) for (let y = top + 13; y < DN; y++) if (runnerGrain(gx, y) < flow.build) R("b", gx - ((y >> 1) & 1 ? 0 : 1), y, 1, 1); // light through the crack as the build tops out
+  }
+  function runnerFigure(S, L, k, gone, beatIn) { // the figure: its body is one small picture, turned over in a somersault; its two feet, its scarf and what carries it over a break are drawn dot by dot
+    const st = runner, { K, W, css } = L, { HX, HS } = K, X = S.x, t = sound.t, rd = Math.round, floatish = gone > 0.35, feet = runnerFeet(st.beat, K) - (st.skip > 0 ? rd(Math.sin((st.skip / 0.18) * Math.PI) * 5) : 0);
+    const R = (tone, px, py, wide, tall) => { X.fillStyle = css[tone]; X.fillRect(rd(px), rd(py), rd(wide), rd(tall)); };
+    const body = st.body || (st.body = pixelSprite(...RUNNER_BODY));
+    if (st.drawn !== st.seen) { st.drawn = st.seen; st.scarf += (clamp((st.feetWas - feet) / Math.max(sound.dt, 1e-3) / 90 + 0.5) * 2 - 1 - st.scarf) * Math.min(1, sound.dt / 0.08); st.feetWas = feet; } // the scarf lifts as it falls and hangs as it rises (worked out once a frame, though this may be drawn twice)
+    let turn = 0, tuck = false, bob = 0, f1 = [-4, 0], f2 = [2, 0];
+    if (st.stumble > 0) { const u = 1 - st.stumble; turn = Math.floor(u * 6) % 4; bob = -rd(Math.sin(u * Math.PI) * 14 * HS + Math.abs(Math.sin(u * TAU * 1.5)) * 3); tuck = true; } // a tumble: head over heels, one and a half times
+    else if (k.air === 2) { turn = Math.floor(k.u * 8) % 4; tuck = true; }
+    else if (k.air && !floatish) { if (k.flip) { turn = Math.floor(clamp(k.u * 1.15) * 3.999) % 4; tuck = true; } else if (k.u < 0.5) { f1 = [-4, -1]; f2 = [1, -2]; } else { f1 = [-5, -1]; f2 = [3, 0]; } }
+    else if (floatish) { const sway = rd(Math.sin(t * 2.2)); f1 = [-4, sway]; f2 = [1, -sway]; }
+    else { const th = beatIn * TAU; f1 = [rd(3.4 * Math.cos(th)) - 2, -rd(Math.max(0, Math.sin(th)) * 3)]; f2 = [rd(3.4 * Math.cos(th + Math.PI)) - 2, -rd(Math.max(0, Math.sin(th + Math.PI)) * 3)]; bob = st.land > 0.04 ? 1 : -rd(Math.abs(Math.sin(th)) * 1.2); } // running: one stride to the beat
+    const fy = rd(feet) + bob, bx = HX - 8, by = fy - 17 + (st.land > 0.04 && !k.air ? 1 : 0);
+    if (floatish) { // what carries it over a break: a bubble, a seed head, a little canopy or a bunch of balloons
+      if (W.float === "bubble") { for (let j = 0; j < 40; j++) { const a = (j / 40) * TAU; if (gone > 0.6 || j % 2) R(j > 22 && j < 30 ? "l" : "a", HX + Math.cos(a) * 14, by + 8 + Math.sin(a) * 14, 1, 1); } R("l", HX - 8, by - 2, 2, 1); R("l", HX - 10, by, 1, 2); }
+      else if (W.float === "seed") { const top = by - 13, sway = Math.sin(t * 1.6) * 0.8; R("l", HX, top + 2, 1, 12); for (let j = 0; j < 9; j++) { const a = Math.PI * (1.05 + (j / 8) * 0.9); for (let d = 2; d < 9; d += 2) R(d > 6 ? "b" : "l", HX + Math.cos(a) * d + sway * d * 0.2, top + 2 + Math.sin(a) * d, 1, 1); R("a", HX + Math.cos(a) * 10 + sway * 2, top + 2 + Math.sin(a) * 10, 1, 1); } }
+      else if (W.float === "balloons") { for (let j = 0; j < 3; j++) { const cx = HX - 7 + j * 7 + rd(Math.sin(t * 1.3 + j) * 1.2), cy = by - 15 - (j === 1 ? 4 : 0); for (let d = 1; d < 14 + (j === 1 ? 4 : 0); d += 2) R("h", runnerMix(cx, HX, d / 16), cy + 5 + d, 1, 1); R("abc"[j], cx - 2, cy - 3, 5, 7); R("abc"[j], cx - 3, cy - 2, 7, 5); R("l", cx - 1, cy - 2, 1, 2); } }
+      else { const top = by - 15; for (let j = 0; j < 6; j++) { const half = rd(11 * Math.sqrt(1 - ((5 - j) / 6.5) ** 2)); for (let xx = -half; xx < half; xx++) R("alcla"[Math.floor(((xx + 11) / 22) * 5)], HX + xx, top + j, 1, 1); } R("k", HX - 11, top + 6, 22, 1); for (let j = 0; j < 8; j++) { R("h", HX - 10 + j, top + 7 + j, 1, 1); R("h", HX + 9 - j, top + 7 + j, 1, 1); } }
+    }
+    for (let i = 1; i <= 5; i++) R(i > 3 ? "T" : "S", bx - i * 2 + 1, by + 8 + rd(Math.sin(t * 9 - i * 0.9) * (0.4 + i * 0.25) + st.scarf * i * 0.9), 2, 2); // the scarf: five bits that trail and lag
+    if (turn) { const [c, s] = [[1, 0], [0, 1], [-1, 0], [0, -1]][turn]; X.setTransform(c, s, -s, c, HX, by + 7); X.drawImage(body, -8, -7); X.setTransform(1, 0, 0, 1, 0, 0); }
+    else { S.put(body, bx, by); if (st.blink < 0.12) { R("C", bx + 9, by + 5, 6, 2); R("O", bx + 9, by + 7, 2, 1); R("O", bx + 12, by + 7, 2, 1); } } // (it blinks now and then)
+    if (!tuck) for (const [f, tone] of [[f2, "D"], [f1, "B"]]) { R("O", HX + f[0] - 1, fy - 3 + f[1], 5, 3); R(tone, HX + f[0], fy - 3 + f[1], 3, 2); }
+  }
+  function runnerFx() {
+    const st = runner, S = pixelScreen(Math.round(w / Math.max(2, Math.round(Math.sqrt(w * h) / 240)))), wanted = RUNNER_WORLD_OF[musicWorld()] || "board"; // dots of about a 240th of the picture's size, so a wide screen is some 320 across and a phone some 150
+    if (st.fresh) { runnerBegin(); st.seen = 0; }
+    if (!st.world) st.world = wanted;
+    let L = runnerLook(st.world, S);
+    if (st.seen !== realNow) { // (asked for twice in one frame while the effect is being changed: the game moves on only once)
+      const real = Math.min(0.1, Math.max(0, (realNow - (st.seen || realNow)) / 1000));
+      st.seen = realNow;
+      runnerStep(L.K, real, wanted);
+      if (L.W !== RUNNER_WORLDS[st.world]) L = runnerLook(st.world, S);
+    }
+    if (st.fade) { runnerDraw(S, runnerLook(st.was, S)); S.show(); runnerDraw(S, L); S.show(eased(st.fade)); } // going over to another world: the old one, and the new one over it more and more
+    else { runnerDraw(S, L); S.show(); }
+    if (!L.skies[1 - st.zone] && L.made !== realNow) L.skies[1 - st.zone] = L.sky(1 - st.zone); // the other sky is drawn a frame after the rest, well before a drop can want it, so that starting is spread over two frames
+  }
+  /* ==== runner: end ==== */
+  const DRAW = { runner: runnerFx, forms: formsFx, faces, ribbon, silk, helix, strings, bars, mirror, leds, terrain, scope, trails, tunnel, vortex, prism, ripple, comets, stars: starfield, whirl, dust, links, fireworks, halo, sun, rings, mandala, rays, space, warp: space, drift: space, orbit: space, visitors: space, well,
     kaleido, plasma, fractal, julia, mandel, newton, ocean, neonroad, aurora, tube: tubeFx, heads: headsFx, sphere: sphereFx, solids: solidsFx, city: cityFx };
 
   /* From one effect to another. The change waits for the next frame, which draws the old picture once more with nobody visiting and keeps it.
@@ -4481,6 +6228,12 @@ window.Effects = (() => {
   }
   function beginEffect(next) { // an effect from its first frame, in a version of its own
     name = next;
+    formsKept.started = false;
+    runner.fresh = true;
+    afterImages.ghosts.length = 0; // the last effect's after-images go with it, and a fold starts open
+    afterImages.rate = afterImages.span = 0;
+    trippy.fold = 0;
+    trippy.stepped = -1;
     if (TRIPS[name]) sky.far = null; // a new journey each time
     fit();
     wipe();
@@ -4501,6 +6254,7 @@ window.Effects = (() => {
     }
     (DRAW[name] || recipeFx)(); // anything not built in is a recipe
     g.setTransform(1, 0, 0, 1, 0, 0);
+    if (FRACTALS.has(name)) return; // (the fractals fold in their own sum, and only through a break)
     const p = vary.over.fold === undefined ? 1 : eased(vary.over.fold); // on the way from one fold to another, the old one lets go as the new one takes hold
     if (p < 1 && vary.was.fold) fold(vary.was.fold, 1 - p);
     if (V.fold) fold(V.fold, p);
@@ -4658,7 +6412,7 @@ window.Effects = (() => {
   }
   addEventListener("resize", () => { if (name) fit(); });
   return {
-    names: [["ribbon", "Ribbon"], ["bars", "Bars"], ["trails", "Trails"], ["stars", "Stars"], ["halo", "Halo"], ["space", "Space"], ["trip", "Psychedelic"], ["journey", "Journeys"], ["worlds", "3D"], ["recipes", "Recipes"]],
+    names: [["ribbon", "Ribbon"], ["bars", "Bars"], ["trails", "Trails"], ["stars", "Stars"], ["halo", "Halo"], ["space", "Space"], ["trip", "Psychedelic"], ["journey", "Journeys"], ["worlds", "3D"], ["visions", "Visions"], ["pixel", "Pixel"], ["recipes", "Recipes"]],
     styles: STYLES,
     show(next) {
       if (!canvas.hidden && name) { pending = next === name ? "" : next; return; } // already showing one: it changes on the next frame, from how it looks then
@@ -4680,7 +6434,7 @@ window.Effects = (() => {
     wander(pick) { wanders = pick || null; roam.on = 0; roam.due = rnd(40, 80); }, // Morph: what to call for the next effect now and then, or nothing to stay on this one
     full(on) { alone = on; },
     mood(next) { mood = next || ""; }, // what's playing decides who comes by
-    song(text) { if ((text || "") !== nowSong) { flow.floor = 0.19; flow.bare = 0.13; flow.since = Math.max(flow.since, 1.4); flow.thump = 0; flow.spare = 0; } nowSong = text || ""; }, // for the cockpit's news, and a new song's usual is learned afresh: the last song's kick isn't this one's
+    song(text, kind) { if ((text || "") !== nowSong) { flow.floor = 0.19; flow.bare = 0.13; flow.since = Math.max(flow.since, 1.4); flow.thump = 0; flow.spare = 0; } nowSong = text || ""; genre = typeof kind === "string" ? kind : ""; }, // kind: the song's genres in words ("Acid, Techno"), for the effects that go by the kind of music. The name is for the cockpit's news, and a new song's usual is learned afresh: the last song's kick isn't this one's
     words: ["warp", "stop", "moo", "aliens"],
     word(what) { // typed on the keyboard, while a picture is showing
       if (!name) return;
@@ -4708,7 +6462,7 @@ window.Effects = (() => {
       return true;
     },
     visiting: () => guest.list.length > 0,
-    knobs: (style) => { const trip = TRIPS[style]; return ["light", "react", "speed", "spark", ...(LEAVES_TRAILS.has(style) ? ["drag"] : []), ...(style === "ripple" ? ["tilt"] : []), ...(trip ? ["nod", ...(trip.steer ? ["turns"] : []), ...(trip.moves ? ["moves"] : []), "shots"] : []), ...(VERSIONS[style] ? ["vary"] : []), "dream", "folk", ...(trip && trip.falls ? ["falls"] : []), ...(trip && trip.cockpit ? ["pit"] : [])].map((key) => [key, ...KNOBS[key]]); },
+    knobs: (style) => { const trip = TRIPS[style]; return ["light", "react", "speed", "spark", ...(LEAVES_TRAILS.has(style) ? ["drag"] : []), ...(style === "ripple" ? ["tilt"] : []), ...(trip ? ["nod", ...(trip.steer ? ["turns"] : []), ...(trip.moves ? ["moves"] : []), "shots"] : []), ...(VERSIONS[style] ? ["vary"] : []), ...(FRACTALS.has(style) ? ["color", "echo", "breathe"] : []), "dream", "folk", ...(trip && trip.falls ? ["falls"] : []), ...(trip && trip.cockpit ? ["pit"] : [])].map((key) => [key, ...KNOBS[key]]); },
     tuning(values) { // adjustments for the effect showing. Anything left out is back to how it was designed
       const was = T.vary;
       for (const key of Object.keys(T)) { const [, low, high] = KNOBS[key], v = Number(values[key]); T[key] = Number.isFinite(v) ? Math.min(high, Math.max(low, v)) : 1; }
