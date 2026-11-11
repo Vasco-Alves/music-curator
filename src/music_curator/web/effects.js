@@ -20,10 +20,10 @@ window.Effects = (() => {
     trip: [["kaleido", "Kaleidoscope"], ["plasma", "Plasma"], ["fractal", "Fractal"], ["julia", "Julia"], ["mandel", "Mandelbrot"], ["newton", "Newton"]],
     journey: [["ocean", "Under the sea"], ["neonroad", "Neon road"], ["aurora", "Northern lights"]],
     worlds: [["tube", "Energy tube"], ["heads", "Neon heads"], ["sphere", "Sound sphere"], ["solids", "Shapes in space"], ["city", "Neon city"]],
-    pixel: [["runner", "Runner"]],
+    pixel: [["runner", "Runner"], ["arcade", "Arcade"]],
     visions: [["faces", "Faces"], ["forms", "Forms"]],
   };
-  const FOLK_OF = { ocean: ["jelly", "whale", "jelly", "shapes"], neonroad: ["neon", "shapes", "saucer", "neon"], aurora: ["saucer", "astronaut", "neon", "saucer"], // some places have their own visitors
+  const FOLK_OF = { arcade: ["astronaut", "shapes", "neon", "jelly"], ocean: ["jelly", "whale", "jelly", "shapes"], neonroad: ["neon", "shapes", "saucer", "neon"], aurora: ["saucer", "astronaut", "neon", "saucer"], // some places have their own visitors
     tube: ["shapes", "neon", "eye", "saucer"], heads: ["saucer", "eye", "shapes", "neon"], sphere: ["astronaut", "saucer", "shapes", "jelly"], solids: ["shapes", "saucer", "neon", "astronaut"], city: ["saucer", "neon", "saucer", "shapes"] };
   const FAMILY = Object.fromEntries(Object.entries(STYLES).flatMap(([family, list]) => list.map(([style]) => [style, family])));
   const KNOBS = { light: ["Brightness", 0.3, 1.7], react: ["Reacts to the music", 0.2, 1.8], speed: ["Speed", 0.3, 2], spark: ["Glints on the hi-hats", 0, 2], drag: ["Length of the trails", 0.4, 2.5], nod: ["Nodding to the beat", 0, 2], turns: ["Changes of course", 0, 3], moves: ["Jumps and stops", 0, 3], pit: ["Cockpit", 0, 1], shots: ["Shooting stars", 0, 3], folk: ["Visitors", 0, 3], tilt: ["Turning now and then", 0, 3], vary: ["Changes by itself", 0, 3], dream: ["Dreamy lights", 0, 2], falls: ["Falling into planets", 0, 3], color: ["Colors that travel", 0, 1.5], echo: ["After-images", 0, 2], breathe: ["Breathing", 0, 2] };
@@ -4944,6 +4944,7 @@ window.Effects = (() => {
     faces: { stack: [0, 0.4, 0.8], bands: [5, 4, 7], glow: [1, 0.6, 1.5] },
     forms: { form: ["tunnel", "tunnel", "spiral", "rays", "honeycomb", "lattice", "cobweb"], arms: [6, 8, 5, 12, 4], twist: [0, 0, 1, -1, 2, 3], drift: [1, 1, -1, 0.5], bends: [1, 0, 2], veil: [0, 0, 0, 0.5], glow: [1, 0.6, 1.5], spin: [1, -1, 0] },
     runner: { gait: [1, 0.85, 1.12], kin: [0.5, 0, 1], wings: [2, 3, 4, 1], flair: [1, 0, 1], course: [0, 1, 2, 3] },
+    arcade: { spin: [1, -1, 0, 1.8], rails: [1, 0.4, 0], hops: [0, 1, -1], foes: [16, 12, 20], scroll: [1, 0.6, 1.5] },
     kaleido: { blobs: [5, 3, 8], line: ["wave", "ring", "none"], spin: [1, -1, 2] },
     plasma: { scale: [1, 0.55, 1.7], stripes: [2, 1, 4], swirl: [0, 1, 2] },
     fractal: { sides: [0, 3, 4, 5, 6, 8], child: [0.22, 0.32, 0.15], spin: [1, -1] },
@@ -4959,7 +4960,7 @@ window.Effects = (() => {
     solids: { mode: ["field", "nested", "orbit", "field"], forms: ["mixed", "cube", "icosa", "tetra", "dodeca"], spin: [1, 2, 0.5] },
     city: { heights: [1, 0.6, 1.5], weave: [1, 0, 2], look: ["neon", "glass", "neon"] },
   };
-  const GLIDES = new Set(["gait", "kin", "wings", "flair", "course", "veil", "stack", "hue", "order", "waves", "twists", "loops", "floor", "height", "glow", "spin", "roll", "drift", "flat", "size", "reach", "scale", "swirl", "child", "curve", "twist", "bends", "twirl", "swell", "depth", "wobble", "heights", "weave"]);
+  const GLIDES = new Set(["rails", "hops", "foes", "scroll", "gait", "kin", "wings", "flair", "course", "veil", "stack", "hue", "order", "waves", "twists", "loops", "floor", "height", "glow", "spin", "roll", "drift", "flat", "size", "reach", "scale", "swirl", "child", "curve", "twist", "bends", "twirl", "swell", "depth", "wobble", "heights", "weave"]);
   const dialsOf = (style) => VERSIONS[style] && { hue: HUES, order: [0, 0, 1, 2], ...VERSIONS[style] };
   const LIVE = new Set(["fold", "form", "glasses", "roots"]), TAKES = { fold: 0.45, form: 1, glasses: 0.16, roots: 0.5 }; // these go over in the picture itself: the old fold lets go as the new one takes hold, a ring bends from one shape into the other, a head takes its glasses off and puts others on, and Newton's new roots open as a ring of light. Each takes this much of a slow change
   const vary = { aim: {}, on: 0, due: 40, turned: {}, was: {}, over: {}, trip: null }; // where each dial is going, what a fold or a shape was and how far over it is, and the slow change that's on
@@ -6123,7 +6124,475 @@ window.Effects = (() => {
     if (!L.skies[1 - st.zone] && L.made !== realNow) L.skies[1 - st.zone] = L.sky(1 - st.zone); // the other sky is drawn a frame after the rest, well before a drop can want it, so that starting is spread over two frames
   }
   /* ==== runner: end ==== */
-  const DRAW = { runner: runnerFx, forms: formsFx, faces, ribbon, silk, helix, strings, bars, mirror, leds, terrain, scope, trails, tunnel, vortex, prism, ripple, comets, stars: starfield, whirl, dust, links, fireworks, halo, sun, rings, mandala, rays, space, warp: space, drift: space, orbit: space, visitors: space, well,
+  /* ==== arcade: begin ==== */
+  /* ---------- Arcade: an arcade machine that plays itself to the song, on the pixel screen. One small ship at the foot of a field that scrolls down. Foes come in a wave at a time and settle into a figure
+     (a clock face, a ring inside a ring, a spiral, a fan); the ship slides under one, a bolt leaves on the hi-hat and lands on the next kick: one foe a beat, and a count that climbs. In a break the foes
+     leave and the ship drifts through a ribbon of lights; through a build a great foe comes down and is shot once, then twice, then four times a beat; on the drop it splits and bursts, the stage goes up
+     and the ship flies a loop. The kind of music picks the world: its scenery, its foes and its great foe. Every figure here is our own drawing, made for this effect. ---------- */
+  const arcadeFx = (() => {
+    const WHITE = [255, 255, 255], BLACK = [0, 0, 0], STRIP = 256, lerp = (a, b, p) => a + (b - a) * p; // STRIP: how many dots tall a strip of scenery is before it comes round again
+    const GRAIN = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5], grain = (x, y) => (GRAIN[(x & 3) + (y & 3) * 4] + 0.5) / 16; // the old way to blend two colors: a pattern of dots, four by four
+    const chance = (x, y, s = 0) => { let n = Math.imul(x | 0, 374761393) ^ Math.imul(y | 0, 668265263) ^ Math.imul(s + 1, 1274126177); n = Math.imul(n ^ (n >>> 13), 1274126177); return ((n ^ (n >>> 16)) >>> 0) / 4294967296; }; // the same number from 0 to 1 every time for the same place, so scenery can be worked out and need not be kept
+    const WORLD_OF = { acid: "acid", psy: "psy", hard: "hard", trance: "trance", techno: "techno", house: "house", jungle: "jungle", ambient: "ambient", game: "toys", "": "toys" }; // which world each answer of musicWorld() gets
+
+    /* The worlds. Each has its scenery, its pace, the figures its foes settle into, the ways they fly in, how fast a round figure turns, whether the ship takes the nearest foe next or leaps to the farthest,
+       which foes it has (the second kind, or the first in other colors, comes every other wave), its great foe, and its colors: bg behind everything, k for the scenery, then the ship (hull, shade, fins, glass),
+       the foes (body, shade, mark, eye), the second foes (body, shade), the great foe, the ship's bolt, the four colors a burst goes through, and the lamps. */
+    const WORLDS = {
+      toys: { scene: "space", pace: 1, forms: ["clock", "rings", "spiral", "petals"], enter: ["top", "sides", "swirl"], spin: 0.15, sweep: "near", foes: ["kite", "top"], boss: "lantern", // kites and spinning tops under a great paper lantern: for game music, and for when nothing says what kind of music it is
+        bg: [8, 8, 20], k: [[26, 22, 58], [50, 30, 86], [64, 72, 112], [150, 160, 200], [236, 240, 255], [34, 58, 96], [66, 112, 150], [150, 204, 216]],
+        ship: [[244, 236, 214], [146, 136, 160], [255, 140, 60], [90, 220, 200]], foe: [[255, 116, 112], [176, 60, 92], [255, 236, 170], [255, 255, 255]], foe2: [[250, 200, 80], [176, 112, 40]],
+        great: [[236, 96, 80], [150, 44, 70], [255, 214, 120], [255, 246, 200]], shot: [255, 244, 170], burst: [[255, 255, 255], [255, 224, 96], [255, 124, 60], [150, 50, 76]], lamp: [110, 224, 255] },
+      acid: { scene: "vats", pace: 1, forms: ["snake", "helix", "rings", "diamond"], enter: ["squig", "top"], spin: 0, sweep: "near", foes: ["drop"], boss: "vat", // one-eyed drops over runs of acid
+        bg: [14, 8, 22], k: [[22, 14, 36], [32, 20, 48], [44, 28, 62], [24, 58, 22], [44, 96, 26], [96, 160, 34], [60, 52, 82], [108, 98, 132], [226, 240, 96]],
+        ship: [[240, 236, 204], [134, 124, 96], [255, 150, 40], [190, 255, 90]], foe: [[240, 232, 60], [160, 150, 30], [255, 255, 255], [20, 12, 30]], foe2: [[255, 164, 50], [176, 92, 30]],
+        great: [[200, 210, 60], [98, 128, 40], [255, 140, 40], [255, 255, 255]], shot: [210, 255, 130], burst: [[255, 255, 255], [240, 246, 100], [150, 220, 40], [58, 110, 40]], lamp: [190, 255, 90] },
+      psy: { scene: "garden", pace: 1.1, forms: ["petals", "spiral", "rings", "diamond"], enter: ["swirl", "sides"], spin: 0.3, sweep: "near", foes: ["bloom"], boss: "flower", // flowers with an eye, over a wheel of lights
+        bg: [14, 6, 34], k: [[34, 14, 64], [62, 22, 96], [255, 70, 160], [60, 220, 230], [255, 160, 40], [170, 240, 70], [255, 244, 220]],
+        ship: [[240, 230, 255], [132, 104, 196], [255, 70, 160], [60, 220, 230]], foe: [[255, 150, 40], [150, 60, 110], [255, 70, 160], [240, 255, 130]], foe2: [[60, 220, 230], [40, 70, 150]],
+        great: [[255, 70, 160], [120, 40, 140], [240, 220, 190], [170, 240, 70]], shot: [130, 255, 232], burst: [[255, 255, 255], [60, 220, 230], [255, 70, 160], [110, 40, 150]], lamp: [255, 70, 160] },
+      hard: { scene: "foundry", pace: 1.6, forms: ["cross", "fan", "arrows", "diamond"], enter: ["drop", "top"], spin: 0, sweep: "far", foes: ["skull"], boss: "engine", // horned skulls over molten metal
+        bg: [10, 4, 6], k: [[16, 4, 6], [40, 8, 8], [84, 14, 10], [150, 40, 14], [226, 110, 30], [50, 48, 58], [24, 22, 30], [255, 120, 40]],
+        ship: [[228, 228, 234], [112, 110, 128], [255, 52, 40], [255, 204, 90]], foe: [[216, 210, 198], [124, 110, 108], [255, 60, 40], [255, 220, 120]], foe2: [[170, 176, 190], [84, 88, 108]],
+        great: [[120, 116, 130], [62, 60, 74], [255, 150, 40], [255, 60, 40]], shot: [255, 232, 150], burst: [[255, 255, 255], [255, 220, 110], [255, 110, 30], [140, 24, 24]], lamp: [255, 60, 40] },
+      trance: { scene: "clouds", pace: 0.9, forms: ["arcs", "fan", "rings", "helix"], enter: ["sides", "swirl"], spin: 0.12, sweep: "near", foes: ["bell"], boss: "crystal", // ringing glass bells over a sea of cloud at first light
+        bg: [10, 12, 44], k: [[10, 12, 44], [30, 28, 92], [84, 52, 134], [156, 84, 146], [24, 24, 76], [34, 30, 92], [52, 44, 116], [96, 76, 150], [150, 130, 150], [226, 204, 190], [255, 244, 220]],
+        ship: [[255, 255, 255], [146, 156, 208], [255, 132, 190], [124, 232, 255]], foe: [[124, 232, 255], [58, 116, 204], [255, 250, 190], [255, 255, 255]], foe2: [[255, 170, 214], [170, 84, 170]],
+        great: [[170, 220, 255], [84, 110, 204], [255, 232, 170], [255, 250, 200]], shot: [255, 255, 224], burst: [[255, 255, 255], [255, 240, 170], [255, 150, 204], [110, 96, 190]], lamp: [255, 170, 214] },
+    };
+    // the other kinds of music borrow a scenery, and bring their own colors, pace and foes
+    WORLDS.techno = { ...WORLDS.hard, pace: 1.2, forms: ["clock", "arrows", "diamond", "cross"], enter: ["drop", "squig"], spin: 0.1, sweep: "near", foes: ["cog"], bg: [6, 8, 10], k: [[6, 12, 16], [8, 20, 26], [12, 34, 40], [18, 58, 64], [36, 104, 104], [44, 48, 54], [20, 22, 26], [120, 240, 230]], // turning cogs over a cold works
+      foe: [[200, 206, 212], [100, 108, 120], [255, 150, 40], [255, 230, 150]], foe2: [[150, 160, 170], [70, 78, 92]], great: [[110, 116, 124], [56, 60, 70], [120, 240, 230], [255, 150, 40]],
+      ship: [[230, 234, 236], [110, 120, 130], [255, 150, 40], [120, 240, 230]], burst: [[255, 255, 255], [150, 236, 226], [40, 150, 160], [30, 60, 80]], lamp: [120, 240, 230], shot: [200, 255, 244] };
+    WORLDS.house = { ...WORLDS.toys, pace: 0.95, forms: ["rings", "petals", "arcs", "clock"], enter: ["swirl", "top"], spin: 0.2, foes: ["ball"], bg: [18, 8, 26], k: [[44, 16, 56], [78, 24, 80], [110, 70, 120], [220, 150, 190], [255, 236, 200], [150, 70, 40], [236, 150, 50], [255, 226, 140]], // mirror balls in a warm night
+      ship: [[255, 244, 230], [170, 130, 160], [255, 110, 170], [255, 226, 140]], foe: [[255, 110, 170], [150, 44, 110], [255, 226, 140], [255, 255, 255]], foe2: [[255, 190, 70], [170, 96, 30]], great: [[236, 96, 150], [130, 44, 110], [255, 210, 110], [255, 250, 190]], lamp: [255, 190, 70] };
+    WORLDS.jungle = { ...WORLDS.psy, pace: 1.5, forms: ["snake", "cross", "helix", "spiral"], enter: ["drop", "swirl"], spin: 0, sweep: "far", bg: [6, 16, 14], k: [[10, 34, 26], [18, 58, 36], [236, 190, 50], [90, 200, 90], [240, 110, 50], [170, 230, 90], [250, 246, 210]], // the garden gone green and quick
+      ship: [[244, 240, 214], [120, 140, 110], [240, 110, 50], [170, 230, 90]], foe: [[240, 190, 50], [150, 96, 40], [240, 110, 50], [255, 255, 200]], foe2: [[110, 220, 110], [30, 110, 70]], great: [[90, 190, 90], [34, 96, 60], [240, 230, 190], [240, 110, 50]], burst: [[255, 255, 255], [240, 230, 110], [240, 110, 50], [40, 110, 60]], shot: [220, 255, 170], lamp: [170, 230, 90] };
+    WORLDS.ambient = { ...WORLDS.trance, pace: 0.55, forms: ["arcs", "rings", "petals"], enter: ["sides"], spin: 0.08, bg: [4, 8, 22], k: [[4, 8, 22], [8, 20, 44], [14, 40, 66], [26, 70, 90], [16, 36, 60], [20, 44, 70], [44, 84, 110], [150, 210, 210], [110, 130, 150], [190, 210, 220], [240, 250, 250]], // the clouds by night, slow
+      foe: [[150, 230, 220], [50, 120, 140], [250, 250, 210], [255, 255, 255]], foe2: [[170, 190, 250], [80, 96, 180]], lamp: [150, 230, 220] };
+
+    /* The drawings. A sprite is written as rows of characters, and only its left half when both sides are the same. The light is then put on by rule, from the upper left: the body colors (a to d) come out
+       paler where the dot above or to the left is empty and darker where the dot below or to the right is, and a dark line goes all the way round. */
+    const SHIP = [".......a", ".......a", "......aa", "......aa", ".....aab", ".....aww", "....aaww", "....abww", "...aaabw", "...aaaba", "..caaaba", ".ccaaaaa", "cccaabaa", "cc..abba", "c....abb", "......cc"]; // a dart: one long nose with the gun in it, a round glass, two fins swept back
+    const FOES = { // each in two poses, which change on every beat
+      kite: [[".......aa.......", ".....aabbaa.....", "...aaaabbaaaa...", ".cccccccccccccc.", "..aaaaabbaaaaa..", "...aaaabbaaaa...", "....aaabbaaa....", ".....aabbaa.....", "......abba......", ".......bb.......", "........e.......", ".........e......", "........ee......", ".......e........"], // a paper kite on its two sticks, its tail swinging from side to side (written at full width, as its two sides differ)
+        [".......aa.......", ".....aabbaa.....", "...aaaabbaaaa...", ".cccccccccccccc.", "..aaaaabbaaaaa..", "...aaaabbaaaa...", "....aaabbaaa....", ".....aabbaa.....", "......abba......", ".......bb.......", ".......e........", "......e.........", "......ee........", "........e......."]],
+      top: [[".......b", ".......b", "......bb", "...aaaaa", ".aaaaaaa", "acacacac", "aaaaaaaa", ".aaaaaaa", "...aaaaa", ".....aaa", "......aa", ".......e", ".......e"], // a spinning top: its stripe goes round
+        [".......b", ".......b", "......bb", "...aaaaa", ".aaaaaaa", "cacacaca", "aaaaaaaa", ".aaaaaaa", "...aaaaa", ".....aaa", "......aa", ".......e", ".......e"]],
+      drop: [[".......a", "......aa", "......aa", ".....aaa", "....aaaa", "...aaccc", "..aacccc", "..aaccee", "..aaccee", "..aaaccc", "...aaaaa", "...baaab", "..bb..b."], // a drop with one eye, on two short feet
+        ["........", ".......a", "......aa", ".....aaa", "...aaaaa", "..aaaccc", ".aaacccc", ".aaaccee", ".aaaccce", ".aaaaccc", "..aaaaaa", "..baaaab", ".bb...b."]],
+      bloom: [["......aa", ".....aaa", ".....aab", "......ac", ".aaa.ccc", "aaaaccee", "aabaccek", "aaaaccee", ".aaa.ccc", "......ac", ".....aab", ".....aaa", "......aa"], // a flower with an eye in it: its petals stand square, then cornerwise
+        ["........", ".aa.....", "aaaa....", "aaba..ac", ".aaa.ccc", "...accee", "....ccek", "...accee", ".aaa.ccc", "aaba..ac", "aaaa....", ".aa.....", "........"]],
+      skull: [["a.......", "aa......", "aaa.aaaa", ".aaaaaaa", ".aaaaaaa", ".aacccaa", ".aaaccba", "..aaaaba", "..baaaaa", "...ababa", "...ababa", "........"], // a horned skull that chews
+        ["a.......", "aa......", "aaa.aaaa", ".aaaaaaa", ".aaaaaaa", ".aacccaa", ".aaaccba", "..aaaaba", "..baaaaa", "........", "...ababa", "....aaaa"]],
+      cog: [["......aa", ".a..aaaa", ".aaaaaaa", "..aaaaaa", "..aabbba", "aaaabccb", "aaaabccb", "..aabbba", "..aaaaaa", ".aaaaaaa", ".a..aaaa", "......aa"], // a cog with a hot middle, turning a tooth at a time
+        ["....aa..", "...aaaaa", "aa.aaaaa", "aaaaaaaa", "..aabbba", "..aabccb", "..aabccb", "..aabbba", "aaaaaaaa", "aa.aaaaa", "...aaaaa", "....aa.."]],
+      bell: [["......bbbb......", "......b..b......", ".....aaaaaa.....", "....aaaaaaaa....", "...aaaaaaaaaa...", "...aacaaaaaaa...", "...aacaaaaaaa...", "...aaaaaaaaaa...", "..aaaaaaaaaaaa..", "..aaaaaaaaaaaa..", ".aaaaaaaaaaaaaa.", "bbbbbbbbbbbbbbbb", ".....ee.........", ".....ee........."], // a glass bell on its loop, with a streak of light down it and a wide lip: its clapper swings from side to side (written at full width, as its two sides differ)
+        ["......bbbb......", "......b..b......", ".....aaaaaa.....", "....aaaaaaaa....", "...aaaaaaaaaa...", "...aacaaaaaaa...", "...aacaaaaaaa...", "...aaaaaaaaaa...", "..aaaaaaaaaaaa..", "..aaaaaaaaaaaa..", ".aaaaaaaaaaaaaa.", "bbbbbbbbbbbbbbbb", ".........ee.....", ".........ee....."]],
+      ball: [[".......b.......", ".......b.......", ".......b.......", ".....aabaa.....", "...abaabaaba...", "..bbbbbbbbbbb..", ".aabeebaabccba.", ".aabeebaabccba.", ".bbbbbbbbbbbbb.", ".abccbaabaabaa.", ".abccbaabaabaa.", ".bbbbbbbbbbbbb.", ".aabaabccbaaba.", "..abaabccbaab..", "...bbbbbbbbb...", ".....abaab....."], // a mirror ball hanging on its thread: rows of square tiles, some of them catching the light, that go round a tile at a time (written at full width)
+        [".......b.......", ".......b.......", ".......b.......", ".....abaab.....", "...baabaabaa...", "..bbbbbbbbbbb..", ".abaabeebaabcc.", ".abaabeebaabcc.", ".bbbbbbbbbbbbb.", ".bccbaabaabaab.", ".bccbaabaabaab.", ".bbbbbbbbbbbbb.", ".abaabccbaabaa.", "..baabccbaaba..", "...bbbbbbbbb...", ".....baaba....."]],
+    };
+    const PRIZE = [".....a", ".....a", "....aa", "....ac", "..aacc", "aaaccw", "..aacc", "....ac", "....aa", ".....a", ".....a"]; // a four-pointed star that drifts through now and then, worth a good deal
+    /* The great foes, 64 dots by 40, facing down. Each is a list of shapes, drawn on both sides of the middle: ["o", color, x, y, half width, half height] a round, ["r", color, x, y, width, height] a box,
+       ["t", color, and three corners] a triangle; the color "." cuts a hole. pts: where the ship's bolts land on it, counted from its middle. */
+    const BOSSES = {
+      lantern: { list: [["r", "c", 30, 0, 2, 4], ["r", "c", 24, 3, 8, 3], ["t", "b", 13, 17, 3, 25, 12, 24], ["o", "c", 4, 27, 2, 2], ["o", "a", 31.5, 19, 20, 13], ["o", "b", 31.5, 19, 14, 13], ["o", "a", 31.5, 19, 13, 13], ["o", "b", 31.5, 19, 7, 13], ["o", "a", 31.5, 19, 6, 13],
+        ["o", "e", 22, 17, 4, 3], ["o", "k", 23, 18, 2, 2], ["o", "e", 31.5, 26, 6, 3], ["r", "k", 28, 26, 4, 1], ["r", "c", 25, 31, 7, 3], ["t", "c", 26, 34, 30, 34, 28, 39], ["r", "e", 31, 34, 1, 5]], pts: [[-18, 6], [18, 6], [0, 14]] }, // a paper lantern with a face, a tassel under it
+      vat: { list: [["r", "b", 27, 0, 5, 7], ["r", "b", 2, 12, 12, 5], ["o", "b", 5, 22, 5, 6], ["r", "c", 3, 27, 5, 4], ["o", "a", 31.5, 18, 20, 14], ["o", "b", 17, 9, 3, 2], ["o", "e", 31.5, 20, 10, 9], ["o", "c", 31.5, 22, 5, 5], ["o", "k", 31.5, 23, 2, 3], ["r", "e", 29, 19, 1, 1],
+        ["t", "a", 18, 29, 25, 31, 21, 39], ["t", "a", 28, 31, 32, 31, 30, 37]], pts: [[-27, 12], [27, 12], [0, 14]] }, // a vat with one great eye and two grabs, dripping
+      flower: { list: [["o", "a", 31.5, 7, 6, 7], ["o", "a", 18, 10, 7, 6], ["o", "a", 11, 21, 8, 6], ["o", "a", 18, 31, 7, 6], ["o", "a", 31.5, 33, 6, 6], ["o", "b", 31.5, 5, 2, 3], ["o", "b", 16, 9, 3, 2], ["o", "b", 8, 21, 4, 2], ["o", "b", 16, 32, 3, 2], ["o", "b", 31.5, 36, 2, 2],
+        ["o", "c", 31.5, 20, 12, 10], ["o", "w", 31.5, 20, 9, 6], ["o", "e", 31.5, 20, 5, 5], ["o", "k", 31.5, 21, 2, 3], ["r", "w", 29, 17, 2, 2]], pts: [[-20, 0], [20, 0], [0, 12]] }, // a great flower round one eye
+      engine: { list: [["r", "b", 17, 0, 5, 6], ["t", "b", 12, 16, 1, 36, 16, 24], ["r", "a", 10, 4, 22, 24], ["t", ".", 9, 3, 18, 3, 9, 12], ["t", ".", 9, 28, 16, 28, 9, 21], ["t", "c", 15, 13, 28, 18, 15, 19], ["r", "b", 16, 23, 16, 3], ["r", "k", 19, 26, 13, 8], ["r", "c", 20, 26, 2, 8], ["r", "c", 25, 26, 2, 8],
+        ["r", "c", 30, 26, 2, 8], ["r", "b", 18, 34, 14, 4], ["r", "b", 27, 8, 5, 2]], pts: [[-18, 6], [18, 6], [0, 16]] }, // an engine block with a furnace for a mouth
+      crystal: { list: [["o", "c", 31.5, 4, 11, 4], ["o", ".", 31.5, 4, 8, 2], ["t", "b", 22, 14, 0, 2, 16, 22], ["t", "b", 22, 19, 2, 18, 16, 26], ["t", "b", 22, 24, 6, 34, 20, 28], ["t", "a", 31.5, 3, 19, 18, 31.5, 39], ["t", "e", 31.5, 9, 25, 18, 31.5, 29], ["r", "w", 28, 15, 2, 2]], pts: [[-20, 2], [20, 2], [0, 18]] }, // a crystal with wings of glass under a ring of light
+    };
+    function paint(wide, high, f) { // a small picture from a rule: f says the color of each dot, or nothing where it is see-through
+      const [c, x] = paper(wide, high), img = x.createImageData(wide, high);
+      for (let j = 0, at = 0; j < high; j++) for (let i = 0; i < wide; i++, at += 4) { const col = f(i, j); if (col) { img.data[at] = col[0]; img.data[at + 1] = col[1]; img.data[at + 2] = col[2]; img.data[at + 3] = 255; } }
+      x.putImageData(img, 0, 0);
+      return c;
+    }
+    function art(rows, tones, edge, mirror = true, squeeze = false) { // a sprite from its rows: mirror writes the other half, squeeze takes two columns out of each half (the ship seen leaning into a turn)
+      if (mirror) rows = rows.map((r) => (squeeze ? r.slice(0, 1) + r.slice(2, 4) + r.slice(5) : r)).map((r) => r + [...r].reverse().join(""));
+      const at = (i, j) => tones[(rows[j - 1] || "")[i - 1]];
+      return paint(rows[0].length + 2, rows.length + 2, (i, j) => {
+        const col = at(i, j), ch = (rows[j - 1] || "")[i - 1];
+        if (!col) return at(i - 1, j) || at(i + 1, j) || at(i, j - 1) || at(i, j + 1) ? edge : null;
+        if (ch > "d") return col;
+        const lit = !at(i - 1, j) || !at(i, j - 1), dark = !at(i + 1, j) || !at(i, j + 1);
+        return lit && !dark ? mix(col, WHITE, 0.42) : dark && !lit ? mix(col, edge, 0.45) : col;
+      });
+    }
+    function shapes(wide, high, list) { // a great foe's list of shapes, turned into rows of characters
+      const m = Array.from({ length: high }, () => Array(wide).fill(".")), side = (ax, ay, bx, by, x, y) => (bx - ax) * (y - ay) - (by - ay) * (x - ax);
+      for (const [kind, ch, ...a] of list) for (let y = 0; y < high; y++) for (let x = 0; x < wide; x++) {
+        let inside;
+        if (kind === "o") inside = ((x - a[0]) / a[2]) ** 2 + ((y - a[1]) / a[3]) ** 2 <= 1;
+        else if (kind === "r") inside = x >= a[0] && x < a[0] + a[2] && y >= a[1] && y < a[1] + a[3];
+        else { const d1 = side(a[0], a[1], a[2], a[3], x, y), d2 = side(a[2], a[3], a[4], a[5], x, y), d3 = side(a[4], a[5], a[0], a[1], x, y); inside = !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0)); }
+        if (inside) m[y][x] = m[y][wide - 1 - x] = ch;
+      }
+      return m.map((r) => r.join(""));
+    }
+
+    /* Scenery. Each layer is painted once on a strip that joins top to bottom, and slides down at its own speed, the far ones slowly. */
+    function cloud(x, y, s, round) { const xi = Math.floor(x), yi = Math.floor(y), fx = x - xi, fy = y - yi, u = fx * fx * (3 - 2 * fx), v = fy * fy * (3 - 2 * fy), row = (j) => (((yi + j) % round) + round) % round; return lerp(lerp(chance(xi, row(0), s), chance(xi + 1, row(0), s), u), lerp(chance(xi, row(1), s), chance(xi + 1, row(1), s), u), v); } // soft lumps, the same at the top of the strip as at its foot
+    function ground(across, s, sx, sy, steps, tones, soft = 0.05, rim = 1) { // ground as the old consoles had it: soft lumps cut into flat levels, a pattern of dots where two levels meet (soft), a pale edge to the upper left and a dark one to the lower right (rim)
+      const level = new Uint8Array(across * STRIP);
+      for (let j = 0; j < STRIP; j++) for (let i = 0; i < across; i++) { const n = 0.65 * cloud(i / sx, j / sy, s, STRIP / sy) + 0.35 * cloud((i * 2) / sx, (j * 2) / sy, s + 9, (2 * STRIP) / sy) + (grain(i, j) - 0.5) * soft; let l = 0; while (l < steps.length && n > steps[l]) l++; level[j * across + i] = l; }
+      const at = (i, j) => level[((j + STRIP) % STRIP) * across + Math.max(0, Math.min(across - 1, i))], pale = tones.map((c) => c && mix(c, WHITE, 0.3 * rim)), deep = tones.map((c) => c && mix(c, BLACK, 0.4 * rim));
+      const c = paint(across, STRIP, (i, j) => { const l = at(i, j); return !rim || !l || !tones[l] ? tones[l] : at(i - 1, j - 1) < l ? pale[l] : at(i + 1, j + 1) < l ? deep[l] : tones[l]; });
+      c.at = at;
+      return c;
+    }
+    function strip(across, draw) { const [c, x] = paper(across, STRIP), box = (col, px, py, wide = 1, high = 1) => { x.fillStyle = pixelCss(col); for (const dy of [-STRIP, 0, STRIP]) x.fillRect(Math.round(px), Math.round(py) + dy, wide, high); }; draw(box); return c; } // a strip drawn with boxes: whatever hangs over its foot comes in again at the top
+    const dots = (across, s, n, tones, big) => strip(across, (box) => { for (let i = 0; i < n; i++) { const x = chance(i, 1, s) * across, y = chance(i, 2, s) * STRIP, col = tones[i % tones.length]; box(col, x, y); if (big && i % 5 === 0) { box(col, x - 1, y, 3, 1); box(col, x, y - 1, 1, 3); } } }); // stars, some of them a small cross
+    const ball = (r, tones, bands = 0) => paint(r * 2 + 1, r * 2 + 1, (i, j) => { const x = (i - r) / r, y = (j - r) / r, d = x * x + y * y; if (d > 1) return null; const light = clamp(0.5 + 0.55 * (-x * 0.6 - y * 0.6 + Math.sqrt(1 - d) * 0.45) + bands * Math.sin(y * 9 + x * 2)), f = light * 2, n = Math.min(1, Math.floor(f)); return tones[f - n > grain(i, j) ? n + 1 : n]; }); // a ball lit from the upper left, in three tones blended with dots
+    const stack = (across, ...layers) => { const [c, x] = paper(across, STRIP); layers.forEach((l) => x.drawImage(l, 0, 0)); return c; };
+    function slide(S, c, by) { by = ((by % STRIP) + STRIP) % STRIP; for (let y = by - STRIP; y < S.down; y += STRIP) S.x.drawImage(c, 0, Math.round(y)); }
+    const SCENES = { // each makes its layers for a screen so many dots across and down, and gives back what draws them
+      space({ AX, tall, k }) { // far dust and stars, a planet that goes by, nearer stars
+        const far = stack(AX, ground(AX, 1, 64, 64, [0.55, 0.66], [null, k[0], k[1]], 0.16, 0), dots(AX, 2, Math.round(AX / 4), [k[2]])), mid = dots(AX, 3, Math.round(AX / 7), [k[3], k[2]]), near = dots(AX, 4, Math.round(AX / 13), [k[4], k[3]], true), orb = ball(tall ? 15 : 22, [k[5], k[6], k[7]], 0.12);
+        return (S) => { slide(S, far, G.scroll * 0.12); S.put(orb, S.across * 0.74 - orb.width / 2, G.orb * (S.down + 120) - 80); slide(S, mid, G.scroll * 0.35); slide(S, near, G.scroll * 0.8); };
+      },
+      vats({ AX, tall, k, EDGE }) { // a rock floor with runs of acid, bubbles that pop on the beat, pipes down the sides
+        const pools = ground(AX, 5, 30, 64, [0.56, 0.6, 0.72], [null, k[3], k[4], k[5]], 0.04, 0.7), floor = stack(AX, ground(AX, 6, 24, 32, [0.42, 0.6], [k[0], k[1], k[2]], 0.1, 0.5), pools), live = [];
+        const pipes = strip(AX, (box) => { for (const x of tall ? [7] : [9, 22]) for (const px of [x, AX - x - 5]) { box(k[6], px, 0, 5, STRIP); box(k[7], px + 1, 0, 1, STRIP); box(EDGE, px + 4, 0, 1, STRIP); box(EDGE, px - 1, 0, 1, STRIP); for (let y = (px * 7) % 64; y < STRIP; y += 64) { box(EDGE, px - 2, y - 1, 9, 6); box(k[7], px - 1, y, 7, 4); box(k[6], px, y + 1, 6, 3); } } });
+        return (S) => {
+          const by = G.scroll * 0.4, t = G.t;
+          if (G.pulse) for (let n = 0, made = 0; n < 30 && made < 4; n++) { const x = rnd(8, AX - 8) | 0, y = rnd(0, STRIP) | 0; if (pools.at(x, y) >= 2) { live.push({ x, y, born: t + made * 0.04 }); made++; } }
+          slide(S, floor, by);
+          for (let i = live.length - 1; i >= 0; i--) { const b = live[i], age = t - b.born, y = (((b.y + by) % STRIP) + STRIP) % STRIP; if (age > 0.5 || age < -1) { live.splice(i, 1); continue; } if (age < 0) continue;
+            const f = Math.floor(age * 10); if (f < 2) S.rect(k[8], b.x, y, 2 + f, 2 + f); else if (f < 4) { S.rect(k[8], b.x - 1, y - 1, 5, 5); S.rect(k[4], b.x, y, 3, 3); S.rect(WHITE, b.x, y, 1, 1); } else for (const [dx, dy] of [[-2, -2], [4, -2], [-2, 4], [4, 4]]) S.dot(k[8], b.x + dx, y + dy); }
+          slide(S, pipes, G.scroll);
+        };
+      },
+      garden({ AX, tall, k, Wd, EDGE }) { // moss, a slow wheel of lights whose colors step outward every other beat, and the tops of great toadstools (kept dim, more than half way to the background, so the foes stand out in front of them)
+        const moss = ground(AX, 7, 40, 32, [0.5, 0.62], [null, k[0], k[1]], 0.14, 0), four = [k[2], k[3], k[4], k[5]], dim = four.map((c) => pixelCss(mix(c, Wd.bg, 0.5))), count = Math.max(5, Math.round(AX / 27)), speck = mix(k[6], Wd.bg, 0.45);
+        const caps = strip(AX, (box) => { for (let n = 0; n < count; n++) { const cx = chance(n, 1, 8) * AX, cy = (n + chance(n, 2, 8) * 0.6) * (STRIP / count), R = 5 + Math.floor(chance(n, 3, 8) * 10), col = mix(four[n % 4], Wd.bg, 0.55), nub = R * 0.3;
+          for (let y = -R - 1; y <= R + 1; y++) for (let x = -R - 1; x <= R + 1; x++) { const d = Math.hypot(x, y); if (d > R + 0.5) continue; const light = -(x + y) / R / 1.41 + (grain(x + 64, y + 64) - 0.5) * 0.4;
+            box(d > R - 0.5 ? EDGE : d > R - 2.5 ? mix(col, EDGE, light > 0.2 ? 0.2 : 0.55) : d < nub ? mix(col, WHITE, light < -0.3 ? 0.1 : 0.45) : d < nub + 1 && light < 0 ? mix(col, EDGE, 0.5) : light > 0.45 ? mix(col, WHITE, 0.3) : light < -0.4 ? mix(col, EDGE, 0.35) : col, cx + x, cy + y); }
+          for (let q = 0; q < 3 + R / 3; q++) { const a = q * 2.4 + n, d = R * (0.5 + 0.22 * (q % 2)), big = R > 8 ? 2 : 1; box(speck, cx + Math.cos(a) * d, cy + Math.sin(a) * d, big, big); } } });
+        return (S) => {
+          slide(S, moss, G.scroll * 0.25);
+          const cx = S.across / 2, cy = S.down * 0.44, gap = tall ? 16 : 19, x = S.x;
+          for (let ring = 1; ring * gap < Math.hypot(S.across, S.down) * 0.56; ring++) { const n = ring * 14, rr = ring * gap * (1 + 0.04 * G.bassSlow), big = ring > 3 ? 2 : 1, turn = G.t * 0.1 * (ring % 2 ? 1 : -1);
+            x.fillStyle = dim[(((ring - (G.beat >> 1)) % 4) + 4) % 4];
+            for (let i = 0; i < n; i++) { const a = (i / n) * TAU + turn; x.fillRect(Math.round(cx + Math.cos(a) * rr), Math.round(cy + Math.sin(a) * rr), big, big); } }
+          slide(S, caps, G.scroll * 0.7);
+        };
+      },
+      foundry({ AX, tall, k }) { // molten metal far below, plates and gratings going by at the sides, the gratings glowing with the kick, sparks coming up
+        const lava = ground(AX, 9, 40, 32, [0.44, 0.56, 0.65, 0.73], [k[0], k[1], k[2], k[3], k[4]], 0.07, 0), grates = [], shade = [], P = 32, most = tall ? 1 : 3, live = [], edge = mix(k[5], WHITE, 0.25);
+        const plates = strip(AX, (box) => { for (let row = 0; row < STRIP / P; row++) for (const right of [0, 1]) { const n = Math.max(tall ? 0 : 1, Math.round(chance(row, right, 3) * most)); for (let c = 0; c < n; c++) { const x = right ? AX - (c + 1) * P : c * P, y = row * P, grate = chance(row, c + right * 9, 4) < 0.3;
+          box(k[5], x, y, P, P); box(edge, x, y, P, 1); box(edge, x, y, 1, P); box(k[6], x, y + P - 1, P, 1); box(k[6], x + P - 1, y, 1, P);
+          for (const [dx, dy] of [[3, 3], [P - 5, 3], [3, P - 5], [P - 5, P - 5]]) { box(k[6], x + dx, y + dy, 2, 2); box(mix(k[5], WHITE, 0.4), x + dx, y + dy); }
+          if (grate) { box(k[6], x + 7, y + 7, P - 14, P - 14); grates.push([x + 9, y + 9]); } else box(mix(k[5], BLACK, 0.2), x + 8, y + 15, P - 16, 2);
+          if (c === n - 1) shade.push([right ? x - 3 : x + P, y]); } } });
+        const shadows = strip(AX, (box) => shade.forEach(([x, y]) => box(BLACK, x, y, 3, P))); // the shadow the plates throw on what is below
+        return (S) => {
+          const t = G.t;
+          slide(S, lava, G.scroll * 0.22);
+          if (G.pulse) for (let n = 0; n < 5; n++) live.push({ x: rnd(S.across * 0.2, S.across * 0.8), y: rnd(S.down * 0.2, S.down), born: t, vy: rnd(-50, -20) });
+          for (let i = live.length - 1; i >= 0; i--) { const b = live[i], age = t - b.born; if (age > 0.7 || age < 0) { live.splice(i, 1); continue; } S.dot(age < 0.3 ? k[4] : k[3], b.x, b.y + b.vy * age); }
+          const by = ((G.scroll % STRIP) + STRIP) % STRIP;
+          S.x.globalAlpha = 0.5; slide(S, shadows, G.scroll); S.x.globalAlpha = 1;
+          slide(S, plates, G.scroll);
+          S.x.fillStyle = pixelCss(mix(k[1], k[7], clamp(0.2 + 0.6 * G.thump))); // (the glow follows the kick slowly, so the gratings swell and never blink)
+          for (const [gx, gy] of grates) for (let y = gy + by - STRIP; y < S.down; y += STRIP) for (let bar = 0; bar < 3; bar++) S.x.fillRect(gx, Math.round(y) + bar * 5, P - 18, 2);
+        };
+      },
+      clouds({ AX, DN, tall, k }) { // a night sky going to dawn at the foot, a moon, and three sheets of cloud
+        const sky = paint(AX, DN, (i, j) => { const f = (j / DN) * 3, n = Math.min(2, Math.floor(f)); return k[f - n > grain(i, j) ? n + 1 : n]; }), moon = ball(tall ? 14 : 20, [k[8], k[9], k[10]]);
+        const far = ground(AX, 11, 56, 32, [0.58], [null, k[4]], 0.12, 0), mid = ground(AX, 13, 72, 32, [0.57, 0.66], [null, k[5], k[6]], 0.02, 1), near = ground(AX, 14, 96, 64, [0.68, 0.74], [null, k[6], k[7]], 0.02, 0.8);
+        const stars = Array.from({ length: 26 }, (_, i) => [chance(i, 1, 15), chance(i, 2, 15) ** 2 * 0.6]);
+        return (S) => { S.put(sky, 0, 0); stars.forEach(([x, y], i) => S.dot(k[10], x * S.across, y * S.down, (i + G.hats) % 5 ? 0.5 : 1)); slide(S, far, G.scroll * 0.15); S.put(moon, S.across * 0.7, S.down * 0.1); slide(S, mid, G.scroll * 0.45); slide(S, near, G.scroll * 1.1); };
+      },
+    };
+
+    /* The figures the foes settle into: where foe i of n sits, across from -1 to 1 and down from 0 to 1 (and, for a ring inside a ring, which way and how fast it turns next to the others).
+       None is rows of foes: a clock face whose hands show another time each wave, two rings, a spiral, a flower of four petals, two strands that cross, a fan, a double arrowhead, two arcs like a rainbow,
+       one long snaking line (down the screen on a phone), a diamond and a cross. */
+    const zag = (x) => 1 - Math.abs((((x % 4) + 4) % 4) - 2);
+    const round = (a, r) => [Math.sin(a) * r * 0.96, 0.5 - Math.cos(a) * r * 0.5];
+    const FORMS = {
+      clock: (i, n, wave) => { const rim = n - 4, j = i - rim; return j < 0 ? round((i / rim) * TAU, 1) : j < 2 ? round((((wave * 5) % 12) / 12) * TAU, 0.3 + 0.32 * j) : round((((wave * 6 + 4) % 12) / 12) * TAU, 0.22 + 0.22 * (j - 2)); },
+      rings: (i, n) => { const outer = Math.round(n * 0.625); return i < outer ? round((i / outer) * TAU, 1) : [...round(((i - outer) / (n - outer)) * TAU, 0.48), -1.6]; },
+      spiral: (i, n) => round((i / n) * TAU * 1.75, 0.28 + 0.72 * (i / (n - 1))),
+      petals: (i, n) => round((i / n) * TAU, 0.4 + 0.6 * Math.abs(Math.cos((i / n) * TAU * 2))),
+      helix: (i, n) => { const u = (Math.floor(i / 2) / (n / 2 - 1)) * 2 - 1; return [u, 0.5 + (i % 2 ? 0.44 : -0.44) * Math.sin((u + 1.13) * 3.6)]; },
+      fan: (i, n) => { const a = ((i % 4) - 1.5) * 0.52, d = 0.3 + 0.7 * (Math.floor(i / 4) / (n / 4 - 1)); return [Math.sin(a) * d * 1.2, Math.cos(a) * d]; },
+      arrows: (i, n) => { const half = n / 2, inner = i >= half, u = ((i % half) / (half - 1)) * 2 - 1; return [u * (inner ? 0.55 : 1), (inner ? 0.02 : 0.42) + (1 - Math.abs(u)) * (inner ? 0.4 : 0.58)]; },
+      arcs: (i, n) => { const outer = Math.round(n * 0.56), inner = i >= outer, a = ((inner ? (i - outer) / (n - outer - 1) : i / (outer - 1)) * 2 - 1) * 1.75, r = inner ? 0.58 : 1; return [Math.sin(a) * r, 0.62 - Math.cos(a) * r * 0.62]; },
+      snake: (i, n, wave, tall) => { const along = i / (n - 1), swing = Math.sin(along * TAU * 1.5); return tall ? [swing * 0.9, along] : [along * 2 - 1, 0.5 + 0.42 * swing]; },
+      diamond: (i, n) => { const a = (i / n) * 4; return [zag(a + 1), 0.5 + 0.5 * zag(a)]; },
+      cross: (i, n) => { const half = n / 2, u = ((i % half) / (half - 1)) * 2 - 1; return [u, i < half ? (u + 1) / 2 : 1 - (u + 1) / 2]; },
+    }, TURNS = new Set(["clock", "rings", "spiral", "petals", "diamond"]), GUNS = [[[0, 0]], [[-3, -3], [3, 3]], [[-13, 0], [0, 0], [13, 0]]]; // TURNS: the figures that can turn. GUNS: where the bolts leave from and close on, for one gun, two, and two pods beside the ship
+
+    /* The game. G is all of it; made is the world's drawings for the screen as it is now; L is where things go on a screen of this shape; was is the last world's drawings, kept while the new world comes down over it. */
+    let G = null, made = null, L = null, was = null;
+    const kept = new Map(); // the last few sets of drawings, by world and size: going back to one costs nothing
+    const fresh = (t) => ({ t, mode: flow.since > 1.4 ? "calm" : "", beat: 0, lastBeat: t - 9, slot: 0, hats: 0, x: 0, y: 0, ax: 0, ay: 0, lean: 0, px: 0, pods: 0, foes: [], queue: [], shots: [], booms: [], bits: [], pops: [], lights: [], medals: [], drops: [], drifters: [], lightAt: 0, lit: 0, landed: -9,
+      boss: { in: 0, x: 0, y: -60, hit: -9, dead: -9, at: [0, 0] }, score: 0, shown: 0, combo: 0, streak: 0, stage: 1, scroll: 0, orb: 0.3, wave: 0, dropAt: t - 99, fired: -9, shield: -9, gap: 0.47, kickClock: flow.clock - flow.since, B: 0.47, build: 0, ribbon: 0, grooved: 0, stageAt: t - 99,
+      breath: 0, bassSlow: 0, thump: 0, breakFor: 0, rails: [{ now: 0, held: 0, until: 0 }, { now: 0, held: 0, until: 0 }], kick: 0, bass: 0, pulse: 0, across: 0, down: 0, builtAt: t - 9, wipe: null, moodWas: null, genreWas: null, want: "toys", begun: false });
+    function layout(AX, DN) { // where things go: the figure of foes at the top (never wider than suits its height), the ship's row near the foot, a rail of lamps down each side
+      const tall = DN > AX, narrow = AX < 120, low = DN < 140, FH = DN * (tall ? 0.4 : 0.36), RAIL = 5; // narrow, low: a small screen (a phone, or a slow computer, that the app has turned the picture's quality down for), where some things must give way
+      const FT = Math.round(DN * (tall ? 0.08 : 0.133)), BASE = DN - (tall ? 40 : low ? 22 : 30);
+      return { AX, DN, CX: AX / 2, tall, narrow, low, FT, FH, FW: Math.min((AX - (narrow ? 38 : tall ? 46 : 60)) / 2, FH * 2.2), BASE, BY: Math.min(FT + (tall ? 40 : 30), BASE - 55), SWAY: Math.min(tall ? 10 : 30, Math.max(0, (AX - 2 * RAIL - 66) / 2)), RAIL, LOOP: tall ? 0.2 : 0.17 }; // (BY: how far down the great foe comes: never onto the ship, however low the screen. SWAY: how far it goes from side to side: never into the rails, however narrow)
+    }
+    function build(which, AX, DN) { // a world's drawings, for a screen so many dots across and down
+      const key = which + ":" + AX + ":" + DN;
+      if (!kept.has(key)) { if (kept.size > 2) kept.delete(kept.keys().next().value); kept.set(key, draft(which, AX, DN)); }
+      return kept.get(key);
+    }
+    function draft(which, AX, DN) {
+      const Wd = WORLDS[which], EDGE = mix(Wd.bg, BLACK, 0.5), tones = (c) => ({ a: c[0], b: c[1], c: c[2], e: c[3], w: WHITE, k: EDGE }), wears = { a: Wd.ship[0], b: Wd.ship[1], c: Wd.ship[2], w: Wd.ship[3] };
+      return { which, Wd, EDGE, AX, DN, bursts: new Map(), ship: art(SHIP, wears, EDGE), lean: art(SHIP, wears, EDGE, true, true), prize: art(PRIZE, { a: Wd.burst[1], c: mix(Wd.burst[1], WHITE, 0.6), w: WHITE }, EDGE),
+        foes: [0, 1].map((tint) => FOES[Wd.foes[tint] || Wd.foes[0]].map((rows) => art(rows, tones(tint ? [...Wd.foe2, Wd.foe[2], Wd.foe[3]] : Wd.foe), EDGE, rows[0].length < 12))), // [which colors][which pose]
+        boss: art(shapes(64, 40, BOSSES[Wd.boss].list), tones(Wd.great), EDGE, false), pts: BOSSES[Wd.boss].pts, back: SCENES[Wd.scene]({ AX, DN, tall: DN > AX, k: Wd.k, Wd, EDGE }) };
+    }
+    function burstArt(size, f) { // one of a burst's five quick pictures, the old way: a pale block, a ring that widens, then a ring of dots that thins out. Each is drawn once and kept
+      const key = size + ":" + f, tones = made.Wd.burst;
+      if (!made.bursts.has(key)) { const R = Math.round([3, 5, 7, 8, 9][f] * size), hole = Math.round([0, 0, 3, 6, 8][f] * size);
+        made.bursts.set(key, paint(R * 2 + 1, R * 2 + 1, (i, j) => { const d = (i - R) ** 2 + (j - R) ** 2; return d > R * R || d < hole * hole || (f > 2 && grain(i, j) <= (f - 2) * 0.3) ? null : d < (R * R) / 3 && f < 2 ? (size > 2 ? tones[1] : WHITE) : tones[Math.min(3, f)]; })); } // (the great burst opens in the pale burst color, not white, so there is never a big white disk)
+      return made.bursts.get(key);
+    }
+    function resize(kx, ky) { // the window changed shape: everything keeps its place on the new screen, and the game goes on
+      for (const list of [G.shots, G.booms, G.bits, G.pops, G.lights, G.medals, G.drops, G.drifters]) for (const o of list) { if (o.x !== undefined) { o.x *= kx; o.y *= ky; } if (o.x0 !== undefined) { o.x0 *= kx; o.y0 *= ky; } }
+      G.x *= kx; G.ax *= kx; G.px *= kx; G.y *= ky; G.ay *= ky; G.boss.x *= kx; G.boss.y *= ky; G.boss.at = [G.boss.at[0] * kx, G.boss.at[1] * ky];
+    }
+    function where(f) { // where a foe is now: on its way in, in its place (the figure breathing, and turning if it turns), making a turn about its place, or leaving
+      const { AX, DN, CX, FW, FT, FH, tall } = L, t = G.t;
+      if (f.prize) { const p = (t - f.born) / f.dur; return [CX - f.side * (AX * 0.5 + 12) * (1 - 2 * p) + Math.sin(p * TAU * 3) * 6, FT + FH * 0.5 + Math.sin(p * Math.PI) * FH * 0.62]; } // the star crosses in a long dip under the figure
+      let u = f.u, v = f.v;
+      if (f.turn) { const a = f.at, c = Math.cos(a), s = Math.sin(a), vv = (v - 0.5) * 2; v = 0.5 + (u * s + vv * c) / 2; u = u * c - vv * s; }
+      let x = CX + u * FW * (1 + G.breath) + Math.sin(t * 0.9 + v * 3) * (tall ? 2 : 4) * (0.4 + G.bass), y = FT + (0.5 + (v - 0.5) * (1 + G.breath)) * FH;
+      const p = clamp((t - f.born) / f.dur);
+      if (p < 1) { const e = eased(p), arc = Math.sin(Math.PI * p), side = f.side, way = f.way;
+        const from = way === "top" ? [CX + u * FW * 0.4, -16, side * 30] : way === "squig" ? [CX + u * FW * 0.7, -16, 0] : way === "swirl" ? [CX + side * (AX * 0.5 + 16), DN * 0.25, -side * 50] : way === "drop" ? [CX + u * FW, -16 - v * 40, 0] : [CX + side * (AX * 0.5 + 16), FT + FH * 0.9, side * 24];
+        x = lerp(from[0], x, e) + arc * from[2] + (way === "squig" ? Math.sin(p * TAU * 2) * 12 * (1 - p) : 0); y = lerp(from[1], y, way === "drop" ? 1 - (1 - p) ** 3 : e) + arc * Math.abs(from[2]) * 0.4; }
+      if (f.twirl) { const q = (t - f.twirl) / f.twirlFor; if (q < 1) { const r = Math.sin(q * Math.PI) * 9; x += Math.sin(q * TAU) * r * f.side; y += (1 - Math.cos(q * TAU)) * r * 0.6; } } // now and then one makes a turn about its own place
+      if (f.gone) { const q = Math.max(0, t - f.gone); y -= q * q * 240; x += f.side * q * 40; }
+      return [x, y - Math.round(2 * G.kick)];
+    }
+    function spawn() { // a wave more of foes: their places in the figure, the way in, and the order the ship will take them in
+      const Wd = made.Wd, kind = Wd.forms[(G.wave + G.stage - 1) % Wd.forms.length], way = Wd.enter[G.wave % Wd.enter.length], n = Math.max(8, Math.min(L.narrow ? 8 : L.low ? 12 : 24, Math.round((V.foes ?? 16) / 4) * 4)), B = G.B, wave = [], turns = TURNS.has(kind), hops = V.hops ?? 0;
+      for (let i = 0; i < n; i++) { const [u, v, turn = 1] = FORMS[kind](i, n, G.wave, L.tall); wave.push({ u, v, born: G.t + (i / n) * B * 1.5, dur: Math.max(0.5, B * 2.4), way, side: i % 2 ? 1 : -1, turn: turns ? Wd.spin * turn * (G.wave % 2 ? -1 : 1) : 0, at: 0, tint: (G.wave + G.stage) % 2 }); }
+      // the order: always the nearest one left (hops), or every other time the farthest across (leaps, for the hard worlds). A version can say which
+      const leaps = hops < -0.5 || (hops <= 0.5 && Wd.sweep === "far"), last = G.queue[G.queue.length - 1];
+      let at = last && !last.prize ? [last.u, last.v] : [(G.x - L.CX) / L.FW, 1], left = [...wave];
+      while (left.length) { const far = leaps && left.length % 2 === 0, score = (f) => Math.abs(f.u - at[0]) * L.FW * (far ? -1 : 1) + 2.5 * Math.abs(f.v - at[1]) * L.FH - (far ? 0 : f.v * L.FH * 0.4); left.sort((a, b) => score(a) - score(b)); const f = left.shift(); G.queue.push(f); at = [f.u, f.v]; }
+      G.foes.push(...wave);
+      G.wave = (G.wave + 1) % 240;
+    }
+    const boom = (x, y, size = 1, at = G.t) => G.booms.push({ x, y, size: Math.round(size * 5) / 5, born: at });
+    function bitsAt(x, y, n, tones, speed = 60) { for (let i = 0; i < n && G.bits.length < 260; i++) { const a = rnd(0, TAU), v = rnd(0.3, 1) * speed; G.bits.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, born: G.t, life: rnd(0.25, 0.7), col: tones[i % tones.length], big: i % 3 === 0 }); } }
+    function land(s) { // a bolt arrives
+      const Wd = made.Wd, b = G.boss;
+      G.landed = G.t;
+      if (s.f) { const f = s.f; if (f.dead) return; const [x, y] = where(f), pts = f.prize ? 500 : 10 * (1 + Math.floor(Math.min(G.combo, 999) / 8)), q = G.queue.indexOf(f);
+        const at = G.foes.indexOf(f); if (at < 0) return; f.dead = true; G.foes.splice(at, 1); if (q >= 0) G.queue.splice(q, 1);
+        boom(x, y, f.prize ? 1.6 : 1); bitsAt(x, y, 5, [f.prize ? WHITE : Wd.foe[0], Wd.burst[1], Wd.burst[2]]); G.score += pts; G.combo = Math.min(9999, G.combo + 1); G.streak++; G.pops.push({ x, y: y - 6, n: pts, born: G.t });
+        if (f.prize) for (let i = 0; i < 5; i++) G.medals.push({ x, y, a: rnd(0, TAU), born: G.t, i }); }
+      else if (b.in > 0.2) { const [dx, dy] = made.pts[s.pt], x = b.x + dx * (L.tall ? 0.7 : 1) + rnd(-3, 3), y = b.y + dy + 2; boom(x, y, 0.6); bitsAt(x, y, 2, [Wd.great[0], Wd.burst[1]], 40); b.hit = G.t; G.score += 5; G.combo = Math.min(9999, G.combo + 1); }
+    }
+    function fizz() { for (const d of G.drops) bitsAt(d.x, d.y, 2, [made.Wd.great[2]], 20); G.drops.length = 0; }
+    function leave() { for (const f of G.foes) if (!f.gone) f.gone = G.t + rnd(0, 0.3); G.queue.length = 0; G.shots.length = 0; fizz(); }
+    function scatter() { for (const d of G.drifters) bitsAt(d.x, d.y, 4, [made.Wd.foe2[0], WHITE], 30); G.drifters.length = 0; } // the slow ones of a long break go in a puff when the game is on again
+    function answer(speed) { // a foe answers the ship with a slow shot of its own, but only down a lane the ship is not about to use: the ship is under the next few in its order a beat apart, so a shot that would cross its row near those is not fired
+      const t = G.t, able = G.foes.filter((f) => !f.gone && !f.prize && t > f.born + f.dur && G.queue.indexOf(f) > 2);
+      if (!able.length) return;
+      const f = able[Math.floor(rnd(0, able.length))], [x, y] = where(f), beats = (t + (L.BASE - y) / speed - G.lastBeat) / G.B - 1;
+      let lo = G.x, hi = G.x;
+      for (let q = Math.max(0, Math.floor(beats - 1)); q <= Math.ceil(beats + 1.5); q++) if (G.queue[q]) { const qx = where(G.queue[q])[0]; lo = Math.min(lo, qx); hi = Math.max(hi, qx); }
+      if (x < lo - 18 || x > hi + 18) G.drops.push({ x, y: y + 8, v: speed });
+    }
+    function burstAll() { // the drop: the great foe (or every foe there is) goes up, the stage goes up, what the ship had earned is to be earned again, and the ship is given a loop to fly
+      const b = G.boss, t = G.t, Wd = made.Wd;
+      if (b.in > 0.25) { b.dead = t; b.at = [b.x, b.y]; for (let i = 0; i < 9; i++) boom(b.x + rnd(-26, 26), b.y + rnd(-16, 16), i ? rnd(0.8, 1.6) : 3.2, t + i * 0.07); bitsAt(b.x, b.y, 40, [Wd.great[0], Wd.great[1], Wd.burst[1], Wd.burst[2]], 120);
+        for (let i = 0; i < 10; i++) G.medals.push({ x: b.x, y: b.y, a: rnd(0, TAU), born: t, i }); G.score += 5000; b.in = 0; }
+      else for (let i = 0; i < 10; i++) boom(G.x + Math.cos((i / 10) * TAU) * 34, G.y - 8 + Math.sin((i / 10) * TAU) * 22, 1, t + i * 0.03); // no great foe to burst: a ring goes out from the ship
+      G.foes.forEach((f, i) => { const [x, y] = where(f); boom(x, y, 1, t + i * 0.03); G.score += 50; });
+      G.foes.length = 0; G.queue.length = 0; G.shots.length = 0; fizz(); scatter();
+      G.stage = (G.stage % 99) + 1; G.stageAt = t; G.grooved = 0; G.streak = 0; G.dropAt = t; G.mode = "";
+    }
+    function ribbonAt(y) { // where the ribbon of lights crosses a height: between the light just under it and the one just over it
+      let under = null, over = null;
+      for (const l of G.lights) { if (l.y >= y) { if (!under || l.y < under.y) under = l; } else if (!over || l.y > over.y) over = l; }
+      return under && over ? lerp(over.x, under.x, (y - over.y) / (under.y - over.y)) : over ? over.x : null;
+    }
+
+    function update(dt) { // the game moves on by dt seconds of the picture's own time. A beat is counted in that time too, so the bolts still land on the kick when the picture runs fast or slow
+      const { AX, DN, CX, tall, BASE, RAIL, LOOP } = L, Wd = made.Wd, t = G.t, b = G.boss, ease = (k) => 1 - Math.exp(-dt * k), SH = made.ship.height;
+      const rate = Math.max(0.2, T.speed * flow.pace), clock = flow.clock, beatReal = flow.bpm ? 60 / flow.bpm : G.gap, B = (G.B = beatReal * rate); // rate: how fast the picture's time runs next to the song's. B: one beat of the song, in the picture's time
+      G.kick = sound.kick; G.bass = sound.bass;
+      if (sound.hatHit) G.hats = (G.hats + 1) % 3600;
+      G.bassSlow += (sound.bass - G.bassSlow) * ease(2); G.breath = 0.04 * Math.sin(t * 0.8) + 0.05 * G.bassSlow; G.thump = Math.max(sound.kick, G.thump - dt * 0.8);
+      let since = t - G.dropAt;
+      if (flow.dropHit && since > 3 * rate) { burstAll(); since = 0; } // (a drop can be told two or three times within a second or two: only the first counts)
+      const build = (G.build = since < 1.5 * rate ? 0 : flow.build), calm = (flow.calm > 0.5 && since > 2 * rate) || !hearing;
+      // a kick. The length of a beat is learned from every kick, for as long as the app has not worked the tempo out itself
+      const kicked = sound.kickHit > 0 && clock - G.kickClock > 0.2;
+      if (kicked) { const gap = clock - G.kickClock; if (gap > 0.25 && gap < 1.2) G.gap += (gap - G.gap) * 0.3; G.kickClock = clock; }
+      // what is going on: the great foe through a build, the ribbon of lights in a break (and until a kick has really come back, so no wave flies in between a break and a build only to flee), the waves otherwise
+      const want = build > (G.mode === "boss" ? 0.27 : 0.3) ? "boss" : calm || ((G.mode === "calm" || G.mode === "boss") && clock - G.kickClock > 2 * beatReal) ? "calm" : "wave";
+      if (want !== G.mode) { if (want !== "wave") leave(); if (G.mode === "calm") scatter(); else if (want === "calm") G.lightAt = t + 0.5; G.mode = want; if (want === "wave") spawn(); }
+      G.breakFor = G.mode === "wave" ? 0 : G.breakFor + dt / rate;
+      // the beat: a real kick always, or the clock when the kick is missing (so the game never stalls)
+      let beat = 0;
+      if (kicked) { beat = 1; G.lastBeat = t; } else if (G.mode !== "calm" && t - G.lastBeat > B * 1.35) { beat = 2; G.lastBeat = t - G.lastBeat > 3 * B ? t : G.lastBeat + B; }
+      const loop = since < 4 * B ? since / (4 * B) : -1, aim = () => { const f = G.queue[0]; return f && (f.prize || t > f.born + f.dur * 0.5) ? f : null; }; // loop: how far round the ship's loop after a drop is. aim: the foe the ship is after, once it is near its place
+      if (beat) {
+        G.pulse = beat; G.beat = (G.beat + 1) % 3840; G.slot = 0;
+        if (G.mode === "wave" && ++G.grooved >= 64) { G.grooved = 0; G.stage = (G.stage % 99) + 1; G.stageAt = t; } // a song with no break still gets on: after 64 beats of waves the stage goes up by itself, and with it the figures and the foes' colors come round another way
+        let due = 0; // bolts well on their way land now, on the beat; on a real kick the rest are hurried home too
+        for (const s of G.shots) { if ((t - s.t0) / (s.t1 - s.t0) > 0.4) { s.now = true; due++; } else if (beat === 1) { s.t1 = Math.min(s.t1, t + 0.035); s.fast = true; due++; } }
+        if (G.mode === "wave" && G.queue.length <= 4 && since > 4 * B) spawn();
+        const f = aim();
+        if (beat === 1 && !due && f && G.mode === "wave" && loop < 0 && t - G.landed > 0.1 * B) { G.fired = t; G.shots.push({ t0: t - 0.02, t1: t + 0.03, x0: G.x, y0: G.y - SH / 2, f, pt: 0, fast: true }); } // a kick with no bolt on its way (broken beats, a missing hi-hat): a fast bolt goes at once and is there within a frame or two, so every kick is a hit. Only a hit a moment ago stops it (a tenth of a beat), so the same kick never takes two foes
+        if (G.mode === "wave" && G.beat % 8 === 4 && G.queue.length > 7) { const one = G.queue[G.queue.length - 1 - Math.floor(rnd(0, 3))]; if (!one.prize && t > one.born + one.dur) { one.twirl = t; one.twirlFor = 2 * B; } }
+        if (G.mode === "wave" && G.beat % 32 === 20 && since > 8 * B && !G.foes.some((one) => one.prize)) G.foes.push({ prize: true, born: t, dur: 8 * B, side: rnd(0, 1) < 0.5 ? -1 : 1, u: 0, v: 1 }); // every 32 beats a star drifts through
+      }
+      for (let i = G.foes.length - 1; i >= 0; i--) { const f = G.foes[i]; // a foe in a figure that turns goes round with it (each keeps its own angle); the star joins the head of the ship's order when it is well in, and is gone if it gets across; foes that left are forgotten
+        if (f.turn) f.at = (f.at + dt * (V.spin ?? 1) * f.turn) % TAU;
+        if (f.prize) { const p = (t - f.born) / f.dur; if (p > 0.3 && !f.asked && G.mode === "wave") { f.asked = true; G.queue.unshift(f); } if (p >= 1) { G.foes.splice(i, 1); const q = G.queue.indexOf(f); if (q >= 0) G.queue.splice(q, 1); } }
+        else if (f.gone && t > f.gone && where(f)[1] < -30) G.foes.splice(i, 1); }
+      const wait = G.mode === "wave" && clock - G.kickClock < 1.5 * beatReal ? 0.15 * B : 0; // (while the kick is running, a bolt that is there a moment early waits for it)
+      for (let i = G.shots.length - 1; i >= 0; i--) { const s = G.shots[i]; if (s.now || t >= s.t1 + (s.fast ? 0 : wait)) { land(s); G.shots.splice(i, 1); } }
+      // the great foe comes down as the build grows, and goes back up if the build comes to nothing
+      b.in += ((G.mode === "boss" ? clamp((build - 0.2) / 0.35) : 0) - b.in) * ease(3);
+      b.x = CX + Math.sin(t * 0.7) * L.SWAY * b.in; b.y = lerp(-26, L.BY, eased(b.in)) + Math.sin(t * 1.9) * 2 + build * 8 - (t - b.hit < 0.07 ? 1 : 0);
+      // where the ship wants to be: on its loop, on the ribbon of lights, under a soft spot of the great foe, or under the foe it is after
+      const target = aim();
+      let wantX = CX + Math.sin(t * 0.8) * 20, wantY = BASE, quick = 26;
+      if (loop >= 0) { const a = eased(loop) * TAU; wantX = CX + Math.sin(a) * AX * (tall ? 0.28 : 0.16); wantY = BASE - (1 - Math.cos(a)) * DN * LOOP; quick = 40; }
+      else if (G.mode === "calm") { wantY = DN * 0.62 + Math.sin(t * 1.3) * 3; wantX = ribbonAt(wantY) ?? wantX; quick = 9; }
+      else if (G.mode === "boss") { if (b.in > 0.2) wantX = b.x + made.pts[G.beat % 3][0] * (tall ? 0.7 : 1); }
+      else if (target) wantX = where(target)[0];
+      const was = G.x;
+      G.ax += (wantX - G.ax) * ease(quick); G.x += (G.ax - G.x) * ease(quick); G.ay += (wantY - G.ay) * ease(quick); G.y += (G.ay - G.y) * ease(quick);
+      G.lean += (clamp((G.x - was) / dt / 60 + 0.5) * 2 - 1 - G.lean) * ease(20);
+      // firing: on the hi-hat if it comes in the middle of a beat, else at the half beat by the clock; twice and then four times a beat as a build grows. Each bolt is timed to land on the beat, or a clean part of it
+      const per = G.mode === "boss" ? (build < 0.45 ? 1 : build < 0.75 ? 2 : 4) : 1, ph = (t - G.lastBeat) / B, slot = Math.floor(ph * per + 0.5), canHit = G.mode === "boss" ? b.in > 0.5 : G.mode === "wave" && !!target && loop < 0;
+      if (canHit && ((slot > G.slot && slot <= per) || (per === 1 && sound.hatHit && !G.slot && ph > 0.25 && ph < 0.75))) {
+        G.slot = Math.max(slot, 1); G.fired = t;
+        G.shots.push({ t0: t, t1: Math.max(t + 0.07, G.lastBeat + (G.slot * B) / per), x0: G.x, y0: G.y - SH / 2, f: G.mode === "wave" ? target : null, pt: (G.beat + G.slot) % 3 });
+        if (G.mode === "wave") { if (rnd(0, 1) < 0.3 + 0.7 * flow.intensity) answer(40 + 30 * Wd.pace); } else if (G.slot === 1) { const out = Math.min(tall ? 52 : 70, CX - RAIL - 6); for (const side of [-1, 1]) G.drops.push({ x: b.x + side * rnd(Math.min(40, out - 6), out), y: b.y + 10, v: 40 + 30 * Wd.pace }); }
+      }
+      for (let i = G.drops.length - 1; i >= 0; i--) { const d = G.drops[i]; d.y += d.v * dt; if (Math.abs(d.x - G.x) < 9 && Math.abs(d.y - G.y) < 11) { bitsAt(d.x, d.y, 4, [WHITE, Wd.ship[3]], 30); G.shield = t; G.drops.splice(i, 1); } else if (d.y > DN + 4) G.drops.splice(i, 1); }
+      // a break: lights come down in a ribbon that winds wide and narrow, and the ship drifts through them. In a long break slow foes come down too, each as far to one side as a light is to the other, so the ship weaves round them
+      const fall = DN * 0.22 * dt;
+      if (G.mode === "calm") {
+        G.ribbon = (G.ribbon + (dt * TAU) / (12 * B)) % (TAU * 100); // (one winding every twelve beats)
+        if (t >= G.lightAt) { const s = Math.sin(G.ribbon) * (0.62 + 0.38 * Math.sin(G.ribbon * 0.23 + 1)), x = CX + s * (AX * 0.5 - RAIL - 24);
+          G.lightAt = Math.max(G.lightAt + B / 2, t - B); G.lights.push({ x, y: -4 }); G.lit = (G.lit + 1) % 800;
+          if (G.breakFor > 16 && G.lit % 4 === 0 && Math.abs(s) > 0.5) G.drifters.push({ x: 2 * CX - x, y: -10, tint: G.lit % 8 ? 0 : 1 }); }
+        G.combo = Math.max(0, G.combo - dt * 30);
+      }
+      for (let i = G.lights.length - 1; i >= 0; i--) { const l = G.lights[i]; l.y += fall; if (Math.abs(l.x - G.x) < 8 && Math.abs(l.y - G.y) < 7) { G.score += 50; bitsAt(l.x, l.y, 4, [WHITE, Wd.lamp], 30); G.lights.splice(i, 1); } else if (l.y > DN + 6) G.lights.splice(i, 1); }
+      for (let i = G.drifters.length - 1; i >= 0; i--) { const d = G.drifters[i]; d.y += fall; if (d.y > DN + 14) G.drifters.splice(i, 1); }
+      // what has had its time goes; the prizes of a great foe fly out and then home to the ship
+      for (let i = G.medals.length - 1; i >= 0; i--) if (t - G.medals[i].born > 1.2 + G.medals[i].i * 0.1) { G.score += 200; bitsAt(G.x, G.y, 3, [WHITE, Wd.burst[1]], 30); G.pops.push({ x: G.x, y: G.y - 8, n: 200, born: t }); G.medals.splice(i, 1); }
+      for (let i = G.booms.length - 1; i >= 0; i--) if ((t - G.booms[i].born) * 14 >= 5) G.booms.splice(i, 1);
+      for (let i = G.bits.length - 1; i >= 0; i--) if (t - G.bits[i].born > G.bits[i].life) G.bits.splice(i, 1);
+      for (let i = G.pops.length - 1; i >= 0; i--) if (t - G.pops[i].born > 0.6) G.pops.splice(i, 1);
+      // what the ship has earned this stage: two bolts side by side from 16 foes, a pod on each side from 48; at 80 the pods fly off and it is all to earn again
+      if (G.streak >= 80) { for (const side of [-1, 1]) bitsAt(G.px + side * 13, G.y, 6, [Wd.ship[3], WHITE], 50); G.streak = 0; }
+      G.px += (G.x - G.px) * ease(12); G.pods += ((G.streak >= 48 ? 1 : 0) - G.pods) * ease(5);
+      // the ground goes by: faster in a world with a fast pace, in a loud part and after a drop, slower in a break
+      const run = dt * (V.scroll ?? 1) * Wd.pace * (18 + 50 * flow.intensity) * (1 + flow.drop + 0.4 * build) * (1 - 0.45 * flow.calm);
+      G.scroll = (G.scroll + run) % (STRIP * 100); G.orb = (G.orb + (run * 0.05) / (DN + 120)) % 1;
+      if (G.score >= 1e6) { G.score -= 1e6; G.shown = Math.max(0, G.shown - 1e6); } // the counter goes round, as counters did
+      G.shown += (G.score - G.shown) * ease(7);
+      // the two rails of lamps: the low bands fill the left one and the high bands the right. Each holds its top for a second and then sinks slowly, so nothing there blinks with the beat
+      [clamp(sound.bass * 1.1), clamp(sound.treble * 1.4 * (0.5 + 0.5 * T.spark))].forEach((level, i) => { const r = G.rails[i]; r.now += (level - r.now) * ease(level > r.now ? 30 : 6); if (level >= r.held) { r.held = level; r.until = t + rate; } else if (t > r.until) r.held = Math.max(level, r.held - dt * 0.4); });
+    }
+
+    function num(S, n, px, py, col, big = 1, pad = 0, shade = null) { // a number in the pixel screen's own figures, any size, with a dark copy behind it if asked
+      const text = String(Math.max(0, Math.floor(n))).padStart(pad, "0"); px = Math.round(px); py = Math.round(py);
+      for (const [by, c] of shade ? [[big, shade], [0, col]] : [[0, col]]) { S.x.fillStyle = pixelCss(c); for (let i = 0; i < text.length; i++) { const d = PIXEL_DIGITS[text[i]]; for (let q = 0; q < 15; q++) if (d[q] === "1") S.x.fillRect(px + by + (i * 4 + (q % 3)) * big, py + by + Math.floor(q / 3) * big, big, big); } }
+    }
+    const lampOf = (set) => (set.which === "toys" ? mix(colors[0], WHITE, 0.3) : set.Wd.lamp); // the color of a world's lamps (in the world for any music, they take the record's own color)
+    function scene(S) { // the picture in the drawings of one world (made), from the back to the front. Nothing in the game is changed here, so it can be drawn more than once in a frame
+      const { AX, DN, CX, tall, narrow, low, BASE, RAIL, LOOP } = L, Wd = made.Wd, EDGE = made.EDGE, t = G.t, b = G.boss, B = G.B, build = G.build, since = t - G.dropAt, SH = made.ship.height, reach = tall ? 0.7 : 1;
+      const lamp = lampOf(made), off = mix(lamp, EDGE, 0.82), rails = clamp(V.rails ?? 1);
+      S.rect(Wd.bg, 0, 0, AX, DN);
+      made.back(S);
+      if (rails > 0.03) { const lit = mix(lamp, EDGE, 0.5), top = mix(Wd.burst[1], EDGE, 0.5), n = Math.floor(DN / 6);
+        for (const side of [0, 1]) { const r = G.rails[side], x = side ? AX - RAIL : 0, now = r.now > 0.03 ? Math.floor(r.now * (n - 1)) : -1; // the lamps up to the held level glow dimly, and one bright lamp rides the level as it is this moment
+          S.rect(EDGE, x, 0, RAIL, DN, rails); for (let i = 0; i < n; i++) S.rect(i === now ? lamp : i < r.held * n ? (i > n * 0.75 ? top : lit) : off, x + 1, DN - 5 - i * 6, RAIL - 2, 4, rails); } }
+      // the foes, and the slow ones of a long break
+      const pose = G.beat % 2;
+      for (const d of G.drifters) { const a = made.foes[d.tint][Math.floor(t * 2) % 2]; S.put(a, d.x - a.width / 2 + Math.sin(t * 1.5 + d.x) * 3, d.y - a.height / 2); }
+      for (const f of G.foes) { if (t < f.born) continue; const [x, y] = where(f), a = f.prize ? made.prize : made.foes[f.tint][pose]; S.put(a, x - a.width / 2, y - a.height / 2); }
+      // the great foe: its charge gathers under it as the build grows, and a row of pips over it runs out as the drop comes; after the drop its two halves fall apart
+      if (b.in > 0.02) { S.put(made.boss, b.x - 33, b.y - 21);
+        for (let i = 0; i < 14; i++) { const p = 1 - ((t * 0.9 + i / 14) % 1), a = i * 2.4 + t, r = p * (20 + 30 * build); if (i < build * 16) S.dot(Wd.burst[1], b.x + Math.cos(a) * r, b.y + 24 + Math.sin(a) * r * 0.6); }
+        const r = Math.round(1 + build * 4 + G.thump); S.rect(Wd.burst[2], b.x - r, b.y + 24 - r, r * 2, r * 2); S.rect(Wd.burst[1], b.x - r + 1, b.y + 25 - r, r * 2 - 2, r * 2 - 2); if (r > 2) S.rect(WHITE, b.x - r + 2, b.y + 26 - r, r * 2 - 4, r * 2 - 4);
+        const pips = 16, left = Math.ceil((1 - build) * pips), gap = narrow ? 4 : 5; for (let i = 0; i < pips; i++) S.rect(i < left ? Wd.burst[i < 4 ? 2 : 1] : off, CX - (pips * gap) / 2 + i * gap, 14, gap - 1, 2); }
+      if (t - b.dead < 0.9 && t >= b.dead) { const q = t - b.dead, [x, y] = b.at; for (const s of [0, 1]) S.x.drawImage(made.boss, s * 33, 0, 33, 42, Math.round(x - 33 + s * 33 + (s ? 1 : -1) * q * 50), Math.round(y - 21 + q * q * 90 + q * 10), 33, 42); }
+      // lights, prizes and the foes' own shots
+      const gem = (x, y, col) => { x = Math.round(x); y = Math.round(y); S.rect(EDGE, x - 1, y - 3, 3, 7); S.rect(EDGE, x - 3, y - 1, 7, 3); S.rect(EDGE, x - 2, y - 2, 5, 5); S.rect(col, x, y - 2, 1, 5); S.rect(col, x - 2, y, 5, 1); S.rect(col, x - 1, y - 1, 3, 3); S.rect(WHITE, x - (Math.floor(t * 6 + x) % 2), y - 1, 1, 1); };
+      for (const l of G.lights) gem(l.x, l.y, lamp);
+      for (const m of G.medals) { const age = t - m.born, out = 1 - Math.exp(-age * 4), home = eased(clamp((age - 0.5 - m.i * 0.1) / 0.7)); gem(lerp(m.x + Math.cos(m.a) * 44 * out, G.x, home), lerp(m.y + Math.sin(m.a) * 30 * out, G.y, home), Wd.burst[1]); }
+      for (const d of G.drops) { const x = Math.round(d.x), y = Math.round(d.y), fat = Math.floor(t * 8 + d.x) % 2; S.rect(EDGE, x - 2, y - 2, 5, 5); S.rect(Wd.great[2], x - 1 - fat, y - 1, 3 + fat * 2, 3); S.rect(Wd.great[2], x - 1, y - 1 - fat, 3, 3 + fat * 2); S.rect(WHITE, x, y, 1, 1); } // a small ball that beats
+      // the ship's bolts: pale, with a colored tail (a long one on a fast bolt). Two side by side once it has earned them, and then a pod on each side whose bolts close on the same foe
+      const guns = GUNS[G.streak >= 48 ? 2 : G.streak >= 16 ? 1 : 0];
+      for (const s of G.shots) { const p = clamp((t - s.t0) / (s.t1 - s.t0)), [tx, ty] = s.f ? where(s.f) : [b.x + made.pts[s.pt][0] * reach, b.y + made.pts[s.pt][1]], y = lerp(s.y0, ty + 5, p);
+        for (const [from, to] of guns) { const x = Math.round(lerp(s.x0 + from, tx + to, p)); S.rect(Wd.shot, x - 1, y, 2, s.fast ? 14 : 7, 0.55); S.rect(Wd.shot, x - 1, y, 2, 4); S.rect(WHITE, x - 1, y, 2, 2); } }
+      if (G.pods > 0.05) for (const side of [-1, 1]) { const x = Math.round(G.px + side * (6 + 7 * G.pods)) - 2, y = Math.round(G.y + 2 + Math.sin(t * 3 + side) * 1.5); S.rect(EDGE, x - 1, y - 1, 6, 9); S.rect(Wd.ship[1], x, y, 4, 7); S.rect(Wd.ship[0], x, y, 2, 6); S.rect(Wd.ship[3], x + 1, y + 1, 2, 2); S.rect(Wd.ship[2], x + 1, y + 6, 2, 1 + (Math.floor(t * 15) % 2)); }
+      // the ship: its shadow self twice on the loop, a flame that lengthens with the bass, a cap of light when a shot glances off, a spark at the nose when it fires
+      const leans = Math.abs(G.lean) > 0.35, pic = leans ? made.lean : made.ship, ship = (x, y, alpha) => S.put(pic, x - pic.width / 2, y - SH / 2, { flip: leans && G.lean > 0, alpha });
+      if (since < 4 * B) for (const [behind, alpha] of [[0.09, 0.22], [0.045, 0.4]]) { const a = eased(Math.max(0, since / (4 * B) - behind / (4 * B))) * TAU; ship(CX + Math.sin(a) * AX * (tall ? 0.28 : 0.16), BASE - (1 - Math.cos(a)) * DN * LOOP, alpha); }
+      const flame = 2 + Math.round(G.bass * 4 + (Math.floor(t * 15) % 2)); S.rect(Wd.ship[2], G.x - 2, G.y + SH / 2 - 2, 4, flame); S.rect(Wd.burst[1], G.x - 1, G.y + SH / 2 - 2, 2, flame - 2);
+      ship(G.x, G.y, 1);
+      if (t - G.shield < 0.15 && t >= G.shield) { S.rect(Wd.ship[3], G.x - 7, G.y - SH / 2 - 3, 14, 1); S.rect(Wd.ship[3], G.x - 9, G.y - SH / 2 - 2, 2, 1); S.rect(Wd.ship[3], G.x + 7, G.y - SH / 2 - 2, 2, 1); }
+      if (t - G.fired < 0.05 && t >= G.fired) { S.rect(Wd.shot, G.x - 2, G.y - SH / 2 - 2, 4, 3); S.rect(WHITE, G.x - 1, G.y - SH / 2 - 3, 2, 3); }
+      // bursts, the bits they throw, and the points going up from each foe
+      for (const e of G.booms) { const f = Math.floor((t - e.born) * 14); if (f < 0 || f > 4) continue; const a = burstArt(e.size, f); S.put(a, e.x - (a.width >> 1), e.y - (a.height >> 1)); }
+      for (const p of G.bits) { const age = t - p.born; if (age < 0 || age > p.life) continue; const slow = (1 - Math.exp(-age * 4)) / 4, s = p.big && age < p.life * 0.6 ? 2 : 1; S.rect(p.col, p.x + p.vx * slow, p.y + p.vy * slow, s, s); }
+      for (const p of G.pops) { const age = t - p.born; if (age >= 0 && age <= 0.6) num(S, p.n, p.x - String(p.n).length * 2, p.y - age * 16, age > 0.4 ? Wd.burst[2] : WHITE); }
+      // the cabinet's own marks: the score, the count of hits in a row with eight pips that fill a beat at a time, and the stage as pips (past five, one pip and a number).
+      // A small screen has no room for all three: the score is left out, a narrow one shows the stage as a number from the start, and a low one keeps the count in the corner, out of the great foe's way
+      const ink = mix(lamp, WHITE, 0.7), left = RAIL + 4, right = AX - RAIL - 4, hop = t - G.lastBeat < 0.08 && t >= G.lastBeat ? 1 : 0, combo = Math.min(999, Math.floor(G.combo));
+      if (!narrow && !low) num(S, G.shown + 0.5, left, 4, ink, 1, 6, EDGE);
+      if (combo > 1) { const wide = String(combo).length * 8 + 6, x = low ? left : Math.round(CX - wide / 2); for (const [dx, dy] of [[0, 5], [2, 5], [1, 6], [0, 7], [2, 7]]) S.dot(Wd.burst[1], x + dx, dy); num(S, combo, x + 5, 3 - hop, Wd.burst[1], 2, 0, EDGE);
+        for (let i = 0; i < 8; i++) S.rect(i <= (combo - 1) % 8 ? lamp : off, (low ? x : CX - 16) + i * 4, 15 + (b.in > 0.02 && !low ? 4 : 0), 3, 1); }
+      const risen = t - G.stageAt, up = risen >= 0 && risen < 0.6 ? Math.round(Math.sin((risen / 0.6) * Math.PI) * 3) : 0, shown = Math.min(G.stage, 5), text = G.stage > 5 || narrow ? String(G.stage) : ""; // (the stage's mark hops when it goes up)
+      if (text) { num(S, G.stage, right - text.length * 4 + 1, 4 - up, ink, 1, 0, EDGE); S.rect(EDGE, right - text.length * 4 - 6, 4 - up, 5, 5); S.rect(Wd.burst[1], right - text.length * 4 - 5, 5 - up, 3, 3); }
+      else for (let i = 0; i < shown; i++) { const x = right - shown * 6 + i * 6 + 1, y = 4 - (i === shown - 1 ? up : 0); S.rect(EDGE, x, y, 5, 5); S.rect(i === shown - 1 ? Wd.burst[1] : lamp, x + 1, y + 1, 3, 3); }
+    }
+    function draw(S) { // the whole picture. Going over to another world (the next song is another kind of music), the new one comes down behind a line of light: above the line the game is drawn as the new world, below it as the old one, so the ship and the foes play on right through the change
+      const { AX, DN } = L, t = G.t, now = made, x = S.x;
+      if (was && was.AX === AX && was.DN === DN && G.wipe !== null && t >= G.wipe && t - G.wipe < 1.8) { const line = Math.round(eased((t - G.wipe) / 1.8) * DN);
+        for (const [set, top, high] of [[now, 0, line], [was, line, DN - line]]) { if (high < 1) continue; made = set; x.save(); x.beginPath(); x.rect(0, top, AX, high); x.clip(); scene(S); x.restore(); }
+        made = now; S.rect(lampOf(now), 0, line, AX, 1); }
+      else scene(S);
+      G.pulse = 0;
+    }
+
+    return () => {
+      const dot = Math.max(2, Math.round(Math.sqrt(w * h) / 240)), wide = Math.round(w / dot), S = pixelScreen((wide * h) / w < 150 ? Math.ceil((150 * w) / h) : wide), AX = S.across, DN = S.down, t = sound.t; // dots of about a 240th of the picture's size (320 by 180 on a wide screen, 150 by 300 on a phone), and smaller ones on a low wide picture so it is never under 150 dots tall
+      if (!G || t < G.t || t - G.t > 1) G = fresh(t - Math.min(0.05, sound.dt)); // a new game when the effect starts: the picture's clock has run on without it
+      if (mood !== G.moodWas || genre !== G.genreWas) { G.moodWas = mood; G.genreWas = genre; G.want = WORLD_OF[musicWorld()] || "toys"; }
+      if (!L || L.AX !== AX || L.DN !== DN) L = layout(AX, DN);
+      if (G.across !== AX || G.down !== DN) { if (G.across) resize(AX / G.across, DN / G.down); else { G.x = G.ax = G.px = L.CX; G.y = G.ay = L.BASE; } G.across = AX; G.down = DN; G.wipe = null; }
+      if (was && (G.wipe === null || t < G.wipe || t - G.wipe >= 1.8)) was = null; // (the old world's drawings are let go once the new one is all the way down)
+      // the world's drawings: made when the game starts, made again when the music's kind changes (the old world's are kept until the new one has come down over it), and when the window has changed shape, though not more than twice a second while it is being dragged
+      const fits = made && made.AX === AX && made.DN === DN;
+      if (!made || (!G.begun && (made.which !== G.want || !fits))) { made = build(G.want, AX, DN); G.builtAt = t; }
+      else if (made.which !== G.want && (G.wipe === null || t - G.wipe >= 1.8)) { if (fits) { was = made; G.wipe = t; } made = build(G.want, AX, DN); G.builtAt = t; }
+      else if (!fits && Math.abs(t - G.builtAt) > 0.5) { made = build(made.which, AX, DN); G.builtAt = t; }
+      G.begun = true;
+      const step = t - G.t;
+      G.t = t;
+      if (step > 0) update(Math.min(step, 0.3)); // (when it is drawn a second time in one frame, the clock has not moved and neither does the game)
+      draw(S);
+      S.show();
+    };
+  })();
+  /* ==== arcade: end ==== */
+  const DRAW = { arcade: arcadeFx, runner: runnerFx, forms: formsFx, faces, ribbon, silk, helix, strings, bars, mirror, leds, terrain, scope, trails, tunnel, vortex, prism, ripple, comets, stars: starfield, whirl, dust, links, fireworks, halo, sun, rings, mandala, rays, space, warp: space, drift: space, orbit: space, visitors: space, well,
     kaleido, plasma, fractal, julia, mandel, newton, ocean, neonroad, aurora, tube: tubeFx, heads: headsFx, sphere: sphereFx, solids: solidsFx, city: cityFx };
 
   /* From one effect to another. The change waits for the next frame, which draws the old picture once more with nobody visiting and keeps it.
