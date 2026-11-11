@@ -8523,7 +8523,7 @@ window.Effects = (() => {
   /* ==== acid: end ==== */
   /* ==== band: begin ==== */
   /* The band: what the picture does for claps, snare rolls, risers and hard kicks, the way the smiley sings the 303. One small company plays all of them:
-       the crowd    along the bottom edge with its back to us, watching the picture as we do. It claps with the claps, lifts its hands higher and shakes them through a roll and a build, and jumps when the drop lands
+       the crowd    a few people at the bottom edge with their backs to us, watching the picture as we do and dancing to it, each in a way of their own: some clap with the claps, hands go up and shake through a roll and a build, and everybody jumps when the drop lands
        the dancer   a small figure stamping on a pair of speakers whose cones punch out with each kick, one stamp a kick: in the hard mood only (hardcore, gabber, hardstyle and their kin)
        the rocket   it climbs with a riser and bursts into sparks when the riser ends
      Each of them comes and goes: none is there for a whole song. First two ears, which listen for what they play to, then the company itself. */
@@ -9025,8 +9025,11 @@ window.Effects = (() => {
   /* The company. What it does with the ears' answers is worked out once a frame, in bandNow(), and the drawing reads that and nothing else. Who comes, and when:
        the crowd    comes when the claps have come evenly for a while (flow.clapOn has reached 0.75 and four claps of the pattern have been given: about the sixth clap heard), when the
                     page's own build has been on and past half way (flow.build over 0.5) for two seconds, or on a drop that ends a build. Once come it stays three seconds at least, and then
-                    while claps are being given (clapOn 0.5 and over), while the build is on, and for five seconds after the drop; then it goes. A snare roll is only believed while the
-                    page says a build is on: then the hands go higher and shake with it. A visit lasts at most 24 seconds (only the five seconds after a drop's jump may hold it longer),
+                    while claps are being given (clapOn 0.5 and over), while the build is on, for five seconds after the drop, and on through the groove the drop brings
+                    while its kick runs, up to twelve seconds after it (but no more than eight past the visit's time), so they are seen dancing and not only jumping;
+                    then it goes. A snare roll is only believed while the page says a build is on: then the hands go higher and shake with it. A visit lasts at most
+                    24 seconds: only those twelve seconds after a drop's jump may hold it longer, and a drop that does not end a build is only jumped to until three
+                    seconds past that time (a song that drops again and again would keep them for ever),
                     and after a visit it keeps away for as long as that visit's share of 48 seconds (48 after a whole one) before it may come back; a build or a drop may cut that rest
                     short once half of it is over.
        the dancer   only in the hard mood (hardcore, gabber, hardstyle and their kin), once the kick has been running a second and a half. One stamp a kick, at the song's tempo. It goes three
@@ -9036,22 +9039,22 @@ window.Effects = (() => {
                     lands, when the riser has been unsure for more than a second, or after 24 seconds (one that ends before it is clear of the floor simply goes). Another may only go up after
                     as long as this one flew, up to six seconds.
      The "Crowd and dancers" slider: at 0 nobody comes. Above 1 the visits may be longer and the rests are shorter by as much (at 2 the crowd stays up to 48 s and rests up to 24,
-     the dancer 40 and 25, the rocket waits up to 3 s), the crowd is fuller and everyone a little bigger; under 1 the other way round (down to a quarter). */
-  const BAND_KEEP = 128, BAND_TICK = 1 / 60, BAND_MOST = 40, BAND_FIG = 25; // what is remembered, sixty times a second; the most figures in a row; the numbers kept for each figure
+     the dancer 40 and 25, the rocket waits up to 3 s), the crowd has one more and everyone is a little bigger; under 1 the other way round (down to a quarter). */
+  const BAND_KEEP = 128, BAND_TICK = 1 / 60; // what is remembered, sixty times a second
   const BAND_HARD = [255, 50, 40, 170, 20, 30, 255, 140, 60], BAND_ACID = [246, 230, 50, 150, 240, 60, 255, 140, 30]; // the company's colors in the hard mood and in acid (anything else takes the picture's)
   const BAND_LEG = Float32Array.of(0, 0.1, 0.25, 0.5, -0.05, 0.4, 1, -0.3, 1.6, 1.45, 0.95, 0.3, 2, 0.1, 0.25); // the hakken step: one leg's hip swing and knee bend over two kicks. 0: it lands (the stamp). 0.5: it carries the hop. 1: heel up behind while the other lands. 1.45: kicked out in front
   const BAND_RAYS = Float32Array.of(-2.5, -1.571, -0.64); // where the three short rays point when hands meet
   const bandVisit = () => ({ on: false, ramp: 0, show: 0, leaveAt: 0, restTill: 0, rest: 0, came: 0 });
   const company = { t: 0, owed: 0, at: 0, much: 1, period: 0.43, kickT: -9, kicks: 0, punch: 0, beat: 0, going: false, sinceK: 9, clapT: -9, clapGap: 0, clapKnown: false, close: 0, roll: 0, rate: 0, shake: 0,
-    build: 0, buildNow: 0, builtAt: -99, buildFor: 0, given: 0, drop: 0, dropT: -99, jumpT: -99, lift: 1, crowd: bandVisit(), dancer: bandVisit(), rocket: bandVisit(),
+    build: 0, buildNow: 0, builtAt: -99, buildFor: 0, given: 0, drop: 0, dropT: -99, jumpT: -99, jumps: 0, crowd: bandVisit(), dancer: bandVisit(), rocket: bandVisit(),
+    ph: 0, phErr: 0, offK: 0, kAim: 0, kPow: 0, groove: 0, calmW: 0, hats: 0, hatNow: false, claps: 0, // the crowd's beat (in beats), how strong the kick is, how much of a groove and how calm it is, the hi-hats and claps counted
     step: 0, go: 0, facing: 1, face: 1, tail: 1, posed: false, high: 0, sx: 0, alt: -0.1, unsure: 0, endT: -99, endSx: 0, endAlt: 0, endH: 0, endBig: 1, tonesAt: -9, toned: false };
-  const bandKept = { close: new Float32Array(BAND_KEEP), punch: new Float32Array(BAND_KEEP), lift: new Float32Array(BAND_KEEP).fill(1), x: new Float32Array(BAND_KEEP), y: new Float32Array(BAND_KEEP).fill(-9) }; // the newest at company.at
+  const bandKept = { close: new Float32Array(BAND_KEEP), x: new Float32Array(BAND_KEEP), y: new Float32Array(BAND_KEEP).fill(-9) }; // the newest at company.at
   const bandJoints = new Float32Array(10), bandAim = new Float32Array(10), bandLegs = new Float32Array(14), bandArms = new Float32Array(8); // the dancer: ten joint numbers as drawn, and as wanted this frame; its two legs and arms worked out
-  const bandFigs = new Float32Array(2 * BAND_MOST * BAND_FIG), bandCount = new Int16Array(2); // the crowd as it is drawn this frame, row by row
   const bandTrail = new Float32Array(112 * 3); // the rocket's trail as it is drawn this frame: where, and how thick
   const bandTone = new Float32Array(9), bandToned = new Float32Array(9).fill(-99); // the company's three colors now, and as they were when its paints were last mixed
-  const bandAt = { floor: 0, tall: false, m: 0, size: 1, r: 0, dx: 0, dH: 0, pw: 0, ph: 0, rx: 0, rows: 2 }; // where everybody stands, worked out once a frame
-  const bandArt = { made: false, w: 0, floor: 0, rows: [null, null], palm: ["", ""], spark: "", body: "", dim: "", shoe: "", shoeDim: "", skin: "", tail: "", halo: null, cab: "", cap: "", air: "", hull: "", fin: "", flame: "", window: "", heat: null, glow: null, burst: ["", "", ""] }; // its paints, mixed afresh only when its colors have moved
+  const bandAt = { floor: 0, tall: false, m: 0, size: 1, U: 1, n: 4, dx: 0, dH: 0, pw: 0, ph: 0, rx: 0 }; // where everybody stands, worked out once a frame (U: how big the crowd's unit is; n: how many of them come)
+  const bandArt = { made: false, w: 0, floor: 0, rim: ["", "", ""], palm: ["", "", ""], hair: ["", "", ""], lamp: null, spark: "", body: "", dim: "", shoe: "", shoeDim: "", skin: "", tail: "", halo: null, cab: "", cap: "", air: "", hull: "", fin: "", flame: "", window: "", heat: null, glow: null, burst: ["", "", ""] }; // its paints, mixed afresh only when its colors have moved
   let bandLegT = 0, bandLegP = 0, bandHipY = 0;
   const bandHash = (n) => { const x = Math.sin(n * 127.1 + 311.7) * 43758.5453; return x - Math.floor(x); }; // the same number between 0 and 1 for the same n: each figure keeps its looks
   const bandK = (dt, secs) => 1 - Math.exp(-dt / secs); // how much of the way something eased over "secs" gets in this frame
@@ -9082,17 +9085,33 @@ window.Effects = (() => {
     if (!live && !bandShows() && !S.crowd.on && !S.dancer.on) return; // switched off or not listening, and nobody left on the picture: nothing to work out
     // the kick, and the beat by the clock
     if (flow.bpm > 40) S.period = 60 / flow.bpm;
-    const kicked = sound.kickHit > 0 && t - S.kickT > 0.12;
+    const kicked = sound.kickHit > 0 && t - S.kickT > 0.12, gapK = t - S.kickT;
     if (kicked) { S.kickT = t; S.kicks++; }
     S.sinceK = t - S.kickT;
     S.punch = S.sinceK < 0.034 ? Math.max(S.punch, S.sinceK / 0.034) : Math.exp(-(S.sinceK - 0.034) / 0.09); // two frames up, then away: it only ever moves things
     S.going = S.sinceK < 1.6 * S.period;
     S.beat = clamp(S.sinceK / S.period);
+    // the crowd's beat: a count of beats that runs by the clock at the song's tempo and is drawn gently toward every kick, two fifths of the way over a fifth of a second, so it never jumps
+    // and one kick heard a little early does not throw it; and how strong the kick is. A kick that lands well between two beats is let go by, as it is most often the same kick heard
+    // twice; but if the next one is off the beat as well the count goes toward it, and when the kick has just come back after a gap the count goes all the way to it
+    S.ph += dt / S.period;
+    if (kicked) {
+      const off = Math.round(S.ph) - S.ph;
+      if (Math.abs(off) < 0.25 || S.offK > 0 || gapK > 1.6 * S.period) { S.phErr = gapK > 1.6 * S.period ? off : 0.4 * off; S.offK = 0; } else S.offK = 1;
+      S.kAim = 0.35 + 0.65 * clamp((sound.kickHit - 0.55) / 0.45);
+    }
+    const pull = S.phErr * bandK(dt, 0.2);
+    S.ph = (((S.ph + pull) % 64) + 64) % 64; S.phErr -= pull; // (64 beats is a whole number of every sway, so going round loses nothing)
+    if (!S.going) S.kAim = 0;
+    S.kPow += (S.kAim - S.kPow) * bandK(dt, S.kAim > S.kPow ? 0.15 : 0.5);
+    S.groove += ((S.going ? 1 : 0) - S.groove) * bandK(dt, 0.35);
+    S.hatNow = sound.hatHit > 0;
+    if (S.hatNow) S.hats = (S.hats + 1) % 4096;
     // the claps. Nobody claps overhead faster than about twice a second, so of claps on every beat of a quick song every other one is taken
     if (flow.clap > 0 && t - S.clapT > 0.5) {
       const gap = t - S.clapT;
       if (gap < 2) { S.clapKnown = S.clapGap > 0 && Math.abs(gap - S.clapGap) < 0.15 * S.clapGap; S.clapGap = S.clapGap ? S.clapGap + (gap - S.clapGap) * 0.5 : gap; } else { S.clapKnown = false; S.clapGap = 0; }
-      S.clapT = t;
+      S.clapT = t; S.claps = (S.claps + 1) % 4096;
     }
     if (flow.clap > 0) S.given++; // the claps given since the pattern was last lost: a stray pattern of two or three is not enough to bring the crowd
     if (flow.clapOn < 0.5) S.given = 0;
@@ -9112,12 +9131,12 @@ window.Effects = (() => {
     S.drop = flow.drop;
     const C = S.crowd;
     if (flow.dropHit) S.dropT = t;
-    if (flow.dropHit && (C.on || t - S.builtAt < 3)) S.jumpT = t; // the drop that ends a build: everybody jumps
-    const sinceJ = t - S.jumpT, busy = built || sinceJ < 5;
-    S.lift += (1 + 0.45 * Math.max(S.roll, 0.6 * S.build, sinceJ < 4 ? 0.8 * (1 - sinceJ / 4) : 0) - S.lift) * bandK(dt, 0.12); // 1 is hands held for clapping, 1.45 stretched right up
+    if (flow.dropHit && ((t - S.builtAt < 3 && t - S.jumpT > 5) || (C.on && t < C.leaveAt + 3 && t - S.jumpT > 8))) { S.jumpT = t; S.jumps = (S.jumps + 1) % 64; } // the drop that ends a build: everybody jumps (and any drop while they are there, but not one near the end of a visit's time: a song that drops again and again would keep them for ever). A new jump waits for the last: five seconds after a build, eight otherwise, so a page that finds a drop every two seconds does not have them jumping as one again and again
+    const sinceJ = t - S.jumpT, after = sinceJ < 5 || (sinceJ < 12 && S.going && t < C.leaveAt + 8), busy = built || after; // after a drop's jump: five seconds, and on through its groove while the kick runs (that, at most eight seconds past the visit's time)
+    S.calmW += ((flow.part === "calm" || (!built && (S.sinceK > 2 || (S.groove < 0.25 && sinceJ > 2.5))) ? 1 : 0) - S.calmW) * bandK(dt, 1.2); // how calm it is for the crowd: a calm part, or outside a build no kick for two seconds, or kicks too few and far between to dance to
     // who is here
     const clapping = flow.clapOn >= 0.75 && S.given >= 4, building = S.buildFor >= 2;
-    bandGate(C, live && (C.on ? flow.clapOn >= 0.5 || busy || t - C.came < 3 : clapping || building || sinceJ < 0.5), dt, 24 * long, 48 / long, sinceJ < 5, building || sinceJ < 0.5); // once come it stays three seconds at least, so it never just bobs up and down; past its time only the jump on a drop holds it
+    bandGate(C, live && (C.on ? flow.clapOn >= 0.5 || busy || t - C.came < 3 : clapping || building || sinceJ < 0.5), dt, 24 * long, 48 / long, after, building || sinceJ < 0.5); // once come it stays three seconds at least, so it never just bobs up and down; past its time only a drop's jump and its groove hold it
     const hard = mood === "hard", D = S.dancer, dancing = hard && S.going;
     bandGate(D, live && hard && (D.on ? S.sinceK < 3 : S.sinceK < 1 && flow.steady > 1.5), dt, 20 * long, 50 / long, false, live && hard && t - S.dropT < 3); // a drop is remembered for three seconds, as the kick it brings back needs a second and a half to count as running
     if (D.ramp > 0) { // the dancer's joints: where the step wants them, each eased over 30 ms so no kick can snap a limb
@@ -9153,9 +9172,10 @@ window.Effects = (() => {
     // the memory, written sixty times a second whatever the screen does
     for (S.owed += dt; S.owed >= BAND_TICK; S.owed -= BAND_TICK) {
       S.at = (S.at + 1) % BAND_KEEP;
-      bandKept.close[S.at] = S.close; bandKept.punch[S.at] = S.punch; bandKept.lift[S.at] = S.lift; bandKept.x[S.at] = S.sx; bandKept.y[S.at] = R.on ? S.alt : -9;
+      bandKept.close[S.at] = S.close; bandKept.x[S.at] = S.sx; bandKept.y[S.at] = R.on ? S.alt : -9;
       if (S.owed > 0.25) S.owed = BAND_TICK;
     }
+    bandDance(dt); // the crowd: where each of them is and how they move
     // its colors: the hard mood's reds, acid's yellows, or else the picture's own, eased over a second
     const set = mood === "hard" ? BAND_HARD : mood === "acid" ? BAND_ACID : null, n = colors.length, ease = S.toned ? bandK(dt, 1) : 1;
     for (let i = 0; i < 3; i++) {
@@ -9173,9 +9193,9 @@ window.Effects = (() => {
     P.tall = h > w;
     P.m = Math.min(w, P.floor);
     P.size = 0.85 + 0.15 * Math.min(2, much);
-    if (P.tall) { // a phone: one row of fewer, larger people, and smaller speakers, so they read on a narrow picture
-      P.r = w * 0.05 * P.size; P.rows = 1; P.dx = w * 0.15; P.dH = w * 0.2 * P.size; P.pw = w * 0.22 * P.size; P.ph = w * 0.105 * P.size; P.rx = w * 0.4;
-    } else { P.r = P.m * 0.033 * P.size; P.rows = 2; P.dx = w * 0.115; P.dH = P.m * 0.23 * P.size; P.pw = P.m * 0.3 * P.size; P.ph = P.m * 0.14 * P.size; P.rx = w * 0.31; }
+    if (P.tall) { // a phone: two or three people, a little larger for the narrow picture, and smaller speakers
+      P.U = w * 0.072 * P.size; P.n = much >= 0.7 ? 3 : 2; P.dx = w * 0.15; P.dH = w * 0.2 * P.size; P.pw = w * 0.22 * P.size; P.ph = w * 0.105 * P.size; P.rx = w * 0.4;
+    } else { P.U = P.m * 0.062 * P.size; P.n = Math.min(5, (much >= 1.5 ? 5 : much >= 0.7 ? 4 : 3) + (w > 2.4 * P.floor ? 1 : 0)); P.dx = w * 0.115; P.dH = P.m * 0.23 * P.size; P.pw = P.m * 0.3 * P.size; P.ph = P.m * 0.14 * P.size; P.rx = w * 0.31; } // three to five, one more on a very wide picture
   }
   function bandInk(i, white, black, a) { // one of the company's three colors, toward white and then toward black by those shares
     const o = i * 3, f = (c) => Math.round((c + (255 - c) * white) * (1 - black));
@@ -9187,12 +9207,8 @@ window.Effects = (() => {
     for (let i = 0; i < 9; i++) moved = Math.max(moved, Math.abs(bandTone[i] - bandToned[i]));
     if (A.made && A.w === w && A.floor === P.floor && A.size === P.size && (moved < 8 || t - company.tonesAt < 0.25)) return;
     company.tonesAt = t; bandToned.set(bandTone); A.made = true; A.w = w; A.floor = P.floor; A.size = P.size;
-    for (let row = 0; row < 2; row++) { // the rim of light round the crowd changes color from one figure to the next
-      const space = P.r * (row ? 0.78 * 6.4 : P.tall ? 4.6 : 5), stops = Math.max(3, Math.round(w / (space * 1.5))), edge = stage.createLinearGradient(0, 0, w, 0);
-      for (let i = 0; i <= stops; i++) edge.addColorStop(i / stops, bandInk((i + row) % 3, 0.28, row ? 0.5 : 0, 1));
-      A.rows[row] = edge;
-      A.palm[row] = bandInk(2, 0.55, row ? 0.45 : 0, 1);
-    }
+    for (let i = 0; i < 3; i++) { A.rim[i] = bandInk(i, 0.28, 0, 1); A.palm[i] = bandInk((i + 2) % 3, 0.55, 0, 1); A.hair[i] = bandInk(i, 0, 0.8, 1); } // each person's rim of light in one of the three colors, the hands in another, and the hair a dark shade of the first
+    A.lamp = stage.createRadialGradient(0, 0, 0.05, 0, 0, 1.3); A.lamp.addColorStop(0, bandInk(1, 0.7, 0, 0.75)); A.lamp.addColorStop(0.35, bandInk(1, 0.4, 0, 0.25)); A.lamp.addColorStop(1, bandInk(1, 0.3, 0, 0)); // a held light, one unit round, stretched to fit
     A.spark = bandInk(2, 0.78, 0, 1);
     A.body = bandInk(0, 0.18, 0, 1); A.dim = bandInk(0, 0, 0.45, 1); A.shoe = bandInk(2, 0.62, 0, 1); A.shoeDim = bandInk(2, 0.62, 0.4, 1); A.skin = bandInk(0, 0.5, 0, 1); A.tail = bandInk(2, 0.25, 0, 1);
     A.halo = stage.createRadialGradient(0, 0, 0.1, 0, 0, 0.62); A.halo.addColorStop(0, bandInk(0, 0, 0, 0.22)); A.halo.addColorStop(1, bandInk(0, 0, 0, 0)); // drawn one unit across and stretched to fit
@@ -9203,98 +9219,274 @@ window.Effects = (() => {
     for (let c = 0; c < 3; c++) A.burst[c] = bandInk(c, c === 1 ? 0.55 : 0.3, 0, 1);
   }
 
-  /* The crowd. Seen from behind: dark heads and shoulders with a rim of light, arms as lines with the same rim, plain mitten hands the brightest thing about them. Two rows on a wide picture,
-     the back one smaller and dimmer; one on a phone. Each figure has its own height, hair and a few frames' lateness, and its own way of joining in: most clap, some pump a fist with the kick,
-     a few only nod until a roll or a build gets everybody's hands up. They come up from below the floor, the middle first, and sink back down when they go. */
-  function bandRow(row) { // where everyone in one row is this frame, into bandFigs; says how many there are
-    const S = company, P = bandAt, C = S.crowd, t = S.t, floor = P.floor, much = S.much, F = bandFigs, o0 = row * BAND_MOST * BAND_FIG;
-    const r = P.r * (row ? 0.78 : 1), space = r * (row ? 6.4 : P.tall ? 4.6 : 5), n = Math.min(BAND_MOST, Math.ceil(w / space) + 1), dens = row ? clamp(much - 0.4) * 0.85 : clamp(0.45 + 0.5 * much);
-    const pogo = S.going ? Math.sin(Math.PI * S.beat) : 0, crouch = eased(clamp((S.buildNow - 0.8) / 0.2)), speakers = S.dancer.show, gapL = P.dx - P.pw / 2 - r * 1.6, gapR = P.dx + P.pw / 2 + r * 1.6; // nobody stands in front of the speakers: those there sink out of the way as the dancer comes, and come back up as it goes
-    const sing = P.tall ? 0 : acidSinger.show, singX = w * 0.87, singR = Math.min(w, h) * 0.13 * 1.4 + r * 1.5; // and on a wide picture those under the 303's singer (at the right, its middle 0.87 across) sink out of its way while it is there
-    let count = 0;
-    for (let i = 0; i < n; i++) {
-      const id = 97 + row * 53 + i, h1 = bandHash(id), h2 = bandHash(id + 0.37), h3 = bandHash(id + 0.71);
-      if (bandHash(id + 0.13) > dens) continue;
-      const x = (i + 0.3 + 0.2 * h2 + (row ? 0.5 : 0)) * space - space * 0.4;
-      const back = 1 + Math.floor(h2 * 5), kept = (S.at - back + BAND_KEEP) % BAND_KEEP, close = bandKept.close[kept], punch = bandKept.punch[kept], raise = clamp((bandKept.lift[kept] - 1) / 0.45), came = bandRise((C.ramp - Math.abs(x / w - 0.5) * 0.5) / 0.6) * (sing > 0 && Math.abs(x - singX) < singR ? 1 - sing : 1) * (speakers > 0 && x > gapL && x < gapR ? 1 - speakers : 1);
-      const tj = t - S.jumpT - h2 * 0.07, peak = r * (2.2 + 1.3 * h3), jump = tj > 0 && tj < 0.55 ? peak * 4 * (tj / 0.55) * (1 - tj / 0.55) : 0, land = tj >= 0.55 ? Math.exp(-(tj - 0.55) / 0.1) : 0;
-      const hy = floor - r * (1.5 + 0.9 * h3 + (row ? 2.1 : 0)) + (1 - came) * r * 8 - r * 0.5 * raise - jump - S.drop * pogo * r * (0.7 + 0.5 * h3) + r * 0.28 * punch * (1 - 0.6 * S.drop) + r * 0.55 * crouch * (jump ? 0 : 1) + land * 0.35 * r;
-      if (hy - 4 * r > floor) continue; // still wholly below the floor, hands and all
-      const kind = row ? 2 : h1 < 0.7 ? 0 : h1 < 0.87 ? 1 : 2, clapping = kind === 0 ? 1 - clamp(raise * 1.6) : 0, o = o0 + count * BAND_FIG; // kind 0 claps, 1 pumps a fist, 2 nods
-      F[o] = x; F[o + 1] = x + Math.sin(t * (0.7 + h1) + h2 * 9) * r * 0.12; F[o + 2] = hy; F[o + 3] = r; F[o + 4] = h3 < 0.18 ? 1 : h3 < 0.34 ? 2 : h3 < 0.46 ? 3 : 0; F[o + 5] = jump / peak; F[o + 6] = 0;
-      for (let side = 0; side < 2; side++) { // each arm: shoulder, elbow, hand, the elbow bending outward
-        const sgn = side ? 1 : -1, up = kind === 0 ? 1 : kind === 1 ? ((sgn > 0) === (h2 > 0.5) ? 1 : raise) : raise, a = o + 9 + side * 8;
-        F[o + 7 + side] = up < 0.04 ? 0 : 1;
-        if (up < 0.04) continue;
-        const apart = 1.45 + (0.2 - 1.45) * close * clapping - 0.2 * raise, pump = kind === 1 && !raise ? 0.9 * punch : 0.5 * punch * S.drop;
-        let HX = x + sgn * apart * r + Math.sin(S.shake + h2 * TAU + (sgn > 0 ? 1.3 : 0)) * 0.32 * r * S.roll, HY = hy - r * (1.3 + 1.2 * raise + 0.2 * close * clapping + pump);
-        if (up < 1) { HX = x + sgn * 1.35 * r + (HX - x - sgn * 1.35 * r) * up; HY = hy + 2.6 * r + (HY - hy - 2.6 * r) * up; }
-        const SX = x + sgn * 1.2 * r, SY = hy + 1.35 * r, far = Math.sqrt((HX - SX) * (HX - SX) + (HY - SY) * (HY - SY)) || 1, bone = Math.max(0.8 * r, Math.min(1.95 * r, 0.51 * far)), d = Math.min(far, 2 * bone - 0.01), base = Math.atan2(HY - SY, HX - SX), bend = Math.acos(d / (2 * bone));
-        HX = SX + (HX - SX) * (d / far); HY = SY + (HY - SY) * (d / far);
-        const EX = SX + bone * Math.cos(base + sgn * bend), EY = SY + bone * Math.sin(base + sgn * bend), fl = Math.sqrt((HX - EX) * (HX - EX) + (HY - EY) * (HY - EY)) || 1;
-        F[a] = HX; F[a + 1] = HY; F[a + 2] = SX; F[a + 3] = SY; F[a + 4] = EX; F[a + 5] = EY; F[a + 6] = (HX - EX) / fl; F[a + 7] = (HY - EY) / fl;
+  /* The crowd. A few people at the foot of the picture with their backs to us, watching it as we do: dark shapes with a soft rim of light in the picture's colors, so they read over a
+     bright picture and a dark one, and the picture shows between them. Three to five on a wide picture, two or three on a tall one. They are regulars, each with a way of their own:
+       the kick      a nod of the head and a bounce at the knees, as big as the kick is strong (in the hard mood a stamp, harder and sharper, with the dancer on the speakers)
+       the groove    the hips sway one way and the shoulders the other, over two beats or four, and the arms are in one of seven moves: hanging loose, swinging with the hips, a finger
+                     pointing up and pushed up on every beat, a fist punched up on every beat, both hands up and waving, palms up by the shoulders raising the roof on every beat,
+                     or the hands up by the head. Each likes some moves better than others and the music picks among those it likes (the hard mood: the fist and raising the roof;
+                     euphoric and trance: only moves with the arms up and the hands open, and more sway). Every ten to twenty seconds someone goes over to another move, easing into it over a second
+       the hi-hats   now and then someone ticks along with them: a flick of the hand or a tip of the head
+       claps         while claps come evenly the keen ones clap over their heads, in runs of six claps, sitting a run out now and then, each a little early or late as they are
+       a build       the arms go up little by little, some sooner than others and each in their own way (both hands, one and then the other, one hand only, or fists),
+                     pumping more as it rises, and with no kick they keep swaying by their own clocks; through a snare roll the hands shake, faster as the roll
+                     speeds up; and just before the drop the knees bend, bobbing
+       the drop      a jump with both arms up, one of them turning round in the air, and a few seconds later back into the groove, with more go while the drop lasts.
+                     A page that finds drop after drop gets one jump from them, not one every two seconds
+       a calm part   (or kicks too few and far between to dance to) a slow sway by the clock, both arms up and moving slowly, or one hand held up as if holding a light
+     Where everyone is going is worked out by the clock in bandDance(); the arms, the head and the hair follow it on springs, so they come a little late and swing through. */
+  const BAND_FOLK = 5, BAND_J = 32;
+  const BAND_WHO = [ // who they are: energy; how late on the beat (seconds; under 0 a little early); size; hair (1 a ponytail, 2 long, 3 a bun, 4 a bucket hat, 5 curls); which of the three
+    // colors lights them; how keen to clap, and to tick along with the hi-hats; the hand they lead with (1 the right); how many beats their sway runs behind the beat, so they do not
+    // all lean the same way at once; how their arms go up in a build (0 both hands together and open, 1 one hand and then the other, 2 only the leading hand, the other by the
+    // shoulder, 3 both fists together); the beats one sway takes, and one bounce of the knees
+    // (the head still nods on every beat; in the hard mood everyone stamps on every beat, and those who bounce every other beat stamp harder on one and lighter on the next); sways a second when it is calm; whether they hold up a light then; whether they may turn round on a drop; and the moves they like, best first (see bandArmFor)
+    { energy: 0.9, late: 0, size: 1.04, hair: 1, tone: 0, clap: 0.7, tick: 0.5, lead: 1, sway: 0, rise: 1, cycle: 2, knees: 1, calm: 0.2, light: false, spin: true, likes: [0, 2, 5, 1, 4, 6, 3] },
+    { energy: 1.15, late: 0.05, size: 0.97, hair: 4, tone: 1, clap: 0.3, tick: 0.75, lead: -1, sway: 1, rise: 3, cycle: 2, knees: 1, calm: 0.24, light: false, spin: false, likes: [3, 5, 0, 6, 2, 4, 1] },
+    { energy: 0.7, late: -0.03, size: 1, hair: 2, tone: 2, clap: 0.55, tick: 0.3, lead: 1, sway: 1, rise: 2, cycle: 4, knees: 2, calm: 0.16, light: true, spin: false, likes: [1, 4, 0, 6, 2, 5, 3] },
+    { energy: 1, late: 0.025, size: 0.94, hair: 5, tone: 0, clap: 0.9, tick: 0.35, lead: 1, sway: 0.5, rise: 0, cycle: 2, knees: 1, calm: 0.21, light: false, spin: true, likes: [5, 6, 2, 3, 0, 4, 1] },
+    { energy: 0.8, late: 0.08, size: 1.02, hair: 3, tone: 1, clap: 0.45, tick: 0.6, lead: -1, sway: 2.5, rise: 2, cycle: 4, knees: 2, calm: 0.18, light: true, spin: false, likes: [0, 1, 2, 4, 6, 5, 3] }];
+  const BAND_SEATS = [3, 1, 0, 2, 4]; // where they stand, from the left: the first to come stands in the middle
+  const BAND_SUITS = [[3, 5, 2, 0, 6], [4, 6, 2], [0, 1, 2, 5, 6, 3]]; // the moves the music asks for: the hard mood; euphoric and trance (only those with the arms up); anything else
+  const BAND_CURLS = Float32Array.from({ length: 14 }, (_, k) => (k & 1 ? Math.cos : Math.sin)(-1.75 + (k >> 1) * 0.583)); // where the curls sit round the top of the head
+  const BAND_FINGERS = Float32Array.of(-0.55, -0.2, 0.15, 0.5); // which way the fingers of an open hand point, off the line of the forearm
+  const bandFolk = BAND_WHO.map((who, i) => ({ who, i, posed: false, xf: 0.5, here: 0, came: 0, move: who.likes[0], was: who.likes[0], blend: 1, nextAt: 0, picks: i, mood: "", tickT: -9, clapW: 0, sp: i * 1.9, bp: i * 2.3, kp: i * 1.3,
+    arm: new Float32Array(8), head: new Float32Array(4), hair: new Float32Array(4), J: new Float32Array(BAND_J) })); // sp, bp, kp: where each of them is in their own slow sway, their pumping arms in a build and their bobbing knees, as angles; arm: each hand's place and speed; head: its nod and tilt and their speeds; hair: where the end of it is and its speed; J: the pose as it is drawn (0-3 the hips and their lean, 4-7 the head, its tilt and nod, 8-19 each arm's shoulder, elbow and hand, 20-21 where the hair swings to, 22 how far round it has turned, 23-26 how open each hand is and how far a finger points, 27 a held light, 28 the rays of a clap, 29 the legs tucked in a jump)
+  const bandReach = new Float32Array(3), bandFav = new Int8Array(3), bandScore = new Float32Array(3), bandAims = new Float32Array(8); // one hand's wanted place and kind; the moves that suit a person and the music best, and how well; where each hand wants to be, and how open
+  let bandOx = 0, bandOy = 0, bandOu = 1, bandHu = 0, bandHv = 0, bandC = 1, bandS = 0, bandRo = 0, bandKu = 0, bandKv = 0, bandKc = 1, bandKs = 0; // the person being drawn: where its hips would rest on the picture and how big its unit is; its hips, its lean and its shoulders; its head and the head's tilt
+  const bandAX = (u) => bandOx + u * bandOu, bandAY = (v) => bandOy - v * bandOu; // from a person's own units (up is up) to the picture
+  const bandTX = (r, a) => bandAX(bandHu + r * bandC + (a + (a > 1.4 ? bandRo * r : 0)) * bandS), bandTY = (r, a) => bandAY(bandHv - r * bandS + (a + (a > 1.4 ? bandRo * r : 0)) * bandC); // across and up the body, which leans, and whose shoulders rise and fall
+  const bandKX = (r, a) => bandAX(bandKu + r * bandKc + a * bandKs), bandKY = (r, a) => bandAY(bandKv - r * bandKs + a * bandKc); // across and up the head, from its middle
+
+  function bandSpring(a, o, aim, f, z, dt) { a[o + 1] += ((TAU * f) ** 2 * (aim - a[o]) - 2 * z * TAU * f * a[o + 1]) * dt; a[o] += a[o + 1] * dt; } // a number pulled toward aim like a weight on a spring: f how many times a second it would swing, z how soon it settles
+  function bandArmFor(k, side, lead, ph, sw, dip) { // where one hand wants to be in move k, out from its shoulder and up from it in the person's own units, and its kind (0 a fist, 1 open, 2 pointing). ph: beats; sw: the sway, -1 to 1; dip: the knees, 0 to 1
+    const R = bandReach, mine = side === lead, push = Math.max(0, 0.5 + 0.5 * Math.cos(TAU * (ph - 0.05))) ** 2; // push: 1 just on the beat, nothing half way between
+    if (k === 0) { R[0] = 0.32 + 0.15 * sw * side; R[1] = -1.98 + 0.35 * dip + 0.1 * Math.abs(sw); R[2] = 0; }                // hanging loose, swinging a little with the hips and lifting with every bounce
+    else if (k === 1) { R[0] = 0.38 + 0.42 * sw * side; R[1] = -1.92 + 0.3 * Math.abs(sw); R[2] = 0; }                        // swinging with the hips
+    else if (k === 2) { if (mine) { R[0] = 0.3; R[1] = 1.45 + 0.45 * push; R[2] = 2; } else { R[0] = 0.38 + 0.1 * sw * side; R[1] = -1.7 + 0.3 * dip; R[2] = 0; } } // a finger up, pushed up on every beat, the other arm loose
+    else if (k === 3) { if (mine) { R[0] = 0.62 - 0.32 * push; R[1] = 0.35 + 1.65 * push; R[2] = 0; } else { R[0] = 0.45; R[1] = -1.45 + 0.25 * dip; R[2] = 0; } } // a fist punched up on every beat
+    else if (k === 4) { R[0] = 0.5 + 0.42 * sw * side; R[1] = 1.85 - 0.3 * Math.abs(sw); R[2] = 1; }                        // both hands up, waving over the head with the sway
+    else if (k === 5) { const turn = 0.5 + 0.5 * Math.cos(Math.PI * ph) * side; R[0] = 0.62 - 0.08 * push; R[1] = 0.3 + 0.65 * push * (0.3 + 0.7 * turn); R[2] = 1; } // palms up by the shoulders, raising the roof on every beat, one hand and then the other higher
+    else { R[0] = 0.62 + 0.08 * sw * side; R[1] = 0.85 + 0.25 * (1 - dip); R[2] = 1; }                                     // hands up by the head, bouncing
+  }
+
+  function bandDance(dt) { // from bandNow, while the crowd is there: where everyone stands, which move each is in, and every joint, sprung toward where the music wants it
+    const S = company, C = S.crowd, P = bandAt, t = S.t;
+    if (C.ramp <= 0 && !C.on) { for (let i = 0; i < BAND_FOLK; i++) bandFolk[i].posed = false; return; }
+    bandPlace();
+    const U = P.U, hard = mood === "hard", lifted = mood === "euphoric" || mood === "psy", suits = BAND_SUITS[hard ? 0 : lifted ? 1 : 2], swing = hard ? 0.85 : lifted ? 1.5 : 1;
+    // room: nobody stands in front of the speakers or under the 303's singer. They step aside as those come, and if there is no room left the last to come step back out of sight
+    const left = S.dancer.show * (P.dx + P.pw / 2 + U), right = w - (P.tall ? 0 : acidSinger.show) * (w * 0.13 + Math.min(w, h) * 0.182 + 1.2 * U);
+    const many = Math.min(P.n, Math.max(1, Math.floor((right - left) / (3.3 * U))));
+    let total = 0;
+    for (let i = 0; i < BAND_FOLK; i++) { const p = bandFolk[i], want = i < many ? 1 : 0; p.here = p.posed ? p.here + (want - p.here) * bandK(dt, 0.5) : want; total += p.here; }
+    for (let k = 0, cum = 0; k < BAND_FOLK; k++) { // each takes its share of the room, a little off the middle of it
+      const p = bandFolk[BAND_SEATS[k]];
+      if (p.here < 0.001) continue;
+      const aim = (left + ((right - left) * (cum + p.here * (0.5 + 0.14 * (bandHash(p.i + 3) - 0.5)))) / total) / w;
+      cum += p.here;
+      p.xf = p.posed ? p.xf + (aim - p.xf) * bandK(dt, 0.7) : aim;
+    }
+    // what the music asks of everybody
+    const sinceJ = t - S.jumpT, inBuild = t - S.builtAt < 0.5, bw = inBuild ? clamp((S.build - 0.25) / 0.5) : 0, crouch = eased(clamp((S.buildNow - 0.8) / 0.2)), calm = S.calmW, kick = S.groove * S.kPow * (1 - calm);
+    const clapping = flow.clapOn >= 0.5 && S.clapGap > 0 && t - S.clapT < Math.max(1.2, 2.5 * S.clapGap);
+    const idle = Math.max(calm, (1 - S.groove) * clamp((sinceJ - 0.7) / 0.8)); // with no kick to dance to they sway slowly by the clock: through a calm part, a build with no kick, kicks too few to follow, or once down from a jump
+    const spinner = S.jumps % 2 ? (many > 3 ? 3 : 0) : -1, steps = dt > 0.25 ? 0 : Math.ceil(dt * 60 - 1e-6), step = steps ? dt / steps : 0; // on every other drop one of them turns round in the air. The springs are stepped a sixtieth of a second at most at a time; after a long gap they simply start where they are wanted
+    for (let i = 0; i < BAND_FOLK; i++) {
+      const p = bandFolk[i], who = p.who, J = p.J, snap = !p.posed || dt > 0.25;
+      p.came = bandRise((C.ramp - 0.09 * i) / 0.55) * eased(clamp(p.here)); // they come up one after another, the one in the middle first
+      if (snap || t >= p.nextAt || p.mood !== mood) { // a new move now and then: one of the three that suit both this person and the music best (in the hard, euphoric and trance moods the music has more say), and better one that nobody else there is in
+        let c = 0;
+        for (let k = 0; k < who.likes.length; k++) {
+          const m = who.likes[k], r = suits.indexOf(m);
+          let sc = k + (hard || lifted ? 1.5 : 0.5) * r;
+          for (let j = 0; j < BAND_FOLK; j++) if (j !== i && bandFolk[j].posed && bandFolk[j].here > 0.5 && bandFolk[j].move === m) sc += 3;
+          if (r < 0 || (p.posed && m === p.move) || (c === 3 && sc >= bandScore[2])) continue;
+          let j = c < 3 ? c++ : 2;
+          for (; j > 0 && bandScore[j - 1] > sc; j--) { bandScore[j] = bandScore[j - 1]; bandFav[j] = bandFav[j - 1]; }
+          bandScore[j] = sc; bandFav[j] = m;
+        }
+        if (c) { const m = bandFav[Math.min(c - 1, Math.floor(bandHash(i * 7.7 + p.picks * 1.31) ** 1.6 * c))]; p.was = p.posed ? p.move : m; p.move = m; p.blend = p.posed ? 0 : 1; }
+        p.picks = (p.picks + 1) % 997; p.mood = mood; p.nextAt = t + 10 + 10 * bandHash(i * 3.3 + p.picks * 0.7);
       }
-      if (kind === 0 && clapping > 0.5) { const age = t - S.clapT - back * BAND_TICK; if (age >= 0 && age < 0.13) F[o + 6] = 1 - age / 0.13; } // where the hands meet: three short rays, there for an eighth of a second
-      count++;
+      p.blend = clamp(p.blend + dt / 0.9);
+      // the body: the beat as this one hears it, a sway, the knees, and a jump on the drop. With no kick the sway goes by their own clock: slowly when it is calm, quicker as a build rises
+      const lift = inBuild ? eased(clamp((S.build - 0.22 - 0.22 * bandHash(i + 5)) / 0.5)) : 0, rate = who.calm + ((0.35 + 0.3 * who.energy) * (1 + 0.6 * S.build) - who.calm) * bw; // the arms go up little by little through a build, some sooner than others
+      const hold = 1.6 + 1.4 * bandHash(i + 11), up = sinceJ < hold ? 1 : sinceJ < hold + 2.3 ? 1 - eased((sinceJ - hold) / 2.3) : 0; // after a drop's jump each keeps the arms up for a time of their own
+      p.sp = (p.sp + TAU * rate * dt) % TAU; p.bp = (p.bp + TAU * (0.5 + 0.5 * S.build) * (0.8 + 0.45 * bandHash(i + 2)) * dt) % TAU; p.kp = (p.kp + TAU * (1 + 0.5 * who.energy) * dt) % TAU;
+      const ph = S.ph - who.late / S.period, E = Math.min(1.4, who.energy * (1 + 0.45 * S.drop) * (hard ? 1.2 : 1)), groove = S.groove * (1 - calm);
+      const dip = Math.max(0, 0.5 + 0.5 * Math.cos((TAU * (ph - 0.07)) / (hard ? 1 : who.knees))) ** (hard ? 3 : 1.6) * (hard && who.knees > 1 ? 0.55 + 0.45 * Math.cos(Math.PI * (ph - 0.07)) : 1), sw = Math.cos((TAU * (ph + who.sway)) / who.cycle), cs = Math.sin(p.sp);
+      const tj = sinceJ - 0.03 * i - Math.max(0, who.late), q = tj / 0.55, peak = 0.9 + 0.7 * who.energy, jump = q > 0 && q < 1 ? peak * 4 * q * (1 - q) : 0, land = q >= 1 ? 0.3 * Math.exp(-(tj - 0.55) / 0.12) : 0;
+      const lean = -0.05 * sw * swing * groove - 0.07 * cs * idle, c = Math.cos(lean), s = Math.sin(lean), roll = 0.08 * sw * swing * groove * E;
+      const hu = 0.15 * sw * swing * groove * E + 0.22 * cs * idle * (1 + 0.4 * bw), hv = jump - 0.3 * dip * kick * E * (hard ? 1.35 : 1) - (jump > 0 ? 0 : 0.35 * crouch * (0.4 + 0.3 * (1 + Math.sin(p.kp)))) - land; // just before the drop the knees bend, bobbing
+      J[0] = hu; J[1] = hv; J[2] = lean; J[3] = roll; J[29] = jump / peak;
+      const turn = p.i === spinner && who.spin && tj > 0.05 && tj < 0.5 ? Math.cos(TAU * eased((tj - 0.05) / 0.45)) : 1; // all of it while in the air
+      J[22] = (turn < 0 ? -1 : 1) * Math.max(0.6, 1.4 * Math.abs(turn) - 0.4); // turning round in the air: narrower, the other way round, and back, never thinner than a body seen from the side
+      // the hands: the move (easing from the last one), and over it a calm part, a build, the claps and the drop
+      const back = 1 + Math.round(Math.max(0, who.late) * 60) + (i & 1), close = bandKept.close[(S.at - back + BAND_KEEP) % BAND_KEEP], b = eased(p.blend), keen = Math.min(1, 0.7 + 0.3 * who.energy);
+      const wantClap = clapping && sinceJ > 2.5 && calm < 0.5 && bandHash(Math.floor(S.claps / 6) * 3.7 + i * 11.3) < who.clap;
+      p.clapW += ((wantClap ? 1 : 0) - p.clapW) * bandK(dt, 0.3);
+      let light = 0;
+      for (let k = 0; k < 2; k++) {
+        const side = k ? 1 : -1, o = k * 4;
+        bandArmFor(p.was, side, who.lead, ph, sw, dip); let x = bandReach[0], y = bandReach[1], kind = bandReach[2];
+        if (b > 0) { bandArmFor(p.move, side, who.lead, ph, sw, dip); x += (bandReach[0] - x) * b; y += (bandReach[1] - y) * b; if (b > 0.5) kind = bandReach[2]; }
+        let open = kind === 1 ? 1 : 0, point = kind === 2 ? 1 : 0;
+        const held = who.light && side === who.lead, wc = calm, wb = Math.max(lift, S.roll) * keen, wl = p.clapW, wd = up;
+        if (wc > 0) { const ax = held ? 0.22 + 0.08 * cs : who.light ? 0.36 : 0.5 + 0.32 * cs * side, ay = held ? 2.02 + 0.06 * cs : who.light ? -1.85 : 1.7 - 0.12 * cs * side; x += (ax - x) * wc; y += (ay - y) * wc; if (held) light = wc; if (wc > 0.5) { open = held || who.light ? 0 : 1; point = 0; } }
+        if (wb > 0) { // a build: the arms up, each in their own way, pumping more as it rises: on the beat while the kick runs, by their own clock when it is gone
+          const turns = who.rise === 1 ? side * 1.571 : 0, pump = Math.sin(p.bp + turns) * (1 - S.groove) + Math.cos((TAU * (ph - 0.05)) / who.knees + turns) * S.groove, low = who.rise === 2 && side !== who.lead;
+          const ax = low ? 0.55 : 0.34 + 0.12 * bandHash(i) + 0.08 * cs * side, ay = low ? 0.35 + 0.15 * pump : 1.6 + 0.3 * who.energy + 0.18 * pump * (0.4 + 0.6 * S.build);
+          x += (ax - x) * wb; y += (ay - y) * wb; if (wb > 0.5) { open = low || who.rise === 3 ? 0 : 1; point = 0; }
+        }
+        if (wl > 0) { x += (0.5 - 1.34 * close - x) * wl; y += (1.8 + 0.1 * close - y) * wl; if (wl > 0.5) { open = 1; point = 0; } }
+        if (wd > 0) { const wave = sw * S.groove + cs * (1 - S.groove); x += (0.78 + 0.14 * wave * side - x) * wd; y += (1.92 - 0.12 * Math.abs(wave) - y) * wd; if (wd > 0.5) { open = 1; point = 0; } } // arms up after the drop, waving with the sway
+        const r = side * 0.84, a = 1.96 + roll * 0.7 * r, ju = hu + r * c + a * s, jv = hv - r * s + a * c; // the shoulder, and the hand from it along and up the body
+        bandAims[o] = ju + side * x * c + y * s; bandAims[o + 1] = jv - side * x * s + y * c; bandAims[o + 2] = open; bandAims[o + 3] = point;
+        J[8 + k * 6] = ju; J[9 + k * 6] = jv;
+      }
+      // the head: a nod a little after the beat, a tilt with the sway; and now and then a tick with the hi-hats, of a free hand or of the head
+      const nod = kick * Math.min(1.1, E) * Math.max(0, 0.5 + 0.5 * Math.cos(TAU * (ph - 0.13))) ** 2, tilt = 0.04 * sw * groove + 0.2 * cs * idle + lean * 0.4;
+      if (S.hatNow && t - p.tickT > 0.3 && calm < 0.5 && p.clapW < 0.5 && up < 0.5 && bandHash(S.hats * 1.37 + i * 7.1) < 0.45 * who.tick) {
+        p.tickT = t;
+        if (who.tick > 0.5 && p.move < 4) p.arm[(who.lead > 0 ? 0 : 4) + 3] += 4.5; else p.head[3] += S.hats & 1 ? 2.2 : -2.2;
+      }
+      const fh = 3.4 + 1.4 * E + (hard ? 1 : 0);
+      if (snap) { for (let o = 0; o < 8; o += 4) { p.arm[o] = bandAims[o]; p.arm[o + 2] = bandAims[o + 1]; p.arm[o + 1] = p.arm[o + 3] = 0; } p.head[0] = nod; p.head[2] = tilt; p.head[1] = p.head[3] = 0; }
+      else for (let n = 0; n < steps; n++) {
+        for (let o = 0; o < 8; o += 4) { bandSpring(p.arm, o, bandAims[o], fh, 0.55, step); bandSpring(p.arm, o + 2, bandAims[o + 1], fh, 0.55, step); }
+        bandSpring(p.head, 0, nod, 6, 0.6, step); bandSpring(p.head, 2, tilt, 3, 0.45, step);
+      }
+      const al = lean + p.head[2], hc = Math.cos(al), hs = Math.sin(al), nd = clamp(p.head[0]), ku = hu + 2.35 * s + (0.7 - 0.13 * nd) * hs, kv = hv + 2.35 * c + (0.7 - 0.13 * nd) * hc;
+      J[4] = ku; J[5] = kv; J[6] = al; J[7] = nd;
+      // the arms: the elbow found from the shoulder and the hand, out to the side of the line between them; less far out when the hand is low, as a hanging arm bends toward us, not sideways
+      for (let k = 0; k < 2; k++) {
+        const side = k ? 1 : -1, o = k * 4, jb = 8 + k * 6, ju = J[jb], jv = J[jb + 1];
+        let hx = p.arm[o] + Math.sin(S.shake + i * 1.7 + k * 1.3) * 0.15 * S.roll, hy = p.arm[o + 2] + Math.cos(S.shake * 1.1 + i) * 0.08 * S.roll; // through a roll the hands shake
+        const du = hx - ju, dv = hy - jv, far = Math.sqrt(du * du + dv * dv) || 1e-6, d = Math.max(0.25, Math.min(far, 2.12));
+        hx = ju + (du * d) / far; hy = jv + (dv * d) / far;
+        const ins = Math.sqrt(Math.max(0, 1.1664 - (d * d) / 4)), nu = -dv / far, nv = du / far, out = Math.max(-1, Math.min(1, (side * nu - 0.3 * nv) / 0.25)), deep = 0.4 + 0.6 * clamp((dv / far + 0.2) / 0.6); // ins: how far the elbow stands off the line (bones of 1.08); out: which side it goes, easing through the line rather than jumping across
+        J[jb + 2] = (ju + hx) / 2 + nu * out * ins * deep; J[jb + 3] = (jv + hy) / 2 + nv * out * ins * deep;
+        J[jb + 4] = hx; J[jb + 5] = hy;
+        J[23 + k] += (bandAims[o + 2] - J[23 + k]) * (snap ? 1 : bandK(dt, 0.12)); J[25 + k] += (bandAims[o + 3] - J[25 + k]) * (snap ? 1 : bandK(dt, 0.12)); // how open the hand is, and how far a finger points
+      }
+      J[27] = light;
+      J[28] = p.clapW > 0.7 && t - S.clapT - back / 60 >= 0 && t - S.clapT - back / 60 < 0.13 ? 1 - (t - S.clapT - back / 60) / 0.13 : 0; // where the hands meet: three short rays, for an eighth of a second
+      // the hair, a weight on a spring hanging from the head, so it swings after every move
+      const hair = who.hair, ru = ku + (hair === 1 ? 0.15 * hs : 0), rv = kv + (hair === 1 ? 0.15 * hc - 1.1 : hair === 2 ? -1 : 0), hf = hair === 1 ? 2 : hair === 2 ? 2.4 : 3.5;
+      if (snap) { p.hair[0] = ru; p.hair[2] = rv; p.hair[1] = p.hair[3] = 0; }
+      else for (let n = 0; n < steps; n++) { bandSpring(p.hair, 0, ru, hf, 0.24, step); bandSpring(p.hair, 2, rv, hf, 0.24, step); }
+      J[20] = Math.max(-0.7, Math.min(0.7, p.hair[0] - ru)); J[21] = Math.max(-0.7, Math.min(0.7, p.hair[2] - rv));
+      p.posed = true;
     }
-    bandCount[row] = count;
-    return count;
   }
-  function bandBodies(row) { // the heads and shoulders of one row as one shape, and their legs while they are in the air
-    const F = bandFigs, floor = bandAt.floor;
+
+  function bandShape(p) { // one person's body, neck, head and hair as one shape, and its legs while it is in the air. Every part goes round the same way, so where they overlap is filled
+    const J = p.J, T = bandTX, V = bandTY, K = bandKX, L = bandKY, U = bandOu;
     g.beginPath();
-    for (let f = 0, o = row * BAND_MOST * BAND_FIG; f < bandCount[row]; f++, o += BAND_FIG) {
-      const x = F[o], hx = F[o + 1], hy = F[o + 2], r = F[o + 3], hair = F[o + 4], tuck = F[o + 5], hip = hy + 4.6 * r, foot = hy + (7.9 - tuck) * r;
-      if (hip - r < floor) for (let e = -1; e <= 1; e += 2) { g.moveTo(x + e * 1.25 * r, hip - 0.4 * r); g.lineTo(x + e * (1.15 + 0.5 * tuck) * r, foot); g.lineTo(x + e * (0.3 + 0.5 * tuck) * r, foot); g.lineTo(x + e * 0.1 * r, hip - 0.4 * r); g.closePath(); }
-      g.moveTo(x - 1.3 * r, hip); g.quadraticCurveTo(x - 2.1 * r, hy + 1.1 * r, x - 0.55 * r, hy + 0.95 * r); g.lineTo(x + 0.55 * r, hy + 0.95 * r); g.quadraticCurveTo(x + 2.1 * r, hy + 1.1 * r, x + 1.3 * r, hip); g.closePath();
-      g.moveTo(hx + 0.95 * r, hy); g.arc(hx, hy, 0.95 * r, 0, TAU);
-      if (hair === 1) { g.moveTo(hx + 0.42 * r, hy - 1.1 * r); g.arc(hx, hy - 1.1 * r, 0.42 * r, 0, TAU); } // a bun
-      else if (hair === 2) { g.moveTo(hx - 0.95 * r, hy - 0.25 * r); g.lineTo(hx - 1.55 * r, hy - 0.1 * r); g.lineTo(hx - 0.9 * r, hy + 0.1 * r); } // a cap's peak
-      else if (hair === 3) { g.moveTo(hx - 0.5 * r, hy - 0.8 * r); g.lineTo(hx - 0.35 * r, hy - 1.45 * r); g.lineTo(hx, hy - 0.95 * r); g.lineTo(hx + 0.35 * r, hy - 1.45 * r); g.lineTo(hx + 0.5 * r, hy - 0.8 * r); } // spiked hair
+    if (J[29] > 0.02) for (let e = -1; e <= 1; e += 2) {
+      const k = J[29], ox = e * 0.72, bx = e * (0.78 + 0.3 * k), cx = e * (0.22 + 0.3 * k), ix = e * 0.06, by = -3.3 + 1.6 * k;
+      if (e > 0) { g.moveTo(T(ox, 0), V(ox, 0)); g.lineTo(T(bx, by), V(bx, by)); g.lineTo(T(cx, by), V(cx, by)); g.lineTo(T(ix, 0), V(ix, 0)); }
+      else { g.moveTo(T(ix, 0), V(ix, 0)); g.lineTo(T(cx, by), V(cx, by)); g.lineTo(T(bx, by), V(bx, by)); g.lineTo(T(ox, 0), V(ox, 0)); }
+      g.closePath();
+    }
+    g.moveTo(T(-0.72, -0.9), V(-0.72, -0.9)); g.lineTo(T(-0.72, 0), V(-0.72, 0)); // the body: up the left side, over the shoulders, down the right
+    g.quadraticCurveTo(T(-0.55, 0.85), V(-0.55, 0.85), T(-0.8, 1.6), V(-0.8, 1.6));
+    g.quadraticCurveTo(T(-1.02, 1.97), V(-1.02, 1.97), T(-0.72, 2.12), V(-0.72, 2.12));
+    g.quadraticCurveTo(T(-0.4, 2.22), V(-0.4, 2.22), T(-0.2, 2.36), V(-0.2, 2.36));
+    g.lineTo(T(0.2, 2.36), V(0.2, 2.36));
+    g.quadraticCurveTo(T(0.4, 2.22), V(0.4, 2.22), T(0.72, 2.12), V(0.72, 2.12));
+    g.quadraticCurveTo(T(1.02, 1.97), V(1.02, 1.97), T(0.8, 1.6), V(0.8, 1.6));
+    g.quadraticCurveTo(T(0.55, 0.85), V(0.55, 0.85), T(0.72, 0), V(0.72, 0));
+    g.lineTo(T(0.72, -0.9), V(0.72, -0.9)); g.closePath();
+    g.moveTo(K(-0.17, -0.4), L(-0.17, -0.4)); g.lineTo(K(0.17, -0.4), L(0.17, -0.4)); g.lineTo(T(0.21, 2.2), V(0.21, 2.2)); g.lineTo(T(-0.21, 2.2), V(-0.21, 2.2)); g.closePath(); // the neck
+    const cx = bandAX(bandKu), cy = bandAY(bandKv), al = J[6];
+    g.moveTo(cx + 0.43 * U * Math.cos(al), cy + 0.43 * U * Math.sin(al)); g.ellipse(cx, cy, 0.43 * U, 0.5 * U * (1 - 0.08 * J[7]), al, 0, TAU); // the head
+    bandHair(p);
+  }
+  function bandHair(p) { // the hair, or the hat, into the current shape: drawn once with the body and then again by itself a shade lighter, so it shows against the dark
+    const J = p.J, hair = p.who.hair, K = bandKX, L = bandKY, U = bandOu, al = J[6];
+    if (hair !== 4) { const cx = bandAX(bandKu), cy = bandAY(bandKv); g.moveTo(cx + 0.44 * U * Math.cos(al), cy + 0.44 * U * Math.sin(al)); g.ellipse(cx, cy, 0.44 * U, 0.51 * U * (1 - 0.08 * J[7]), al, 0, TAU); } // from behind the head is all hair
+    if (hair === 1) { // a ponytail from the back of the head, its end where the spring has it
+      const tu = bandKu + 0.15 * bandKs, tv = bandKv + 0.15 * bandKc, eu = tu + J[20], ev = tv - 1.1 + J[21], du = eu - tu, dv = ev - tv, len = Math.sqrt(du * du + dv * dv) || 1, nu = -dv / len, nv = du / len, mu = (tu + eu) / 2, mv = (tv + ev) / 2;
+      g.moveTo(bandAX(tu + nu * 0.18), bandAY(tv + nv * 0.18)); g.quadraticCurveTo(bandAX(mu + nu * 0.17), bandAY(mv + nv * 0.17), bandAX(eu), bandAY(ev)); g.quadraticCurveTo(bandAX(mu - nu * 0.14), bandAY(mv - nv * 0.14), bandAX(tu - nu * 0.18), bandAY(tv - nv * 0.18)); g.closePath();
+    } else if (hair === 2) { // long hair down to the shoulders, its ends swinging
+      const bu = bandKu + J[20], bv = bandKv - 1 + J[21];
+      g.moveTo(K(0.44, 0.05), L(0.44, 0.05)); g.quadraticCurveTo(K(0.62, -0.6), L(0.62, -0.6), bandAX(bu + 0.4), bandAY(bv + 0.05)); g.quadraticCurveTo(bandAX(bu + 0.15), bandAY(bv - 0.2), bandAX(bu), bandAY(bv - 0.1)); g.quadraticCurveTo(bandAX(bu - 0.15), bandAY(bv - 0.2), bandAX(bu - 0.4), bandAY(bv + 0.05)); g.quadraticCurveTo(K(-0.62, -0.6), L(-0.62, -0.6), K(-0.44, 0.05), L(-0.44, 0.05)); g.closePath();
+    } else if (hair === 3) { const x = K(0, 0.56), y = L(0, 0.56); g.moveTo(x + 0.21 * U, y); g.arc(x, y, 0.21 * U, 0, TAU); } // a bun
+    else if (hair === 4) { // a bucket hat, its brim lagging behind the head
+      const x = K(0, 0.36), y = L(0, 0.36), bx = K(0, 0.18) + J[20] * 0.25 * U, by = L(0, 0.18) - J[21] * 0.35 * U, tip = al + Math.max(-0.45, Math.min(0.45, J[20] * 1.4));
+      g.moveTo(x + 0.45 * U * Math.cos(al), y + 0.45 * U * Math.sin(al)); g.ellipse(x, y, 0.45 * U, 0.3 * U, al, 0, TAU);
+      g.moveTo(bx + 0.74 * U * Math.cos(tip), by + 0.74 * U * Math.sin(tip)); g.ellipse(bx, by, 0.74 * U, 0.14 * U, tip, 0, TAU);
+    } else if (hair === 5) { // curls, lifting as the head comes down
+      const lift = Math.max(-0.1, Math.min(0.15, J[21] * 0.5));
+      for (let k = 0; k < 7; k++) { const x = K(0.47 * BAND_CURLS[k * 2], 0.06 + lift + 0.42 * BAND_CURLS[k * 2 + 1]), y = L(0.47 * BAND_CURLS[k * 2], 0.06 + lift + 0.42 * BAND_CURLS[k * 2 + 1]); g.moveTo(x + 0.17 * U, y); g.arc(x, y, 0.17 * U, 0, TAU); }
     }
   }
-  function bandLimbs(row, fresh) { // every arm of one row: shoulder to elbow to hand
-    const F = bandFigs;
-    if (fresh) g.beginPath();
-    for (let f = 0, o = row * BAND_MOST * BAND_FIG; f < bandCount[row]; f++, o += BAND_FIG) for (let side = 0; side < 2; side++) if (F[o + 7 + side]) { const a = o + 9 + side * 8; g.moveTo(F[a + 2], F[a + 3]); g.lineTo(F[a + 4], F[a + 5]); g.lineTo(F[a], F[a + 1]); }
-  }
-  function bandHands(row, grow) { // and the hands at their ends, each an oval along the forearm
-    const F = bandFigs;
+  function bandArmsPath(p) { // both arms: shoulder to elbow to hand
+    const J = p.J;
     g.beginPath();
-    for (let f = 0, o = row * BAND_MOST * BAND_FIG; f < bandCount[row]; f++, o += BAND_FIG) for (let side = 0; side < 2; side++) if (F[o + 7 + side]) {
-      const a = o + 9 + side * 8, r = F[o + 3], fx = F[a + 6], fy = F[a + 7], cx = F[a] + fx * 0.42 * r, cy = F[a + 1] + fy * 0.42 * r;
-      g.moveTo(cx + fx * 0.62 * r * grow, cy + fy * 0.62 * r * grow); g.ellipse(cx, cy, 0.62 * r * grow, 0.4 * r * grow, Math.atan2(fy, fx), 0, TAU);
+    for (let k = 0; k < 2; k++) { const b = 8 + k * 6; g.moveTo(bandAX(J[b]), bandAY(J[b + 1])); g.lineTo(bandAX(J[b + 2]), bandAY(J[b + 3])); g.lineTo(bandAX(J[b + 4]), bandAY(J[b + 5])); }
+  }
+  function bandHandsPath(p, grow) { // both hands, each an oval along its forearm
+    const J = p.J, U = bandOu;
+    g.beginPath();
+    for (let k = 0; k < 2; k++) {
+      const b = 8 + k * 6, fu = J[b + 4] - J[b + 2], fv = J[b + 5] - J[b + 3], fl = Math.sqrt(fu * fu + fv * fv) || 1, x = bandAX(J[b + 4] + (fu / fl) * 0.12), y = bandAY(J[b + 5] + (fv / fl) * 0.12), ang = Math.atan2(-fv, fu);
+      g.moveTo(x + 0.21 * U * grow * Math.cos(ang), y + 0.21 * U * grow * Math.sin(ang)); g.ellipse(x, y, 0.21 * U * grow, 0.155 * U * grow, ang, 0, TAU);
+    }
+  }
+  function bandFingersPath(p) { // the fingers of an open hand, and a finger pointing up
+    const J = p.J, U = bandOu;
+    g.beginPath();
+    for (let k = 0; k < 2; k++) {
+      const b = 8 + k * 6, open = J[23 + k], point = J[25 + k];
+      if (open < 0.05 && point < 0.05) continue;
+      const fu = J[b + 4] - J[b + 2], fv = J[b + 5] - J[b + 3], fl = Math.sqrt(fu * fu + fv * fv) || 1, x = bandAX(J[b + 4] + (fu / fl) * 0.12), y = bandAY(J[b + 5] + (fv / fl) * 0.12), ang = Math.atan2(-fv, fu);
+      if (open >= 0.05) for (let f = 0; f < 4; f++) { const a = ang + BAND_FINGERS[f] * (0.4 + 0.6 * open), r0 = 0.12 * U, r1 = (0.14 + 0.22 * open) * U; g.moveTo(x + Math.cos(a) * r0, y + Math.sin(a) * r0); g.lineTo(x + Math.cos(a) * r1, y + Math.sin(a) * r1); }
+      if (point >= 0.05) { g.moveTo(x + Math.cos(ang) * 0.12 * U, y + Math.sin(ang) * 0.12 * U); g.lineTo(x + Math.cos(ang) * (0.14 + 0.32 * point) * U, y + Math.sin(ang) * (0.14 + 0.32 * point) * U); }
     }
   }
   function bandCrowd() {
-    const P = bandAt, A = bandArt, F = bandFigs;
-    if (company.crowd.ramp <= 0) return;
+    const P = bandAt, A = bandArt, S = company;
+    if (S.crowd.ramp <= 0) return;
     g.save();
     g.beginPath(); g.rect(0, 0, w, P.floor); g.clip(); // nothing of them shows under the floor
     g.lineCap = g.lineJoin = "round";
-    for (let row = P.rows - 1; row >= 0; row--) {
-      if (!bandRow(row)) continue;
-      const r = P.r * (row ? 0.78 : 1), rim = Math.max(1.2, r * 0.11), arm = Math.max(2.5, r * 0.44);
-      g.globalCompositeOperation = "lighter"; // a soft light round them
-      g.globalAlpha = row ? 0.1 : 0.15; g.strokeStyle = A.rows[row]; g.lineWidth = arm + rim * 4; bandBodies(row); bandLimbs(row, false); g.stroke();
+    for (let i = 0; i < BAND_FOLK; i++) {
+      const p = bandFolk[i], J = p.J;
+      if (!p.posed || p.came <= 0) continue;
+      const U = P.U * p.who.size, rim = Math.max(1.2, U * 0.075), arm = Math.max(2.5, U * 0.34), tone = p.who.tone, X = p.xf * w;
+      bandOx = X; bandOy = P.floor + 0.55 * U + (1 - p.came) * 5.4 * U; bandOu = U; // the hips rest a little under the floor, so the picture shows them from the waist up
+      bandHu = J[0]; bandHv = J[1]; bandC = Math.cos(J[2]); bandS = Math.sin(J[2]); bandRo = J[3] * 0.7; bandKu = J[4]; bandKv = J[5]; bandKc = Math.cos(J[6]); bandKs = Math.sin(J[6]);
+      g.setTransform(J[22], 0, 0, 1, X * (1 - J[22]), 0); // turning round: drawn narrower, then the other way round
+      g.globalCompositeOperation = "lighter"; g.globalAlpha = 0.16; g.strokeStyle = A.rim[tone]; // a soft light round them
+      g.lineWidth = arm + rim * 5; bandArmsPath(p); g.stroke();
+      g.lineWidth = rim * 5; bandShape(p); g.stroke();
       g.globalCompositeOperation = "source-over";
-      g.globalAlpha = 0.86; g.fillStyle = "#050507"; bandBodies(row); g.fill(); // the dark of them, so they read over a bright picture
-      g.globalAlpha = 0.95; g.lineWidth = rim; bandBodies(row); g.stroke(); // the rim of light
-      g.lineWidth = arm + rim * 2; bandLimbs(row, true); g.stroke(); // the arms: the same dark with the same rim
+      g.globalAlpha = 0.95; g.lineWidth = rim * 2; g.stroke(); // the rim of light: half of it is covered by the dark, so only the outline of the whole of them shows
+      g.globalAlpha = 0.93; g.fillStyle = "#050507"; g.fill(); // the dark of them, so they read over a bright picture
+      g.globalAlpha = 1; g.fillStyle = A.hair[tone]; g.beginPath(); bandHair(p); g.fill(); // the hair a shade lighter, so a ponytail shows against the back
+      bandArmsPath(p); g.lineWidth = arm + rim * 2; g.stroke(); // the arms: the same dark with the same rim
       g.globalAlpha = 1; g.strokeStyle = "#050507"; g.lineWidth = arm; g.stroke();
-      g.globalAlpha = 0.6; g.fillStyle = "#000"; bandHands(row, 1.3); g.fill();
-      g.globalAlpha = 1; g.fillStyle = A.palm[row]; bandHands(row, 1); g.fill(); // the hands: the brightest thing they have
-      let spark = 0;
-      for (let f = 0, o = row * BAND_MOST * BAND_FIG; f < bandCount[row]; f++, o += BAND_FIG) spark = Math.max(spark, F[o + 6]);
-      if (spark > 0) { // where the hands meet: three short rays
-        g.globalCompositeOperation = "lighter"; g.strokeStyle = A.spark; g.lineWidth = Math.max(1, r * 0.14); g.globalAlpha = 0.9 * spark;
-        g.beginPath();
-        for (let f = 0, o = row * BAND_MOST * BAND_FIG; f < bandCount[row]; f++, o += BAND_FIG) if (F[o + 6] > 0 && F[o + 7] && F[o + 8]) {
-          const fr = F[o + 3], y = Math.min(F[o + 10], F[o + 18]) - 0.55 * fr, out = 1 - F[o + 6];
-          for (let j = 0; j < 3; j++) { const c = Math.cos(BAND_RAYS[j]), s = Math.sin(BAND_RAYS[j]); g.moveTo(F[o] + c * fr * (0.55 + 0.5 * out), y + s * fr * (0.55 + 0.5 * out)); g.lineTo(F[o] + c * fr * (0.95 + 0.9 * out), y + s * fr * (0.95 + 0.9 * out)); }
-        }
-        g.stroke();
+      g.globalAlpha = 0.6; g.fillStyle = "#000"; bandHandsPath(p, 1.3); g.fill();
+      g.globalAlpha = 1; g.fillStyle = A.palm[tone]; bandHandsPath(p, 1); g.fill(); // the hands: the brightest thing about them
+      if (J[23] >= 0.05 || J[24] >= 0.05 || J[25] >= 0.05 || J[26] >= 0.05) { g.strokeStyle = A.palm[tone]; g.lineWidth = Math.max(1, U * 0.075); bandFingersPath(p); g.stroke(); }
+      if (J[27] > 0.02) { // a light held up: a small warm glow at the hand, steady
+        const k = p.who.lead > 0 ? 1 : 0, b = 8 + k * 6, x = bandAX(J[b + 4]), y = bandAY(J[b + 5] + 0.3);
+        g.globalCompositeOperation = "lighter"; g.globalAlpha = 0.8 * J[27]; g.fillStyle = A.lamp; g.setTransform(U * J[22], 0, 0, U, x * J[22] + X * (1 - J[22]), y); g.fillRect(-1.3, -1.3, 2.6, 2.6);
+        g.setTransform(J[22], 0, 0, 1, X * (1 - J[22]), 0); g.fillStyle = A.spark; g.beginPath(); g.arc(x, y, Math.max(1, U * 0.07), 0, TAU); g.fill();
+        g.globalCompositeOperation = "source-over";
       }
+      if (J[28] > 0) { // where the hands meet over the head: three short rays
+        const y = Math.min(bandAY(J[13]), bandAY(J[19])) - 0.3 * U, x = (bandAX(J[12]) + bandAX(J[18])) / 2, out = 1 - J[28];
+        g.globalCompositeOperation = "lighter"; g.strokeStyle = A.spark; g.lineWidth = Math.max(1, U * 0.07); g.globalAlpha = 0.9 * J[28];
+        g.beginPath();
+        for (let j = 0; j < 3; j++) { const c = Math.cos(BAND_RAYS[j]), s = Math.sin(BAND_RAYS[j]); g.moveTo(x + c * U * (0.3 + 0.25 * out), y + s * U * (0.3 + 0.25 * out)); g.lineTo(x + c * U * (0.5 + 0.45 * out), y + s * U * (0.5 + 0.45 * out)); }
+        g.stroke();
+        g.globalCompositeOperation = "source-over";
+      }
+      g.setTransform(1, 0, 0, 1, 0, 0);
     }
     g.restore();
   }
