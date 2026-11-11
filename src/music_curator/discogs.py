@@ -22,12 +22,12 @@ import re
 import subprocess
 import sys
 import time
-import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
 
-from . import config
+from . import config, saving
+from .keys import norm
 
 API = "https://api.discogs.com"
 UA = "MusicCurator/0.1"  # the CLI replaces this with [discogs] user_agent from the config
@@ -126,24 +126,22 @@ def get(path, **params):
     if CACHE_DIR:
         import hashlib
         cache_file = os.path.join(CACHE_DIR, hashlib.sha1(url.encode("utf-8")).hexdigest() + ".json")
-        if os.path.exists(cache_file):
+        try:
             with open(cache_file, encoding="utf-8") as f:
                 return json.load(f)
+        except (OSError, ValueError):  # nothing kept yet, or an answer that was cut short as it was kept: ask again
+            pass
     data = _request(url)
     if cache_file and data is not None:
-        os.makedirs(CACHE_DIR, exist_ok=True)
-        with open(cache_file, "w", encoding="utf-8") as f:
-            json.dump(data, f)
+        try:
+            os.makedirs(CACHE_DIR, exist_ok=True)
+            saving.write(cache_file, lambda f: json.dump(data, f), encoding="utf-8")
+        except OSError:  # an answer that can't be kept is only asked for again next time
+            pass
     return data
 
 
 # ---------- normalisation helpers ----------
-
-def norm(s):
-    s = unicodedata.normalize("NFKD", s or "")
-    s = "".join(c for c in s if not unicodedata.combining(c))
-    return re.sub(r"[^a-z0-9]", "", s.lower())
-
 
 def base_title(s):
     return norm(re.sub(r"\s*[\(\[][^\)\]]*[\)\]]", "", s or ""))

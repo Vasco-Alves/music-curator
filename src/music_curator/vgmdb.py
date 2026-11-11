@@ -14,6 +14,8 @@ import time
 import urllib.parse
 import urllib.request
 
+from . import saving
+
 BASE = "https://vgmdb.info"
 UA = "LocalMusicCurator/0.1"
 CACHE_DIR = os.path.join(os.path.expanduser("~"), ".cache", "music-curator", "vgmdb")  # the CLI sets this from the config
@@ -24,8 +26,11 @@ def get(path):
     url = BASE + path + ("&" if "?" in path else "?") + "format=json"
     os.makedirs(CACHE_DIR, exist_ok=True)
     cf = os.path.join(CACHE_DIR, hashlib.sha1(url.encode()).hexdigest() + ".json")
-    if os.path.exists(cf):
-        return json.load(open(cf, encoding="utf-8"))
+    try:
+        with open(cf, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):  # nothing kept yet, or an answer that was cut short as it was kept: ask again
+        pass
     wait = 1.5 - (time.time() - _last[0])  # be gentle with a volunteer-run service
     if wait > 0:
         time.sleep(wait)
@@ -33,7 +38,10 @@ def get(path):
     with urllib.request.urlopen(req, timeout=40) as r:
         data = json.load(r)
     _last[0] = time.time()
-    json.dump(data, open(cf, "w", encoding="utf-8"))
+    try:
+        saving.write(cf, lambda f: json.dump(data, f), encoding="utf-8")
+    except OSError:  # an answer that can't be kept is only asked for again next time
+        pass
     return data
 
 

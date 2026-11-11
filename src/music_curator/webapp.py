@@ -25,7 +25,7 @@ import unicodedata
 import urllib.parse
 import webbrowser
 
-from . import config, folders, library, tagwriter
+from . import config, folders, library, saving, tagwriter
 
 WEB = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web")
 STATIC = {"/": ("index.html", "text/html; charset=utf-8"), "/style.css": ("style.css", "text/css; charset=utf-8"), "/glass.css": ("glass.css", "text/css; charset=utf-8"), "/hifi.css": ("hifi.css", "text/css; charset=utf-8"),
@@ -35,6 +35,7 @@ CSP = ("default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline';
 LAN_COOKIE = "curator_lan"
 PC_ONLY = {"/api/settings", "/api/settings/compare", "/api/settings/extras", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/spotify/send", "/api/export/copy", "/api/export/playlists"}  # choosing folders, writing files elsewhere and signing in to Spotify all happen on the computer
 ACTIONS = {"keep", "genre", "identify", "drop", "recheck", "better", "cover", "flag", "add", "added", "remove", "pick", "stream", "wrong"}
+ANSWERS_CHANGED = "Another program changed your answers at that very moment, so this wasn't saved. Try again."  # `curator apply`, say, taking away the ones it carried out
 ANSWERS_BUSY = "Your answers file couldn't be opened just now, so nothing was saved. Try again in a moment."  # saving anyway could put back answers that were taken out of it since it was last read
 WORDS = dict(keep="keep as it is", genre="change the genre", identify="identify it", drop="not worth keeping",
              recheck="look at it again", better="find a better copy", cover="find a cover", flag="flagged", add="add it to a playlist", added="added to a playlist", remove="take it out of a Spotify playlist",
@@ -297,33 +298,38 @@ class Collection:
 
     def _watch(self, name, path, keep):
         """Keep self.<name> in step with a JSON file, reading it only when it has changed. `keep` picks out what's wanted from the object in it, or returns None if that's the wrong shape.
-        With no file there's nothing. One that can't be read just now leaves what was last read."""
+        With no file there's nothing. One that can't be read just now leaves what was last read, and False is returned: what's in memory may then be less than the file holds."""
         try:
             st = os.stat(path)
-        except (OSError, TypeError, ValueError):
+        except (FileNotFoundError, NotADirectoryError, TypeError, ValueError):
             setattr(self, name, {})
             setattr(self, f"{name}_sig", None)
-            return
+            return True
+        except OSError:
+            return False
         sig = (st.st_mtime_ns, st.st_size)
         if sig == getattr(self, f"{name}_sig"):
-            return
+            return True
         try:
             with open(path, encoding="utf-8-sig") as f:
                 saved = json.load(f)
             kept = keep(saved) if isinstance(saved, dict) else None
-        except (OSError, ValueError, KeyError, TypeError, AttributeError):
-            return
+        except OSError:
+            return False
+        except (ValueError, KeyError, TypeError, AttributeError):  # damaged: nothing in it can be used, and the next save makes it whole again
+            return True
         if kept is not None:
             setattr(self, name, kept)
             setattr(self, f"{name}_sig", sig)
+        return True
 
     def _read_levels(self):
         """How loud each song was measured to be."""
-        self._watch("levels", levels_path(self.paths), lambda saved: {k: v for k, v in saved.items() if type(v) in (int, float)})
+        return self._watch("levels", levels_path(self.paths), lambda saved: {k: v for k, v in saved.items() if type(v) in (int, float)})
 
     def _read_waves(self):
         """The shape of each song that has been played."""
-        self._watch("waves", waves_path(self.paths), lambda saved: {k: v for k, v in saved.items() if isinstance(v, list) and all(type(x) is int and 0 <= x <= 100 for x in v)})
+        return self._watch("waves", waves_path(self.paths), lambda saved: {k: v for k, v in saved.items() if isinstance(v, list) and all(type(x) is int and 0 <= x <= 100 for x in v)})
 
     def _read_saved_lists(self):
         """Your Spotify playlists as they were at the last Check Spotify."""
@@ -336,30 +342,32 @@ class Collection:
         self._watch("own", own_lists_path(self.paths), own_playlists.well_formed)
 
     def _read_plays(self):
-        """How often each song was played. Same care as the answers: a file that can't be read is never saved over."""
+        """How often each song was played. Same care as the answers: a file that can't be read is never saved over.
+        False if the file is there but couldn't be opened just now: what's in memory may then be behind it, or nothing at all."""
         path = plays_path(self.paths)
         try:
             st = os.stat(path)
         except FileNotFoundError:
             self.plays, self.plays_sig, self.plays_broken = {}, None, False
-            return
+            return True
         except (OSError, TypeError, ValueError):
-            return
+            return False
         sig = (st.st_mtime_ns, st.st_size)
         if sig == self.plays_sig:
-            return
+            return True
         try:
             with open(path, encoding="utf-8-sig") as f:
                 loaded = json.load(f)
             if not isinstance(loaded, dict):
                 raise ValueError("not a list of songs")
         except OSError:
-            return
+            return False
         except ValueError:
             self.plays_broken = True
-            return
+            return True
         counted = lambda v: isinstance(v, dict) and type(v.get("plays")) is int and 0 < v["plays"] < 1_000_000
         self.plays, self.plays_sig, self.plays_broken = {k: v for k, v in loaded.items() if counted(v)}, sig, False
+        return True
 
     def _read_styles(self):
         """Every style Discogs lists for each record (`genres.py`)."""
@@ -654,16 +662,16 @@ class Collection:
         With undo, the notes from before come back. Returns what the page shows for the song now, or {error}."""
         from . import apply, curate  # here because they need this module loaded first
         with self.lock:
-            self._read_log()  # it may have been written to since the page was loaded
             song = self.songs.get(str(song_id))
             if not song or song["area"] != "library" or not os.path.exists(song["_path"]):
                 return dict(error="That song isn't in your library any more. Refresh the page.")
-            rows = self._rows_of(song["_path"], song["_rel"])
-            row = curate.unchecked_row(rows) if undo else curate.checked_row(rows[-1] if rows else None, curate.CHECKED_ON_THE_PAGE)
-            if not row:
-                return dict(error="That was changed somewhere else meanwhile. Refresh the page." if undo else "It isn't Auto-matched any more. Refresh the page.")
             try:
-                with curate._OneAtATime(os.path.join(os.path.dirname(self.paths["log"]), "curate.lock")):  # Curate writes to the log too
+                with curate._OneAtATime(os.path.join(os.path.dirname(self.paths["log"]), "curate.lock"), wait=1):  # Curate and the command line write to the log too. A command that only adds a row is done in a moment
+                    self._read_log()  # read with the lock held, so the new row is made from what the log says now and not from what it said when the page loaded
+                    rows = self._rows_of(song["_path"], song["_rel"])
+                    row = curate.unchecked_row(rows) if undo else curate.checked_row(rows[-1] if rows else None, curate.CHECKED_ON_THE_PAGE)
+                    if not row:
+                        return dict(error="That was changed somewhere else meanwhile. Refresh the page." if undo else "It isn't Auto-matched any more. Refresh the page.")
                     handle, writer = apply._open_log(self.paths["log"])
                     try:
                         writer.writerow(row)
@@ -733,6 +741,13 @@ class Collection:
 
     def decide(self, body):
         """Save (or undo, with action null) one decision. Returns an error message, or None."""
+        for _ in range(3):  # another program may have saved the answers at that very moment: then it's done again on what that one saved
+            problem = self._decide(body)
+            if problem != ANSWERS_CHANGED:
+                break
+        return problem
+
+    def _decide(self, body):
         with self.lock:
             if not self._read_decisions():
                 return ANSWERS_BUSY
@@ -761,19 +776,27 @@ class Collection:
 
     def _save_decisions(self, answers):
         """Write these answers to the file, and only then take them as the ones in memory: a save that fails leaves the page showing what the file really says. Returns an error message, or None."""
-        tmp = self.paths["decisions"] + ".tmp"
+        path = self.paths["decisions"]
         try:
-            os.makedirs(os.path.dirname(tmp) or ".", exist_ok=True)
-            with open(tmp, "w", encoding="utf-8", errors="replace") as f:
-                json.dump(answers, f, ensure_ascii=False, indent=1)
-            os.replace(tmp, self.paths["decisions"])
+            os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+            saving.write(path, lambda f: json.dump(answers, f, ensure_ascii=False, indent=1), read_as=self.decisions_sig, encoding="utf-8", errors="replace")
+        except saving.Changed:
+            return ANSWERS_CHANGED
         except OSError as ex:
             return f"Couldn't save that: {ex.strerror or ex}"
         self.decisions = answers
         return None
 
     def update_answers(self, change):
-        """Change several answers in one step, on the latest version of the list. Returns an error message, or None."""
+        """Change several answers in one step, on the latest version of the list. Returns an error message, or None.
+        `change` may be run more than once, each time on a fresh copy of the list: if another program saved the answers meanwhile, it's done again on what that one saved."""
+        for _ in range(3):
+            problem = self._update_answers(change)
+            if problem != ANSWERS_CHANGED:
+                break
+        return problem
+
+    def _update_answers(self, change):
         with self.lock:
             if not self._read_decisions():
                 return ANSWERS_BUSY
@@ -786,7 +809,8 @@ class Collection:
     def played(self, song_id):
         """Count one listen. Returns what the page shows for that song now, or an error."""
         with self.lock:
-            self._read_plays()
+            if not self._read_plays():  # saving what's in memory could wipe counts the file has and this run never got to read
+                return dict(error="Your play counts couldn't be opened just now, so this play wasn't counted.")
             if self.plays_broken:
                 return dict(error=f"Your play counts ({os.path.basename(plays_path(self.paths))}) can't be read, so this play wasn't counted.")
             song = self.songs.get(str(song_id))
@@ -795,12 +819,10 @@ class Collection:
             key, now = play_key(song), datetime.datetime.now().isoformat(timespec="seconds")
             was = self.plays.get(key) or {}
             entry = dict(song=f"{song['artist']} - {song['title']}".strip(" -") or song["file"], plays=was.get("plays", 0) + 1, first=was.get("first") or now, last=now)
-            tmp = plays_path(self.paths) + ".tmp"
+            path = plays_path(self.paths)
             try:
-                os.makedirs(os.path.dirname(tmp) or ".", exist_ok=True)
-                with open(tmp, "w", encoding="utf-8", errors="replace") as f:
-                    json.dump({**self.plays, key: entry}, f, ensure_ascii=False, indent=1)
-                os.replace(tmp, plays_path(self.paths))
+                os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+                saving.write(path, lambda f: json.dump({**self.plays, key: entry}, f, ensure_ascii=False, indent=1), encoding="utf-8", errors="replace")
             except OSError as ex:
                 return dict(error=f"Couldn't save that play: {ex}")
             self.plays[key] = entry
@@ -821,14 +843,12 @@ class Collection:
         if value is None:
             return {word: None}
         with self.lock:
-            read()
+            if read() is False:  # the file is there and couldn't be opened: saving what's in memory could cut it down to this one song. It's measured again another time
+                return {word: value}
             getattr(self, kept)[key] = value
-            tmp = path_of(self.paths) + ".tmp"
             try:
-                os.makedirs(os.path.dirname(tmp) or ".", exist_ok=True)
-                with open(tmp, "w", encoding="utf-8") as f:
-                    json.dump(getattr(self, kept), f, ensure_ascii=False)
-                os.replace(tmp, path_of(self.paths))
+                os.makedirs(os.path.dirname(path_of(self.paths)) or ".", exist_ok=True)
+                saving.write(path_of(self.paths), lambda f: json.dump(getattr(self, kept), f, ensure_ascii=False), encoding="utf-8", errors="replace")
             except OSError:  # only costs measuring it again next time
                 pass
         return {word: value}
@@ -1238,13 +1258,14 @@ def lan_key():
             saved = f.read().strip()
         if re.fullmatch(r"[0-9a-f]{10}", saved):
             return saved
-    except OSError:
+    except (FileNotFoundError, ValueError):  # none yet, or not a key at all
         pass
+    except OSError:  # it's there and can't be opened just now. A new one saved over it would break the bookmark on your phone for good, so this run gets one of its own and the file is left
+        return secrets.token_hex(5)
     made = secrets.token_hex(5)
     try:
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(made + "\n")
+        saving.write(path, lambda f: f.write(made + "\n"), encoding="utf-8")
     except OSError:  # it still works for this run; the link changes the next time the app starts
         pass
     return made
@@ -1261,6 +1282,7 @@ def serve(port=8765, open_browser=True, lan=False):
         print("Reading your library...", flush=True)
         collection = Collection(app_paths())
         collection.refresh()
+        saving.sweep(os.path.dirname(collection.paths["decisions"]))  # what a save left behind if the app was killed in the middle of one
     for candidate in range(port, port + 20):
         try:
             server = Server(("0.0.0.0" if here else "127.0.0.1", candidate), Handler)

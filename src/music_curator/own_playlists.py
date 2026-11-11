@@ -11,6 +11,7 @@ import secrets
 import unicodedata
 import urllib.parse
 
+from . import saving
 from .export import picked
 from .webapp import name_key, own_lists_path, play_key, text_key
 
@@ -22,9 +23,11 @@ READINGS = 5  # ways to read an "Artist - Title" with dashes in it. A file made 
 
 
 def well_formed(saved):
-    """What can be used from the saved file."""
-    return {k: dict(name=p["name"], entries=[dict(key=e["key"], name=e["name"], file=e.get("file", "")) for e in p["entries"] if isinstance(e, dict) and isinstance(e.get("key"), str) and isinstance(e.get("name"), str)])
+    """What can be used from the saved file. None if there are things in it and not one is a playlist as the app writes them: that's some other file, or one from
+    a later version, and saving over it would lose all of it."""
+    kept = {k: dict(name=p["name"], entries=[dict(key=e["key"], name=e["name"], file=e.get("file", "")) for e in p["entries"] if isinstance(e, dict) and isinstance(e.get("key"), str) and isinstance(e.get("name"), str)])
             for k, p in saved.items() if isinstance(p, dict) and isinstance(p.get("name"), str) and p["name"].strip() and isinstance(p.get("entries"), list)}
+    return kept if kept or not saved else None
 
 
 def _by_name(songs):
@@ -85,12 +88,9 @@ def _change(collection, change):
         answer = change(draft)
         if answer.get("error"):
             return answer
-        tmp = path + ".tmp"
         try:
-            os.makedirs(os.path.dirname(tmp) or ".", exist_ok=True)
-            with open(tmp, "w", encoding="utf-8", errors="replace") as f:
-                json.dump(draft, f, ensure_ascii=False, indent=1)
-            os.replace(tmp, path)
+            os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+            saving.write(path, lambda f: json.dump(draft, f, ensure_ascii=False, indent=1), encoding="utf-8", errors="replace")
         except OSError as ex:
             return dict(error=f"Couldn't save that: {ex.strerror or ex}")
         collection.own = draft

@@ -103,6 +103,35 @@ class WhatChangesYourFiles(WithDiscogs):
         _, done = self.run_it()
         self.assertEqual((done["added"], done["waiting"], len(self.log_rows())), (0, 0, 1))
 
+    def test_a_check_that_read_no_audio_at_all_is_not_a_pass(self):
+        """ffmpeg stopped under the app, or unable to read the files, gives nothing for the copy and nothing for its source. Two nothings are equal, and that used to count as the same audio."""
+        with mock.patch.object(tagwriter, "audio_packets", return_value=[]):
+            ok, note = tagwriter.compare_audio("copy.mp3", "source.mp3", None)
+        self.assertFalse(ok)
+        self.assertIn("couldn't be read back", note)
+        with mock.patch.object(tagwriter, "audio_packets", side_effect=lambda path: [] if path == "copy.mp3" else ["a1", "b2"]):
+            self.assertFalse(tagwriter.compare_audio("copy.mp3", "source.mp3", None)[0])
+        with mock.patch.object(tagwriter, "audio_packets", return_value=["a1", "b2"]):
+            self.assertEqual(tagwriter.compare_audio("copy.mp3", "source.mp3", None), (True, ""))
+
+    def test_a_song_whose_copy_could_not_be_read_back_is_marked_to_check(self):
+        self.file("A - Song")
+        self.fake.add("A", "The Record", [("A1", "Song", LENGTH)])
+        with mock.patch.object(tagwriter, "audio_packets", return_value=[]):
+            self.run_it()
+        row = self.log_rows()[-1]
+        self.assertTrue(row["status"].startswith("check:"), row["status"])
+        self.assertIn("couldn't be read back", row["status"])
+
+    def test_a_new_genre_is_not_written_when_the_copy_could_not_be_read_back(self):
+        """For a FLAC or M4A the tags are rewritten into a copy, and the copy only takes the song's place once its audio is shown to be the same."""
+        def made(src, dst, tags, **how):
+            with open(dst, "wb") as f:
+                f.write(b"not what was asked for")
+        with mock.patch.object(tagwriter, "remux", made), mock.patch.object(tagwriter, "audio_packets", return_value=[]), self.assertRaises(apply.Skip) as held:
+            apply.other_with_genre(os.path.join(self.root, "song.flac"), "Acid")
+        self.assertIn("didn't check out", str(held.exception))
+
     def test_no_half_written_copy_is_left_when_it_cannot_be_put_in_place(self):
         self.file("A - Song")
         self.fake.add("A", "The Record", [("A1", "Song", LENGTH)])

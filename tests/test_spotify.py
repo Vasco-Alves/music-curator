@@ -149,6 +149,145 @@ class Checking(Base):
         self.run_check(FakeSpotify({RAVE: ["Old Name - Old Title"]}))
         self.assertEqual(self.note("A - One")[0], "added")
 
+    # -- another version of the song is not the song --
+
+    def streamed(self, artist, name, secs):
+        return dict(name=name, artists=[artist], secs=secs, local=False, uri="spotify:track:" + "s" * 22)
+
+    def another(self, name, **tags):
+        """One more song in the library, about 5 seconds long like the rest."""
+        artist, title = name.split(" - ", 1)
+        write_mp3(os.path.join(self.lib, "Acid", name + ".mp3"), **{"artist": artist, "title": title, **tags})
+
+    def test_another_version_in_the_playlist_is_not_the_song_arriving(self):
+        self.another("D - Four (Club Mix)")
+        self.want("D - Four (Club Mix)", RAVE)
+        result = self.run_check(FakeSpotify({RAVE: ["D - Four"]}))
+        self.assertEqual(self.note("D - Four (Club Mix)"), ("add", RAVE))
+        self.assertEqual((result["arrived"], result["missing"]), (0, 1))
+        self.assertIn("For 1 of those the playlist has what may be another version: see To add.", result["message"])
+        self.assertEqual(self.hints(), [dict(file="library/Acid/D - Four (Club Mix).mp3", playlist=RAVE, name="Four", secs=0)])
+
+    def hints(self):
+        """What the page shows on the rows under To add."""
+        return spotify.status(self.paths)["other_versions"]
+
+    def test_the_original_is_not_the_remix_arriving_either_way_round(self):
+        self.want("A - One", RAVE)
+        self.run_check(FakeSpotify({RAVE: ["A - One (Somebody Remix)"]}))
+        self.assertEqual(self.note("A - One"), ("add", RAVE))
+        self.assertEqual([(h["file"], h["name"]) for h in self.hints()], [("library/Acid/A - One.mp3", "One (Somebody Remix)")])
+
+    def test_what_may_be_another_version_is_forgotten_once_the_song_is_there(self):
+        self.want("A - One", RAVE)
+        fake = FakeSpotify({RAVE: ["A - One (Somebody Remix)"]})
+        self.run_check(fake)
+        self.assertEqual(len(self.hints()), 1)
+        fake.lists[RAVE].append("A - One")
+        result = self.run_check(fake)
+        self.assertEqual((self.note("A - One")[0], self.hints()), ("added", []))
+        self.assertNotIn("another version", result["message"])
+
+    def test_a_title_with_a_dash_in_it_is_not_a_version_of_its_first_half(self):
+        self.another("A - Up - Down")
+        self.want("A - Up - Down", RAVE)
+        result = self.run_check(FakeSpotify({RAVE: ["A - Up", dict(name="Up - Left", artists=["A"], local=True), self.streamed("A", "Up - Left", 5)]}))
+        self.assertEqual(self.hints(), [], '"Up" and "Up - Left" are other songs')
+        self.assertNotIn("another version", result["message"])
+        self.want("A - Up - Down", OTHER, action="added")
+        self.run_check(FakeSpotify({OTHER: [dict(name="Up - Left", artists=["A"], local=True)]}))
+        self.assertEqual(self.note("A - Up - Down"), ("add", OTHER), "marked added, and nothing like it is there")
+
+    def test_a_streamed_copy_counts_up_to_ten_seconds_off(self):
+        self.want("A - One", RAVE)
+        self.want("B - Two", RAVE)
+        self.run_check(FakeSpotify({RAVE: [self.streamed("A", "One", 15), self.streamed("B", "Two", 16)]}))
+        self.assertEqual((self.note("A - One")[0], self.note("B - Two")[0]), ("added", "add"), "the files are 5.2 seconds long")
+
+    def test_a_local_entry_counts_whatever_length_spotify_remembers(self):
+        self.want("A - One", RAVE)
+        self.run_check(FakeSpotify({RAVE: [dict(name="One", artists=["A"], secs=300, local=True)]}))
+        self.assertEqual(self.note("A - One")[0], "added")
+
+    def test_one_of_two_artists_is_not_the_song(self):
+        self.another("A & B - Both")
+        self.want("A & B - Both", RAVE)
+        self.run_check(FakeSpotify({RAVE: ["A - Both"]}))
+        self.assertEqual(self.note("A & B - Both")[0], "add")
+
+    def test_the_name_it_was_downloaded_under_is_no_longer_its_name_once_another_file_has_it(self):
+        """The remix came down tagged as plain "Four"; the original, "D - Four", is in the library too. That entry in the playlist is the original's."""
+        self.another("D - Four")
+        self.song("Acid", name="D - Four (Club Mix)", notes="")
+        self.rows[-1]["src_artist"], self.rows[-1]["src_title"] = "D", "Four"
+        self.save_log()
+        self.want("D - Four (Club Mix)", RAVE)
+        self.run_check(FakeSpotify({RAVE: ["D - Four"]}))
+        self.assertEqual(self.note("D - Four (Club Mix)"), ("add", RAVE))
+
+    def test_marks_that_make_another_letter_make_another_song(self):
+        self.another("YMO - ハート")
+        self.want("YMO - ハート", RAVE)
+        self.run_check(FakeSpotify({RAVE: ["YMO - ハード"]}))
+        self.assertEqual(self.note("YMO - ハート")[0], "add")
+
+    def test_the_streamed_song_of_that_name_and_length_has_arrived(self):
+        self.want("A - One", RAVE)
+        self.run_check(FakeSpotify({RAVE: [self.streamed("A", "One", 5)]}))
+        self.assertEqual(self.note("A - One")[0], "added")
+
+    def test_spotifys_way_of_writing_a_mix_is_the_same_name(self):
+        self.another("D - Four (Barn Mix)")
+        self.want("D - Four (Barn Mix)", RAVE)
+        self.run_check(FakeSpotify({RAVE: [self.streamed("D", "Four - Barn Mix", 6)]}))
+        self.assertEqual(self.note("D - Four (Barn Mix)")[0], "added")
+
+    def test_a_streamed_song_of_another_length_is_another_cut(self):
+        self.want("A - One", RAVE)
+        self.run_check(FakeSpotify({RAVE: [self.streamed("A", "One", 80)]}))
+        self.assertEqual(self.note("A - One"), ("add", RAVE))
+        self.assertEqual(self.hints(), [dict(file="library/Acid/A - One.mp3", playlist=RAVE, name="One", secs=80)], "its own name, so the page says how long each one is")
+
+    def test_one_marked_added_stays_added_when_another_version_is_what_is_there(self):
+        self.want("A - One", RAVE, action="added")
+        self.run_check(FakeSpotify({RAVE: [self.streamed("A", "One - Original Mix", 80)]}))
+        self.assertEqual(self.note("A - One"), ("added", RAVE), "Spotify doesn't have every mix: the closest one may be what you meant")
+
+    def test_one_marked_added_goes_back_when_only_some_other_song_is_there(self):
+        self.want("A - One", RAVE, action="added")
+        self.run_check(FakeSpotify({RAVE: ["A - Uno", "B - One"]}))
+        self.assertEqual(self.note("A - One"), ("add", RAVE))
+
+    def test_a_song_named_in_another_alphabet_can_arrive(self):
+        self.another("НЮША - Цунами (SWEEQTY Remix)")
+        self.want("НЮША - Цунами (SWEEQTY Remix)", RAVE)
+        self.run_check(FakeSpotify({RAVE: ["НЮША - Цунами (SWEEQTY Remix)"]}))
+        self.assertEqual(self.note("НЮША - Цунами (SWEEQTY Remix)")[0], "added")
+
+    def test_another_song_by_that_artist_in_that_alphabet_is_not_it(self):
+        self.another("SEREBRO - Отпусти меня")
+        self.want("SEREBRO - Отпусти меня", RAVE)
+        result = self.run_check(FakeSpotify({RAVE: ["SEREBRO - Я тебя не отдам"]}))
+        self.assertEqual(self.note("SEREBRO - Отпусти меня"), ("add", RAVE))
+        self.assertNotIn("another version", result["message"])
+        self.assertEqual(self.hints(), [])
+
+    def test_the_message_only_counts_them_and_the_rows_say_which(self):
+        for n in range(5):
+            self.another(f"D - Song {n} (Club Mix)")
+            self.want(f"D - Song {n} (Club Mix)", RAVE)
+        result = self.run_check(FakeSpotify({RAVE: [f"D - Song {n}" for n in range(5)]}))
+        self.assertIn("0 arrived, 5 still not in the playlist. For 5 of those the playlist has what may be another version: see To add.", result["message"])
+        self.assertEqual(sorted(h["name"] for h in self.hints()), [f"Song {n}" for n in range(5)])
+
+    def test_a_playlist_that_wasnt_read_this_time_keeps_what_was_said_about_it(self):
+        self.want("A - One", RAVE)
+        self.want("B - Two", OTHER)
+        self.run_check(FakeSpotify({RAVE: ["A - One (Somebody Remix)"], OTHER: ["B - Two (Somebody Remix)"]}))
+        self.assertEqual(len(self.hints()), 2)
+        self.run_check(FakeSpotify({RAVE: ["A - One (Somebody Remix)"]}))  # the other playlist can't be found this time
+        self.assertEqual(sorted(h["playlist"] for h in self.hints()), sorted([RAVE, OTHER]))
+
     def test_the_playlists_you_are_adding_to_are_read_first(self):
         self.want("A - One", RAVE)
         fake = FakeSpotify({"Unrelated": ["X - Y"], RAVE: ["A - One"]})
@@ -283,6 +422,46 @@ class TakingOut(Checking):
         self.run_check(FakeSpotify({RAVE: [], OTHER: ["A - One"]}))
         self.assertIsNone(self.left("A - One"))
         self.assertEqual(self.note("A - One")[0], "added")
+
+    def test_another_version_staying_in_the_playlist_does_not_keep_it_waiting(self):
+        self.unwant("A - One", RAVE)
+        result = self.run_check(FakeSpotify({RAVE: ["A - One (Somebody Remix)"]}))
+        self.assertIsNone(self.left("A - One"), "the one you took out is gone: the remix is another song")
+        self.assertIn("1 taken out, 0 still to take out", result["message"])
+
+    def test_spotifys_own_copy_of_it_still_there_keeps_it_waiting(self):
+        self.another("D - Four (Barn Mix)")
+        self.unwant("D - Four (Barn Mix)", RAVE)
+        self.run_check(FakeSpotify({RAVE: [self.streamed("D", "Four - Barn Mix", 5)]}))
+        self.assertEqual(self.left("D - Four (Barn Mix)"), RAVE, "written Spotify's way, but the same song at the same length")
+
+    def test_spotifys_copy_written_another_way_keeps_it_waiting_too(self):
+        """A take-out called done can't be undone, so anything that may still be this very recording keeps it on the list."""
+        for entry in (dict(name="One", artists=["A", "B"], secs=5, local=False), self.streamed("A", "One (feat. B)", 5), self.streamed("A", "One (Remastered 2011)", 6),
+                      self.streamed("A", "One - 2011 Remaster", 5), self.streamed("A", "One - Original Mix", 5)):
+            with self.subTest(entry["name"]):
+                self.unwant("A - One", RAVE)
+                result = self.run_check(FakeSpotify({RAVE: [entry]}))
+                self.assertEqual(self.left("A - One"), RAVE)
+                self.assertIn("0 taken out, 1 still to take out", result["message"])
+
+    def test_spotifys_copy_at_quite_another_length_is_another_cut_and_does_not(self):
+        self.unwant("A - One", RAVE)
+        self.run_check(FakeSpotify({RAVE: [self.streamed("A", "One (Extended Mix)", 300), dict(name="One", artists=["A", "B"], secs=200, local=False)]}))
+        self.assertIsNone(self.left("A - One"))
+
+    def test_with_a_length_unknown_it_keeps_waiting(self):
+        self.unwant("A - One", RAVE)
+        self.run_check(FakeSpotify({RAVE: [self.streamed("A", "One", 0)]}))
+        self.assertEqual(self.left("A - One"), RAVE, "the same name, and nothing to say it's another cut")
+
+    def test_a_file_renamed_since_you_asked_is_still_looked_for_under_its_old_name(self):
+        self.unwant("A - One", RAVE)
+        write_mp3(os.path.join(self.lib, "Acid", "A - One.mp3"), artist="A", title="One (Original Mix)")  # tidied up while it waited: Spotify still lists it as it last read it
+        self.run_check(FakeSpotify({RAVE: ["A - One"]}))
+        self.assertEqual(self.left("A - One"), RAVE)
+        self.run_check(FakeSpotify({RAVE: []}))
+        self.assertIsNone(self.left("A - One"))
 
     def test_checking_never_takes_anything_out_itself(self):
         self.unwant("A - One", RAVE)
@@ -656,6 +835,18 @@ class MightBeOnSpotify(Checking):
         self.check_with(on_spotify(name="Song - Original Mix", secs=5, track_id="zzzzzzzzzz0123456789zz"), on_spotify(name="Song", secs=9))
         self.assertEqual(self.hit()["name"], "Song")
 
+    def test_a_song_with_a_year_at_its_end_is_looked_for_without_it_too(self):
+        self.waiting_song("Rev - Song 1995", title="Song 1995")
+        fake = self.check_with(on_spotify(name="Song"))
+        self.assertEqual(self.hit("review/Rev - Song 1995.mp3")["name"], "Song")
+        self.assertEqual(fake.searches, ["track:Song 1995 artist:Rev", "Song 1995 Rev", "track:Song artist:Rev"])
+
+    def test_a_song_called_by_a_year_is_found_under_its_whole_name(self):
+        self.waiting_song("Rev - Song 1995", title="Song 1995")
+        fake = self.check_with(on_spotify(name="Song 1995"))
+        self.assertEqual(self.hit("review/Rev - Song 1995.mp3")["name"], "Song 1995")
+        self.assertEqual(len(fake.searches), 1)
+
     def test_songs_in_the_library_are_not_searched_for(self):
         fake = self.check_with()
         self.assertEqual(fake.searches, [])
@@ -891,6 +1082,33 @@ class SendingALocalPlaylist(Checking):
         self.assertEqual(self.note("A - One"), ("add", self.NAME))
         self.assertEqual(self.note("B - Two"), ("add", self.NAME))
         self.assertIn("2 songs are on your Spotify to-do", result["message"])
+
+    def test_another_version_already_in_it_is_not_the_song_being_in_it(self):
+        result = self.send(FakeSpotify({self.NAME: ["A - One (Somebody Remix)", self.streamed("B", "Two", 90)]}), self.make("A - One", "B - Two"))
+        self.assertEqual(result["sent"], 2)
+        self.assertEqual(self.note("A - One"), ("add", self.NAME))
+        self.assertEqual(self.note("B - Two"), ("add", self.NAME))
+
+    def test_sending_it_again_leaves_alone_what_you_marked_added(self):
+        """Another version is in the playlist and you said that's the one you meant."""
+        fake, made = FakeSpotify({self.NAME: ["A - One (Somebody Remix)"]}), self.make("A - One", "B - Two")
+        self.send(fake, made)
+        self.want("A - One", self.NAME, action="added")
+        self.collection.refresh()
+        result = self.send(fake, made)
+        self.assertEqual((self.note("A - One"), self.note("B - Two")), (("added", self.NAME), ("add", self.NAME)))
+        self.assertEqual(result["sent"], 1)
+
+    def test_a_streamed_copy_of_the_same_length_already_in_it_counts(self):
+        result = self.send(FakeSpotify({self.NAME: [self.streamed("A", "One", 5)]}), self.make("A - One"))
+        self.assertEqual(result["sent"], 0)
+        self.assertIn("Every song is already in it", result["message"])
+
+    def test_songs_in_another_alphabet_are_each_their_own(self):
+        self.another("Краски - Он не знает ничего")
+        self.collection.refresh()
+        result = self.send(FakeSpotify({self.NAME: ["НЮША - Цунами"]}), self.make("Краски - Он не знает ничего"))
+        self.assertEqual(result["sent"], 1, "a playlist holding one song named all in Cyrillic used to count as holding every such song")
 
     def test_no_local_file_is_sent_to_spotify(self):  # it can't take them: only the playlist itself is made
         fake = FakeSpotify({})
@@ -1139,7 +1357,7 @@ class TheButton(Base):
         self.assertIn("Already talking to Spotify", self.post(self.port)[1]["message"])
 
     def test_the_page_is_told_if_it_is_set_up(self):
-        self.assertEqual(self.server.collection.snapshot()["meta"]["spotify"], dict(ready=False, wait_until="", checked="", to_remove=[], playlists=[]))
+        self.assertEqual(self.server.collection.snapshot()["meta"]["spotify"], dict(ready=False, wait_until="", checked="", to_remove=[], playlists=[], other_versions=[]))
 
 
 if __name__ == "__main__":

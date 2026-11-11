@@ -8,6 +8,7 @@ doesn't ask again until then.
 It needs your own Spotify app's Client ID in curator.toml ([spotify] client_id), with http://127.0.0.1:8888/callback as its redirect URI.
 """
 import base64
+import collections
 import datetime
 import hashlib
 import http.server
@@ -16,13 +17,12 @@ import os
 import re
 import secrets
 import time
-import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
 import webbrowser
 
-from . import config, suggest
+from . import config, keys, saving, suggest
 
 API = "https://api.spotify.com/v1"
 ACCOUNTS = "https://accounts.spotify.com"
@@ -48,22 +48,48 @@ def _state_path(paths):
     return os.path.join(os.path.dirname(paths["decisions"]), "spotify.json")
 
 
-def read_state(paths):
+def _load(path):
+    """What one of the files kept here holds. {} if there isn't one yet, or it makes no sense: all of them can be made again from Spotify.
+    None if it's there and couldn't be opened just now. That is not an empty file, and saving as if it were would lose what's in it."""
     try:
-        with open(_state_path(paths), encoding="utf-8-sig") as f:
-            state = json.load(f)
-        return state if isinstance(state, dict) else {}
-    except (OSError, ValueError):
+        with open(path, encoding="utf-8-sig") as f:
+            saved = json.load(f)
+        return saved if isinstance(saved, dict) else {}
+    except (FileNotFoundError, ValueError):
         return {}
+    except OSError:
+        return None
+
+
+def _save(path, data, **how):
+    """True once it's saved whole. A save that fails leaves the file as it was."""
+    try:
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        saving.write(path, lambda f: json.dump(data, f, **how), encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    return True
+
+
+def _state(paths):
+    """What's kept from the last check, or None if it's there and can't be opened. A save takes the file's place in an instant, and for that instant Windows won't open it:
+    so it's tried a few times before that's believed."""
+    for _ in range(5):
+        state = _load(_state_path(paths))
+        if state is not None:
+            return state
+        time.sleep(.02)
+    return None
+
+
+def read_state(paths):
+    return _state(paths) or {}
 
 
 def write_state(paths, **changes):
-    path = _state_path(paths)
-    state = dict(read_state(paths), **changes)
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    with open(path + ".tmp", "w", encoding="utf-8") as f:
-        json.dump(state, f, indent=1)
-    os.replace(path + ".tmp", path)
+    """Keep these with what's already kept. False if that couldn't be done: the list on the page then stays as it was until the next check."""
+    state = _state(paths)
+    return state is not None and _save(_state_path(paths), dict(state, **changes), indent=1)
 
 
 def _wait_until(paths):
@@ -78,8 +104,10 @@ def _wait_until(paths):
 def status(paths):
     until, state = _wait_until(paths), read_state(paths)
     rows, names = state.get("to_remove"), state.get("playlists")
+    hints = state.get("other_versions")
     return dict(ready=bool(config.get("spotify", "client_id")), wait_until=until.isoformat(timespec="minutes") if until else "", checked=str(state.get("checked") or ""),
-                to_remove=[r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else [], playlists=[n for n in names if isinstance(n, str)] if isinstance(names, list) else [])
+                to_remove=[r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else [], playlists=[n for n in names if isinstance(n, str)] if isinstance(names, list) else [],
+                other_versions=[h for h in hints if isinstance(h, dict) and all(isinstance(h.get(k), str) for k in ("file", "playlist", "name"))] if isinstance(hints, list) else [])
 
 
 def _hits_path(paths):
@@ -88,21 +116,11 @@ def _hits_path(paths):
 
 def read_hits(paths):
     """What Spotify said about each waiting song, so a song is only searched for once."""
-    try:
-        with open(_hits_path(paths), encoding="utf-8-sig") as f:
-            hits = json.load(f)
-        return {k: v for k, v in hits.items() if isinstance(v, dict)} if isinstance(hits, dict) else {}
-    except (OSError, ValueError):
-        return {}
+    return {k: v for k, v in (_load(_hits_path(paths)) or {}).items() if isinstance(v, dict)}
 
 
 def _write_hits(paths, hits):
-    try:
-        with open(_hits_path(paths) + ".tmp", "w", encoding="utf-8") as f:
-            json.dump(hits, f, ensure_ascii=False, indent=1)
-        os.replace(_hits_path(paths) + ".tmp", _hits_path(paths))
-    except OSError:  # only costs a few more searches next time
-        pass
+    _save(_hits_path(paths), hits, ensure_ascii=False, indent=1)  # one that fails only costs a few more searches next time
 
 
 def cache_path(paths):
@@ -110,29 +128,18 @@ def cache_path(paths):
 
 
 def _read_cache(paths):
-    """What each playlist held last time, so one that hasn't changed needn't be asked for again."""
-    try:
-        with open(cache_path(paths), encoding="utf-8-sig") as f:
-            cache = json.load(f)
-        return cache if isinstance(cache, dict) else {}
-    except (OSError, ValueError):
-        return {}
+    """What each playlist held last time, so one that hasn't changed needn't be asked for again. None if that can't be opened just now."""
+    return _load(cache_path(paths))
 
 
 def _write_cache(paths, cache):
-    try:
-        with open(cache_path(paths) + ".tmp", "w", encoding="utf-8") as f:
-            json.dump(cache, f, ensure_ascii=False)
-        os.replace(cache_path(paths) + ".tmp", cache_path(paths))
-    except OSError:  # only costs a few more requests next time
-        pass
+    _save(cache_path(paths), cache, ensure_ascii=False)  # one that fails only costs a few more requests next time
 
 
 # ---------------- which entries have nothing behind them ----------------
 
 def _plain(text):
-    text = unicodedata.normalize("NFKD", text or "")
-    return re.sub(r"[^\w]", "", "".join(c for c in text if not unicodedata.combining(c)).lower())
+    return keys.plain(text)  # capitals, accents and punctuation don't count, but a mark that makes another letter does: ハート isn't ハード
 
 
 def _file_index(songs):
@@ -154,6 +161,65 @@ def _saved_entry(e):
     return (" ".join(a for a in artists if a and isinstance(a, str)) if isinstance(artists, list) else "", name if isinstance(name, str) else "", secs if type(secs) in (int, float) else 0)
 
 
+def _entry_name(e):
+    """((who, what), length) of a playlist entry, the way it's compared with a file: the names in full, version and all."""
+    artist, name, secs = _saved_entry(e)
+    return ("" if artist == "Unknown Artist" else _plain(artist), _plain(name)), secs  # that's how Spotify shows an empty artist tag
+
+
+VERSION_WORD = r"\b(?:mix|remix|rmx|edit|version|dub|rework|vip|extended|instrumental|vocal|bootleg|remaster(?:ed)?|live|acoustic|demo|original|mono|stereo|slowed|sped[- ]?up|reverb|nightcore|(?:19|20)\d\d)\b"
+VERSION_TAIL = re.compile(r"\s+-\s+(?=(?:(?! - ).)*" + VERSION_WORD + r")(?:(?! - ).)*$", re.I)  # how Spotify writes a version after a title: "Song - X Remix", "Song - 2011 Remaster". "Up - Down" is all title
+
+
+def _any_version(artist, title, streamed=False):
+    """Who and what, whatever the version: "Song (X Remix)" and "Song" are one. Of a streamed song Spotify writes the version after a dash too, and that comes off
+    as well: "Song - X Remix", "Song - Remastered 2011". Only when it reads as a version, and never off one of your own files: their titles can have a dash in them."""
+    title, before = re.sub(r"\s*[(\[][^)\]]*[)\]]", "", title or ""), None
+    while streamed and title != before:
+        title, before = VERSION_TAIL.sub("", title), title
+    return suggest.track_key("" if artist == "Unknown Artist" else artist, title)
+
+
+def _in_playlist(entries):
+    """What's in a playlist: the names of its local entries; the lengths of its streamed ones by name (0 where Spotify gave none); each song in it whatever the
+    version, with the name it has there; and the lengths of the streamed ones by song, whatever the version."""
+    local, streamed, versions, lengths = set(), {}, {}, {}
+    for e in (x for x in entries if isinstance(x, dict)):
+        key, secs = _entry_name(e)
+        if not any(key):
+            continue
+        artists, name, mine = e.get("artists"), e.get("name"), bool(e.get("local"))
+        name = name if isinstance(name, str) else ""
+        version = _any_version(next((a for a in artists if a and isinstance(a, str)), "") if isinstance(artists, list) else "", name, streamed=not mine)
+        if mine:
+            local.add(key)
+        else:
+            streamed.setdefault(key, []).append(secs)
+            lengths.setdefault(version, []).append(secs)
+        if not version.endswith("|"):  # with no title left there's nothing to tell songs apart by
+            versions.setdefault(version, dict(name=name, secs=0 if mine else secs, same=key))
+    return dict(local=local, streamed=streamed, versions=versions, lengths=lengths)
+
+
+def _has(there, song):
+    """Is this song in the playlist? The rule the page plays by: a local entry is the file of that name, and a streamed one also has to be about as long,
+    since the same name at another length is another cut. `song` is what _names_on_spotify gives."""
+    return any(name in there["local"] or any(secs and song["secs"] and abs(song["secs"] - secs) <= MAY_BE_GAP_S for secs in there["streamed"].get(name, ())) for name in song["names"])
+
+
+def _other_version(there, song):
+    """What the playlist has of this song in some version: {name, secs, same}, or None. Only worth asking once _has has said no."""
+    return next((there["versions"][v] for v in sorted(song["versions"]) if v in there["versions"]), None)
+
+
+def _may_still_be(there, song):
+    """Once _has has said no: could Spotify's own copy of this very recording still be in the playlist? Under its own name where a length isn't known, or under a name
+    written another way (one more artist credited, "Remastered 2011", no "Original Mix") and about as long. Asked before a take-out is called done, because that can't be undone."""
+    def close(secs):
+        return not secs or not song["secs"] or abs(song["secs"] - secs) <= MAY_BE_GAP_S
+    return any(close(secs) for v in song["versions"] for secs in there["lengths"].get(v, ())) or any(not secs or not song["secs"] for name in song["names"] for secs in there["streamed"].get(name, ()))
+
+
 def playable(songs, cache):
     """Your playlists as far as the app can play them: [{name, total, ids}], in the playlist's order. A local entry is the file of that name. A streamed one counts only
     if you also have it as a file of about the same length. A second copy of a song is played once and counted once.
@@ -168,8 +234,7 @@ def playable(songs, cache):
             continue
         ids, seen, streamed = [], set(), set()
         for e in (x for x in entries if isinstance(x, dict)):
-            artist, name, secs = _saved_entry(e)
-            key = ("" if artist == "Unknown Artist" else _plain(artist), _plain(name))
+            key, secs = _entry_name(e)
             found = index.get(key, [])
             near = found if e.get("local") else [s for s in found if secs and s["secs"] and abs(s["secs"] - secs) <= MAY_BE_GAP_S]
             song = min(near, key=lambda s: (s["area"] != "library", abs((s["secs"] or 0) - secs)), default=None)
@@ -397,12 +462,13 @@ def _removal(name, entries, index):
 
 
 def _search_terms(song):
-    """(artist, title, mix) to look a waiting song up by. Files named by uploaders need reading, the same way Curate reads them."""
+    """(artist, title, mix, the title's other reading) to look a waiting song up by. Files named by uploaders need reading, the same way Curate reads them.
+    The other reading is the title without the year at its end, when that may only say when the song is from: "Analog Mind 1995"."""
     from . import parse
     info = parse.parse(os.path.splitext(song["file"])[0], dict(artist=song["artist"], title=song["title"]))
     if info["search_artist"]:
-        return info["search_artist"], info["search_title"], info["mix"]
-    return song["artist"], re.sub(r"\s*[\(\[][^\)\]]*[\)\]]", "", song["title"] or "").strip(), info["mix"]
+        return info["search_artist"], info["search_title"], info["mix"], re.sub(r"\s*[\(\[][^\)\]]*[\)\]]", "", info["alt_title"] or "").strip()
+    return song["artist"], re.sub(r"\s*[\(\[][^\)\]]*[\)\]]", "", song["title"] or "").strip(), info["mix"], ""
 
 
 def _best_track(tracks, artist, title, mix, secs):
@@ -430,13 +496,16 @@ def _best_track(tracks, artist, title, mix, secs):
 
 def _look_for_waiting_songs(client, collection):
     """Search Spotify for the songs still waiting. Returns (how many might be there, why it stopped if it did)."""
-    paths, hits, asked, stopped = collection.paths, read_hits(collection.paths), 0, ""
+    paths, asked, stopped = collection.paths, 0, ""
+    if _load(_hits_path(paths)) is None:  # what's remembered can't be opened just now: searching anyway would save over all of it with this run's few answers
+        return 0, ""
+    hits = read_hits(paths)
     today, waiting = datetime.date.today(), [s for s in collection.songs.values() if s["area"] != "library" and not s["done"]]
     try:
         for song in sorted(waiting, key=lambda s: s["key"]):
             if f"spotify:{song['key']}" in collection.decisions or not song["secs"] or song["secs"] > LONGEST_SONG_S:
                 continue
-            artist, title, mix = _search_terms(song)
+            artist, title, mix, other = _search_terms(song)
             if not artist or not title:
                 continue
             terms, old = f"{artist}|{title}|{mix or ''}|{round(song['secs'])}", hits.get(song["key"])
@@ -449,9 +518,13 @@ def _look_for_waiting_songs(client, collection):
             if asked >= SEARCHES_PER_CHECK:
                 break
             asked += 1
-            best = _best_track(client.search(f"track:{title} artist:{artist}"), artist, title, mix, song["secs"])
-            if not best:  # Spotify's stricter search misses "&" and punctuation
-                best = _best_track(client.search(f"{title} {artist}"), artist, title, mix, song["secs"])
+            best = None
+            for name in [title, other] if other else [title]:
+                best = _best_track(client.search(f"track:{name} artist:{artist}"), artist, name, mix, song["secs"])
+                if not best:  # Spotify's stricter search misses "&" and punctuation
+                    best = _best_track(client.search(f"{name} {artist}"), artist, name, mix, song["secs"])
+                if best:
+                    break
             hits[song["key"]] = dict(terms=terms, when=today.isoformat(), hit=best)
     except Stop as ex:
         stopped = str(ex)
@@ -480,9 +553,29 @@ def _moves(positions, total):
     return out
 
 
-def _names_on_spotify(collection, song):
-    row = collection._log_row(song["_path"], song["_rel"]) or {}  # Spotify may still know a song by its old name
-    return {suggest.track_key(song["artist"], song["title"])} | ({suggest.track_key(row.get("src_artist"), row.get("src_title"))} if row.get("src_title") else set())
+def _own_name(song):
+    """A song's name the way a playlist lists it. A file with no tags goes by its file name."""
+    return ("", _plain(os.path.splitext(song["file"])[0])) if song.get("_tagless") else (_plain(song["artist"]), _plain(song["title"]))
+
+
+def _names_on_spotify(collection, song, noted="", everyone=None):
+    """How a playlist may list this song: its names in full, its length, and the song whatever the version.
+    Spotify shows a file under the tags it had when it last read it. So the name the song was downloaded under counts too, and so does `noted`: the name it had when
+    it went on the to-do ("Artist - Title"). An older name stops counting once another of your files goes by it (`everyone` counts today's names): that entry is the other file's."""
+    row = collection._log_row(song["_path"], song["_rel"]) or {}
+    own = _own_name(song)
+    names, versions = {own}, {_any_version(song["artist"], song["title"])}
+    older = [(row.get("src_artist") or "", row["src_title"])] if row.get("src_title") else []
+    artist, dash, title = str(noted or "").partition(" - ")
+    if noted:
+        older.append((artist, title) if dash else ("", artist))
+    for artist, title in older:
+        name = (_plain(artist), _plain(title))
+        if name != own and not (everyone or {}).get(name):
+            names.add(name)
+            if artist:  # a video's title filed under nobody is too little to tell songs apart by
+                versions.add(_any_version(artist, title))
+    return dict(names=names, secs=song["secs"] or 0, versions={v for v in versions if not v.endswith("|")})
 
 
 def check(client, collection):
@@ -496,10 +589,13 @@ def check(client, collection):
     takeouts = {k: d for k, d in collection.decisions.items() if d.get("kind") == "unlist" and d.get("action") == "remove" and d.get("file") in songs}  # songs you said to take out of a playlist
     wanted = sorted({n for d in [*answers.values(), *takeouts.values()] for n in _lines(d)})
 
-    keys = {key: _names_on_spotify(collection, songs[d["file"]]) for key, d in {**answers, **takeouts}.items()}
+    everyone = collections.Counter(_own_name(s) for s in collection.songs.values() if not s.get("done"))  # (not a download that's in the library by now: that is the song itself under its old name, not another one)
+    who = {key: _names_on_spotify(collection, songs[d["file"]], d.get("song"), everyone) for key, d in {**answers, **takeouts}.items()}
 
     present, read, stopped, unknown, mine = {}, {}, "", [], {}
     cache = _read_cache(collection.paths)
+    whole = cache is not None  # False: what was kept couldn't be opened, so every playlist is read afresh
+    cache = cache or {}
     try:
         mine = client.my_playlists()
         unknown = [n for n in wanted if n not in mine]
@@ -512,14 +608,15 @@ def check(client, collection):
                 read[name] = client.entries(info["id"])
                 cache[info["id"]] = dict(snapshot=info["snapshot"], entries=read[name], name=name)
             if name in wanted:
-                present[name] = {suggest.track_key((e["artists"] or [""])[0], e["name"]) for e in read[name]} - {"|"}
+                present[name] = _in_playlist(read[name])
     except Stop as ex:
         stopped = str(ex)
     except urllib.error.HTTPError as ex:
         stopped = f"Spotify answered with an error ({ex.code}), so the check stopped there."
     if mine and not stopped:  # a playlist you've deleted shouldn't stay playable here
         cache = {k: v for k, v in cache.items() if k in {info["id"] for info in mine.values()}}
-    _write_cache(collection.paths, cache)
+    if whole or not stopped:  # a check cut short, on top of a file that couldn't be opened, knows less than the file does: leave it
+        _write_cache(collection.paths, cache)
 
     removals = None
     known_files = list(collection.songs.values())
@@ -535,15 +632,17 @@ def check(client, collection):
                     rows[row.get("playlist")] = row
         removals = [rows[n] for n in sorted(rows, key=lambda n: str(n).casefold())]
 
-    counts = dict(arrived=0, missing=0, out=0, still=0)
+    counts, others = dict(arrived=0, missing=0, out=0, still=0), []
 
     def change(current):
-        for key in takeouts:  # done once Spotify doesn't have it in that playlist any more
+        counts.update(arrived=0, missing=0, out=0, still=0)  # it may be run again on a newer list, if another program saved your answers meanwhile
+        del others[:]
+        for key in takeouts:  # done once Spotify doesn't have it in that playlist any more. Another version staying there is another song, but Spotify's own copy of this one is not
             d = current.get(key)
             if not isinstance(d, dict) or d.get("kind") != "unlist" or d.get("action") != "remove":
                 continue
             names = _lines(d)
-            out = [n for n in names if n in present and not keys[key] & present[n]]
+            out = [n for n in names if n in present and not _has(present[n], who[key]) and not _may_still_be(present[n], who[key])]
             left = [n for n in names if n not in out]
             counts["out"] += len(out)
             counts["still"] += len([n for n in left if n in present])
@@ -556,23 +655,29 @@ def check(client, collection):
             if not isinstance(d, dict) or d.get("action") not in ("add", "added"):
                 continue
             names = _lines(d)
-            here = [n for n in names if n in present and keys[key] & present[n]]
+            here = [n for n in names if n in present and _has(present[n], who[key])]
             gone = [n for n in names if n in present and n not in here]
             if d["action"] == "add":
                 left = [n for n in names if n not in here]
                 counts["arrived"] += len(here)
                 counts["missing"] += len(gone)
+                others.extend(dict(file=d.get("file"), playlist=n, name=other["name"], secs=other["secs"] if other["same"] in who[key]["names"] else 0) for n in gone for other in [_other_version(present[n], who[key])] if other)
                 if here and not left:
                     d["action"] = "added"
                 elif here:
                     d["note"] = "\n".join(left)
-            elif gone:  # marked as added, but Spotify doesn't have it there
-                d.update(action="add", note="\n".join(gone))
-                counts["missing"] += len(gone)
+            else:  # marked as added. It goes back on the list only where no version of it is there: Spotify doesn't have every mix, so another one may be what you meant
+                gone = [n for n in gone if not _other_version(present[n], who[key])]
+                if gone:
+                    d.update(action="add", note="\n".join(gone))
+                    counts["missing"] += len(gone)
 
     problem = collection.update_answers(change) if present else None
+    listed = True
     if read:
-        write_state(collection.paths, checked=datetime.datetime.now().isoformat(timespec="seconds"), playlists=sorted(mine, key=str.casefold), **({} if removals is None else dict(to_remove=removals)))
+        still_asked = {(d.get("file"), n) for d in collection.decisions.values() if d.get("kind") == "playlist" and d.get("action") == "add" for n in _lines(d)}
+        hints = {} if problem else dict(other_versions=others + [h for h in status(collection.paths)["other_versions"] if h.get("playlist") not in present and (h.get("file"), h.get("playlist")) in still_asked])  # what wasn't read this time stays as it was, for as long as the song still waits for that playlist
+        listed = write_state(collection.paths, checked=datetime.datetime.now().isoformat(timespec="seconds"), playlists=sorted(mine, key=str.casefold), **hints, **({} if removals is None else dict(to_remove=removals)))
     maybe = 0
     if read and not stopped:
         maybe, stopped = _look_for_waiting_songs(client, collection)
@@ -581,9 +686,13 @@ def check(client, collection):
         parts.append(problem)
     if present and not problem and answers:
         parts.append(f"{counts['arrived']} arrived, {counts['missing']} still not in {'their playlists' if len(present) > 1 else 'the playlist'}.")
+    if others and not problem and listed:  # another version doesn't count as arrived, but it's worth saying it's there: the rows under To add say which
+        parts.append(f"For {len(others)} of those the playlist has what may be another version: see To add.")
     if present and not problem and takeouts:
         parts.append(f"{counts['out']} taken out, {counts['still']} still to take out.")
-    if removals is not None:
+    if not listed:  # the answers are up to date, but what the page lists under them is from the check before
+        parts.append("The lists on this page couldn't be saved just now: press Check Spotify again.")
+    if removals is not None and listed:
         total, lists = sum(r["count"] for r in removals), sum(1 for r in removals if r["count"])
         parts.append(f"{total} to remove in {lists} playlist{'' if lists == 1 else 's'}." if total else "Nothing to remove.")
     if maybe:
@@ -608,6 +717,8 @@ def gather(client, collection):
     if not any(s["area"] == "library" for s in known_files):  # with the library's drive gone, everything would look like it has no file
         return dict(moved=0, message="Your library can't be found, so nothing was moved. Is its drive connected?")
     index, cache, moved, touched, refused, stopped = _file_index(known_files), _read_cache(paths), 0, 0, [], ""
+    whole = cache is not None  # False: what was kept couldn't be opened, and the few playlists read here mustn't be saved over the rest
+    cache = cache or {}
     client.allow_changes()
     try:
         mine = client.my_playlists()
@@ -641,7 +752,8 @@ def gather(client, collection):
     finally:
         if not client.access:  # the bigger permission wasn't given: the next check asks only to read
             client.scope = SCOPES
-    _write_cache(paths, cache)
+    if whole:
+        _write_cache(paths, cache)
     write_state(paths, to_remove=[rows[n] for n in sorted(rows, key=lambda n: str(n).casefold())])
     parts = [stopped] if stopped else []
     if moved:
@@ -724,11 +836,11 @@ def send_playlist(client, collection, list_id):
     if not songs:
         return dict(sent=0, message="None of its songs are in your library yet, so there's nothing to send.")
     client.allow_changes()
-    made, refused, there = False, False, set()
+    made, refused, there = False, False, _in_playlist([])
     try:
         mine = client.my_playlists()
         if name in mine:
-            there = {suggest.track_key((e["artists"] or [""])[0], e["name"]) for e in client.entries(mine[name]["id"])}
+            there = _in_playlist(client.entries(mine[name]["id"]))
         else:
             try:
                 client.post(f"{API}/me/playlists", dict(name=name, public=False))
@@ -742,7 +854,14 @@ def send_playlist(client, collection, list_id):
     finally:
         if not client.access:  # the bigger permission wasn't given: the next check asks only to read
             client.scope = SCOPES
-    waiting, now = [s for s in songs if not _names_on_spotify(collection, s) & there], datetime.datetime.now().isoformat(timespec="seconds")
+    everyone = collections.Counter(_own_name(s) for s in collection.songs.values() if not s.get("done"))  # (not a download that's in the library by now: that is the song itself under its old name, not another one)
+
+    def settled(song):
+        """In the playlist already. Or you marked it Added there with another version in it, which may be the one you meant: sending the playlist again doesn't undo that."""
+        me, answer = _names_on_spotify(collection, song, "", everyone), collection.decisions.get(f"playlist:{song['key']}") or {}
+        return _has(there, me) or (answer.get("action") == "added" and name in _lines(answer) and bool(_other_version(there, me)))
+
+    waiting, now = [s for s in songs if not settled(s)], datetime.datetime.now().isoformat(timespec="seconds")  # another version in it isn't this song: it still waits
 
     def change(current):
         for song in waiting:

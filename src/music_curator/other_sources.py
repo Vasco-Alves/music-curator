@@ -18,6 +18,7 @@ import urllib.request
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 from . import resolve as rv
+from . import saving
 
 from .config import ytdlp_python
 UA = "LocalMusicCurator/0.1 (personal music library tool)"
@@ -45,8 +46,10 @@ def mb(path, cache):
         _last[0] = time.time()
         return {"error": str(ex)}  # not kept: one bad moment on the network isn't "MusicBrainz doesn't have it" for good
     _last[0] = time.time()
-    with open(cf, "w", encoding="utf-8") as f:
-        json.dump(data, f)
+    try:
+        saving.write(cf, lambda f: json.dump(data, f), encoding="utf-8")
+    except OSError:  # an answer that can't be kept is only asked for again next time
+        pass
     return data
 
 

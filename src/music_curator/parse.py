@@ -5,6 +5,7 @@ Usage: curator parse <out.json> [<dir> ...]   (non-recursive; default: [paths] i
 Categories: candidate | mix | ost | nonmusic | nightcore | done (already processed per log)
 """
 import csv
+import datetime
 import json
 import os
 import re
@@ -12,15 +13,22 @@ import subprocess
 import sys
 import unicodedata
 
+from .keys import norm
 from .library import AUDIO
 from .tagwriter import KINDS, written_sources
 
 LOOKALIKES = {"＂": '"', "：": ":", "｜": "|", "⧸": "/", "⁄": "/", "–": "-",
-              "—": "-", "’": "'", "‘": "'", "“": '"', "”": '"', "【": "[", "】": "]"}
+              "—": "-", "－": "-", "‐": "-", "―": "-", "−": "-", "’": "'", "‘": "'", "“": '"', "”": '"', "【": "[", "】": "]",
+              "（": "(", "）": ")", "［": "[", "］": "]", "＆": "&"}
 GENRE_WORDS = r"(?:acid|acidtrance|acid trance|acid techno|hard ?trance|trance|techno|goa(?: trance)?|psy|psytrance|classic|hardcore|house|gabber|old ?school)"
 MIX_WORDS = re.compile(r"\b(mix|remix|edit|version|dub|rework|vip|extended|instrumental|vocal|re-?edit|bootleg|remaster(?:ed)?|slowed|sped[- ]?up|reverb|nightcore)\b", re.I)
 OST_WORDS = re.compile(r"\b(OST|Soundtrack|Original Soundtrack|Game Music|BGM)\b", re.I)
 NONMUSIC = re.compile(r"(\breacts?\b|\breaction\b|tutorial|#shorts|podcast|interview|trailer)", re.I)
+YEAR = r"(?:19|20)\d\d"
+NOTE_WORD = r"(?>" + YEAR + r"(?!\d)|'?\d\d(?!\d)|" + GENRE_WORDS + r")"  # each word is taken once and not gone back on, or a long bracket of them that never closes is tried every possible way
+NOTE = re.compile(r"[\(\[]\s*(" + NOTE_WORD + r"(?:[\s,/]*+" + NOTE_WORD + r")*+)\s*[\)\]]", re.I)  # a note of years and genres and nothing else: (Acid 1996) (CLASSIC 1994) ('94 CLASSIC) [1993] (95 Acid, Psy) (1995). Not (303) or (Acid Mix)
+SIDE = r"\((?:[A-D]\d?)\)"  # "(B1)": which side of the record
+JOINER = re.compile(r"&|feat\.?|ft\.?|featuring|vs\.?", re.I)  # a word that joins two names
 
 
 def probe(path):
@@ -40,6 +48,39 @@ def clean(s):
     return re.sub(r"\s+", " ", s).strip()
 
 
+def a_year(text):
+    """The year a number in a name can mean, or None: 2049 hasn't been yet, so "Blade Runner 2049" keeps it."""
+    year = int(text)
+    return year if 1900 <= year <= datetime.date.today().year + 1 else None
+
+
+def first_artist(artist):
+    """The first of the people a name credits: "A x B", "A feat. B", "A vs. B" and "A & B" are all A.
+    An x is part of a name when the letters around it are spelled out too ("T Ξ X Λ S"), or when a joiner follows it ("Mr X & Mr Y")."""
+    words = artist.split()
+    for i in range(1, len(words) - 1):
+        if words[i] in ("x", "X") and not (len(words[i - 1]) == 1 and len(words[i + 1]) == 1) and not JOINER.fullmatch(words[i + 1]):
+            artist = " ".join(words[:i])
+            break
+    return re.split(r"\s+(?:feat\.?|ft\.?|featuring|vs\.?)\s+|\s+&\s+", artist, flags=re.I)[0]
+
+
+def split_name(s):
+    """The parts of a name between its " - ". One inside brackets doesn't count: "Song (Future Breeze Mix - Edit)" is one part."""
+    parts, depth, start, i = [], 0, 0, 0
+    while i < len(s):
+        if s[i] in "([":
+            depth += 1
+        elif s[i] in ")]":
+            depth = max(0, depth - 1)
+        elif not depth and s.startswith(" - ", i):
+            parts.append(s[start:i])
+            start = i = i + 3
+            continue
+        i += 1
+    return s.split(" - ") if depth else parts + [s[start:]]  # a bracket that never closes is a name cut short: read it the plain way
+
+
 def parse(base, tags):
     year = None
     genre = None
@@ -49,62 +90,70 @@ def parse(base, tags):
     # yt uploader stored as artist while the YouTube title holds "Artist - Title"
     if t_artist and t_title and " - " in t_title and norm(t_artist) not in norm(t_title):
         uploader = t_artist
-        if s.endswith(" - " + clean(uploader)):
-            s = s[: -len(" - " + clean(uploader))].strip()
+        for dash in reversed([m.start() for m in re.finditer(" - ", s)]):  # "... - Acid Channel", uploaded by AcidChannel. The channel's own name can have a dash in it: "... - Trance - Classics"
+            if norm(s[dash + 3:]) == norm(uploader):
+                s = s[:dash].strip()
+                break
+    year_after_note = re.search(r"[\)\]]\s*" + YEAR + r"(?:\s*[\(\[][^()\[\]]*[\)\]])*$", s)  # "Plasmata (Hardtrance) 1995", "Song [HH 019] 1992 [HQ]": looked at now, before those notes come out
     # noise in brackets: catalogue numbers, yt ids, quality notes
     s = re.sub(r"\[(?:[A-Z]{2,}[- ]?\d{2,}[A-Z]?|[A-Za-z0-9_-]{11}|Full Album|HQ|HD)\]", "", s)
     s = re.sub(r"\((?:\d{3} ?Kbps|Official Video|Video|HQ|HD)\)", "", s, flags=re.I)
-    s = re.sub(r"^\s*[A-D]\d?\.\s+", "", s)                      # "B2. Artist - Title"
-    s = re.sub(r"\s+-?\s*\((?:[A-D]\d?)\)\s*", " ", s)            # "(B1)"
+    s = re.sub(r"^\s*[A-D]\d\.\s+", "", s)                       # "B2. Artist - Title". A letter alone is somebody's initial: "D. Ramirez - Yeah Yeah"
+    whole = [p.strip() for p in split_name(re.sub(r"\s+", " ", s).strip(" -")) if p.strip()]  # the name before any note is taken out of it
+    s = re.sub(r"\s+(-?)\s*" + SIDE + r"\s*(-\s+)?", lambda m: " - " if m.group(1) or m.group(2) else " ", s)  # "(B1)". A dash in front of it is the one between artist and title: "Scanners - (B2) A World Outside"
     # year / genre notes: (Acid 1996) (CLASSIC 1994) ('94 CLASSIC) [1993] (95 Acid, Psy) (1995)
     def grab(m):
         nonlocal year, genre
         inner = m.group(1)
-        y = re.search(r"(?:19|20)\d\d|'\d\d|\b\d\d\b", inner)
+        y, g = re.search(YEAR + r"|'\d\d|\b\d\d\b", inner), re.search(GENRE_WORDS, inner, re.I)
         if y:
             yy = y.group(0).strip("'")
-            year = int(yy) if len(yy) == 4 else (1900 + int(yy) if int(yy) > 50 else 2000 + int(yy))
-        g = re.search(GENRE_WORDS, inner, re.I)
+            said = a_year(yy if len(yy) == 4 else ("19" if int(yy) > 50 else "20") + yy)
+            if not said or (len(y.group(0)) == 2 and not g):
+                return m.group(0)                                 # "(2049)" and "(10)" are saying something else
+            year = said
         if g and not genre:
             genre = g.group(0)
         return ""
-    s = re.sub(r"[\(\[]\s*((?:'?\d{2,4}\s*)?(?:" + GENRE_WORDS + r"[\s,/]*)*(?:(?:19|20)\d\d|'\d\d|\d\d)?\s*(?:" + GENRE_WORDS + r")?)\s*[\)\]]",
-               lambda m: grab(m) if re.search(r"\d|" + GENRE_WORDS, m.group(1), re.I) else m.group(0), s, flags=re.I)
+    s = NOTE.sub(grab, s)
     # year inside a mix note: (Gracious Mix 1994) -> (Gracious Mix)
     def mixyear(m):
         nonlocal year
+        if not a_year(m.group(2)):
+            return m.group(0)
         year = year or int(m.group(2))
         return f"({m.group(1).strip()})"
-    s = re.sub(r"\(([^()]*?)\s+((?:19|20)\d\d)\)", mixyear, s)
-    m = re.search(r"\s((?:19|20)\d\d)$", s)                       # trailing " 1995"
-    if m:
-        year = year or int(m.group(1))
-        s = s[: m.start()]
+    s = re.sub(r"\(([^()]*?)\s+(" + YEAR + r")\)", mixyear, s)
     s = re.sub(r"\s+", " ", s).strip(" -")
-    parts = [p.strip() for p in s.split(" - ") if p.strip()]
+    parts = [p.strip() for p in split_name(s) if p.strip()]
+    if len(parts) == 1 and len(whole) > 1 and parts[0] == whole[0]:  # the notes were all the title there is: "Jon The Dentist - (A1)", "Lil Louis - (House)". They stay, so the artist does too. With the note in front, "(House) - Lil Louis", what's left is a title with no artist, as it always was
+        parts = [parts[0], " - ".join(whole[1:])]
+    alt_title = None
+    m = re.search(r"\s(" + YEAR + r")$", parts[-1]) if parts else None
+    if m and a_year(m.group(1)):                                  # a year at the very end
+        rest = parts[-1][: m.start()].rstrip(" -")
+        if len(parts) > 2 or year_after_note or rest.endswith((")", "]")):  # after a note, or after the title's own part, it's a note: "Infinite (Original Mix) 1995"
+            year, parts[-1] = year or int(m.group(1)), rest
+        elif rest:                                                # after the title's words it can be either: "Analog Mind 1995" is from 1995, "Greece 2000" is called that. The title keeps it, and the other reading is there to try
+            alt_title = rest
+    parts = [p for p in parts if p]
     extra = []
     if len(parts) >= 2:
         artist, title, extra = parts[0], parts[1], parts[2:]
     else:
         artist, title = "", parts[0] if parts else s
     for x in list(extra):                                         # "- 1997 - GOA TRANCE" style tails
-        if re.fullmatch(r"(?:19|20)\d\d", x):
+        if re.fullmatch(YEAR, x):
             year = year or int(x)
             extra.remove(x)
         elif re.fullmatch(GENRE_WORDS, x, re.I):
             genre = genre or x
             extra.remove(x)
-    search_artist = re.split(r"\s+(?:feat\.?|ft\.?|featuring|vs\.?|x)\s+|\s+&\s+", artist, flags=re.I)[0] if artist else ""
+    search_artist = first_artist(artist)
     search_title = re.sub(r"\s*[\(\[][^\)\]]*[\)\]]", "", title).strip()
     mix = next((note for note in re.findall(r"\(([^()]*)\)", title) if MIX_WORDS.search(note)), None)  # "(feat. X) (Y Remix)": the mix isn't always the first note
     return dict(artist=artist, title=title, search_artist=search_artist, search_title=search_title,
-                mix=mix, year_hint=year, genre_hint=genre, extra=extra, uploader=uploader)
-
-
-def norm(s):
-    s = unicodedata.normalize("NFKD", s or "")
-    s = "".join(c for c in s if not unicodedata.combining(c))
-    return re.sub(r"[^a-z0-9]", "", s.lower())
+                mix=mix, year_hint=year, genre_hint=genre, extra=extra, uploader=uploader, alt_title=alt_title)
 
 
 def read_inbox(dirs, log_path):

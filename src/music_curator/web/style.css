@@ -368,9 +368,7 @@ body.fx-on .now-about-song { padding: 2px 12px 12px; border-radius: 12px; backgr
 .pick-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 1px 10px; max-height: 196px; overflow-y: auto; }
 .pick { display: flex; align-items: center; gap: 7px; padding: 3px 6px; border-radius: 6px; font-size: 13px; cursor: pointer; min-width: 0; overflow-wrap: anywhere; }
 .pick:hover { background: var(--surface-2); }
-.pick.off { color: var(--ink-3); cursor: default; }
-.pick.off:hover { background: none; }
-.pick em { flex: none; margin-left: auto; font-style: normal; font-size: 12px; color: var(--ink-3); }
+.pick em { flex: none; font-style: normal; font-size: 12px; color: var(--ink-3); } /* right after the name: pushed to the far side it sat beside the next playlist's box and read as that one's */
 #fx { position: fixed; inset: 0; z-index: -1; display: block; width: 100%; height: 100%; opacity: .5; transition: opacity .4s ease; } /* behind the page it stays out of the way: Full view is where it's the main thing */
 body.fx-full #fx { opacity: 1; }
 body.fx-around #fx { opacity: .3; }

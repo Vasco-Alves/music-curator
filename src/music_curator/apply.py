@@ -14,8 +14,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
-from . import config, folders, library, tagwriter, webapp
+from . import config, folders, library, saving, tagwriter, webapp
 
 SET_ASIDE = "Set aside"
 TEMP_PREFIX, TEMP_SUFFIX = ".tmp_apply_", ".part"  # not an audio extension, so a player never lists one left behind
@@ -89,7 +90,8 @@ def other_with_genre(path, genre):
             tagwriter.remux(path, out, dict(genre=genre), keep=True)
         except (OSError, ValueError, subprocess.SubprocessError) as ex:
             raise Skip("its tags couldn't be rewritten, so the song was left as it was") from ex
-        if tagwriter.audio_packets(path) != tagwriter.audio_packets(out):
+        was, now = tagwriter.audio_packets(path), tagwriter.audio_packets(out)
+        if not was or was != now:  # nothing read from either is not "the same": ffmpeg was stopped, or couldn't read them
             raise Skip("the new copy didn't check out, so the song was left as it was")
         with open(out, "rb") as f:
             return f.read()
@@ -283,7 +285,7 @@ class Run:
         self.collection._read_log()
         self.aside = os.path.join(_aside_folder(paths), datetime.datetime.now().strftime("%Y-%m-%d %H-%M-%S"))
         self.changed, self.removed, self.cleared, self.problems, self.back = 0, 0, 0, 0, 0
-        self.log_file, self.log = None, None
+        self.log_file, self.log, self.log_end, self.planned = None, None, None, None
         if needs_log and not dry_run:
             self.log_file, self.log = _open_log(paths["log"])
             _sweep(paths["library"])
@@ -304,21 +306,29 @@ class Run:
             mark = os.fstat(self.log_file.fileno()).st_size
             self.log.writerow(row)
             self.log_file.flush()
+            self.log_end = os.fstat(self.log_file.fileno()).st_size  # where the log ends with this row as its last
         except OSError as ex:
             raise Skip(f"the log couldn't be written ({ex.strerror or ex}), so the song was left as it was") from ex
         return mark
 
     def take_back(self, mark):
+        """Take the row just logged back out, the change not having happened. Not if something else has written to the log since: cutting it back to the mark
+        would take that with it. The row then stays, saying a change was made that wasn't, and the next run makes it true: the answer is still on the list."""
         try:
-            self.log_file.truncate(mark)
+            if os.fstat(self.log_file.fileno()).st_size == self.log_end:
+                self.log_file.truncate(mark)
         except (OSError, ValueError):
             pass
 
     def forget(self, key, keep=False, moved=None):
         """Take an answer off the list, reading the list again first: the page may have saved new answers meanwhile.
         moved=(old file, new file): the song's other answers go with it."""
+        planned = self.planned
+
         def change(answers):
-            if keep and isinstance(answers.get(key), dict):
+            if planned is not None and answers.get(key) != planned:  # you changed this answer on the page while its song was being dealt with: the new one stays on the list for the next run
+                pass
+            elif keep and isinstance(answers.get(key), dict):
                 answers[key]["action"] = "keep"
             else:
                 answers.pop(key, None)
@@ -334,16 +344,19 @@ class Run:
                 raise Skip(problem)
             return
         path = self.paths["decisions"]
-        try:
-            with open(path, encoding="utf-8-sig") as f:
-                answers = json.load(f)
-        except (OSError, ValueError) as ex:
-            raise Skip(f"your answers couldn't be read ({ex})") from ex
-        change(answers)
-        tmp = path + ".apply.tmp"
-        with open(tmp, "w", encoding="utf-8", errors="replace") as f:
-            json.dump(answers, f, ensure_ascii=False, indent=1)
-        os.replace(tmp, path)
+        for last_try in (False, False, True):  # read, change, save. If the page saved an answer in between, the change is made again on the newer file: saving over it would lose that answer
+            was = saving.stamp(path)
+            try:
+                with open(path, encoding="utf-8-sig") as f:
+                    answers = json.load(f)
+            except (OSError, ValueError) as ex:
+                raise Skip(f"your answers couldn't be read ({ex})") from ex
+            change(answers)
+            try:
+                return saving.write(path, lambda f: json.dump(answers, f, ensure_ascii=False, indent=1), read_as=was, encoding="utf-8", errors="replace")
+            except saving.Changed:
+                if last_try:
+                    raise
 
     def retire(self, key, keep=False, moved=None):
         """The song has been dealt with by now, so trouble updating the list is only worth a word: the next run clears it."""
@@ -352,8 +365,23 @@ class Run:
         except (OSError, Skip) as ex:
             self.say(f"    Its answer couldn't be taken off the list ({getattr(ex, 'strerror', None) or ex}). The next run will clear it.")
 
+    def changed_meanwhile(self, key, answer):
+        """Is this no longer the answer on the list? The run read the list when it started, and you may have changed or undone the answer on the page since."""
+        for _ in range(5):
+            try:
+                with open(self.paths["decisions"], encoding="utf-8-sig") as f:
+                    now = json.load(f)
+                return not isinstance(now, dict) or now.get(key) != answer
+            except (OSError, ValueError):  # being saved at this very moment, most likely
+                time.sleep(.02)
+        return False  # the list can't be read just now, so there's nothing to say it changed
+
     def attempt(self, key, answer, handler):
         name = answer["song"]
+        self.planned = None if self.dry_run else answer
+        if not self.dry_run and self.changed_meanwhile(key, answer):
+            self.say(f"  {name}: you changed this answer while the run was going, so it was left for the next one")
+            return
         try:
             handler(key, answer, name)
         except Gone:

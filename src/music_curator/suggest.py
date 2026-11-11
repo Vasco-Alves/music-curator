@@ -14,9 +14,10 @@ import math
 import os
 import re
 import sys
-import unicodedata
 
-from . import webapp
+from . import saving, webapp
+from .keys import norm as _norm
+from .keys import plain as _plain
 
 COUNT = 40
 MIN_SONGS = 8  # with fewer of your songs in a playlist than this there's nothing to learn from
@@ -26,28 +27,34 @@ OVERLAP_WEIGHT = 1.5  # your own sorting says more than genre does: in testing t
 Count = collections.Counter
 
 
-def _norm(s):
-    s = unicodedata.normalize("NFKD", s or "")
-    return re.sub(r"[^a-z0-9]", "", "".join(c for c in s if not unicodedata.combining(c)).lower())
-
-
 def track_key(artist, title):
-    """Who and what, ignoring featured artists and mix names: a playlist holding any version of a song already has it."""
+    """Who and what, ignoring featured artists and mix names. That's for learning what a playlist is like, and for not suggesting a song where some version of it
+    already is. Whether a song you said to add has arrived goes by its full name: see read_names."""
     first = re.split(r"\s*(?:&|,| feat\.? | ft\.? | x | vs\.? )\s*", artist or "", flags=re.I)[0]
     return _norm(first) + "|" + _norm(re.sub(r"\s*[(\[][^)\]]*[)\]]", "", title or ""))
 
 
-def read_playlists(path):
-    """{playlist name: set of track keys}."""
+def _lists(path):
+    """[(playlist name, its tracks)] from the file."""
     with open(path, encoding="utf-8-sig") as f:
         data = json.load(f)
     if not isinstance(data, list):
         raise ValueError("expected a list of playlists")
-    found = {}
-    for playlist in data:
-        if isinstance(playlist, dict) and isinstance(playlist.get("name"), str) and isinstance(playlist.get("tracks"), list):
-            found[playlist["name"]] = {track_key(((t.get("artists") or [""])[0]), t.get("name")) for t in playlist["tracks"] if isinstance(t, dict)} - {"|"}
-    return found
+    return [(p["name"], [t for t in p["tracks"] if isinstance(t, dict)]) for p in data if isinstance(p, dict) and isinstance(p.get("name"), str) and isinstance(p.get("tracks"), list)]
+
+
+def read_playlists(path):
+    """{playlist name: set of track keys}."""
+    return {name: {track_key(((t.get("artists") or [""])[0]), t.get("name")) for t in tracks} - {"|"} for name, tracks in _lists(path)}
+
+
+def read_names(path):
+    """{playlist name: the names of its tracks in full}, each (who, what) with the version left in. A song you said to add has arrived when the playlist has it under
+    its own name: another version of it in there isn't the song."""
+    def text(x):
+        return x if isinstance(x, str) else ""
+    found = {name: {(_plain(" ".join(text(a) for a in (t.get("artists") if isinstance(t.get("artists"), list) else []) if text(a))), _plain(text(t.get("name")))) for t in tracks} for name, tracks in _lists(path)}
+    return {name: {full for full in names if full[1]} for name, names in found.items()}  # a track with no name is nothing to go by
 
 
 def _decade(song):
@@ -138,23 +145,26 @@ def fits_for(song, members, models):
 
 def _update_answers(path, done, notes):
     """Take finished answers off the list, and shorten the ones where only some of the playlists are still to come."""
-    with open(path, encoding="utf-8-sig") as f:
-        answers = json.load(f)
-    for key in done:
-        answers.pop(key, None)
-    for key, note in notes.items():
-        if isinstance(answers.get(key), dict):
-            answers[key]["note"] = note
-    tmp = path + ".suggest.tmp"
-    with open(tmp, "w", encoding="utf-8", errors="replace") as f:
-        json.dump(answers, f, ensure_ascii=False, indent=1)
-    os.replace(tmp, path)
+    for last_try in (False, False, True):  # read, change, save. If the page saved an answer in between, it's done again on the newer file
+        was = saving.stamp(path)
+        with open(path, encoding="utf-8-sig") as f:
+            answers = json.load(f)
+        for key in done:
+            answers.pop(key, None)
+        for key, note in notes.items():
+            if isinstance(answers.get(key), dict):
+                answers[key]["note"] = note
+        try:
+            return saving.write(path, lambda f: json.dump(answers, f, ensure_ascii=False, indent=1), read_as=was, encoding="utf-8", errors="replace")
+        except saving.Changed:
+            if last_try:
+                raise
 
 
 def main(snapshot, name=None, count=COUNT):
     paths = webapp.app_paths()
     try:
-        playlists = read_playlists(snapshot)
+        playlists, exact = read_playlists(snapshot), read_names(snapshot)
     except (OSError, ValueError) as ex:
         sys.exit(f"Couldn't read the playlists in {snapshot}: {ex}")
     target = None
@@ -170,10 +180,12 @@ def main(snapshot, name=None, count=COUNT):
     songs = [s for s in collection.songs.values() if s["area"] == "library"]
     if not songs:
         sys.exit("There are no songs in your library yet.")
-    keys = {}
+    keys, full, own = {}, {}, collections.Counter((_plain(s["artist"]), _plain(s["title"])) for s in songs)
     for s in songs:
         row = collection._log_row(s["_path"], s["_rel"]) or {}  # the playlist may still know a song by its old name
         keys[s["id"]] = {track_key(s["artist"], s["title"])} | ({track_key(row.get("src_artist"), row.get("src_title"))} if row.get("src_title") else set())
+        old = (_plain(row.get("src_artist")), _plain(row.get("src_title"))) if row.get("src_title") else None
+        full[s["id"]] = {(_plain(s["artist"]), _plain(s["title"]))} | ({old} if old and not own[old] else set())  # its old name counts unless another of your songs goes by that name today: then it's that one in the playlist
     members = {n: {s["id"] for s in songs if keys[s["id"]] & tracks} for n, tracks in playlists.items()}
     learnable = [n for n, m in members.items() if MIN_SONGS <= len(m) <= len(songs) / 2]
     if target and target not in learnable:
@@ -190,13 +202,16 @@ def main(snapshot, name=None, count=COUNT):
         wanted = [n for n in str(d.get("note") or "").split("\n") if n]
         if d.get("action") != "add" or not song or not wanted:
             continue
-        left = [n for n in wanted if not keys[song["id"]] & playlists.get(n, set())]  # one name per line: it can be going to several
+        left = [n for n in wanted if not full[song["id"]] & exact.get(n, set())]  # one name per line: it can be going to several. Only its own name counts as arrived: the original being there isn't the remix
         if not left:
             added.append(k)
         elif len(left) < len(wanted):
             still_to_come[k] = "\n".join(left)
     if added or still_to_come:
-        _update_answers(paths["decisions"], added, still_to_come)
+        try:
+            _update_answers(paths["decisions"], added, still_to_come)
+        except (OSError, ValueError) as ex:
+            sys.exit(f"Your answers ({paths['decisions']}) couldn't be updated just now, so nothing was changed: {getattr(ex, 'strerror', None) or ex}. Run this again.")
     if added:
         print(f"Now in the playlist, so taken off your list: {_said([answers[k]['song'] for k in added])}")
     answered = {d.get("file") for k, d in answers.items() if k not in added}
@@ -215,11 +230,11 @@ def main(snapshot, name=None, count=COUNT):
     new.sort(key=lambda x: -x[1][0][0])
     ideas = {song["key"]: dict(why=fits[0][3], fits=[dict(name=f[2], why=f[3]) for f in fits], also=[n for n in names if keys[song["id"]] & playlists[n]]) for song, fits in kept + new[:count]}
     target_file = webapp.suggestions_path(paths)
-    os.makedirs(os.path.dirname(target_file) or ".", exist_ok=True)
-    tmp = target_file + ".tmp"
-    with open(tmp, "w", encoding="utf-8", errors="replace") as f:
-        json.dump(dict(playlists=names, made=datetime.datetime.now().isoformat(timespec="seconds"), songs=ideas), f, ensure_ascii=False, indent=1)
-    os.replace(tmp, target_file)
+    try:
+        os.makedirs(os.path.dirname(target_file) or ".", exist_ok=True)
+        saving.write(target_file, lambda f: json.dump(dict(playlists=names, made=datetime.datetime.now().isoformat(timespec="seconds"), songs=ideas), f, ensure_ascii=False, indent=1), encoding="utf-8", errors="replace")
+    except OSError as ex:
+        sys.exit(f"The playlist ideas couldn't be saved just now ({ex.strerror or ex}). Run this again.")
     print(f"{len(learnable)} playlists have enough of your songs to learn from. {min(len(new), count)} songs have a playlist they're a confident fit for"
           + (f" ({len(new) - count} more than the {count} shown)." if len(new) > count else "."))
     print("They're on the To check page under Playlist ideas. Refresh the page if it's open.")

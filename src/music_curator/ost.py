@@ -57,7 +57,7 @@ def resolve(it, history, library_keys):
         if not rel:
             continue
         c = d.cond_release(rel)
-        hits = [t for t in c["tracklist"] if t.get("type") in (None, "track") and d.base_title(t["title"]) == want]
+        hits = [t for t in c["tracklist"] if t.get("type") in (None, "track") and (rv.same_title(t["title"], st) if want else d.base_title(t["title"]) == want)]  # a title Discogs gives in two alphabets matches by either half
         if it.get("mix"):
             hits = [t for t in hits if rv.mix_matches(it["mix"], t["title"])] or []
         if hits:

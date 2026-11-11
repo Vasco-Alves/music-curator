@@ -12,6 +12,8 @@ import re
 import sys
 import tomllib
 
+from . import saving
+
 DEFAULTS = {
     "paths": {
         "library": "",       # where curated copies are written (genre folders inside)
@@ -273,12 +275,9 @@ def _save_table(file, table, updates, edit):
         same = False
     if not same:
         raise ValueError(refusal)
-    data = text.encode("utf-8")  # before the temp file exists, so a bad value leaves nothing behind
+    data = text.encode("utf-8")  # before any file is made, so a bad value leaves nothing behind
     os.makedirs(os.path.dirname(os.path.abspath(file)), exist_ok=True)
-    tmp = f"{file}.tmp"
-    with open(tmp, "wb") as f:
-        f.write(data)
-    os.replace(tmp, file)
+    saving.write(file, lambda f: f.write(data), "wb")
 
 
 EXAMPLE = '''# music-curator configuration. Copy to curator.toml and adjust.

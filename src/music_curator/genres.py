@@ -10,27 +10,34 @@ import json
 import os
 import urllib.error
 
-from . import discogs, webapp
+from . import discogs, saving, webapp
 
 SAVE_EVERY = 20  # records between saves, so a run that's cut off loses little
 GIVE_UP_AFTER = 3  # lookups failing in a row before the network is assumed to be down
 
 
 def known(paths):
-    """What's been found so far: record -> {styles, wide}. A file that can't be read counts as nothing found yet."""
+    """What's been found so far: record -> {styles, wide}. A file that makes no sense counts as nothing found yet: it can all be looked up again.
+    None if the file is there and couldn't be opened just now. That isn't an empty one, and saving as if it were would lose what's in it."""
     try:
         with open(webapp.styles_path(paths), encoding="utf-8-sig") as f:
             saved = json.load(f)
-    except (OSError, ValueError):
+    except (FileNotFoundError, ValueError):
         return {}
+    except OSError:
+        return None
     return {k: v for k, v in saved.items() if isinstance(v, dict) and isinstance(v.get("styles"), list)} if isinstance(saved, dict) else {}
 
 
 def _save(paths, saved):
+    """True once it's saved whole."""
     path = webapp.styles_path(paths)
-    with open(path + ".tmp", "w", encoding="utf-8", errors="replace") as f:
-        json.dump(saved, f, ensure_ascii=False, indent=1)
-    os.replace(path + ".tmp", path)
+    try:
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        saving.write(path, lambda f: json.dump(saved, f, ensure_ascii=False, indent=1), encoding="utf-8", errors="replace")
+    except OSError:
+        return False
+    return True
 
 
 def entry(data):
@@ -59,6 +66,8 @@ def fill(paths, records, progress=None, stopping=None):
     discogs.CACHE_DIR = os.path.join(paths["cache"], "discogs")
     os.makedirs(discogs.CACHE_DIR, exist_ok=True)
     saved, todo, fails, looked, stopped, said = known(paths), sorted(records), 0, 0, False, ""
+    if saved is None:
+        return dict(looked=0, stopped=False, said="The list of extra genres couldn't be opened just now, so none were fetched. Press Curate to carry on later.")
     for n, record in enumerate(todo):
         if stopping and stopping.is_set():
             stopped = True
@@ -83,7 +92,8 @@ def fill(paths, records, progress=None, stopping=None):
             break
         if (n + 1) % SAVE_EVERY == 0:
             _save(paths, saved)
-    _save(paths, saved)
+    if not _save(paths, saved):
+        said = said or "The extra genres that were fetched couldn't be saved. Press Curate to fetch them again later."
     return dict(looked=looked, stopped=stopped, said=said)
 
 

@@ -218,6 +218,8 @@ def compare_audio(dest, audio_src, payload):
     confined to the last packet is accepted when the audio really ends in such a scrap. The bytes
     themselves are written unchanged either way."""
     a, b = audio_packets(audio_src), audio_packets(dest)
+    if not a or not b:  # ffmpeg read nothing from one of them: it was stopped, or couldn't read the file. Two nothings are equal, and prove nothing
+        return False, "the audio couldn't be read back to check it against the source"
     if a == b:
         return True, ""
     same = next((i for i, (x, y) in enumerate(zip(a, b)) if x != y), min(len(a), len(b)))

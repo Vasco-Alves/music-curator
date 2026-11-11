@@ -132,6 +132,11 @@ class EndToEnd(Base):
         found = next(s for s in collection.songs.values() if s["title"] == title)
         return found, [c for c in found["checks"] if c["kind"] == "playlist"]
 
+    def test_ideas_that_cannot_be_saved_are_said_in_a_sentence(self):
+        with mock.patch.object(suggest.saving, "write", side_effect=PermissionError(13, "Access is denied")), self.assertRaises(SystemExit) as stopped:
+            self.suggest()
+        self.assertIn("The playlist ideas couldn't be saved just now (Access is denied)", str(stopped.exception))
+
     def test_ideas_reach_the_page_without_touching_any_music(self):
         before = self.tree()
         code, out = self.suggest()
@@ -205,6 +210,25 @@ class EndToEnd(Base):
         self.assertIn("taken off your list: Dj - Fits", out)
         self.assertEqual(self.saved(), {})
         self.assertEqual(self.checks(self.page(), "Fits")[1], [])
+
+    def test_another_version_in_the_playlist_is_not_the_song_arriving(self):
+        self.suggest()
+        page = self.page()
+        found, _ = self.checks(page, "Fits")
+        self.assertIsNone(page.decide(dict(id=found["id"], kind="playlist", action="add", note="Elsewhere")))
+        self.write_playlists(self.INSIDE, other=["Dj - Fits (Somebody Remix)"])
+        code, out = self.suggest()
+        self.assertNotIn("taken off your list", out)
+        self.assertIn(f"playlist:{found['key']}", self.saved(), "the remix being there doesn't mean you dragged this one in")
+        self.write_playlists(self.INSIDE, other=["Dj - Fits (Somebody Remix)", "Dj - Fits"])
+        code, out = self.suggest()
+        self.assertIn("taken off your list: Dj - Fits", out)
+        self.assertEqual(self.saved(), {})
+
+    def test_the_full_names_in_a_playlist_file(self):
+        with open(self.snapshot, "w", encoding="utf-8") as f:
+            json.dump([dict(name="Mix", tracks=[dict(name="One (Barn Mix)", artists=["A", "B"]), dict(name="Two - Dub", artists=["C"]), dict(name=5, artists="nope"), "junk", dict(name="Отпусти меня", artists=["SEREBRO"])])], f)
+        self.assertEqual(suggest.read_names(self.snapshot), {"Mix": {("ab", "onebarnmix"), ("c", "twodub"), ("serebro", "отпустименя")}})
 
     def test_a_song_can_go_to_several_playlists(self):
         self.write_playlists(self.INSIDE, other=["In - Zero"])

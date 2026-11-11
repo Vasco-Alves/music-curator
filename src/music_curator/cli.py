@@ -184,14 +184,15 @@ def main(argv=None):
     if args.cmd == "verified":
         from . import curate
         _need("library"), _need("log")
-        return curate.mark_verified(args.songs, args.how)
+        return _in_turn(lambda: curate.mark_verified(args.songs, args.how))
     if args.cmd == "maybe-better":
         from . import curate
         _need("library"), _need("log")
         return curate.leave_better_link(args.song, args.url, args.why, args.checked)
     if args.cmd == "write":
         from . import tagwriter
-        return tagwriter.main([args.plan, _need("library"), _need("log")] + (["--dry-run"] if args.dry_run else []))
+        library, log = _need("library"), _need("log")
+        return _in_turn(lambda: tagwriter.main([args.plan, library, log] + (["--dry-run"] if args.dry_run else [])), args.dry_run)
     if args.cmd == "serve":
         from . import webapp
         return webapp.serve(args.port, not args.no_browser, args.lan)
@@ -201,7 +202,7 @@ def main(argv=None):
     if args.cmd == "apply":
         from . import apply as applier
         _need("library"), _need("log")
-        return applier.main(args.dry_run, args.set_aside)
+        return _in_turn(lambda: applier.main(args.dry_run, args.set_aside), args.dry_run)
     if args.cmd == "genres":
         from . import genres
         _need("library"), _need("log")
@@ -216,6 +217,29 @@ def main(argv=None):
     if args.cmd == "vgmdb":
         from . import vgmdb
         return vgmdb.main(args.rest)
+
+
+WAIT_FOR_TURN_S = 2  # how long a command waits for something that is writing to the log. Another command adding a row is done well within it; Curate is not
+
+
+def _in_turn(run, dry_run=False):
+    """Run something that writes to the log or the library while nothing else does: Curate, in the app or in another window, takes the same turn.
+    Two writers at once lose each other's rows. A dry run changes nothing, so it doesn't wait for one."""
+    if dry_run:
+        return run()
+    from . import curate
+    try:
+        turn = curate._OneAtATime(os.path.join(os.path.dirname(config.path("log")), "curate.lock"), wait=WAIT_FOR_TURN_S,
+                                  said="Something else is writing to the log just now: Curate in the app, or another curator command. Run this again when it has finished.")
+        turn.__enter__()
+    except curate.Stop as ex:
+        sys.exit(str(ex))
+    except OSError:  # the log's folder isn't there yet, so nothing else can be writing in it
+        return run()
+    try:
+        return run()
+    finally:
+        turn.__exit__()
 
 
 def pressling(argv=None):

@@ -13,6 +13,7 @@ import unicodedata
 
 from . import config, tagwriter
 from . import discogs as d
+from .keys import norm, words
 
 PARENTS = {
     "Trance": {"Hard Trance", "Goa Trance", "Psy-Trance", "Progressive Trance", "Tech Trance"},
@@ -25,14 +26,8 @@ PARENTS = {
 ORIGINAL_WORDS = {"original", "originalmix", "originalversion", "original12", "originalclubmix", "mainmix"}
 
 
-def norm(s):
-    s = unicodedata.normalize("NFKD", s or "")
-    s = "".join(c for c in s if not unicodedata.combining(c))
-    return re.sub(r"[^a-z0-9]", "", s.lower())
-
-
 def plain(s):
-    """Like norm, but letters of any script count: 東京 and 大阪 are not the same title."""
+    """Like norm, but every letter counts, the Latin ones that norm leaves out too: "Mø" is mø here."""
     s = unicodedata.normalize("NFKD", s or "")
     return re.sub(r"[\W_]", "", "".join(c for c in s if not unicodedata.combining(c)).lower())
 
@@ -41,18 +36,33 @@ def _no_notes(s):
     return re.sub(r"\s*[\(\[][^\)\]]*[\)\]]", "", s or "")
 
 
+def _either_way(title):
+    """A title, and each half of one Discogs gives in two alphabets: "Cyclick = サイクリック". "Love = Pain" is one title, and so is "Cry ツ = Smile":
+    one half has to be in Latin letters and the other to have none, whatever notes come after them."""
+    halves = (title or "").split(" = ")
+    if len(halves) > 1:  # (it can be given in three: "Song = 歌 = Песня")
+        keys = [norm(_no_notes(h)) for h in halves]
+        latin, others = [k for k in keys if k.isascii()], [k for k in keys if not k.isascii()]
+        if len(latin) == 1 and latin[0] and others and not any("a" <= c <= "z" for k in others for c in k):
+            return [title, *halves]
+    return [title]
+
+
+def _untitled(title):
+    """Is this the name of a track with no name? Discogs may give the word in two alphabets too: "Untitled = 無題"."""
+    return norm(one_script(title or "", all_latin_too=False)) == "untitled"
+
+
 def same_title(track_title, searched):
-    """Is this track the song searched for, whatever its mix? A title with no Latin letters has to match in its own script."""
+    """Is this track the song searched for, whatever its mix? 東京 and 大阪 are not the same title."""
     want = d.base_title(searched)
     if want:
-        return d.base_title(track_title) == want or want == norm(track_title)
+        return any(d.base_title(t) == want or want == norm(t) for t in _either_way(track_title))
     return bool(plain(_no_notes(searched))) and plain(_no_notes(track_title)) == plain(_no_notes(searched))
 
 
 def tokens(s):
-    s = unicodedata.normalize("NFKD", s or "")
-    s = "".join(c for c in s if not unicodedata.combining(c)).lower()
-    return {t for t in re.findall(r"[a-z0-9]+", s) if len(t) > 1 and t not in {"dj", "the", "and", "feat", "vs", "mc"}}
+    return {t for t in words(s) if (len(t) > 1 or not t.isascii()) and t not in {"dj", "the", "and", "feat", "vs", "mc"}}  # one letter says nothing, but 花 is a whole name
 
 
 def secs(dur):
@@ -68,6 +78,8 @@ def artist_ok(parsed, discogs_text):
     a, b = norm(parsed), norm(discogs_text)
     if not a or not b:
         return False
+    if b == "various":  # nobody in particular: that "Io" or "Ari" is inside the word says nothing about whose track it is
+        return a == b
     if a in b or b in a:
         return True
     ta, tb = tokens(parsed), tokens(discogs_text)
@@ -93,9 +105,10 @@ def credit(arts):
 
 
 def unify_joiners(artist):
-    """'A And B', 'A + B', 'A vs. B', 'A feat. B' and 'A x B' (one Discogs name for a duo) use the configured joiner too."""
+    """'A And B', 'A + B', 'A vs. B', 'A feat. B' and 'A x B' (one Discogs name for a duo) use the configured joiner too.
+    Only a small x joins two names: the big one in "Mr. X & Mr. Y" or "Planet X Crew" is part of a name."""
     if config.rule("and_to_joiner"):
-        artist = re.sub(r"\s+(?:And|\+|(?i:vs\.?|versus|feat\.?|ft\.?|featuring|x))\s+", config.rule("artist_joiner"), artist or "")
+        artist = re.sub(r"\s+(?:And|\+|x|(?i:vs\.?|versus|feat\.?|ft\.?|featuring))\s+", config.rule("artist_joiner"), artist or "")
     return artist
 
 
@@ -106,12 +119,11 @@ def paren(title):
 
 def _at_word_start(squashed, text):
     """Is this in the text once spaces are gone, starting where one of its words starts? "bmix" is inside "clubmix", but "B Mix" isn't "Club Mix"."""
-    text = "".join(c for c in unicodedata.normalize("NFKD", text or "") if not unicodedata.combining(c)).lower()
-    words, at, starts = re.findall(r"[a-z0-9]+", text), 0, []
-    for word in words:
+    said, at, starts = words(text), 0, []
+    for word in said:
         starts.append(at)
         at += len(word)
-    joined = "".join(words)
+    joined = "".join(said)
     return any(joined.startswith(squashed, start) for start in starts)
 
 
@@ -121,11 +133,13 @@ def mix_matches(mix, discogs_title):
     p, m = norm(text), norm(mix)
     if not m:
         return False
+    if not (m.isascii() and p.isascii()):  # the loose ways of matching below only know Latin letters and words. In another alphabet a mix has to be called the same
+        return m == p
     if m in ORIGINAL_WORDS and (p == "" or "original" in p):
         return True
     for w in ("remix", "mix", "version", "edit", "the"):
         m2 = m.replace(w, "")
-        if len(m2) >= 3 and _at_word_start(m2, text):  # one or two letters left over would match almost anything
+        if len(m2) >= 3 and not m2.isdigit() and _at_word_start(m2, text):  # one or two letters left over would match almost anything, and so would a number by itself: "303 Mix" is not "303 Dub"
             return True
     generic = {"remix", "mix", "edit", "version", "dub", "vocal", "instrumental", "radioedit", "rmx"}
     return _at_word_start(m, text) or bool(p and p not in generic and _at_word_start(p, mix))
@@ -135,7 +149,7 @@ def album_for(rel):
     descs = [x for f in rel["formats"] for x in (f.get("desc") or [])]
     real = [t for t in rel["tracklist"] if (t.get("type") in (None, "track"))]
     # untitled sides are different tracks, not mixes of one song
-    distinct = {d.base_title(t["title"]) + (t.get("pos") or "" if norm(t["title"]) == "untitled" else "") for t in real}
+    distinct = {d.base_title(t["title"]) + (t.get("pos") or "" if _untitled(t["title"]) else "") for t in real}
     if any(x in descs for x in ("Single", "Maxi-Single")):
         album, why = "", "Discogs says single"
     elif any(x in descs for x in ("EP", "Album", "LP", "Mini-Album", "Compilation")):
@@ -146,7 +160,7 @@ def album_for(rel):
         album, why = rel["title"], f"{len(real)} tracks, so EP"
     if not album and config.rule("album_for_singles") and "single" in why:
         album, why = rel["title"], why + " (album_for_singles is on)"
-    if norm(album) == "untitled":
+    if _untitled(album):
         album, why = "", "record is untitled"
     parts = [d.base_title(p) for p in album.split(" / ")] if " / " in album else []
     if parts and all(p in distinct for p in parts):
@@ -325,7 +339,7 @@ def resolve(it, history, library_keys):
             track, how = mm[0], "mix name matches"
         elif not mm:
             mix_conflict = True
-    if not track and norm(versions[0]["title"]) == "untitled" and len(versions) > 1:
+    if not track and _untitled(versions[0]["title"]) and len(versions) > 1:
         side = [t for t in versions if (t.get("pos") or "").upper() == (it.get("pos_hint") or "").upper()]
         if len(side) == 1:
             track, how = side[0], f"untitled track, side {side[0]['pos']} as in your filename"

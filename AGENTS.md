@@ -100,10 +100,14 @@ it found in `curated.json` next to the log. That's a first pass. These steps are
 
 1. **Parse** — `curator parse items.json` reads the inbox folders (filenames + existing tags) and prints one
    line per file. Only MP3, FLAC and M4A can be curated: it names any other audio it skipped, so tell the person. Fix bad parses by editing `items.json` (fields: `artist`, `title`, `search_artist`,
-   `search_title`, `mix`, `pos_hint`, `year_hint`, `cat`). Typical fixes: reversed "Title - Artist", labels or
+   `search_title`, `mix`, `pos_hint`, `year_hint`, `alt_title`, `cat`). Typical fixes: reversed "Title - Artist", labels or
    uploader names glued to the end, vinyl side codes ("B2 Untitled" → title `Untitled`, `pos_hint` `B2`),
    placeholder artists ("Trance - …", "Nightcore - …"). Categories: `candidate`, `mix`, `ost`, `nonmusic`,
    `nightcore`, `done`. Files over 15 minutes are marked `mix` — check them, some are long tracks.
+   A year at the very end of a name stays in the title when it follows the title's own words ("Greece 2000" is called that),
+   and `alt_title` then holds the title without it ("Analog Mind 1995" is only from 1995). `curator curate` tries `alt_title`
+   by itself when the whole title finds nothing, and only lets the song in when the record is from that year; `curator resolve`
+   doesn't, so when that's the reading you want, put it in `title` and `search_title` yourself.
 2. **Resolve** — `curator resolve items.json out.json` matches every candidate on Discogs and decides tags:
    artist as credited (one joiner), title exactly as listed (mix name included), album per the album rule,
    year = earliest pressing, genre = Discogs *style* by votes across pressings (a specific style beats its
@@ -208,7 +212,8 @@ Every style Discogs lists for a record is in `styles.json` next to the log, per 
 - `pick`: the person chose a version from the ones in `curated.json` (the note is its id). `curator curate` writes it; run that, or write the same version yourself.
 - `add`: the person wants this song in the playlists the note names, one per line (from `curator suggest`). `apply` lists these. Spotify doesn't let apps
   add local files, so they drag those in and click Added on the page's Playlists tab (`added` needs nothing from you); running `suggest` again
-  with a newer playlist snapshot clears the ones that have arrived.
+  with a newer playlist snapshot clears the ones that have arrived. Arrived means the playlist has the song under its own artist and name, mix and all:
+  another version of it in the playlist doesn't count, here or in Check Spotify.
 - `recheck`, `better`, `cover`, `flag`: follow the note, and ask before deleting anything. `apply` lists these and leaves them to you. A `better` answer whose note is a link means they want that copy: see **Better copies**.
 
 Remove an entry you handled yourself (other than `keep`) once it's done; `apply` removes its own. Edit `decisions.json` with a

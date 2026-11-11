@@ -1110,14 +1110,13 @@ function doubleLines(s, c, inPanel) { // what to look at before saying it's righ
       el("span", { class: "pos" }, v.pos || "·"), el("span", { class: "name" }, v.title), el("span", { class: "len" }, versionNote(v) || "no length"), v.this ? el("em", {}, "this one") : null))) : null,
     c.closer && c.closer.length ? el("div", { class: "double-closer" }, c.closer.map((w) => el("span", { class: "closer" }, icon("warn", 13), w))) : el("div", { class: "item-also double-calm" }, icon("tick", 13), "Nothing stood out to Curate."));
 }
-const alreadyIn = (c) => (c.also && c.also.length ? el("div", { class: "item-also" }, `Already in ${c.also.join(", ")}`) : null);
+const alreadyIn = (c) => (c.also && c.also.length ? el("div", { class: "item-also" }, `Already in ${c.also.join(", ")} (this version or another)`) : null); // the ideas go by who and what, so a remix counts where the original is
 const spotifyLine = (c) => (c.kind === "spotify" && c.link ? el("div", { class: "item-also" }, el("a", { href: c.link, target: "_blank", rel: "noreferrer noopener" }, "Open it on Spotify"), " to compare") : null);
 const betterLine = (c) => (c.kind === "better" && c.link ? el("div", { class: "item-also better-open" }, el("a", { class: "btn small", href: c.link, target: "_blank", rel: "noreferrer noopener" }, icon("link", 14), "Open it to compare"), el("span", {}, c.checked ? "Checked: it's the same recording as yours" : "A guess: nobody has compared it with your file")) : null);
 function playlistForm(names, chosen, already, label, save, cancel) {
   const search = el("input", { type: "search", placeholder: "Find a playlist", "aria-label": "Find a playlist" }), list = el("div", { class: "pick-list" });
-  const paintList = () => list.replaceChildren(...names.filter((n) => fold(n).includes(fold(search.value))).map((n) => (already.has(n)
-    ? el("label", { class: "pick off" }, el("input", { type: "checkbox", checked: true, disabled: true }), n, el("em", {}, "already in"))
-    : el("label", { class: "pick" }, el("input", { type: "checkbox", checked: chosen.has(n), onchange: (e) => { if (e.target.checked) chosen.add(n); else chosen.delete(n); } }), n))));
+  const paintList = () => list.replaceChildren(...names.filter((n) => fold(n).includes(fold(search.value))).map((n) => el("label", { class: "pick" }, // one it may already be in can still be chosen: what's there could be another version, and only you can tell
+    el("input", { type: "checkbox", checked: chosen.has(n), onchange: (e) => { if (e.target.checked) chosen.add(n); else chosen.delete(n); } }), n, already.has(n) ? el("em", { title: "This song, or another version of it, is already in this playlist" }, "may be in it") : null)));
   search.addEventListener("input", paintList);
   paintList();
   return { search, form: el("div", { class: "pick-form" }, search, list, el("div", { class: "actions" },
@@ -1377,9 +1376,12 @@ function addRow(s, name, paintCounts) {
       : [el("button", { class: "chip", type: "button", onclick: async (e) => { e.stopPropagation(); if (await markAdded(s, name, true)) { paint(true); paintCounts(name, -1); } } }, "Added")]));
   };
   paint(false);
+  const there = ((S.meta.spotify || {}).other_versions || []).find((h) => h.file === s.key && h.playlist === name); // what the last Check Spotify found in the playlist that may be this song in another version
+  const seen = !there ? null : there.secs ? `${name} has it at ${clock(there.secs)}, and your file is ${clock(s.secs)}: that may be another cut.` : `${name} has "${there.name}", which may be another version of it.`;
   return el("div", { class: "row has-play", dataset: { song: s.id }, onclick: () => openDrawer(s.id) },
     coverEl(s, () => playQueue([s.id], 0, "To add")),
-    el("div", { class: "grow" }, el("div", { class: "now", title: s.file }, songName(s) || s.file), el("div", { class: "was" }, [S.meta.library, s.folder].filter(Boolean).join(" / "))),
+    el("div", { class: "grow" }, el("div", { class: "now", title: s.file }, songName(s) || s.file), el("div", { class: "was" }, [S.meta.library, s.folder].filter(Boolean).join(" / ")),
+      seen ? el("div", { class: "item-also" }, `${seen} If that's the one you meant, press Added.`) : null),
     action);
 }
 async function markTakenOut(s, name, out) { // the other way from Added: taken out, it's off the to-do; Undo puts it back on

@@ -38,7 +38,7 @@ def main(argv=None):
       for rid, r in list(found.items())[:18]:
           rel = d.get(f"/releases/{rid}") or {}
           for t in rel.get("tracklist", []):
-              if d.base_title(t.get("title")) != want:
+              if not rv.same_title(t.get("title") or "", it["title"]) if want else d.base_title(t.get("title")):  # a title Discogs gives in two alphabets matches by either half
                   continue
               arts = rv.credit(rv.d.cond_artists(t.get("artists"))) if t.get("artists") else rv.credit(d.cond_artists(rel.get("artists")))
               if it.get("artists") and not any(rv.artist_ok(a, arts) for a in it["artists"]):

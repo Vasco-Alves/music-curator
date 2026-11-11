@@ -19,10 +19,11 @@ import shutil
 import subprocess
 import sys
 import threading
+import time
 import urllib.error
 import urllib.parse
 
-from . import apply, config, discogs, folders, fpcompare, genres, parse, resolve, tagwriter, videos, webapp
+from . import apply, config, discogs, folders, fpcompare, genres, parse, resolve, saving, tagwriter, videos, webapp
 
 MAX_GAP_S = 20  # how far a file's length may be from the record's. Past it the file may be another edit (on a real library, the first wrong match came at 55 s)
 DECODE_TIMEOUT_S = 120  # a song takes about a second to play through
@@ -75,23 +76,28 @@ def _no_token_in(text):
 class _OneAtATime:
     """Only one run per library, even from a second window or the command line. The system lets go of this when the process ends, however it ends."""
 
-    def __init__(self, path):
-        self.path, self.file = path, None
+    def __init__(self, path, wait=0, said=None):
+        """wait: how many seconds to keep trying, for something that only needs the turn for a moment. said: what to say when it can't be had."""
+        self.path, self.file, self.wait, self.said = path, None, wait, said
 
     def __enter__(self):
         self.file = open(self.path, "a+b")
-        try:
-            self.file.seek(0)
-            if os.name == "nt":
-                import msvcrt
-                msvcrt.locking(self.file.fileno(), msvcrt.LK_NBLCK, 1)
-            else:
-                import fcntl
-                fcntl.flock(self.file, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError as ex:
-            self.file.close()
-            raise Stop("Curate is already running on this library, in another window or command. Wait for it to finish.") from ex
-        return self
+        until = time.monotonic() + self.wait
+        while True:
+            try:
+                self.file.seek(0)
+                if os.name == "nt":
+                    import msvcrt
+                    msvcrt.locking(self.file.fileno(), msvcrt.LK_NBLCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(self.file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                return self
+            except OSError as ex:
+                if time.monotonic() >= until:
+                    self.file.close()
+                    raise Stop(self.said or "Curate is already running on this library, in another window or command. Wait for it to finish.") from ex
+                time.sleep(.05)
 
     def __exit__(self, *_):
         self.file.close()
@@ -100,8 +106,10 @@ class _OneAtATime:
 # ---------------- is the evidence enough? ----------------
 
 def name_notes(title):
-    """What a file's title says in brackets, other than who's featured or a browser's copy number: "(Slowed)", "[Acid Mix]"."""
-    notes = (n.strip() for n in re.findall(r"[(\[]([^()\[\]]*)[)\]]", title or ""))
+    """What a file's title says in brackets, other than who's featured or a browser's copy number: "(Slowed)", "[Acid Mix]".
+    A note with a dash in it says two things, and each has to be true: "(Future Breeze Mix - Edit)" is that mix, and an edit of it."""
+    notes = [n.strip() for n in re.findall(r"[(\[]([^()\[\]]*)[)\]]", title or "")]
+    notes += [piece.strip() for n in notes if " - " in n for piece in n.split(" - ")]
     return [n for n in notes if n and not n.isdigit() and not re.match(r"(?:feat|ft|featuring)\b", n, re.I)]
 
 
@@ -136,6 +144,7 @@ def same_artist(named, credited):
     """Is the artist on the record the one the file names? One credited name has to match whole: "Eve" isn't "Steven Wilson", "John Smith" isn't "John Williams"."""
     if resolve.plain(named) and resolve.plain(named) == resolve.plain(credited):
         return True
+    named, credited = (resolve._no_notes(name).strip() or name for name in (named or "", credited or ""))  # "BTS (방탄소년단)" is BTS: what's in brackets after a name says it again another way, or where they're from
     mine, theirs = _credited(named), _credited(credited)
     return bool(mine and theirs) and (any(name in theirs for name in mine) or set().union(*mine) == set().union(*theirs))
 
@@ -149,6 +158,12 @@ def _reasons(found):
     return "; ".join(said)
 
 
+def _year_in(value):
+    """The year in something that may be a number, a date or nothing."""
+    m = re.match(r"\s*((?:19|20)\d\d)(?!\d)", str(value or ""))
+    return int(m[1]) if m else None
+
+
 def judge(item, found):
     """Why this song shouldn't go in with nobody double-checking, in words for the person. "" means the evidence is enough."""
     if found["status"] != "ready":
@@ -156,8 +171,14 @@ def judge(item, found):
     how, gap, title = found.get("how") or "", found.get("dur_diff"), found.get("title") or ""
     if not same_artist(item.get("artist"), found.get("artist")):
         return f'The closest record is by {found.get("artist")}, not the artist your file names.'
+    if item.get("year_left_out") and abs(int(found.get("year") or 0) - item["year_left_out"]) > 1:  # found only without the year at the end of its name: "Stella 1999" as the "Stella" of 1992
+        return f'Your file\'s name ends in {item["year_left_out"]} and the record is from {found.get("year")}, so it could be a later version of the song.'
+    noted, pressed = _year_in(item.get("year_hint")), _year_in(found.get("year"))
+    if noted and pressed and abs(noted - pressed) > 1:  # a year written as a note names a version too: "(Remix 2000)", "(Hardtrance) 1999". In a real library every one of sixty such names was within a year of the record that was right
+        return f"Your file's name says {noted} and the record is from {pressed}, so it could be another version of the song."
     if "file says" in how:
-        return f'Your file says "{item.get("mix")}", and the record doesn\'t list that. By length it\'s closest to "{title}".'
+        what = f'Your file says "{item["mix"]}", and the record doesn\'t list that.' if item.get("mix") else "The record has several untitled tracks, and your file doesn't say which side it is."
+        return f'{what} By length it\'s closest to "{title}".'
     if how.startswith("length matches") and any(o.get("gap") is None for o in found.get("options") or []):
         return "The record lists several versions and not all of them have a length, so the length can't settle which this is."
     if gap is not None and abs(gap) > MAX_GAP_S:
@@ -219,20 +240,31 @@ def _heard(entry):
 def with_names(item, artist, title):
     """The same song under another reading of its name."""
     info = parse.parse(f"{artist} - {title}", {})
-    return dict(item, **{k: info[k] for k in ("artist", "title", "search_artist", "search_title", "mix", "extra")})
+    return dict(item, **{k: info[k] for k in ("artist", "title", "search_artist", "search_title", "mix", "extra", "alt_title")})
+
+
+def _without_year(reading, noted):
+    """The same reading with the year left off the end of its title, or None if it has no year there that may only say when the song is from: "Analog Mind 1995"."""
+    year = re.search(r"\d{4}$", reading.get("title") or "")
+    if not reading.get("alt_title") or not year:
+        return None
+    return dict(with_names(reading, reading.get("artist") or "", reading["alt_title"]), noted=noted, year_left_out=int(year[0]))
 
 
 def other_readings(item):
-    """Other ways to read a name that found nothing: the file's own tags, then the name the other way round. What the file's name notes still counts."""
-    noted, readings = [*name_notes(item.get("title")), *(item.get("extra") or [])], []
+    """Other ways to read a name that found nothing, in the order they're tried: without the year at its end, then the file's own tags (and those without a year at
+    the end), then the name the other way round. One with no artist comes last: a bare title matches anything of that name. What the file's name notes still counts."""
+    noted = [*name_notes(item.get("title")), *(item.get("extra") or [])]
+    readings = [_without_year(item, noted)]
     if item.get("tag_artist") and item.get("tag_title"):
-        readings.append(dict(with_names(item, item["tag_artist"], item["tag_title"]), noted=noted))
-    if item.get("artist") and item.get("title"):
+        tagged = dict(with_names(item, item["tag_artist"], item["tag_title"]), noted=noted)
+        readings += [tagged, _without_year(tagged, noted)]
+    if item.get("artist") and item.get("search_title"):  # a title with no words of its own, "(A1)", has nothing to turn round
         readings.append(dict(with_names(item, item["title"], item["artist"]), noted=[]))  # its notes moved with the words
     tried, found = {(resolve.plain(item.get("search_artist")), resolve.plain(item.get("search_title")))}, []
-    for reading in readings:
+    for reading in sorted((r for r in readings if r), key=lambda r: not resolve.plain(r["search_artist"])):
         names = (resolve.plain(reading["search_artist"]), resolve.plain(reading["search_title"]))
-        if names not in tried and all(names):
+        if names not in tried and names[1] and (names[0] or reading.get("year_left_out")):  # only the name without its year may be a title with no artist, like the name itself
             tried.add(names)
             found.append(reading)
     return found
@@ -261,9 +293,7 @@ def fetch_cover(url, folder):
         data = discogs._request(url, binary=True)
         if not data or data[:3] != b"\xff\xd8\xff":
             return ""
-        with open(path + ".tmp", "wb") as f:
-            f.write(data)
-        os.replace(path + ".tmp", path)
+        saving.write(path, lambda f: f.write(data), "wb")
     except Exception:  # noqa: BLE001  a song is never held up by its cover
         return ""
     return path
@@ -319,30 +349,47 @@ class Run:
             return {}
         except OSError as ex:  # there, but not readable just now: carrying on would end with an empty list written over what you said about these songs
             raise Stop(f"The list of waiting songs ({os.path.basename(path)}) can't be read just now ({ex.strerror or ex}), so Curate stopped before looking anything up.") from ex
-        except (ValueError, KeyError, TypeError, AttributeError):  # damaged: there is nothing in it to keep
+        except (ValueError, KeyError, TypeError, AttributeError):  # damaged: nothing in it can be used. It's kept beside the new one in case what you'd typed for a song can be read out of it by hand
+            if self.dry:  # a preview changes nothing, this file included
+                return {}
+            kept = f"{path}.{datetime.datetime.now():%Y-%m-%d %H-%M-%S}.unreadable"  # a name of its own, so a second damaged one can't take the place of the first
+            try:
+                os.replace(path, kept)
+                self.also(f"The list of waiting songs couldn't be made sense of, so it starts again. The old one is kept as {os.path.basename(kept)}.")
+            except OSError:
+                self.also("The list of waiting songs couldn't be made sense of, so it starts again.")
             return {}
 
+    def also(self, words):
+        """Something worth telling at the end of the run, on the page as well as in a terminal."""
+        self.said = " ".join(x for x in (self.said, words) if x)
+
     def _save_waiting(self):
+        """True once the list is saved whole, or when there's nothing to save."""
         if self.dry or not self.loaded:  # a run that couldn't read your downloads has nothing to say about them
-            return
+            return True
         path = webapp.curated_path(self.paths)
         try:
-            with open(path + ".tmp", "w", encoding="utf-8", errors="replace") as f:
-                json.dump(dict(when=datetime.datetime.now().isoformat(timespec="seconds"), songs=self.songs), f, ensure_ascii=False, indent=1)
-            os.replace(path + ".tmp", path)
+            saving.write(path, lambda f: json.dump(dict(when=datetime.datetime.now().isoformat(timespec="seconds"), songs=self.songs), f, ensure_ascii=False, indent=1), encoding="utf-8", errors="replace")
         except OSError as ex:
             self.say(f"Couldn't save the list of waiting songs ({ex.strerror or ex}). The next run makes it again.")
+            return False
+        return True
 
     def _take_off_list(self, key, answer):
         """Remove an answer that was carried out, if it's still the same one: the page may have saved a new one meanwhile."""
         path = self.paths["decisions"]
-        with open(path, encoding="utf-8-sig") as f:
-            answers = json.load(f)
-        if answers.get(key) == answer:
-            del answers[key]
-        with open(path + ".curate.tmp", "w", encoding="utf-8", errors="replace") as f:
-            json.dump(answers, f, ensure_ascii=False, indent=1)
-        os.replace(path + ".curate.tmp", path)
+        for last_try in (False, False, True):  # read, change, save. If the page saved an answer in between, it's done again on the newer file
+            was = saving.stamp(path)
+            with open(path, encoding="utf-8-sig") as f:
+                answers = json.load(f)
+            if answers.get(key) == answer:
+                del answers[key]
+            try:
+                return saving.write(path, lambda f: json.dump(answers, f, ensure_ascii=False, indent=1), read_as=was, encoding="utf-8", errors="replace")
+            except saving.Changed:
+                if last_try:
+                    raise
 
     def _retire(self, key, answer):
         if self.dry:
@@ -460,6 +507,8 @@ class Run:
             if not names:  # "anything that helps" is for a person or an agent to read
                 return
             if self._judged(key, with_names(item, *names), " - ".join(names)):
+                if (self.songs.get(key) or {}).get("said") and not self._save_waiting():  # it waits with what you typed. That's saved before the answer that carried it is taken off the list, or closing the app now would lose it
+                    return
                 self._retire(answer_key, answer)
             return
         remembered = said_names((self.songs.get(key) or {}).get("said"))
@@ -586,7 +635,8 @@ class Run:
             self.progress(step="Finishing", done=len(todo), total=len(todo), name="")
         finally:
             self.writer.close()
-            self._save_waiting()
+            if not self._save_waiting():
+                self.also("The list of waiting songs couldn't be saved, so some songs on To check may show no reason. Press Curate again.")
         return self.summary()
 
 
@@ -721,9 +771,7 @@ def leave_better_link(name, url, why, checked):
             raise ValueError("it isn't a list of links")
         links[song["key"]] = dict(url=url, why=why, checked=bool(checked), secs=song["secs"], when=datetime.datetime.now().isoformat(timespec="seconds"))
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        with open(path + ".tmp", "w", encoding="utf-8") as f:
-            json.dump(links, f, ensure_ascii=False, indent=1)
-        os.replace(path + ".tmp", path)
+        saving.write(path, lambda f: json.dump(links, f, ensure_ascii=False, indent=1), encoding="utf-8", errors="replace")
     except (OSError, ValueError) as ex:
         print(f"{path} couldn't be updated, so nothing was saved: {ex}")
         return 1

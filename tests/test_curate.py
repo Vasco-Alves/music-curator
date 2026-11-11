@@ -4,15 +4,14 @@
 """
 import email.message
 import http.client
+import contextlib
 import io
 import json
 import os
-import re
 import sys
 import tempfile
 import threading
 import time
-import unicodedata
 import unittest
 import urllib.error
 from unittest import mock
@@ -26,9 +25,7 @@ KEY = "inbox/Downloads/{}.mp3"
 LENGTH = "0:05"  # the test files run about 5.2 seconds
 
 
-def norm(s):
-    s = unicodedata.normalize("NFKD", s or "")
-    return re.sub(r"[^a-z0-9]", "", "".join(c for c in s if not unicodedata.combining(c)).lower())
+norm = resolve.norm  # the stand-in finds a record the way the app compares names: the letters count, in any alphabet
 
 
 class FakeDiscogs:
@@ -1518,6 +1515,42 @@ class FromThePage(WithDiscogs):
         waiting = next(s for s in everything["songs"] if s["area"] == "inbox")["checks"][0]
         self.assertIn("wasn't right: it's the dub", waiting["why"])
         self.assertEqual([o["title"] for o in waiting["options"]], ["Song"])
+
+
+class LooksRightOnAnOldPage(WithDiscogs):
+    """The log may have another row for the song since the page read it. Looks right reads it again, with its turn at the log held, before it adds its own."""
+
+    def setUp(self):
+        super().setUp()
+        self.file("A - Song")
+        self.fake.add("A", "The Record", [("A1", "Song", LENGTH)])
+        self.run_it()
+        self.page = webapp.Collection(self.paths)
+        self.page.refresh()
+        self.sid = next(s["id"] for s in self.page.songs.values() if s["file"] == "A - Song.mp3" and s["area"] == "library")
+
+    def verified_on_the_command_line(self):
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            curate.mark_verified(["A - Song.mp3"], "fingerprint matches the video")
+        self.assertIn("A - Song.mp3: verified", out.getvalue())
+
+    def test_the_command_line_verified_the_song_after_the_page_was_loaded(self):
+        self.verified_on_the_command_line()
+        rows = len(self.log_rows())
+        answer = self.page.checked(self.sid)
+        self.assertIn("isn't Auto-matched any more", answer.get("error", ""), answer)
+        self.assertEqual(len(self.log_rows()), rows, "a second row would say the page checked what the command line had checked")
+
+    def test_the_command_line_verified_it_while_looks_right_waited_for_its_turn(self):
+        enter = curate._OneAtATime.__enter__
+
+        def after_the_other_writer(lock):  # the other program had the turn, wrote its row and let go; only then does the page get in
+            self.verified_on_the_command_line()
+            return enter(lock)
+        with mock.patch.object(curate._OneAtATime, "__enter__", after_the_other_writer):
+            answer = self.page.checked(self.sid)
+        self.assertIn("isn't Auto-matched any more", answer.get("error", ""), answer)
+        self.assertEqual(self.log_rows()[-1]["notes"], "verified: fingerprint matches the video")
 
 
 class DoubleCheck(WithDiscogs):
