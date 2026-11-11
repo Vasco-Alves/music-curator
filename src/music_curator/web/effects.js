@@ -8258,7 +8258,7 @@ window.Effects = (() => {
        nod     it rocks left and right, changing side on every note */
   const ACID_ON = 0.5, ACID_OFF = 0.25, ACID_COME = 0.9, ACID_GO = 1.2, ACID_STAY = 24, ACID_REST = 40; // the switch, the seconds it takes to come and to go, and the visit
   const ACID_KEEP = 256, ACID_TICK = 1 / 60, ACID_LINE = 109, ACID_DROPS = 4, ACID_INK = "#16140a", ACID_YELLOW = [246, 230, 50]; // the ribbon: how much is remembered, how often, and how much of it is drawn (a bar of music, 1.8 s)
-  const acidSinger = { sure: 0, on: false, tired: false, cameAt: 0, leftAt: 0, ramp: 0, show: 0, sq: 0, knob: 0, lo: 0, hi: 0, peak: 0, peaks: 0, since: 9, wah: 0, v: 0, tongue: 0, lickAt: -9, punch: 0, hitAt: -9, side: 1, nod: 0, t: 0, owed: 0, at: 0, drop: 0, dropAt: -9 };
+  const acidSinger = { sure: 0, on: false, tired: false, cameAt: 0, leftAt: 0, ramp: 0, show: 0, sq: 0, knob: 0, lo: 0, hi: 0, peak: 0, peaks: 0, since: 9, wah: 0, v: 0, tongue: 0, lickAt: -9, punch: 0, hitAt: -9, side: 1, nod: 0, t: 0, owed: 0, at: 0, drop: 0, dropAt: -9, rainbow: false, rain: 0, hue: 0 }; // rainbow: this visit goes round the colors; rain, how far it has got into them; hue, where it is on the wheel
   const acidKept = { v: new Float32Array(ACID_KEEP), show: new Float32Array(ACID_KEEP) }; // the height and how much was there, sixty times a second, the newest at acidSinger.at
   const acidLine = { across: new Float32Array(ACID_LINE), along: new Float32Array(ACID_LINE), thick: new Float32Array(ACID_LINE), taper: new Float32Array(ACID_LINE), bend: new Float32Array(ACID_LINE) }; // the ribbon's middle as it is drawn this frame, and two tables for its shape
   const acidDrops = { born: new Float64Array(ACID_DROPS).fill(-9), fall: new Float32Array(ACID_DROPS), speed: new Float32Array(ACID_DROPS), size: new Float32Array(ACID_DROPS) }; // the few drops there can be at once
@@ -8271,7 +8271,7 @@ window.Effects = (() => {
     S.t += dt;
     S.sure = T.acid ? S.sure + (sure - S.sure) * acidPart(dt, 0.2) : 0; // the ear's answer, steadied. With the slider at 0 it is nothing, and whoever is there leaves
     if (!S.on && S.sure > ACID_ON && !(S.tired && S.t - S.leftAt < ACID_REST / T.acid)) {
-      if (S.ramp <= 0) { acidKept.show.fill(0); S.sq = S.knob = S.lo = S.hi = S.peak = S.peaks = flow.acidAt; S.wah = S.tongue = S.punch = S.nod = 0; S.cameAt = S.t; } // from nothing: no ribbon from the last visit, it starts where the line is, and its visit is counted from now
+      if (S.ramp <= 0) { acidKept.show.fill(0); S.sq = S.knob = S.lo = S.hi = S.peak = S.peaks = flow.acidAt; S.wah = S.tongue = S.punch = S.nod = 0; S.cameAt = S.t; S.rainbow = Math.random() < (mood === "psy" ? 0.7 : 0.3); } // from nothing: no ribbon from the last visit, it starts where the line is, and its visit is counted from now
       S.on = true; // (back before it had quite gone, it is the same visit and its clock runs on: a line that dips now and then does not keep it on screen for ever)
       S.tired = false;
     } else if (S.on && (S.sure < ACID_OFF || S.t - S.cameAt > ACID_STAY * T.acid)) {
@@ -8289,6 +8289,9 @@ window.Effects = (() => {
     S.hi = S.sq > S.hi ? S.sq : S.hi + (S.sq - S.hi) * acidPart(dt, 0.8);
     S.wah += (clamp((S.sq - S.lo) / Math.max(0.1, S.hi - S.lo)) - S.wah) * acidPart(dt, 0.035); // the mouth and the ribbon take two or three frames to get there
     S.v = clamp(0.4 * S.knob + 0.6 * S.wah);
+    if (S.on && flow.dropHit) S.rainbow = true; // a drop while it sings sends it through the rainbow for the rest of its visit
+    S.rain += ((S.rainbow ? 1 : 0) - S.rain) * acidPart(dt, 0.6);
+    S.hue = (S.hue + dt * (90 + 260 * S.wah) + (hit ? 25 : 0)) % 360; // a turn of the wheel every four seconds, much quicker while the filter is wide open, and a step on every note
     if (hit) { S.peaks += (S.peak - S.peaks) * 0.3; S.peak = S.sq; S.since = 0; S.hitAt = S.t; S.side = -S.side; } else S.since += dt; // peaks: how high the last few notes leapt
     S.peak = Math.max(S.peak, S.sq);
     const accent = S.show > 0.3 && S.since < 0.15 && S.sq > S.peaks + 0.3 * Math.max(0.05, S.peaks - S.lo), sinceHit = S.t - S.hitAt; // this note leaps clearly higher than the last few
@@ -8312,7 +8315,8 @@ window.Effects = (() => {
   function acidTint(from) { // while it sings, the picture's colors lean a little toward acid's yellow. The three leaning colors are kept and filled in again, not made anew
     const lean = 0.2 * acidSinger.show;
     if (lean < 0.004 || from.length !== 3) return from;
-    for (let i = 0; i < 3; i++) for (let c = 0; c < 3; c++) acidTones[i][c] = from[i][c] + (ACID_YELLOW[c] - from[i][c]) * lean;
+    const toward = acidSinger.rain > 0.01 ? acidTone(ACID_YELLOW, 0) : ACID_YELLOW; // in a rainbow, toward the color it is just now
+    for (let i = 0; i < 3; i++) for (let c = 0; c < 3; c++) acidTones[i][c] = from[i][c] + (toward[c] - from[i][c]) * lean;
     return acidTones;
   }
   function acidPaints() { // its paints, made once: they are laid out for a face one unit across and a ribbon one unit high, and the drawing is stretched to fit, so the same ones serve at any size
@@ -8322,6 +8326,16 @@ window.Effects = (() => {
     heat.addColorStop(0, "rgb(255,140,30)"); heat.addColorStop(0.5, "rgb(246,230,50)"); heat.addColorStop(1, "rgb(197,247,148)"); // the ribbon: orange where the filter is shut, yellow in the middle, a pale lime where it screams
     for (let i = 0; i < ACID_LINE; i++) { acidLine.taper[i] = (1 - i / (ACID_LINE - 1)) ** 0.6; acidLine.bend[i] = eased(clamp(i / 12)); } // it thins to nothing at its far end, and leaves the mouth straight before it starts to wave
     return { skin, halo, heat };
+  }
+  const ACID_SKIN = [[255, 246, 160], [247, 225, 30], [214, 185, 0]]; // the face's yellow, light to dark, as acidPaints lays it
+  const acidTone = (c, turn) => mix(c, turnHue(c, acidSinger.hue + turn), acidSinger.rain); // a color of it, as far into the rainbow as it is; turn moves along the rainbow
+  function acidRainbow(paint, from, to) { // in a rainbow the face, its glow and the ribbon go round the colors: these paints are made each frame while it does, and the yellow ones made once serve otherwise
+    if (acidSinger.rain < 0.01) return acidArt[paint];
+    if (paint === "skin") { const p = stage.createRadialGradient(-0.3, -0.4, 0.1, 0, 0, 1); [0, 0.6, 1].forEach((at, i) => p.addColorStop(at, rgba(acidTone(ACID_SKIN[i], 0), 1))); return p; }
+    if (paint === "halo") { const p = stage.createRadialGradient(0, 0, 0.8, 0, 0, 1.7), c = acidTone(ACID_YELLOW, 0); p.addColorStop(0, rgba(c, 0.3)); p.addColorStop(1, rgba(c, 0)); return p; }
+    const p = stage.createLinearGradient(0, from, 0, to); // the ribbon: the whole rainbow along its length, the newest color at the mouth, so the colors stream out of it as the wheel turns
+    for (let k = 0; k <= 7; k++) p.addColorStop(k / 7, rgba(turnHue(ACID_YELLOW, acidSinger.hue - k * 50), 1));
+    return p;
   }
   function acidBand(grow, lift) { // the ribbon as a closed shape and filled: its thickness times "grow", moved toward its open side by "lift" thicknesses
     const { across, along, thick } = acidLine;
@@ -8352,10 +8366,14 @@ window.Effects = (() => {
     g.globalAlpha = 0.5 * show; acidBand(4.2, 0);
     g.globalAlpha = 0.7 * show; acidBand(2.4, 0);
     g.globalCompositeOperation = "lighter";
-    g.fillStyle = acidArt.heat;
-    g.globalAlpha = 0.16 * show; acidBand(3.2, 0);
-    g.globalAlpha = 0.3 * show; acidBand(1.8, 0);
-    g.globalAlpha = 0.95 * show; acidBand(1, 0);
+    const rain = S.rain;
+    for (const [paint, part] of [[acidArt.heat, 1 - rain], [rain >= 0.01 ? acidRainbow("heat", along[0], along[ACID_LINE - 1]) : null, rain]]) { // the yellow heat as far as it is yellow, the rainbow as far as it is a rainbow
+      if (!paint || part < 0.01) continue;
+      g.fillStyle = paint;
+      g.globalAlpha = 0.16 * show * part; acidBand(3.2, 0);
+      g.globalAlpha = 0.3 * show * part; acidBand(1.8, 0);
+      g.globalAlpha = 0.95 * show * part; acidBand(1, 0);
+    }
     g.fillStyle = "#fff"; // the shine along its upper side: something liquid, not a graph
     g.globalAlpha = 0.75 * show; acidBand(0.28, 0.45);
     g.restore();
@@ -8367,7 +8385,7 @@ window.Effects = (() => {
       const age = S.t - acidDrops.born[d], fall = acidDrops.fall[d], i = Math.min(ACID_LINE - 1, age * 60), at = Math.floor(i), fade = clamp(1 - fall * 1.6) * clamp((ACID_LINE - 1 - i) / 20) * show;
       if (age < 0 || age > 1.5 || fade <= 0) continue;
       const hang = clamp(age / 0.3), r = m * 0.015 * acidDrops.size[d] * (0.4 + 0.6 * hang), x = along[at], top = shut - reach * across[at], y = top + thick[at] * reach + r * (0.6 + 1.6 * hang) + fall * h;
-      g.strokeStyle = g.fillStyle = "rgb(246,230,50)";
+      g.strokeStyle = g.fillStyle = S.rain < 0.01 ? "rgb(246,230,50)" : rgba(mix(ACID_YELLOW, turnHue(ACID_YELLOW, S.hue - (i / (ACID_LINE - 1)) * 350), S.rain), 1); // in a rainbow, the color of the ribbon where it hangs
       g.globalAlpha = 0.5 * fade; // its neck while it hangs, a short streak while it falls
       g.lineWidth = Math.max(1, r * 0.5);
       g.beginPath(); g.moveTo(x, fall ? y - r * (2 + 14 * Math.min(0.25, acidDrops.speed[d])) : top); g.lineTo(x, y); g.stroke();
@@ -8397,10 +8415,10 @@ window.Effects = (() => {
     g.lineCap = g.lineJoin = "round";
     g.globalAlpha = alpha;
     g.globalCompositeOperation = "lighter"; // a soft light round it, steady
-    g.fillStyle = acidArt.halo;
+    g.fillStyle = acidRainbow("halo");
     g.fillRect(-1.7, -1.7, 3.4, 3.4);
     g.globalCompositeOperation = "source-over";
-    g.fillStyle = acidArt.skin;
+    g.fillStyle = acidRainbow("skin");
     g.beginPath();
     g.arc(0, 0, 1, 0, TAU);
     g.fill();
