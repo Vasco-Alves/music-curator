@@ -21,7 +21,7 @@ window.Effects = (() => {
     journey: [["ocean", "Under the sea"], ["neonroad", "Neon road"], ["aurora", "Northern lights"]],
     worlds: [["tube", "Energy tube"], ["heads", "Neon heads"], ["sphere", "Sound sphere"], ["solids", "Shapes in space"], ["city", "Neon city"]],
     pixel: [["runner", "Runner"], ["arcade", "Arcade"], ["places", "Places"], ["life", "Living grid"]],
-    visions: [["faces", "Faces"], ["forms", "Forms"]],
+    visions: [["faces", "Faces"], ["forms", "Forms"], ["beings", "Beings"]],
   };
   const FOLK_OF = { arcade: ["astronaut", "shapes", "neon", "jelly"], ocean: ["jelly", "whale", "jelly", "shapes"], neonroad: ["neon", "shapes", "saucer", "neon"], aurora: ["saucer", "astronaut", "neon", "saucer"], // some places have their own visitors
     tube: ["shapes", "neon", "eye", "saucer"], heads: ["saucer", "eye", "shapes", "neon"], sphere: ["astronaut", "saucer", "shapes", "jelly"], solids: ["shapes", "saucer", "neon", "astronaut"], city: ["saucer", "neon", "saucer", "shapes"] };
@@ -4964,6 +4964,7 @@ window.Effects = (() => {
     arcade: { spin: [1, -1, 0, 1.8], rails: [1, 0.4, 0], hops: [0, 1, -1], foes: [16, 12, 20], scroll: [1, 0.6, 1.5] },
     places: { land: ["a", "b", "c", "d"], hour: [0, 0, 0.25, 0.5, 0.75], going: [1, 1, -1], weather: [1, 0.3, 1.8] },
     life: { rule: [0, 0, 0, 1, 2], sym: [0, 0, 2, 4, 8], trail: [1, 0.7, 1.5], pace: [1, 1, 0.5, 2], bead: [1, 1, 0] },
+    beings: { body: ["mixed", "tess", "cell24", "cage", "web", "cell16", "star"], eyes: ["mixed", "mixed", "two", "one"], spin: [1, 0.6, 1.6] },
     kaleido: { blobs: [5, 3, 8], line: ["wave", "ring", "none"], spin: [1, -1, 2] },
     plasma: { scale: [1, 0.55, 1.7], stripes: [2, 1, 4], swirl: [0, 1, 2] },
     fractal: { sides: [0, 3, 4, 5, 6, 8], child: [0.22, 0.32, 0.15], spin: [1, -1] },
@@ -7740,7 +7741,314 @@ window.Effects = (() => {
     g.restore();
   }
   /* ==== life: end ==== */
-  const DRAW = { life: livingGrid, places: placesFx, arcade: arcadeFx, runner: runnerFx, forms: formsFx, faces, ribbon, silk, helix, strings, bars, mirror, leds, terrain, scope, trails, tunnel, vortex, prism, ripple, comets, stars: starfield, whirl, dust, links, fireworks, halo, sun, rings, mandala, rays, space, warp: space, drift: space, orbit: space, visitors: space, well,
+  /* ==== beings: begin ==== */
+  /* Beings: somebody gathers out of a tunnel of flower rings, opens its eyes, looks at you and comes apart again. Its body is the shadow of a shape that has four dimensions, turning through itself;
+     in each of its great eyes lives the next being, and now and then the view falls into that eye and the one inside takes over. All of it is lines, in the mood's three tones.
+     A being is some thirty numbers, and every one of them can glide to another being's, so one changes into the next while you watch. A quiet part shows only the tunnel. */
+  FOLK_OF.beings = ["shapes", "neon", "jelly", "shapes"]; // (the visitor that is one great eye would be an eye too many here)
+  const beingsFx = (() => { // everything of this effect is kept in here, so none of its names can meet another effect's
+    const WHITE = [255, 255, 255], NIGHT = [3, 3, 10], TRAIL = 0.42, IRIS = 0.66, PUPIL = 0.52, FITS = 1.3; // how much of the last frame each new one wipes away (as Shapes in space does); the iris against the eye's half-width; the pupil against the iris; how many units of a being fit across a pupil's radius
+    const step = (a, b, x) => eased(clamp((x - a) / (b - a))), toward = (rate, dt) => 1 - Math.exp(-rate * dt), pick = (list) => list[Math.floor(Math.random() * list.length)];
+    const blob = (px, py, r, tone, strength) => { if (r >= 0.5 && strength >= 0.004) softBlob(g, px, py, r, tone, Math.min(1, strength)); }; // a soft round light, or with the night's color a soft round dark; nothing at all when there'd be nothing to see
+
+    // The body: the 24 corners of the shape called a 24-cell, in four dimensions. The first 16 are a four-dimensional cube's and the last 8 a four-dimensional diamond's, so one set of numbers makes both shapes and anything between
+    const CORNERS = [], EDGES = [[], [], []], PLANES = [[0, 1], [2, 3], [0, 2], [1, 3], [1, 2], [0, 3]]; // the cube's 32 edges, the 64 that join cube and diamond, the diamond's 24; and the six ways it can turn, three of which turn it through itself
+    for (let i = 0; i < 16; i++) CORNERS.push([i & 1 ? 0.5 : -0.5, i & 2 ? 0.5 : -0.5, i & 4 ? 0.5 : -0.5, i & 8 ? 0.5 : -0.5]);
+    for (let a = 0; a < 4; a++) for (const s of [-1, 1]) { const c = [0, 0, 0, 0]; c[a] = s; CORNERS.push(c); }
+    for (let a = 0; a < 16; a++) for (let b = a + 1; b < 16; b++) { const d = a ^ b; if ((d & (d - 1)) === 0) EDGES[0].push([a, b]); }
+    for (let c = 16; c < 24; c++) for (let a = 0; a < 16; a++) if (CORNERS[a][(c - 16) >> 1] * ((c - 16) & 1 ? 1 : -1) > 0) EDGES[1].push([c, a]);
+    for (let a = 16; a < 24; a++) for (let b = a + 1; b < 24; b++) if ((a - 16) >> 1 !== (b - 16) >> 1) EDGES[2].push([a, b]);
+    const KINDS = { tess: [1, 0, 0, 1], cell16: [0, 0, 1, 1.2], cell24: [0.9, 0.5, 0, 1], star: [0.8, 0, 0.9, 1.7], web: [0.25, 0.75, 0.5, 1.3], cage: [1, 0.3, 0.7, 0.62] }; // each kind of body: how bright the cube's edges, the joining ones and the diamond's are, and how far out the diamond's corners stand
+    const pointed = (kind) => kind === "cell16" || kind === "star" || kind === "web"; // bodies that show as a triangle or a star of rays (the web too, from many sides: round one eye it stands as a pyramid)
+
+    function born() { // a new being, picked by chance within what the version's dials ask for
+      const one = !pointed(V.body) && (V.eyes === "one" || (V.eyes !== "two" && Math.random() < 0.2)); // two eyes are the rule: a pair is what makes it somebody. One great eye in a pointed body would be an emblem and not a creature, so those bodies always get two
+      const kind = KINDS[V.body] ? V.body : pick(Object.keys(KINDS).filter((k) => !(one && pointed(k)))), [tess, web, cross, spike] = KINDS[kind];
+      const winged = one || Math.random() < 0.75, arms = pick([5, 5, 6, 6, 7, 8, 8, 10, 12]), corner = Math.random() < 0.75 ? rnd(0.5, 1) : 0; // (a one-eyed being is always the same left and right, or it is only a flower with an eye in it)
+      return { kind, tess, web: corner ? Math.min(0.5, web) : web, cross: one ? Math.min(0.35, cross) : cross, spike, // (with eyes at its corners the joining edges are kept faint, or it is a tangle; and round a single eye the diamond is kept faint, or it frames the eye like a badge)
+        far: rnd(2.3, 3.3), size: rnd(0.36, 0.46), spin: [rnd(-0.25, 0.25), rnd(0.2, 0.5) * pick([-1, 1]), rnd(-0.3, 0.3), rnd(-0.45, 0.45), rnd(-0.2, 0.2), rnd(0.15, 0.45) * pick([-1, 1])], // how near the eye that sees it stands in the fourth dimension (nearer is stranger), how big the body is, how fast it turns each of the six ways
+        arms, reach: rnd(0.55, 0.9), curl: rnd(0.2, 1.2) * (winged && arms <= 6 ? 1 : pick([-1, 1])), wide: rnd(0.08, 0.18), waist: rnd(0, 0.75), sway: rnd(0.12, 0.35), // limbs: how many, how long, how curled, how wide, how pinched where they join the body (0: a tentacle, 1: a leaf), how much they wave
+        sym: winged ? rnd(0.75, 1) : rnd(0, 0.15), wing: [rnd(-0.5, 0.6), rnd(-0.8, 0.8), rnd(-0.6, 0.6)], hang: !winged ? 0 : arms <= 6 ? rnd(0, 0.9) : rnd(-0.5, 0.9), // 0: a flower, limbs alike and swirling one way; 1: the same left and right, limbs longer here and shorter there, hanging like a cloak or lifting like flames. With few limbs they never lift or curl upwards: one lifted pair is a pair of horns, and an upper pair curled together over a level pair stands as a cross
+        inner: Math.random() < 0.7 ? rnd(0.25, 0.45) : 0, tips: arms <= 8 && Math.random() < 0.4 ? 1 : 0, // a second row of shorter petals between the limbs; an eye near the tip of each limb, when there aren't too many limbs for that
+        ...(one ? { eye: rnd(0.27, 0.34), apart: 0 } : { eye: rnd(0.17, 0.21), apart: rnd(0.24, 0.29) }), slant: rnd(-0.1, 0.14), round: rnd(0.62, 1), // the great eye, or two of them this far from the middle: how wide, how slanted, how round
+        corner, rings: rnd(1, 3.99), ringR: rnd(0.86, 1), tilt: rnd(0.25, 1.1), rays: pick([0, 12, 16, 24, 32]), rayLen: rnd(0.12, 0.3), // how many of the eight eyes at the body's corners can open; the halo behind it: rings, how big, how tilted, and the rays round it
+        tone: Math.floor(rnd(0, 3)) }; // which of the three tones is which
+    }
+    const suits = (G) => (!KINDS[V.body] || G.kind === V.body) && (V.eyes === "two" ? G.apart > 0 : V.eyes !== "one" || !G.apart || pointed(V.body)); // is this being one the version's dials would have made?
+    const KEPT = new Set(["kind", "rays", "tone"]); // these don't glide: the rays shrink away and grow back as another number of them, and the tones stay as they are
+    function between(a, b, u) { // the being that is this far from one to another
+      const o = {};
+      for (const k in b) o[k] = KEPT.has(k) ? (u < 0.5 ? a[k] : b[k]) : Array.isArray(a[k]) ? a[k].map((v, i) => v + (b[k][i] - v) * u) : a[k] + (b[k] - a[k]) * u;
+      o.dip = Math.abs(1 - 2 * u);
+      return o;
+    }
+    const alive = (G) => ({ G: { ...G, dip: 1 }, from: null, to: null, u: 0, takes: 5, ang: Array.from({ length: 6 }, () => rnd(0, TAU)), lid: 0, lidV: 0, blink: sound.t + rnd(2, 5), shut: 0, look: [0, 0], seed: rnd(0, 100), reach: 0, reachV: 0 }); // a being and what it's doing: its numbers (and where they are gliding from and to), how far it has turned, its lids, its next blink, where it looks, how far its limbs are flung
+    const glide = (b, G) => { b.from = { ...b.G }; b.to = { ...G, tone: b.G.tone }; b.u = 0; };
+
+    let S = null, tones = null, unit = 1; // all that's kept from frame to frame; the mood's three tones and the size of one unit of a being, for this frame
+    const chain = () => S.line.forEach((b, i) => { if (i) b.G.tone = (S.line[i - 1].G.tone + 1) % 3; }); // each being's colors are one step round from those of the being whose eye it lives in
+    const lobes = () => Math.max(3, Math.round(S.line[0].G.arms));
+    const stir = (n) => (n === 0 ? 1 : n === 1 && S.falling ? eased(S.fall) : 0); // how much of a drop's stir a being feels: the one that's here all of it, and the one we are falling into takes it over as it takes the picture over
+    function begin() { // a fresh start: three beings, one inside the other's eye, none of them here yet, and the tunnel
+      S = { line: [alive(born()), alive(born()), alive(born())], here: 0, present: false, away: 0, lone: 12, visit: 0, rest: 1, fall: 0, falling: false, clock: 0, arrived: false, nextFall: 8, nextGlide: 14, flare: 0, warm: 0, lock: 0, phase: 0, speed: 0.3, rings: [], made: 0, widest: 2.3, at: sound.t };
+      chain();
+      for (let k = 0; k < 16; k++) S.rings.push({ k, lobes: lobes(), tone: k % 3, twist: (k * 0.31) % TAU, way: k % 2 ? 1 : -1, id: k });
+    }
+
+    function update() { // the numbers move on by the clock
+      const dt = Math.min(0.4, sound.dt), { t, kick, bass } = sound, B = S.line[0], building = flow.part === "build" || flow.build > 0.35, soft = S.visit > 0;
+      // Is somebody here? Yes from the moment a drop lands or the song is high (but not for a build's own climbing: there it must wait for the drop), and no only once it has been quiet for a while: a song wavers, and a being that came and went with every waver would never be anybody
+      if (flow.part === "drop" || (flow.intensity > 0.5 && !building)) { S.present = true; S.away = 0; }
+      else if (flow.calm > 0.6 || flow.intensity < 0.3) { S.away += dt; if (S.away > 1.5) S.present = false; }
+      else S.away = 0;
+      // and in music with no kick at all, or a very long quiet part, one comes by anyway after a while, slowly, stays half a minute and goes
+      if (S.here > 0.97) S.lone = 0; else if (!building) S.lone += dt;
+      if (S.present) S.visit = 0;
+      else if (!soft && !building && S.lone > 20) S.visit = rnd(20, 30);
+      else if (soft && S.here > 0.97) S.visit = Math.max(S.falling ? 0.01 : 0, S.visit - dt); // (it never leaves in the middle of a fall)
+      const staying = S.present || S.visit > 0 ? 1 : 0, want = S.falling ? 1 : Math.max(staying, 0.85 * clamp((flow.build - 0.25) / 0.6)); // through a build it gathers as far as the build has climbed; a build never takes apart one that's here
+      S.here += Math.max(-dt / 3.2, Math.min(dt / (S.present ? 1.1 : 6), want - S.here)); // quickly on a drop, slowly through a build or on a visit; and it leaves in about three seconds
+      S.rest = Math.min(1, S.rest + dt / 2.5); // after a fall the new being hangs still for a moment, then floats again
+      S.flare += (flow.drop - S.flare) * toward(flow.drop > S.flare ? 7 : 3, dt);
+      S.lock += ((S.here > 0.93 ? 1 : 0) - S.lock) * toward(2.5, dt); // its look wanders while it gathers, and settles on you once it's here
+      S.warm += (0.6 * clamp(B.reach) + 0.4 * S.flare - S.warm) * toward(1.3, dt); // the glow behind it swells with the kick and the drop, but slowly: it lies over most of the picture, and that much must never jump
+      // the tunnel of flowers flows outwards, and inwards through a build, into the being that is gathering there. A ring that leaves is born again at the other end with as many petals as the being has limbs
+      const inward = flow.part === "drop" ? 0 : step(0.28, 0.45, flow.build), out = 0.15 + 0.45 * flow.intensity + 0.5 * flow.drop;
+      S.speed += (out + (-(0.3 + 0.7 * flow.build) - out) * inward - S.speed) * toward(1.6, dt); // rings a second
+      S.phase += dt * S.speed;
+      for (const r of S.rings) r.twist = (r.twist + dt * 0.05 * r.way) % TAU; // each ring turns slowly, the other way from its neighbours
+      while (S.phase >= 1) { S.phase -= 1; for (const r of S.rings) r.k++; S.rings.pop(); const first = S.rings[0]; S.rings.unshift({ k: 0, lobes: lobes(), tone: (first.tone + 2) % 3, twist: (first.twist - 0.31) % TAU, way: -first.way, id: (S.made = (S.made + 1) % 97) }); }
+      while (S.phase < 0) { S.phase += 1; for (const r of S.rings) r.k--; S.rings.shift(); const last = S.rings[S.rings.length - 1]; S.rings.push({ k: last.k + 1, lobes: lobes(), tone: (last.tone + 1) % 3, twist: (last.twist + 0.31) % TAU, way: -last.way, id: (S.made = (S.made + 1) % 97) }); }
+      // every being in the line lives: it turns, blinks, looks about
+      S.line.forEach((b, n) => {
+        const G = b.G, speed = (0.3 + 0.9 * flow.intensity + 0.8 * S.flare) * (n ? 0.8 : 1 + 2.5 * (1 - S.here) ** 2) * (V.spin ?? 1);
+        for (let i = 0; i < 6; i++) b.ang[i] = (b.ang[i] + dt * G.spin[i] * speed) % TAU;
+        if (S.falling && n < 2) b.blink = Math.max(b.blink, t + 1.5); // nobody blinks while we fall through an eye: a lid as big as the picture would be a flash
+        if (!n && b.lid < 0.8 && t >= b.shut) b.blink = Math.max(b.blink, t + 2); // until its eyes are wide open the next blink waits, so it never blinks in the first two seconds after they open: that is when it looks at you (and a late frame, in which they open all at once, doesn't cut that short)
+        if (t > b.blink || b.blink > t + 9) { b.blink = t + rnd(2.6, 6.5); b.shut = t + 0.15; }
+        const quick = t < b.shut, open = n ? 1 : S.falling ? 1.12 : soft ? step(0.6, 0.97, S.here) : S.here > 0.93 ? 1 : S.here > 0.3 ? 0.1 * flow.build : 0, aim = quick ? 0.04 : open, closing = aim < b.lid; // the great eye: a slit as it gathers, wide open the moment it's here (or, on a slow visit, opening as it comes)
+        const stiff = quick ? 420 : closing ? 14 : 90, damp = quick ? 36 : closing ? 7 : 11; // a blink is quick; opening is a spring with a little bounce; closing for good, as it leaves, is slow
+        for (let left = dt; left > 1e-6; left -= 1 / 120) { // (both springs in small steps, so a late frame doesn't throw them)
+          const d = Math.min(left, 1 / 120);
+          b.lidV += ((aim - b.lid) * stiff - b.lidV * damp) * d;
+          b.lid = Math.max(0, Math.min(1.25, b.lid + b.lidV * d));
+          b.reachV += ((kick * 0.5 + bass * 0.5 + 0.55 * S.flare * stir(n) - b.reach) * 60 - b.reachV * 9) * d; // the limbs fling out on the kick and on the drop
+          b.reach += b.reachV * d;
+        }
+        if (!Number.isFinite(b.lid + b.lidV + b.reach + b.reachV)) b.lid = b.lidV = b.reach = b.reachV = 0;
+        const wander = 1 - 0.8 * (n ? 1 : S.lock);
+        b.look = [Math.sin(t * 0.53 + b.seed) * 0.6 * wander, Math.sin(t * 0.37 + b.seed * 2) * 0.3 * wander];
+        if (b.to) { b.u = Math.min(1, b.u + dt / b.takes); b.G = between(b.from, b.to, eased(b.u)); if (b.u >= 1) { b.G = { ...b.to, dip: 1 }; b.to = null; } }
+      });
+      // now and then, while it's here, the being glides into another one, or the view falls into its eye. Never both at once, and not in a quiet part or a build unless it's one of the slow visits
+      const kicking = flow.since < (flow.bpm ? 132 / flow.bpm : 1.4), high = S.here > 0.97 && (soft || (flow.part !== "calm" && !building && kicking)), free = high && !S.falling && !B.to; // (no kick for two beats and more: the song is going quiet, and nothing new is begun)
+      if (high && !S.arrived) { S.arrived = true; S.clock = 0; S.nextFall = rnd(6.5, 9); S.nextGlide = rnd(13, 17); } // it has just arrived: the clock of its stay starts
+      if (S.here < 0.5) S.arrived = false;
+      if (high) S.clock += dt;
+      if (free && S.clock > S.nextGlide) { glide(B, born()); S.nextGlide = S.clock + rnd(14, 22); }
+      else if (free && B.lid > 0.8 && !(soft && S.visit < 12) && (S.clock > S.nextFall || (flow.dropHit && S.clock > 4))) { S.falling = true; S.nextFall = S.clock + rnd(13, 19); } // (a drop that finds it long here sends us into its eye at once)
+      if (S.falling) {
+        S.fall += dt * (0.12 + 0.08 * (S.present || soft ? flow.intensity : 1)); // about six seconds a fall, and no longer when the song has gone quiet under it
+        if (S.fall >= 1) { S.fall = 0; S.falling = false; S.line.shift(); S.line.push(alive(born())); chain(); S.line[0].blink = t + 2; S.rest = 0; S.nextGlide = Math.max(S.nextGlide, S.clock + rnd(8, 12)); } // (and the one that has just taken over is left as it is for a while before it changes)
+      }
+      // when the version's dials change, beings they wouldn't have made glide into ones they would; one that nobody can see yet is simply swapped. The one that's here waits out the first seconds of a drop, so its eyes open on you before it starts to change
+      S.line.forEach((b, n) => {
+        if (suits(b.to || b.G)) return;
+        if (n === 2 || (n === 0 && S.here < 0.08)) { S.line[n] = alive(born()); chain(); }
+        else if (!b.to && (n || (!S.falling && flow.drop < 0.75))) glide(b, born());
+      });
+    }
+
+    // ---- drawing
+    const line = (path, tone, light, wide, soft) => { // a bright narrow line; under the ones that matter most (body, lids, iris) a faint wide one first, for a glow: "soft" is how much of that, 0 to 1. Brighter than 1 is the narrow one drawn again
+      if (light < 0.01) return;
+      if (light * soft > 0.05) { g.strokeStyle = rgba(tone, Math.min(1, light * 0.22 * soft)); g.lineWidth = wide * 3.4; g.stroke(path); }
+      g.strokeStyle = rgba(mix(tone, WHITE, 0.25), Math.min(1, light)); g.lineWidth = wide; g.stroke(path);
+      if (light > 1.05) { g.strokeStyle = rgba(mix(tone, WHITE, 0.25), Math.min(1, light - 1)); g.stroke(path); }
+    };
+    function curve(path, pts, closed) { // a smooth line through a few points: each point pulls the line towards it, and the line passes half way between neighbours
+      const n = pts.length, mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+      if (closed) { path.moveTo(...mid(pts[n - 1], pts[0])); for (let i = 0; i < n; i++) path.quadraticCurveTo(...pts[i], ...mid(pts[i], pts[(i + 1) % n])); }
+      else { path.moveTo(...pts[0]); for (let i = 1; i < n - 1; i++) path.quadraticCurveTo(...pts[i], ...(i === n - 2 ? pts[n - 1] : mid(pts[i], pts[i + 1]))); }
+    }
+    function smallEye(x, y, e, open, turn, tone, light, soft) { // one of the many small eyes: two lids, an iris and a bright pupil
+      if (open < 0.05 || e < 1.5 || light < 0.02) return;
+      const H = e * 0.55 * Math.min(1, open), c = Math.cos(turn), s = Math.sin(turn), lids = new Path2D(), at = (px, py) => [x + px * c - py * s, y + px * s + py * c], r = Math.min(e * 0.48, H * 0.92);
+      lids.moveTo(...at(-e, 0)); lids.quadraticCurveTo(...at(0, -H * 2), ...at(e, 0)); lids.quadraticCurveTo(...at(0, H * 2), ...at(-e, 0));
+      g.globalCompositeOperation = "source-over"; g.fillStyle = rgba(NIGHT, 1); g.fill(lids);
+      g.globalCompositeOperation = "lighter";
+      line(lids, tone, light, Math.max(0.8, e * 0.09), soft);
+      g.strokeStyle = rgba(mix(tone, WHITE, 0.4), Math.min(1, light)); g.lineWidth = Math.max(0.7, e * 0.07); g.beginPath(); g.arc(x, y, r, 0, TAU); g.stroke();
+      g.fillStyle = rgba(mix(tone, WHITE, 0.75), Math.min(1, light)); g.beginPath(); g.arc(x, y, r * 0.42 * (1 + 0.3 * sound.kick), 0, TAU); g.fill();
+    }
+
+    function drawTunnel(cx, cy, U, light, clear, watch) { // the flower tunnel: rings of petals, each a third bigger than the one inside it and a little turned from it. "clear" is how far out the being has taken the place for itself; "watch" opens eyes on the petals
+      if (light < 0.01) return;
+      const { t, kick, bass } = sound, paths = [new Path2D(), new Path2D(), new Path2D()], shade = [0, 0, 0], far = (Math.hypot(w, h) / 2 / U) * 1.15, eyes = [], deep = 0.13 + 0.1 * bass + 0.05 * kick;
+      for (const r of S.rings) {
+        const pos = r.k + S.phase, R = 0.07 * 1.33 ** pos, a = clamp(pos / 2) * step(clear * 0.75, clear * 1.2 + 0.01, R) * (0.4 + 0.6 * clamp(R / 1.2));
+        if (R > far || a < 0.02) continue;
+        const m = r.lobes, n = m * 6, twist = r.twist + pos * 0.06, pts = [];
+        for (let i = 0; i < n; i++) { const th = twist + (i / n) * TAU, rr = R * U * (1 + deep * (2 * Math.abs(Math.cos((m * (i / n) * TAU) / 2)) ** 0.8 - 1)); pts.push([cx + Math.sin(th) * rr, cy - Math.cos(th) * rr]); } // round petals with sharp folds between them, a point always in each fold
+        curve(paths[r.tone], pts, true);
+        shade[r.tone] = Math.max(shade[r.tone], a);
+        if (watch > 0.02 && R > 0.8 && R < 1.9) for (let j = 0; j < m; j++) { const th = twist + (j / m) * TAU, rr = R * U * (1 + deep * 0.45); eyes.push([cx + Math.sin(th) * rr, cy - Math.cos(th) * rr, Math.min(R * 0.06, 0.07) * U, th, r.tone, a * step(0.8, 1, R) * (1 - step(1.6, 1.9, R)), j + r.id * 3]); }
+      }
+      g.globalCompositeOperation = "lighter";
+      paths.forEach((path, n) => line(path, tones[n], light * shade[n] * (0.8 + 0.12 * kick) * (1 - 0.6 * clamp(clear)), Math.max(1, unit / 227), 0));
+      for (const [x, y, e, th, tn, a, i] of eyes) smallEye(x, y, e, watch * clamp(0.2 + 1.3 * Math.sin(t * 0.9 + i * 1.7)), th, tones[(tn + 1) % 3], light * a * 0.55, 0); // opening and shutting in a ripple
+    }
+
+    function pupilAt(b, side, here) { // where an eye's pupil is from the middle of that eye, in the being's units: it follows the look, and the eye's slant turns it
+      const G = b.G, W = G.eye * step(0.3, 0.8, here), Hu = W * 0.5 * G.round * Math.min(1.12, b.lid), px = b.look[0] * W * 0.3, py = b.look[1] * W * 0.3 - Hu * 0.072, sl = -side * G.slant, c = Math.cos(sl), sn = Math.sin(sl);
+      return [px * c - py * sn, px * sn + py * c];
+    }
+    function greatEye(b, n, ex, ey, W, side, U, s, light, eyeL, tone, wide, lead) { // a great eye: lids, an iris of fibres, and a dark pupil with the next being living in it. "lead" is the eye the view falls into
+      const G = b.G, { t, kick, bass } = sound, agape = lead ? 1 + 1.5 * step(0.3, 0.9, S.fall) : 1, Hu = W * 0.5 * G.round * Math.min(1.12, b.lid) * agape, Hl = Hu * 0.82, sl = -side * G.slant, c = Math.cos(sl), sn = Math.sin(sl), at = (px, py) => [ex + px * c - py * sn, ey + px * sn + py * c]; // (falling in, the lids draw right back and the pupil opens until it is wider than the picture: by the end nothing of this eye may be left in sight)
+      const lids = new Path2D(), crease = new Path2D(), glow = step(0.1, 0.3, s) / Math.max(1, s) ** 0.8, veil = lead ? 1 - step(0.72, 0.97, S.fall) : 1; // inside an eye the picture is wiped clean each frame; as we fall through, that wipe fades away and leaves the soft wipe of the whole picture, so nothing changes when the being inside takes over
+      lids.moveTo(...at(-W, 0)); lids.quadraticCurveTo(...at(0, -Hu * 2), ...at(W, 0)); lids.quadraticCurveTo(...at(0, Hl * 2), ...at(-W, 0)); lids.closePath();
+      crease.moveTo(...at(-W * 1.04, -Hu * 0.3)); crease.quadraticCurveTo(...at(0, -Hu * 2.75 - W * 0.06), ...at(W * 1.04, -Hu * 0.3));
+      g.globalCompositeOperation = "source-over";
+      blob(ex, ey, W * 1.7, NIGHT, 0.85 * clamp(eyeL * 2)); // a little dark round the eye, so it's the eye that's seen first
+      g.fillStyle = rgba(NIGHT, veil); g.fill(lids);
+      const Rp0 = W * IRIS * PUPIL, Rp = Rp0 * (1 + 0.16 * kick - 0.1 * bass) * (lead ? 1 + (S.widest - 1) * step(0.45, 0.95, S.fall) : 1), Ri = Math.max(W * IRIS, Rp * 1.1), pu = pupilAt(b, side, n ? 1 : S.here), ix = ex + pu[0] * U, iy = ey + pu[1] * U;
+      if (Hu > 1.2) {
+        g.save(); g.clip(lids);
+        g.globalCompositeOperation = "lighter";
+        blob(ix, iy, Ri * 1.5, tone(2), (0.3 * eyeL) / Math.max(1, s) ** 0.7 + (lead ? 0.13 * eyeL * step(0.4, 0.58, S.fall) * (1 - step(0.6, 0.85, S.fall)) : 0)); // the iris glows; and half way down a fall it glows more, because the being we are leaving has gone faint and the one inside is still small, and the picture would go dark for a second
+        const iris = new Path2D(), fibres = new Path2D(), nf = W < 40 ? 16 : 36, huge = 1 + 1.4 * step(1.5, 4.5, s); // (an eye we are falling into has nothing round it to light the picture, so its iris is drawn brighter)
+        iris.arc(ix, iy, Ri, 0, TAU); iris.moveTo(ix + Ri * 0.8, iy); iris.arc(ix, iy, Ri * 0.8, 0, TAU);
+        for (let i = 0; i < nf; i++) { const a = (i / nf) * TAU + (t * 0.1) % TAU, in0 = Rp * 1.12, out = Ri * (0.74 + 0.2 * Math.sin(i * 2.4 + t * 0.9) ** 2); fibres.moveTo(ix + Math.cos(a) * in0, iy + Math.sin(a) * in0); fibres.lineTo(ix + Math.cos(a + 0.12) * out, iy + Math.sin(a + 0.12) * out); }
+        line(fibres, tone(0), eyeL * 0.55 * huge, wide * 0.7, glow);
+        line(iris, tone(2), eyeL * 0.9 * huge, wide, glow);
+        g.globalCompositeOperation = "source-over"; g.fillStyle = rgba(NIGHT, veil); g.beginPath(); g.arc(ix, iy, Rp, 0, TAU); g.fill();
+        g.save(); g.beginPath(); g.arc(ix, iy, Rp, 0, TAU); g.clip();
+        const small = Rp0 / FITS / U, inS = s * small, inU = U * small, wiped = 1 - (1 - TRAIL) * (1 - veil) ** 2, inLight = Math.min(2.4, (light * wiped) / TRAIL); // the one inside is this much smaller, so its halo fits the pupil. Out in the picture the soft wipe lets each frame's lines add up to 1 / TRAIL times their light; in here they're wiped clean, so they're drawn that much brighter to match
+        if (lead && S.fall > 0.5) drawTunnel(ix, iy, inU, inLight * step(0.35, 0.95, inS) * step(3, 6.5, s), 1.3, 0); // (its own tunnel only from half way down: before that it's too small to be seen)
+        drawBeing(n + 1, ix, iy, inU, inS, n || lead ? inLight : inLight * (1 - step(1.3, 2.2, s))); // (falling into one eye, the being in the other isn't drawn for long)
+        g.restore();
+        g.globalCompositeOperation = "lighter";
+        const ring = new Path2D(); ring.arc(ix, iy, Rp, 0, TAU);
+        line(ring, mix(tone(2), WHITE, 0.3), eyeL, wide, glow);
+        blob(ix - Rp * 0.75, iy - Rp * 0.8, Rp * 0.5, WHITE, 0.55 * eyeL * (lead ? 1 - step(0.05, 0.3, S.fall) : 1)); // the wet light on it
+        g.restore();
+      }
+      g.globalCompositeOperation = "lighter";
+      line(crease, tone(0), eyeL * 0.45 * clamp(b.lid * 2 - 0.6), wide * 0.8, 0);
+      line(lids, mix(tone(0), WHITE, 0.2), eyeL * 1.1, wide * 1.3, glow);
+    }
+
+    function drawBeing(n, cx, cy, U, s, light) { // being n of the line, its middle at cx, cy, one of its units U dots long; s is its size against a being seen whole (below 1: one inside an eye; above 1: one we are falling into)
+      const b = S.line[n];
+      if (!b || U < 3 || light < 0.01) return;
+      const G = b.G, { t, kick, bass } = sound, tone = (k) => tones[(k + G.tone) % 3], here = n ? 1 : S.here;
+      g.globalCompositeOperation = "lighter";
+      if (U < 7) { blob(cx, cy, U * 1.3, tone(0), 0.6 * light); return; } // too small to be more than a glimmer
+      const leaves = 1 - step(2.5, 7, s), detail = step(0.14, 0.5, s), wide = Math.max(0.7, (unit / 235) * Math.min(1.8, Math.max(0.35, s ** 0.6))), big = Math.max(1, s), L = (light * leaves) / big ** 0.3, glow = step(0.1, 0.3, s) / big ** 0.8; // falling in, the being we pass goes faint (and fainter the bigger it is, so the picture doesn't brighten as its lines grow across it); a small one is drawn plainer. And the glow under its lines: none for a tiny one, less as it grows in a fall
+      g.lineCap = g.lineJoin = "round";
+      blob(cx, cy, U * 1.7, tone(0), ((0.085 + 0.045 * S.warm * stir(n)) * L * here) / big);
+
+      // the halo: rings turning behind it like a gyroscope, and rays that lengthen on the kick. They come in from outside as it gathers
+      const haloIn = step(0, 0.55, here), outer = 1 - step(1.6, 3.2, s); // (falling in, the halo and the limbs are soon outside the picture and aren't drawn)
+      for (let i = 0; i < Math.ceil(G.rings) && L * outer > 0.02; i++) {
+        const R = G.ringR * (1 + 0.13 * i) * (1.9 - 0.9 * haloIn) * U, lean = G.tilt * (0.6 + 0.4 * Math.sin(t * 0.21 + i * 2.1 + b.seed)), one = new Path2D();
+        one.ellipse(cx, cy, R, R * Math.max(0.04, Math.cos(lean * (i + 1) * 0.8)), (t * 0.13 * (i % 2 ? -1 : 1) + i * 1.05 + b.seed) % TAU, 0, TAU);
+        line(one, tone(1 + i), L * outer * 0.45 * clamp(G.rings - i) * haloIn, wide * 0.8, 0);
+      }
+      if (G.rays && detail > 0.02 && L * outer > 0.02) {
+        const rays = new Path2D(), nr = G.rays, r0 = G.ringR * 0.86 * U * (1.5 - 0.5 * haloIn), turn = -t * 0.07 + b.seed;
+        for (let i = 0; i < nr; i++) { const a = (i / nr) * TAU + turn, len = G.rayLen * G.dip * (i % 2 ? 0.55 : 1) * (0.75 + 0.5 * b.reach) * U; rays.moveTo(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0); rays.lineTo(cx + Math.cos(a) * (r0 + len), cy + Math.sin(a) * (r0 + len)); }
+        line(rays, tone(2), L * outer * 0.5 * haloIn * detail, wide * 0.8, 0);
+      }
+
+      // the limbs: petals in pairs, left and right of the middle line. They grow out as it gathers, wave with the bass and fling out on the kick
+      const grow = step(0.2, 0.92, here), K = s < 0.4 ? 4 : 7, r0 = G.size * 0.85, na = Math.max(2.2, G.arms), gap = TAU / na;
+      const longer = (th0) => Math.max(0.22, 1 + G.sym * (G.wing[0] * Math.cos(th0) + G.wing[1] * Math.cos(2 * th0) + G.wing[2] * Math.cos(3 * th0)));
+      const limb = (path, th0, side, len, wd, phase) => { // one limb into a path: its two edges, from the body out to a point. Gives back where an eye near its tip would sit
+        const hand = 1 + (side - 1) * G.sym, pts = [[], []];
+        let tip = null;
+        for (let i = 0; i <= K; i++) {
+          const u = i / K, rr = r0 + len * u, a = side * (th0 + G.hang * G.sym * Math.sin(th0) * u ** 1.3) + hand * (G.curl * u ** 1.5 * (1 - 0.25 * b.reach) + G.sway * (0.4 + bass) * Math.sin(t * 1.4 - u * 2.6 + phase) * u), half = (wd * ((1 - u) ** 0.8 * (1 - G.waist) + Math.sin(Math.PI * u ** 0.62) * (1 - 0.35 * u) * G.waist)) / Math.max(0.25, rr);
+          for (const e of [0, 1]) pts[e].push([cx + Math.sin(a + (e ? half : -half)) * rr * U, cy - Math.cos(a + (e ? half : -half)) * rr * U]);
+          if (i === Math.round(K * 0.7)) tip = [cx + Math.sin(a) * rr * U, cy - Math.cos(a) * rr * U, a];
+        }
+        for (const e of [0, 1]) curve(path, pts[e], false);
+        return tip;
+      };
+      if (grow > 0.01 && L * outer > 0.02 && U > 14) {
+        const limbs = new Path2D(), petals = new Path2D(), tipEyes = [];
+        let longest = 0.5;
+        for (let i = 0; i <= 12; i++) longest = Math.max(longest, longer((i / 12) * Math.PI)); // the longest limb is as long as "reach" says, the others shorter
+        for (let j = 0; j < Math.ceil(na / 2); j++) {
+          const th0 = Math.min(Math.PI, (j + 0.5) * gap), len = G.reach * (longer(th0) / longest) * grow * eased(clamp(na / 2 - j)) * (1 + 0.1 * b.reach), wd = Math.min(G.wide, gap * (0.6 * r0 * (1 - G.waist) + 0.42 * (r0 + len * 0.5) * G.waist));
+          for (const side of th0 > Math.PI - 1e-3 ? [1] : [-1, 1]) { const tip = limb(limbs, th0, side, len, wd, j * 0.9); if (G.tips > 0.02 && detail > 0.3) tipEyes.push([...tip, len * wd * 2.2, j]); }
+        }
+        if (G.inner > 0.05 && detail > 0.02) for (let j = 0; j <= Math.floor(na / 2); j++) { // the shorter petals between
+          const th0 = Math.min(Math.PI, j * gap), len = G.reach * G.inner * grow * detail * (1 + 0.16 * b.reach);
+          for (const side of j === 0 || th0 > Math.PI - 1e-3 ? [1] : [-1, 1]) limb(petals, th0, side, len, Math.min(G.wide, 0.4 * gap * r0), j * 0.9 + 2);
+        }
+        line(petals, tone(2), L * outer * 0.5 * grow, wide * 0.8, 0);
+        line(limbs, tone(1), L * outer * 0.9 * grow, wide, 0);
+        for (const [x, y, a, e, j] of tipEyes) smallEye(x, y, Math.min(e, 0.07) * U * G.tips, clamp(b.lid * 1.1 - 0.02 * j) * step(0.8, 1, here), a + Math.PI / 2, tone(2), L * outer * detail, glow);
+      }
+
+      // the body: the shadow of the four-dimensional shape. It unfolds from a point
+      const unfold = step(0.08, 0.85, here), bodyU = G.size * unfold * (1 + 0.05 * b.reach) * U;
+      if (unfold > 0.01 && L > 0.02) {
+        const seen = [], cs = b.ang.map((a) => [Math.cos(a), Math.sin(a)]);
+        for (let i = 0; i < 24; i++) { // each corner turned the six ways, then seen from a little way off in the fourth dimension, then from in front
+          const v = CORNERS[i].slice(), out = i < 16 ? 1 : G.spike;
+          for (let p = 0; p < 6; p++) { const [a, c] = PLANES[p], x = v[a], y = v[c]; v[a] = x * cs[p][0] - y * cs[p][1]; v[c] = x * cs[p][1] + y * cs[p][0]; }
+          const k4 = 1 / (1 - Math.max(-0.8, Math.min(0.72, (v[3] * out) / G.far))), k = (out * k4) / (1 - (v[2] * out * k4) / 5.5);
+          seen.push([cx + v[0] * k * bodyU, cy - v[1] * k * bodyU, k4]);
+        }
+        g.globalCompositeOperation = "source-over"; blob(cx, cy, bodyU * 1.9, NIGHT, 0.8 * L); g.globalCompositeOperation = "lighter"; // the body stands in front of its limbs and its halo
+        EDGES.forEach((list, fam) => {
+          const show = [G.tess, G.web, G.cross][fam] * (fam === 1 ? 0.6 * detail : 1);
+          if (show < 0.03) return;
+          const near = new Path2D(), back = new Path2D();
+          for (const [a, c] of list) { const path = seen[a][2] + seen[c][2] > 2.08 ? near : back; path.moveTo(seen[a][0], seen[a][1]); path.lineTo(seen[c][0], seen[c][1]); } // edges nearer to us in the fourth dimension are bright and wide, the far ones faint
+          line(back, tone(fam), L * show * 0.3 * unfold, wide * 0.75, 0);
+          line(near, tone(fam), L * show * (0.85 + 0.15 * kick) * unfold, wide * 1.5, glow);
+        });
+        if (G.corner > 0.02 && detail > 0.25) for (let i = 16; i < 24; i++) { // eyes at the diamond's eight corners: each opens as its corner comes towards us through the fourth dimension, and shuts as it goes
+          const [x, y, k4] = seen[i], open = clamp(G.corner * 8 - (i - 16)) * step(0.9, 1.12, k4) * clamp(b.lid * 1.2 - 0.03 * (i - 16)) * step(0.75, 1, here);
+          smallEye(x, y, 0.07 * k4 * U * Math.min(1.6, s), open, 0, tone(2), L * detail, glow);
+        }
+      }
+
+      // the great eye in the middle, or two of them side by side
+      const W = G.eye * U * step(0.3, 0.8, here);
+      if (W > 2) (G.apart < 0.02 ? [[0, 1]] : [[-G.apart, -1], [G.apart, 1]]).forEach(([px, side], i) => {
+        const lead = n === 0 && i === 0, eyeL = (lead ? (light * (1 - step(0.72, 0.97, S.fall))) / big ** 0.15 : L) * step(0.35, 0.8, here);
+        if (eyeL > 0.01 || lead) greatEye(b, n, cx + px * U, cy, W, side, U, s, lead ? light : L, eyeL, tone, wide, lead);
+      });
+    }
+
+    return function () {
+      const fresh = !S || sound.t < S.at || sound.t - S.at > 1; // shown for the first time, or again after another effect: it starts over
+      if (fresh) begin();
+      if (fresh || sound.t !== S.at) { update(); S.at = sound.t; } // (a frame can be drawn twice, for a picture of it to change from: the numbers still move on only once)
+      const cx = w / 2, cy = h / 2, U = Math.min(w * 0.46, h * 0.42), b = S.line[0], G = b.G, { t } = sound;
+      tones = moodColors(3);
+      unit = U;
+      g.save();
+      g.globalAlpha = 1;
+      g.globalCompositeOperation = "source-over";
+      g.fillStyle = rgba(NIGHT, TRAIL);
+      g.fillRect(0, 0, w, h);
+      // falling: the view grows about the pupil until the being inside it is as big as this one was
+      S.widest = Math.max(1.3, (Math.hypot(w, h) * 0.6) / (FITS * U)); // how many times wider the pupil must open for its rim to be outside the picture when the fall ends
+      const e = eased(S.fall), Z = ((G.eye * IRIS * PUPIL) / FITS) ** -e, into = step(0, 0.3, S.fall), calm = eased(S.rest), two = G.apart >= 0.02, pu = pupilAt(b, two ? -1 : 1, S.here);
+      const float = [Math.sin(t * 0.31 + b.seed) * 0.03 * calm, Math.sin(t * 0.23 + b.seed * 3) * 0.035 * calm], eyeAt = [(two ? -G.apart : 0) + pu[0], pu[1]]; // its slow drift, and where the pupil of the leading eye is, in units
+      const ox = cx + U * Z * (float[0] * (1 - into) - eyeAt[0] * into), oy = cy + U * Z * (float[1] * (1 - into) - eyeAt[1] * into);
+      drawTunnel(ox, oy, U * Z, 1 - step(1.5, 3.5, Z), S.here * 1.3, step(0.3, 0.6, flow.build) * (1 - step(0.86, 0.97, S.here)));
+      drawBeing(0, ox, oy, U * Z, Z, 1);
+      g.restore();
+    };
+  })();
+  /* ==== beings: end ==== */
+  const DRAW = { beings: beingsFx, life: livingGrid, places: placesFx, arcade: arcadeFx, runner: runnerFx, forms: formsFx, faces, ribbon, silk, helix, strings, bars, mirror, leds, terrain, scope, trails, tunnel, vortex, prism, ripple, comets, stars: starfield, whirl, dust, links, fireworks, halo, sun, rings, mandala, rays, space, warp: space, drift: space, orbit: space, visitors: space, well,
     kaleido, plasma, fractal, julia, mandel, newton, ocean, neonroad, aurora, tube: tubeFx, heads: headsFx, sphere: sphereFx, solids: solidsFx, city: cityFx };
 
   /* From one effect to another. The change waits for the next frame, which draws the old picture once more with nobody visiting and keeps it.
