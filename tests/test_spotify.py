@@ -248,6 +248,59 @@ class Checking(Base):
         self.assertEqual(spotify.status(self.paths)["wait_until"], "")
 
 
+class TakingOut(Checking):
+    """Songs you said to take out of a Spotify playlist. Spotify doesn't let apps remove local files, so they wait on your to-do until a check finds them gone."""
+
+    def unwant(self, name, *playlists):
+        self.answer("remove", f"library/Acid/{name}.mp3", kind="unlist", song=name, note="\n".join(playlists))
+
+    def left(self, name):
+        answer = self.saved().get(f"unlist:library/Acid/{name}.mp3")
+        return answer and answer["note"]
+
+    def test_one_taken_out_comes_off_the_list_and_one_still_there_stays(self):
+        self.unwant("A - One", RAVE)
+        self.unwant("B - Two", RAVE)
+        result = self.run_check(FakeSpotify({RAVE: ["B - Two"]}))
+        self.assertIsNone(self.left("A - One"))
+        self.assertEqual(self.left("B - Two"), RAVE)
+        self.assertIn("1 taken out, 1 still to take out", result["message"])
+        self.assertNotIn("arrived", result["message"])
+
+    def test_out_of_one_playlist_but_still_in_another(self):
+        self.unwant("A - One", RAVE, OTHER)
+        self.run_check(FakeSpotify({RAVE: ["A - One"], OTHER: []}))
+        self.assertEqual(self.left("A - One"), RAVE)
+
+    def test_a_playlist_it_cant_find_is_left_alone(self):
+        self.unwant("A - One", "Renamed")
+        self.run_check(FakeSpotify({RAVE: []}))
+        self.assertEqual(self.left("A - One"), "Renamed")
+
+    def test_taking_out_of_one_and_adding_to_another_are_kept_apart(self):
+        self.want("A - One", OTHER)
+        self.unwant("A - One", RAVE)
+        self.run_check(FakeSpotify({RAVE: [], OTHER: ["A - One"]}))
+        self.assertIsNone(self.left("A - One"))
+        self.assertEqual(self.note("A - One")[0], "added")
+
+    def test_checking_never_takes_anything_out_itself(self):
+        self.unwant("A - One", RAVE)
+        fake = FakeSpotify({RAVE: ["A - One"]})
+        self.run_check(fake)
+        self.assertEqual((fake.puts, fake.posts), ([], []))
+        self.assertEqual(self.left("A - One"), RAVE)
+
+    def test_the_app_takes_the_answer(self):
+        collection = webapp.Collection(self.paths)
+        collection.refresh()
+        song = next(s for s in collection.songs.values() if s["key"] == "library/Acid/A - One.mp3")
+        self.assertIsNone(collection.decide(dict(id=song["id"], kind="unlist", action="remove", note=RAVE)))
+        self.assertEqual(self.left("A - One"), RAVE)
+        self.assertIsNone(collection.decide(dict(id=song["id"], kind="unlist", action=None)))
+        self.assertIsNone(self.left("A - One"))
+
+
 class ToRemove(Checking):
     def one(self, **extra):  # the file every test library has: "A - One", album "Album", about 5 seconds
         return {**dict(name="One", artists=["A"], album="Album", secs=5), **extra}

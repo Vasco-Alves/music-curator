@@ -417,6 +417,19 @@ body.fx-full #guests { visibility: hidden; }
 .fx-adjust .btn { justify-self: end; }
 .fx-knob { display: grid; grid-template-columns: minmax(0, 1fr) 110px 42px; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
 .fx-knob input { width: 100%; }
+.fx-bar .btn.rec.on { border-color: #ff4d4d; color: #ff6b6b; font-variant-numeric: tabular-nums; } /* recording */
+.fx-bar .btn.rec.on svg { fill: currentColor; animation: rec-blink 1.2s steps(2, jump-none) infinite; }
+@keyframes rec-blink { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .fx-bar .btn.rec.on svg { animation: none; } }
+.fx-recipe { width: min(540px, calc(100vw - 32px)); } /* the recipe editor opens in the same place as Adjust */
+.recipe-head { display: flex; align-items: baseline; gap: 8px; }
+.recipe-text { width: 100%; min-height: 230px; max-height: 52vh; resize: vertical; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); color: var(--ink); font: 12px/1.45 ui-monospace, Consolas, monospace; white-space: pre; overflow: auto; tab-size: 2; }
+.recipe-said { margin: 0; font-size: 12px; color: var(--ink-3); }
+.recipe-said.bad { color: var(--serious); }
+.recipe-tools { display: flex; flex-wrap: wrap; gap: 6px; }
+.recipe-help { font-size: 12px; color: var(--ink-2); }
+.recipe-help summary { cursor: pointer; }
+.recipe-help p { margin: 6px 0 0; }
 .fx-value { text-align: right; font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 .fx-bar ~ .now-queue { padding-top: 40px; }
 .fx-title { display: none; }
@@ -425,6 +438,12 @@ body.fx-on .now-queue .tracks { background: rgba(8, 9, 12, .62); }
 body.fx-full .now-stage, body.fx-full .now-queue, body.fx-full .now-close { visibility: hidden; }
 body.fx-full .fx-title { position: absolute; inset: auto 0 10px 0; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 16px; text-align: center; text-shadow: 0 1px 14px rgba(0, 0, 0, .85); }
 body.fx-full .fx-title strong { font-size: 24px; }
+body.fx-full .fx-about { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 0; max-width: min(720px, 92vw); font-size: 13px; color: var(--ink-2); }
+body.fx-full .fx-about a { color: inherit; }
+body.fx-full .fx-about a:hover { color: var(--ink); text-decoration: underline; }
+body.fx-full .fx-actions { justify-content: center; margin-top: 8px; text-shadow: none; }
+body.fx-full .fx-actions .btn { background: rgba(10, 11, 15, .72); }
+body.fx-full.idle .fx-title { pointer-events: none; } /* hidden buttons can't be pressed by mistake */
 body.fx-full main { overflow: hidden; }
 body.fx-full .fx-bar, body.fx-full .player, body.fx-full .fx-title { transition: opacity .5s; }
 body.fx-full.idle { cursor: none; }
@@ -447,6 +466,9 @@ kbd { padding: 1px 5px; border-radius: 4px; background: var(--surface-3); color:
 .modal-row { display: flex; flex: none; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 7px; text-align: left; }
 .modal-row:hover:not(:disabled) { background: var(--surface-2); }
 .modal-row em { flex: none; margin-left: auto; font-style: normal; font-size: 12px; color: var(--ink-3); }
+.modal-pair { display: flex; flex: none; align-items: center; gap: 6px; padding-right: 8px; } /* a row that can also take the song back out */
+.modal-pair .modal-row { flex: 1; min-width: 0; }
+.modal-pair .btn { flex: none; }
 .modal-said { color: var(--serious); font-size: 13px; }
 .modal-said:empty { display: none; }
 .modal-go { display: flex; align-items: center; justify-content: flex-end; gap: 14px; }

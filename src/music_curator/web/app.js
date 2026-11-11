@@ -11,6 +11,7 @@ function fill(n, attrs, kids) {
     if (k === "class") n.setAttribute("class", v);
     else if (k === "dataset") Object.assign(n.dataset, v);
     else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+    else if (k === "href" && !/^(#|blob:|https?:\/\/)/i.test(v)) continue; // a link goes somewhere in the app, to a file made here, or to the web: anything else (a script in a file's comment tag, say) is left out
     else n.setAttribute(k, v === true ? "" : v);
   }
   for (const c of kids.flat(Infinity)) if (c !== null && c !== undefined && c !== false) n.append(c.nodeType ? c : String(c));
@@ -32,7 +33,7 @@ const ICONS = {
   warn: "M12 4 2.5 20h19zM12 10v4.5M12 17.5h.01", sliders: "M4 7h9M17 7h3M4 17h3M11 17h9M15 5v4M9 15v4", shuffle: "M16 4h5v5M4 20 21 4M21 15v5h-5M15 15l6 5M4 4l5 5",
   play: "M8 5v14l11-7z", pause: "M7 5h3.5v14H7zM13.5 5H17v14h-3.5z", prev: "M19 6v12l-9-6zM6 6h2.2v12H6z", next: "M5 6v12l9-6zM15.8 6H18v12h-2.2z",
   repeat: "M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3", upnext: "M4 6h16M4 12h9M4 18h9M16 12.500v7l5.500-3.500z",
-  kick: "M3 12h4l2.500-7 4 14 2.500-7h5", flash: "M13 3 5 14h6l-1 7 8-11h-6z", screen: "M3 5h18v12H3zM8 21h8M12 17v4", heart: "M12 20.500s-7.500-4.600-9.200-9.200C1.700 8.200 3.600 5 6.800 5c2.200 0 3.900 1.200 5.200 3 1.300-1.800 3-3 5.200-3 3.200 0 5.100 3.200 4 6.300-1.700 4.600-9.200 9.200-9.200 9.200z", sparkle: "M11 4l1.800 5.700L18.500 11.500l-5.700 1.800L11 19l-1.800-5.700L3.500 11.500l5.700-1.800zM19 3v4M17 5h4", grip: "M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01", fade: "M3 6c7 0 11 12 18 12M3 18c7 0 11-12 18-12", radio: "M12 13.5a1.500 1.500 0 1 0 0-3 1.500 1.500 0 0 0 0 3zM8.200 8a5.500 5.500 0 0 0 0 8M15.800 8a5.500 5.500 0 0 1 0 8M5.200 5a10 10 0 0 0 0 14M18.800 5a10 10 0 0 1 0 14", plus: "M12 5v14M5 12h14", import: "M12 4v11M8 11l4 4 4-4M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5", chevron: "M6 9l6 6 6-6", expand: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5", even: "M6 9v6M10 9v6M14 9v6M18 9v6M3 5h18M3 19h18", user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.500 20a7.500 7.500 0 0 1 15 0",
+  kick: "M3 12h4l2.500-7 4 14 2.500-7h5", flash: "M13 3 5 14h6l-1 7 8-11h-6z", screen: "M3 5h18v12H3zM8 21h8M12 17v4", heart: "M12 20.500s-7.500-4.600-9.200-9.200C1.700 8.200 3.600 5 6.800 5c2.200 0 3.900 1.200 5.200 3 1.300-1.800 3-3 5.200-3 3.200 0 5.100 3.200 4 6.300-1.700 4.600-9.200 9.200-9.200 9.200z", sparkle: "M11 4l1.800 5.700L18.500 11.500l-5.700 1.800L11 19l-1.800-5.700L3.500 11.500l5.700-1.800zM19 3v4M17 5h4", grip: "M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01", fade: "M3 6c7 0 11 12 18 12M3 18c7 0 11-12 18-12", radio: "M12 13.5a1.500 1.500 0 1 0 0-3 1.500 1.500 0 0 0 0 3zM8.200 8a5.500 5.500 0 0 0 0 8M15.800 8a5.500 5.500 0 0 1 0 8M5.200 5a10 10 0 0 0 0 14M18.800 5a10 10 0 0 1 0 14", plus: "M12 5v14M5 12h14", minus: "M5 12h14", rec: "M12 6.500a5.500 5.500 0 1 0 0 11 5.500 5.500 0 0 0 0-11z", code: "M8 7l-5 5 5 5M16 7l5 5-5 5M13.500 5l-3 14", import: "M12 4v11M8 11l4 4 4-4M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5", chevron: "M6 9l6 6 6-6", expand: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5", even: "M6 9v6M10 9v6M14 9v6M18 9v6M3 5h18M3 19h18", user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.500 20a7.500 7.500 0 0 1 15 0",
   morph: "M4 12a8 8 0 0 1 8-8h8v8a8 8 0 0 1-8 8H4zM9 12h6", disc: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z", tag: "M4 4h7.5l8.500 8.500-7.500 7.500L4 11.500zM8 8h.01", export: "M12 15V4M8 8l4-4 4 4M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5",
 };
 const FILLED = new Set(["play", "pause", "prev", "next"]);
@@ -58,7 +59,7 @@ function clock(secs) {
   return h ? `${h}:${String(m).padStart(2, "0")}:${ss}` : `${m}:${ss}`;
 }
 function longTime(secs) {
-  const d = Math.floor(secs / 86400), h = Math.floor((secs % 86400) / 3600), m = Math.round((secs % 3600) / 60);
+  const mins = Math.round(secs / 60), d = Math.floor(mins / 1440), h = Math.floor((mins % 1440) / 60), m = mins % 60; // whole minutes first: rounded at the end, two hours less a few seconds read "1 h 60 min"
   if (d) return `${plural(d, "day")} ${h} h`;
   return h ? `${h} h ${m} min` : `${m} min`;
 }
@@ -125,7 +126,9 @@ async function load() {
   hideExtras(d);
   paintExtras();
   checkedNow.clear(); // the songs come back verified now, with nothing left to double-check
+  const was = S.byId;
   S.byId = new Map(d.songs.map((s) => [s.id, s]));
+  reconcile(was); // what's queued follows any song whose file has moved
   S.lib = d.songs.filter((s) => s.area === "library");
   indexLists();
   $("#genres").replaceChildren(...tally(S.lib.map((s) => s.genre)).map(([g]) => el("option", { value: g })));
@@ -155,7 +158,7 @@ function paintRailLists() { // the space under the menu: Favourites first, then 
   box.replaceChildren(...[own.length ? el("div", { class: "rail-head" }, "Local") : null, ...own.map((p) => row(OWN + p.id, p.name, p.ids.length, p.name === FAVOURITES ? icon("heart", 13, "rail-heart") : null)),
     spotify.length ? el("div", { class: "rail-head", title: "Your Spotify playlists, with only the songs you have as files" }, "On Spotify") : null, ...spotify.map((p) => row(p.name, p.name, p.ids.length))].filter(Boolean));
 }
-const playlistChores = () => !extra("spotify") ? 0 : waitingToAdd().reduce((n, [, d]) => n + lines(d.note).length, 0) + sum(((S.meta.spotify || {}).to_remove || []).map((r) => r.count));
+const playlistChores = () => !extra("spotify") ? 0 : [...waitingToAdd(), ...waitingToTakeOut()].reduce((n, [, d]) => n + lines(d.note).length, 0) + sum(((S.meta.spotify || {}).to_remove || []).map((r) => r.count));
 function badge() {
   const c = $("#check-count"), a = $("#add-count");
   if (c) c.textContent = needsYou() || "";
@@ -163,6 +166,7 @@ function badge() {
 }
 const lines = (text) => (text || "").split("\n").filter(Boolean);
 const waitingToAdd = () => Object.entries(S.decisions).filter(([, d]) => d.action === "add");
+const waitingToTakeOut = () => Object.entries(S.decisions).filter(([, d]) => d.kind === "unlist" && d.action === "remove"); // songs you said to take out of a Spotify playlist
 let toastTimer;
 function toast(msg) {
   const t = $("#toast");
@@ -223,7 +227,7 @@ function columns(box, data, opts) {
       hoverable(hit, plural(d.y, "song"), String(d.x));
       if (can) {
         hit.addEventListener("click", () => opts.pick(d));
-        hit.addEventListener("keydown", (e) => { if (e.key === "Enter") opts.pick(d); });
+        hit.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); opts.pick(d); } }); // Space as well, like any button
       }
       root.append(hit);
       if (d.y) root.append(svg("path", { class: `col${d.hi ? " hi" : ""}`, d: `M${x} ${base}V${y + r}Q${x} ${y} ${x + r} ${y}H${x + bw - r}Q${x + bw} ${y} ${x + bw} ${y + r}V${base}Z` }));
@@ -632,6 +636,27 @@ function renderTiles(box, list) {
 
 /* ---------- export: a playlist file, a spreadsheet, or copies in a folder ---------- */
 let exportTimer = null, exportPaint = null;
+/* The bar of a long job (Curate, a copy to a folder). It's built once and after that only its words and its meter change,
+   so the Stop button under the mouse stays the same button from one moment to the next, and keeps the keyboard's focus. */
+function runBar(stopAt) {
+  const title = el("h2"), now = el("div", { class: "note curate-now" }), meter = el("div"), since = performance.now();
+  const stop = el("button", { class: "btn small", type: "button", onclick: async () => {
+    if (performance.now() - since < 600) return; // the second half of a double click on the button that started the job
+    stop.disabled = true;
+    stop.textContent = "Stopping…";
+    const r = await post(stopAt, {});
+    if (r.error) { stop.disabled = false; stop.textContent = "Stop"; toast(r.error); } // it didn't get through: the button is there to try again
+  } }, "Stop");
+  return {
+    nodes: [el("div", { class: "curate-head" }, el("div", { class: "grow" }, title, now), stop), el("div", { class: "meter" }, meter)],
+    show(head, name, share, stopping) {
+      if (title.textContent !== head) title.textContent = head;
+      if (now.textContent !== name) now.textContent = name;
+      meter.style.width = `${(Math.max(0, Math.min(1, share || 0)) * 100).toFixed(1)}%`;
+      if (stopping && !stop.disabled) { stop.disabled = true; stop.textContent = "Stopping…"; } // stopped from another window
+    },
+  };
+}
 function saveFile(name, text, type) {
   const url = URL.createObjectURL(new Blob([text], { type }));
   const a = el("a", { href: url, download: name });
@@ -705,7 +730,7 @@ function exportControls(nameOf) { // works on whatever the Songs page is listing
       folderBox,
       el("div", { class: "export-go" }, el("label", {}, keep, "Keep the genre folders"), copy)));
   const panel = el("div", { class: "card export-panel", id: "export-panel", hidden: true }, status, form);
-  let field = null, building = false, wasRunning = false;
+  let field = null, building = false, wasRunning = false, bar = null;
   const button = el("button", { class: "btn small", type: "button", "aria-expanded": "false", "aria-controls": "export-panel", onclick: () => { panel.hidden = !panel.hidden; paint(); } }, icon("export", 14), "Export");
   function counted() {
     const n = S.list.length;
@@ -730,16 +755,13 @@ function exportControls(nameOf) { // works on whatever the Songs page is listing
     if (c.running) panel.hidden = false;
     form.hidden = !!c.running;
     button.setAttribute("aria-expanded", String(!panel.hidden));
-    status.replaceChildren();
     if (c.running) {
-      const bar = el("div");
-      bar.style.width = `${c.total ? (c.done / c.total) * 100 : 0}%`;
-      status.append(el("div", { class: "curate-head" },
-        el("div", { class: "grow" }, el("h2", {}, `Copying ${fmt(Math.min(c.done + 1, c.total))} of ${fmt(c.total)}`), el("div", { class: "note curate-now" }, c.name || "Starting…")),
-        el("button", { class: "btn small", type: "button", disabled: !!c.stopping, onclick: (e) => { e.currentTarget.disabled = true; e.currentTarget.textContent = "Stopping…"; post("/api/export/stop", {}); } }, c.stopping ? "Stopping…" : "Stop")),
-      el("div", { class: "meter" }, bar));
+      if (!bar) { bar = runBar("/api/export/stop"); status.replaceChildren(...bar.nodes); }
+      bar.show(`Copying ${fmt(Math.min(c.done + 1, c.total))} of ${fmt(c.total)}`, c.name || "Starting…", c.total ? c.done / c.total : 0, c.stopping);
       return;
     }
+    bar = null;
+    status.replaceChildren();
     if (!panel.hidden) buildField();
     if (c.failed || c.result) {
       const r = c.result || { problems: [], more: 0 };
@@ -755,10 +777,12 @@ function exportControls(nameOf) { // works on whatever the Songs page is listing
 }
 function watchExport() {
   if (exportTimer) return;
+  let missed = 0;
   const tick = async () => {
     let c = null;
     try { const r = await fetch("/api/export", { cache: "no-store" }); if (r.ok) c = await r.json(); } catch { c = null; }
-    if (!c) { exportTimer = null; return; } // the app has gone away: the next load picks it up again
+    if (!c) { exportTimer = ++missed < 20 ? setTimeout(tick, 3000) : null; return; } // no answer: it asks again for a minute before it takes the app to be gone (the next load picks it up then)
+    missed = 0;
     S.meta.export = c;
     if (exportPaint) exportPaint();
     if (c.running) { exportTimer = setTimeout(tick, 500); return; }
@@ -779,12 +803,33 @@ function shelfCover(item, mosaic) {
   c.append(el("button", { class: "over", type: "button", title: "Play", "aria-label": label, onclick: (e) => { e.stopPropagation(); play(); } }, icon("play", 20)));
   return c;
 }
-/* What a record came out on, as far as Discogs says: a CD looks like one, in its case, and anything else (vinyl, or not known) is a record in its sleeve. */
-const mediumOf = (songs) => { const list = [songs].flat().filter(Boolean), cds = list.filter((s) => /^cdr?\b/i.test(s.format || "")).length; return list.length && cds * 2 > list.length ? "cd" : "vinyl"; };
-const sleeveClass = (medium) => `sleeve${medium === "cd" ? " cd" : ""}`;
-const hinge = (medium) => (medium === "cd" ? el("span", { class: "case-hinge", "aria-hidden": "true" }) : null); // the ridged edge of a jewel case
-const disc = (art, medium = mediumOf(art)) => medium === "cd"
-  ? el("div", { class: "disc cd" }, el("div", { class: "disc-label" })) // the shiny side, with its clear hub: the cover is on the other side
+/* What a record came out on, as far as Discogs says, and that's how it looks: a CD in its jewel case, a cassette in its box, a download as just its cover,
+   and anything else (vinyl, or not known) a record in its sleeve. A shelf of songs goes by what most of them came out on. */
+const MEDIA = [[/^cdr?\b/i, "cd"], [/^cassette\b/i, "tape"], [/^file\b/i, "file"]];
+function mediumOf(songs) {
+  const list = [songs].flat().filter(Boolean), count = new Map();
+  for (const s of list) { const m = (MEDIA.find(([re]) => re.test(s.format || "")) || [null, "vinyl"])[1]; count.set(m, (count.get(m) || 0) + 1); }
+  const [best, n] = [...count].sort((a, b) => b[1] - a[1])[0] || ["vinyl", 0];
+  return n * 2 > list.length ? best : "vinyl";
+}
+const sleeveClass = (medium) => `sleeve${medium !== "vinyl" ? ` ${medium}` : ""}`;
+const hinge = (medium) => (medium === "cd" || medium === "tape" ? el("span", { class: `case-hinge${medium === "tape" ? " tape" : ""}`, "aria-hidden": "true" }) : null); // the ridged edge of a jewel case, the spine of a cassette's card
+let tapes = 0;
+function cassette() { // the tape, with its two reels behind the window: it winds from the left one onto the right as the song goes
+  const clip = `tape-window-${++tapes}`;
+  const reel = (cx) => svg("g", { class: "reel", style: `transform-origin: ${cx}px 26px` }, svg("circle", { cx, cy: 26, r: 4.4, fill: "#f4f1e8" }),
+    [0, 60, 120, 180, 240, 300].map((a) => svg("rect", { x: cx - 0.6, y: 21.6, width: 1.2, height: 1.9, fill: "#2a2b30", transform: `rotate(${a} ${cx} 26)` })), svg("circle", { cx, cy: 26, r: 1.6, fill: "#2a2b30" }));
+  const pack = (cx, side) => svg("circle", { class: `tape-pack ${side}`, cx, cy: 26, r: side === "left" ? 10 : 5.2, fill: "#3b2418" });
+  return svg("svg", { viewBox: "0 0 100 64", class: "cassette", "aria-hidden": "true" },
+    svg("rect", { x: 0.5, y: 0.5, width: 99, height: 63, rx: 4, fill: "#24262c", stroke: "rgba(255,255,255,.18)" }),
+    svg("rect", { x: 6, y: 5, width: 88, height: 36, rx: 2.5, fill: "#efe9db" }), svg("rect", { x: 6, y: 9, width: 88, height: 3, fill: "#e0583a" }), svg("rect", { x: 6, y: 12.5, width: 88, height: 2, fill: "#f0a43a" }),
+    svg("rect", { x: 20, y: 16, width: 60, height: 20, rx: 10, fill: "#0c0d10" }), svg("clipPath", { id: clip }, svg("rect", { x: 20, y: 16, width: 60, height: 20, rx: 10 })),
+    svg("g", { "clip-path": `url(#${clip})` }, pack(32, "left"), pack(68, "right")), reel(32), reel(68),
+    svg("path", { d: "M22 63.5 27 50h46l5 13.5", fill: "#2e3037", stroke: "rgba(255,255,255,.12)" }), [3.5, 96.5].map((x) => svg("circle", { cx: x, cy: 3.5, r: 1.2, fill: "#55585f" })), svg("circle", { cx: 50, cy: 57, r: 1.3, fill: "#55585f" }));
+}
+const disc = (art, medium = mediumOf(art)) => medium === "file" ? null // a download: only its cover
+  : medium === "tape" ? el("div", { class: "disc tape" }, cassette())
+  : medium === "cd" ? el("div", { class: "disc cd" }, el("div", { class: "disc-label" })) // the shiny side, with its clear hub: the cover is on the other side
   : el("div", { class: "disc" }, el("div", { class: `disc-label${art && !art.cover ? " blank" : ""}` }, art && art.cover ? el("img", { src: coverUrl(art), alt: "", decoding: "async" }) : null));
 function laser() { // a CD player's pickup on its rail. It reads from the middle outwards, so it starts by the hub and works its way to the edge as the song goes on
   return el("div", { class: "laser", "aria-hidden": "true" }, el("div", { class: "laser-rail" }), el("div", { class: "laser-sled", onclick: (e) => { e.stopPropagation(); togglePlay(); } }, el("span", { class: "laser-lens" })));
@@ -897,7 +942,7 @@ function shelfHead(o) { // what the Songs page is showing, when that's one recor
 const namesIn = (songs, key, most) => tally(songs.map((s) => s[key])).slice(0, most).map(([v]) => v).join(", ");
 const yearSpan = (years) => (!years.length ? "" : Math.min(...years) === Math.max(...years) ? String(years[0]) : `${Math.min(...years)}–${Math.max(...years)}`);
 function albumHead(songs) {
-  const who = [...new Set(songs.map((s) => s.artist).filter(Boolean))], record = songs.find((s) => /discogs/.test(s.link)) || songs[0], shop = shopLink(record);
+  const who = [...new Set(songs.map((s) => s.artist).filter(Boolean))], record = songs.find((s) => siteOf(s.link) === "discogs") || songs[0], shop = shopLink(record);
   const onRecord = Math.max(...songs.map((s) => s.tracks || 0)), years = yearsOf(songs), verified = songs.filter((s) => s.trust === "verified").length;
   return shelfHead({ name: songs[0].album, by: who.length === 1 ? who[0] : who.length ? "Various artists" : "", songs,
     facts: [["Format", record.format], ["Year", years.length ? String(Math.min(...years)) : ""], ["Label", namesIn(songs, "label", 3)], ["Country", namesIn(songs, "country", 3)], ["Genre", namesIn(songs, "genre", 3)],
@@ -1060,7 +1105,7 @@ function doubleLines(s, c, inPanel) { // what to look at before saying it's righ
   return el("div", { class: "double" },
     s.was && s.was !== s.file ? el("div", { class: "item-also double-names" }, el("span", { class: "was" }, s.was), " → ", el("b", {}, s.file)) : null,
     el("dl", { class: "double-tags" }, tags.filter(([, v]) => v).map(([k, v]) => el("div", {}, el("dt", {}, k), el("dd", {}, v)))),
-    s.link ? el("div", { class: "item-also" }, "On ", el("a", { href: s.link, target: "_blank", rel: "noreferrer noopener" }, disc[0] || "its record on Discogs"), disc[1] ? ` (${disc[1]})` : "") : null,
+    s.link ? el("div", { class: "item-also" }, "On ", el("a", { href: s.link, target: "_blank", rel: "noreferrer noopener" }, disc[0] || (siteOf(s.link) === "discogs" ? "its record on Discogs" : "the page it was found on")), disc[1] ? ` (${disc[1]})` : "") : null,
     c.versions && c.versions.length ? el("div", { class: "double-versions" }, c.versions.map((v) => el("div", { class: `double-version${v.this ? " this" : ""}` },
       el("span", { class: "pos" }, v.pos || "·"), el("span", { class: "name" }, v.title), el("span", { class: "len" }, versionNote(v) || "no length"), v.this ? el("em", {}, "this one") : null))) : null,
     c.closer && c.closer.length ? el("div", { class: "double-closer" }, c.closer.map((w) => el("span", { class: "closer" }, icon("warn", 13), w))) : el("div", { class: "item-also double-calm" }, icon("tick", 13), "Nothing stood out to Curate."));
@@ -1099,13 +1144,16 @@ function controls(song, check, after) {
       el("button", { class: "linkish", type: "button", onclick: async () => { if (await undoAnswer(song, check.kind, d)) after(false); } }, "Undo"));
   }
   const row = el("div", { class: "actions" });
-  const act = (action, extra) => async () => { if (await decide(song, check.kind, action, extra)) after(true); };
+  let busy = false; // an answer is on its way: a second press before it's saved (a double click, two keys at once) does nothing
+  const once = (fn) => async () => { if (busy) return; busy = true; try { await fn(); } finally { busy = false; } };
+  const act = (action, extra) => once(async () => { if (await decide(song, check.kind, action, extra)) after(true); });
+  const back = () => { if (cards.has(key)) cards.get(key)(false); if (drawerSong === song.id) paintPanel(); }; // the buttons again, wherever this question is showing
   const chip = (label, fn, note) => el("button", { class: "chip", type: "button", onclick: fn }, label, note ? el("em", {}, note) : null);
-  const ask = (placeholder, action, field, list) => () => {
+  const ask = (placeholder, action, field, list, optional) => () => {
     const input = el("input", { type: "text", placeholder, "aria-label": placeholder, list: list || null });
-    const save = async () => { const v = input.value.trim(); if (!v) return input.focus(); await act(action, { [field]: v })(); };
-    input.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); });
-    row.replaceChildren(el("div", { class: "inline-form" }, input, el("button", { class: "btn small", type: "button", onclick: save }, "Save")));
+    const save = async () => { const v = input.value.trim(); if (!v && !optional) return input.focus(); await act(action, { [field]: v })(); };
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); else if (e.key === "Escape") { e.stopPropagation(); back(); } });
+    row.replaceChildren(el("div", { class: "inline-form" }, input, el("button", { class: "btn small", type: "button", onclick: save }, "Save"), el("button", { class: "linkish", type: "button", onclick: back }, "Cancel")));
     input.focus();
   };
   switch (check.kind) {
@@ -1172,11 +1220,10 @@ function controls(song, check, after) {
       }), chip("Not the same", act("keep")));
       break;
     case "flag":
-      row.append(chip("Done with this", async () => { if (await decide(song, "flag", null)) { song.checks = song.checks.filter((c) => c.kind !== "flag"); badge(); after(true); } }));
+      row.append(chip("Done with this", once(async () => { if (await decide(song, "flag", null)) { song.checks = song.checks.filter((c) => c.kind !== "flag"); badge(); after(true); } })));
       break;
     case "auto":
-      row.append(chip("Looks right", async () => { if (await looksRight(song, true)) after(true); }), chip("Not right…", () => {
-        const back = () => { if (cards.has(key)) cards.get(key)(false); if (drawerSong === song.id) paintPanel(); };
+      row.append(chip("Looks right", once(async () => { if (await looksRight(song, true)) after(true); })), chip("Not right…", () => {
         const input = el("input", { type: "text", placeholder: "What's wrong? (you can leave this empty)", "aria-label": "What's wrong with it", maxlength: 300 });
         const save = () => act("wrong", { note: input.value.trim() })();
         input.addEventListener("keydown", (e) => { if (e.key === "Enter") save(); else if (e.key === "Escape") { e.stopPropagation(); back(); } });
@@ -1187,7 +1234,7 @@ function controls(song, check, after) {
       }));
       break;
     default:
-      row.append(chip("Fine as it is", act("keep")), chip("Look at it again", ask("What's off? (optional detail helps)", "recheck", "note")));
+      row.append(chip("Fine as it is", act("keep")), chip("Look at it again", ask("What's off? (optional detail helps)", "recheck", "note", null, true)));
   }
   return row;
 }
@@ -1296,6 +1343,7 @@ function pageQuick(params) {
   quickKeys = (e) => {
     if (e.ctrlKey || e.altKey || e.metaKey) return false;
     const k = e.key.toLowerCase(), press = /^[1-9]$/.test(k) && card.querySelector(`[data-key="${k}"]`);
+    if (e.repeat && (press || ["n", "b", "u", "r", "escape"].includes(k))) return true; // a key held down counts once: it doesn't answer one song after another
     if (press) press.click();
     else if (k === "n") go(1);
     else if (k === "b") go(-1);
@@ -1331,6 +1379,23 @@ function addRow(s, name, paintCounts) {
   paint(false);
   return el("div", { class: "row has-play", dataset: { song: s.id }, onclick: () => openDrawer(s.id) },
     coverEl(s, () => playQueue([s.id], 0, "To add")),
+    el("div", { class: "grow" }, el("div", { class: "now", title: s.file }, songName(s) || s.file), el("div", { class: "was" }, [S.meta.library, s.folder].filter(Boolean).join(" / "))),
+    action);
+}
+async function markTakenOut(s, name, out) { // the other way from Added: taken out, it's off the to-do; Undo puts it back on
+  const d = S.decisions[`unlist:${s.key}`], left = d && d.action === "remove" ? lines(d.note) : [], next = out ? left.filter((n) => n !== name) : [...new Set([...left, name])];
+  return decide(s, "unlist", next.length ? "remove" : null, { note: next.join("\n") });
+}
+function takeOutRow(s, name, paintCounts) {
+  const action = el("div", { class: "add-action" });
+  const paint = (out) => {
+    action.replaceChildren(...(out
+      ? [el("span", { class: "state" }, icon("tick", 14, "good-i"), "Taken out"), el("button", { class: "linkish", type: "button", onclick: async (e) => { e.stopPropagation(); if (await markTakenOut(s, name, false)) { paint(false); paintCounts(name, 1); } } }, "Undo")]
+      : [el("button", { class: "chip", type: "button", onclick: async (e) => { e.stopPropagation(); if (await markTakenOut(s, name, true)) { paint(true); paintCounts(name, -1); } } }, "Taken out")]));
+  };
+  paint(false);
+  return el("div", { class: "row has-play", dataset: { song: s.id }, onclick: () => openDrawer(s.id) },
+    coverEl(s, () => playQueue([s.id], 0, "To take out")),
     el("div", { class: "grow" }, el("div", { class: "now", title: s.file }, songName(s) || s.file), el("div", { class: "was" }, [S.meta.library, s.folder].filter(Boolean).join(" / "))),
     action);
 }
@@ -1385,13 +1450,23 @@ function addToList(ids, what) { // one song or a whole list, into a playlist you
     };
     name.addEventListener("keydown", (e) => { if (e.key === "Enter") make(); });
     const rows = (S.meta.own_playlists || []).map((p) => {
-      const have = S.lists.get(OWN + p.id), missing = ids.filter((id) => !have.has(id)).length;
-      return el("button", { class: "modal-row", type: "button", disabled: !missing, onclick: async () => {
+      const have = S.lists.get(OWN + p.id), inside = ids.filter((id) => have.has(id)), missing = ids.length - inside.length;
+      const add = el("button", { class: "modal-row", type: "button", disabled: !missing, onclick: async () => {
         const r = await post("/api/playlists/add", { list: p.id, ids });
         if (r.error) { said.textContent = r.error; return; }
         box.close();
         landed(r, p);
-      } }, el("span", {}, p.name), missing === ids.length ? null : el("em", {}, !missing ? "already in" : `${fmt(ids.length - missing)} already in`));
+      } }, el("span", {}, p.name), !inside.length ? null : el("em", {}, !missing ? "already in" : `${fmt(inside.length)} already in`));
+      if (!inside.length) return add;
+      return el("div", { class: "modal-pair" }, add, el("button", { class: "btn small", type: "button", title: `Take ${ids.length === 1 ? "it" : plural(inside.length, "song")} out of ${p.name}`, onclick: async () => { // what's in it already can come out again from here
+        const r = await post("/api/playlists/remove", { list: p.id, ids: inside });
+        if (r.error) { said.textContent = r.error; return; }
+        box.close();
+        tookLists(r);
+        paintHearts();
+        toast(`Took ${ids.length === 1 ? what : plural(inside.length, "song")} out of ${p.name}.`);
+        if (new URLSearchParams(location.hash.split("?")[1] || "").get("playlist") === OWN + p.id) route();
+      } }, icon("minus", 14), "Take out"));
     });
     return [el("div", { class: "inline-form" }, name, el("button", { class: "btn small", type: "button", onclick: make }, "Make it")), rows.length ? el("div", { class: "modal-list" }, rows) : null, said];
   });
@@ -1425,21 +1500,29 @@ async function toggleFavourite(s, button) {
 const heartClick = (s) => (e) => { e.stopPropagation(); toggleFavourite(s, e.currentTarget); };
 const favButton = (s) => { const on = isFavourite(s); return el("button", { class: `btn small heart${on ? " on" : ""}`, type: "button", title: heartTitle(on), "aria-pressed": String(on), dataset: { heart: s.id }, onclick: heartClick(s) }, icon("heart", 14), "Favourite"); };
 const listButton = (ids, what) => el("button", { class: "btn small", type: "button", onclick: () => addToList(ids, what) }, icon("plus", 14), "Add to playlist");
-function addToSpotify(s) { // Spotify doesn't let apps add local files, so this only puts the song on your list of things to drag in
-  const names = (S.meta.spotify || {}).playlists || [], on = new Set(S.inSpotify.get(s.id) || []), said = S.decisions[`playlist:${s.key}`], waiting = said && said.action === "add" ? lines(said.note) : [];
+function addToSpotify(s) { // Spotify doesn't let apps add or remove local files, so this only puts the song on your to-do: to drag into a playlist, or to take out of one
+  const names = (S.meta.spotify || {}).playlists || [], on = new Set(S.inSpotify.get(s.id) || []), said = S.decisions[`playlist:${s.key}`], waiting = said && said.action === "add" ? lines(said.note) : [], gone = S.decisions[`unlist:${s.key}`], leaving = gone && gone.action === "remove" ? lines(gone.note) : [];
   modal(`Add ${songName(s) || s.file} to a Spotify playlist`, (box) => {
     const find = el("input", { type: "text", placeholder: "Find a playlist", "aria-label": "Find a playlist", spellcheck: "false", autocomplete: "off" }), list = el("div", { class: "modal-list" });
-    const paint = () => list.replaceChildren(...names.filter((n) => fold(n).includes(fold(find.value))).map((n) => el("button", { class: "modal-row", type: "button", disabled: on.has(n) || waiting.includes(n), onclick: async () => {
-      if (!(await decide(s, "playlist", "add", { note: [...waiting, n].join("\n") }))) return;
-      box.close();
-      toast(`It's on your Spotify to-do, for you to drag into ${n}.`);
-    } }, el("span", {}, n), on.has(n) ? el("em", {}, "already on it") : waiting.includes(n) ? el("em", {}, "on your to-do") : null)));
+    const done = (words) => { box.close(); toast(words); };
+    const row = (n) => {
+      const out = leaving.includes(n), there = on.has(n) && !out, queued = waiting.includes(n);
+      const add = el("button", { class: "modal-row", type: "button", disabled: there || queued || out, onclick: async () => {
+        if (await decide(s, "playlist", "add", { note: [...waiting, n].join("\n") })) done(`It's on your Spotify to-do, for you to drag into ${n}.`);
+      } }, el("span", {}, n), there ? el("em", {}, "already on it") : queued ? el("em", {}, "on your to-do") : out ? el("em", {}, "to take out") : null);
+      const other = queued ? el("button", { class: "btn small", type: "button", title: `Take it off your to-do, so it doesn't go into ${n}`, onclick: async () => { const rest = waiting.filter((x) => x !== n); if (await decide(s, "playlist", rest.length ? "add" : null, { note: rest.join("\n") })) done(`It won't go into ${n}.`); } }, "Never mind")
+        : out ? el("button", { class: "btn small", type: "button", title: `Leave it in ${n} after all`, onclick: async () => { const rest = leaving.filter((x) => x !== n); if (await decide(s, "unlist", rest.length ? "remove" : null, { note: rest.join("\n") })) done(`It stays in ${n}.`); } }, "Keep it")
+        : there ? el("button", { class: "btn small", type: "button", title: `Put it on your to-do, to take out of ${n}`, onclick: async () => { if (await decide(s, "unlist", "remove", { note: [...leaving, n].join("\n") })) done(`It's on your Spotify to-do, for you to take out of ${n}.`); } }, icon("minus", 14), "Take out")
+        : null;
+      return other ? el("div", { class: "modal-pair" }, add, other) : add;
+    };
+    const paint = () => list.replaceChildren(...names.filter((n) => fold(n).includes(fold(find.value))).map(row));
     find.addEventListener("input", paint);
     paint();
-    return [el("p", { class: "note" }, "Spotify doesn't let apps add local files, so this goes on your Spotify to-do for you to drag in."), find, list];
+    return [el("p", { class: "note" }, "Spotify doesn't let apps add or remove local files, so this goes on your Spotify to-do, for you to drag the song in or take it out yourself."), find, list];
   });
 }
-const spotifyButton = (s) => (s.area === "library" && ((S.meta.spotify || {}).playlists || []).length ? el("button", { class: "btn small", type: "button", title: "Put it on your to-do, to drag into a Spotify playlist", onclick: () => addToSpotify(s) }, icon("listadd", 14), "Add to Spotify") : null);
+const spotifyButton = (s) => (s.area === "library" && ((S.meta.spotify || {}).playlists || []).length ? el("button", { class: "btn small", type: "button", title: "Put it on your to-do, to drag into a Spotify playlist or take out of one", onclick: () => addToSpotify(s) }, icon("listadd", 14), "Add to Spotify") : null);
 const newListButton = () => el("button", { class: "btn primary small", type: "button", onclick: () => nameBox("New playlist", "Make it", "", async (name) => {
   const r = await post("/api/playlists/new", { name });
   if (r.error) return r.error;
@@ -1499,6 +1582,17 @@ function pageAdd(params) {
     total.textContent = sum ? plural(sum, "song") + " left to add" : "All added";
   };
   paintCounts();
+  const outs = new Map(); // and the ones you said to take out of a playlist, the same way round
+  for (const [key, d] of waitingToTakeOut()) {
+    const file = key.slice(key.indexOf(":") + 1), s = S.lib.find((x) => x.key === file);
+    if (s) lines(d.note).forEach((n) => outs.set(n, [...(outs.get(n) || []), s]));
+  }
+  const outNames = [...outs.keys()].sort((a, b) => fold(a).localeCompare(fold(b))), outLeft = new Map(outNames.map((n) => [n, outs.get(n).length])), outCounts = new Map(outNames.map((n) => [n, el("span", { class: "sub" })]));
+  const paintOut = (name, change) => {
+    if (name) outLeft.set(name, outLeft.get(name) + change);
+    outCounts.forEach((c, n) => { c.textContent = outLeft.get(n) ? `${fmt(outLeft.get(n))} to take out` : "All taken out"; });
+  };
+  paintOut();
   const shown = (iso) => (iso.slice(0, 10) === new Date().toLocaleDateString("sv") ? iso.slice(11, 16) : iso.slice(0, 16).replace("T", " "));
   const said = el("span", { class: "sub" }, sp.wait_until ? `Spotify asked to wait until ${shown(sp.wait_until)}` : sp.checked ? `Last checked ${shown(sp.checked)}` : "");
   const checking = el("span", {}, "Check Spotify");
@@ -1537,6 +1631,12 @@ function pageAdd(params) {
     names.length ? el("div", { class: "stack" }, names.map((n) => el("section", { class: "card" }, el("div", { class: "add-head" }, el("h2", {}, n), counts.get(n)),
       el("div", { class: "rows" }, groups.get(n).sort((a, b) => fold(songName(a)).localeCompare(fold(songName(b)))).map((s) => addRow(s, n, paintCounts))))))
       : el("p", { class: "empty" }, "Nothing to add. Songs you say fit a playlist show up here."),
+    outNames.length ? [
+      el("div", { class: "add-head add-part" }, el("h2", {}, "To take out")),
+      el("p", { class: "lead add-help" }, `You said these shouldn't be in these playlists. Spotify doesn't let apps remove local files, so in Spotify, find the song in the playlist, right-click it and choose Remove from this playlist. Then click Taken out${sp.ready ? ", or Check Spotify to confirm them all" : " here"}.`),
+      el("div", { class: "stack" }, outNames.map((n) => el("section", { class: "card" }, el("div", { class: "add-head" }, el("h2", {}, n), outCounts.get(n)),
+        el("div", { class: "rows" }, outs.get(n).sort((a, b) => fold(songName(a)).localeCompare(fold(songName(b)))).map((s) => takeOutRow(s, n, paintOut)))))),
+    ] : null,
     removeTotal || sp.ready ? [
       el("div", { class: "add-head add-part" }, el("h2", {}, "To remove"), removeTotal ? el("span", { class: "sub" }, `${plural(removeTotal, "entry", "entries")} in ${plural(removing.length, "playlist")}`) : null, mover ? el("div", { class: "add-check" }, movingSaid, mover) : null),
       removeTotal ? el("p", { class: "lead add-help" }, "No file in your folders matches these, so Spotify can't play them, or they're second copies of a song. Spotify doesn't let apps remove local files, so these are for you: click the first, Shift+click the last, right-click and choose Remove from this playlist. If one of them still plays, leave it. Check Spotify again to update this list.") : el("p", { class: "empty" }, sp.checked ? "Nothing to remove. Every local song in your playlists has a file behind it." : "Press Check Spotify, at the top of this page, to see what's left to remove from your playlists."),
@@ -1569,21 +1669,17 @@ function lastRunWords(r) {
   return `${r.stopped ? "Stopped early. " : ""}${did}.${r.strong ? ` ${fmt(r.strong)} of those ${r.strong === 1 ? "has" : "have"} a strong audio match for you to confirm.` : ""}${left.length ? ` ${plural(left.length, "answer")} couldn't be carried out. ${left[0]}` : ""}${r.said ? ` ${r.said}` : ""}`;
 }
 let curateAside = false; // the songs marked not worth keeping only leave if you tick the box
+const curateBars = new WeakMap(); // the bar of the run in each box, for as long as the run lasts
 function paintCurate(box) {
   const c = S.meta.curate || {}, fresh = freshSongs(), answers = answersToRun(), w = answersWaiting(), records = c.styles_missing || 0, aside = curateAside ? w.drops : 0, lookups = fresh + answers + records, here = w.genres + w.wrong + aside, todo = lookups + here;
   if (c.running) {
-    const fill = el("div");
-    fill.style.width = c.total ? `${Math.round((c.done / c.total) * 100)}%` : "0";
+    let bar = curateBars.get(box);
+    if (!bar) { bar = runBar("/api/curate/stop"); curateBars.set(box, bar); box.replaceChildren(...bar.nodes); }
     box.hidden = false;
-    box.replaceChildren(
-      el("div", { class: "curate-head" },
-        el("div", { class: "grow" },
-          el("h2", {}, c.total ? `${c.step === "Looking up" ? "Curating song" : `${c.step}:`} ${fmt(Math.min(c.done + 1, c.total))} of ${fmt(c.total)}` : c.step || "Curating"),
-          el("div", { class: "note curate-now" }, c.total ? c.name : "This can take a few minutes: Discogs answers about once a second.")),
-        el("button", { class: "btn small", type: "button", disabled: !!c.stopping, onclick: (e) => { e.currentTarget.disabled = true; e.currentTarget.textContent = "Stopping…"; post("/api/curate/stop", {}); } }, c.stopping ? "Stopping…" : "Stop")),
-      el("div", { class: "meter" }, fill));
+    bar.show(c.total ? `${c.step === "Looking up" ? "Curating song" : `${c.step}:`} ${fmt(Math.min(c.done + 1, c.total))} of ${fmt(c.total)}` : c.step || "Curating", c.total ? c.name || "" : "This can take a few minutes: Discogs answers about once a second.", c.total ? c.done / c.total : 0, c.stopping);
     return;
   }
+  curateBars.delete(box);
   const last = box.dataset.always ? c.result : null, research = box.dataset.check ? w.research : 0;
   box.hidden = !todo && !w.drops && !research && !last && !c.failed;
   if (box.hidden) { box.replaceChildren(); return; }
@@ -1610,19 +1706,26 @@ function curateBar(always, check) {
   return box;
 }
 function repaintCurate() { const box = $("#curate-bar"); if (box) paintCurate(box); }
+let curateStarting = false;
 async function startCurate() {
-  const r = await post("/api/curate", { set_aside: curateAside });
-  if (r.error) return toast(r.error);
-  S.meta.curate = { ...S.meta.curate, running: true, step: "Starting", done: 0, total: 0, name: "", failed: "", result: null };
-  repaintCurate();
-  watchCurate();
+  if (curateStarting) return; // the second half of a double click on Curate
+  curateStarting = true;
+  try {
+    const r = await post("/api/curate", { set_aside: curateAside });
+    if (r.error) return toast(r.error);
+    S.meta.curate = { ...S.meta.curate, running: true, step: "Starting", done: 0, total: 0, name: "", failed: "", result: null };
+    repaintCurate();
+    watchCurate();
+  } finally { curateStarting = false; }
 }
 function watchCurate() {
   if (curateTimer) return;
+  let missed = 0;
   const tick = async () => {
     let c = null;
     try { const r = await fetch("/api/curate", { cache: "no-store" }); if (r.ok) c = await r.json(); } catch { c = null; }
-    if (!c) { curateTimer = null; return; } // the app has gone away: the next load picks it up again
+    if (!c) { curateTimer = ++missed < 20 ? setTimeout(tick, 3000) : null; return; } // no answer: it asks again for a minute before it takes the app to be gone (the next load picks it up then)
+    missed = 0;
     S.meta.curate = c;
     repaintCurate();
     if (c.running) { curateTimer = setTimeout(tick, 900); return; }
@@ -1912,7 +2015,12 @@ async function pageSettings() {
 }
 
 /* ---------- song drawer ---------- */
-const sourceName = (link) => (/discogs/.test(link) ? "Open on Discogs" : /musicbrainz/.test(link) ? "Open on MusicBrainz" : /youtu/.test(link) ? "Open the upload" : "Open the source");
+const siteOf = (link) => { // which known site a link really goes to: read from its address, not from a word somewhere in it
+  let host = "";
+  try { host = new URL(link).hostname; } catch { return ""; }
+  return /(^|\.)discogs\.com$/.test(host) ? "discogs" : /(^|\.)musicbrainz\.org$/.test(host) ? "musicbrainz" : /(^|\.)(youtube\.com|youtu\.be)$/.test(host) ? "youtube" : "";
+};
+const sourceName = (link) => ({ discogs: "Open on Discogs", musicbrainz: "Open on MusicBrainz", youtube: "Open the upload" })[siteOf(link)] || "Open the source";
 function shopLink(s) { // the record's own listings when Discogs knows it, otherwise a search that can find it
   const m = /discogs\.com\/(release|master)\/(\d+)/.exec(s.link || "");
   if (m) return { href: m[1] === "release" ? `https://www.discogs.com/sell/release/${m[2]}` : `https://www.discogs.com/sell/list?master_id=${m[2]}&format=Vinyl`, label: "Buy on Discogs", icon: "bag" };
@@ -2054,7 +2162,7 @@ function paintPanel() {
     s.area === "library" && extra("curator") ? [el("h3", {}, "How sure"), el("div", { class: "box" }, trustTag(s), el("div", { class: "note" }, t.long), s.notes ? el("div", { class: "item-why" }, s.notes) : null)] : null,
     s.was && s.was !== s.file && extra("curator") ? [el("h3", {}, "Your file was called"), el("div", { class: "box" }, s.was)] : null,
     checks.length ? [el("h3", {}, "To check"), checks.map((c) => el("div", { class: "box" }, el("strong", {}, KINDS[c.kind].label), el("div", { class: "item-why" }, c.why), doubleLines(s, c, true), alreadyIn(c), recordLine(c), audioLine(c), spotifyLine(c), betterLine(c),
-      controls(s, c, (advance) => { if (advance && S.listen && current() && current().id === s.id) step(1); })))] : null,
+      controls(s, c, (advance) => { if (advance && S.listen && current() && current().id === s.id && !checks.some((o) => o !== c && !answerOf(`${o.kind}:${s.key}`))) step(1); })))] : null, // on to the next song only once this one's last question here has its answer
     extra("curator") ? el("div", { class: "hintbar" }, flagBox) : null]); // a flag is something for the Curator to look at again
   drawer.classList.toggle("fresh", paintedSong !== drawerSong); // only a new song arrives with motion, not a repaint of the same one
   if (paintedSong !== drawerSong) { drawer.scrollTop = 0; paintedSong = drawerSong; }
@@ -2089,10 +2197,15 @@ function pageNow() {
   const songs = (o) => `#/songs?${q2(o)}`, dot = () => el("span", { class: "now-dot" }, "·");
   const place = el("input", { type: "range", min: 0, max: 1000, value: 0, "aria-label": "Position in the song" });
   wireSeek(place);
-  const about = [s.album ? el("a", { href: songs({ album: s.album }) }, s.album) : null, s.year ? el("a", { href: songs({ from: s.year, to: s.year }) }, s.year) : null, s.genre ? el("a", { href: songs({ genre: s.genre }) }, s.genre) : null, s.label ? el("a", { href: songs({ label: s.label }) }, s.label) : null].filter(Boolean);
-  view.replaceChildren(el("div", { class: "now-page" }, close, fxBar(), el("div", { class: "fx-title" }, el("strong", {}, s.title || s.file), el("span", {}, s.artist)),
+  const aboutLinks = () => [s.album ? el("a", { href: songs({ album: s.album }) }, s.album) : null, s.year ? el("a", { href: songs({ from: s.year, to: s.year }) }, s.year) : null, s.genre ? el("a", { href: songs({ genre: s.genre }) }, s.genre) : null, s.label ? el("a", { href: songs({ label: s.label }) }, s.label) : null].filter(Boolean), about = aboutLinks();
+  const fullAbout = aboutLinks(); // the same again for Full view, which shows it under the artist with the buttons, while the mouse moves
+  view.replaceChildren(el("div", { class: "now-page" }, close, fxBar(), el("div", { class: "fx-title" }, el("strong", {}, s.title || s.file), el("span", {}, s.artist),
+    fullAbout.length ? el("div", { class: "fx-about" }, fullAbout.flatMap((a, i) => (i ? [dot(), a] : [a]))) : null,
+    el("div", { class: "actions fx-actions" }, favButton(s), listButton([s.id], songName(s) || s.file), spotifyButton(s))),
     el("div", { class: "now-stage" },
       mediumOf(s) === "cd" ? el("div", { class: "sleeve cd now" }, fill(disc(s, "cd"), {}, [laser()]), hinge("cd"), stuck(coverEl(s), [s])) // no tonearm on a CD: a laser reads it
+        : mediumOf(s) === "tape" ? el("div", { class: "sleeve tape now" }, disc(s, "tape"), hinge("tape"), stuck(coverEl(s), [s])) // a cassette's reels show how far in it is
+        : mediumOf(s) === "file" ? el("div", { class: "sleeve file now" }, stuck(coverEl(s), [s])) // a download is only its cover
         : el("div", { class: "sleeve now" }, tonearm(), disc(s), stuck(coverEl(s), [s])),
       el("div", { class: "now-info" },
         el("div", { class: "eyebrow" }, P.label && P.label !== "Shuffle" ? P.label : "Now playing"),
@@ -2117,9 +2230,14 @@ function tonearm() {
     svg("circle", { class: "arm-base", cx: 16, cy: 12, r: 7.5 }), svg("circle", { class: "arm-cap", cx: 16, cy: 12, r: 3.6 }), svg("ellipse", { class: "arm-gleam", cx: 16, cy: 10.5, rx: 2.3, ry: 1.25 }));
 }
 function moveArm() {
+  const reach = audio.duration ? audio.currentTime / audio.duration : 0;
+  document.querySelectorAll(".sleeve.now .cassette").forEach((tape) => { // the tape winds from the left reel onto the right as the song goes
+    const left = tape.querySelector(".tape-pack.left"), right = tape.querySelector(".tape-pack.right"), full = 10, empty = 5.2;
+    left.setAttribute("r", (full - (full - empty) * reach).toFixed(2));
+    right.setAttribute("r", (empty + (full - empty) * reach).toFixed(2));
+  });
   const pickup = $(".now-stage .laser");
   if (pickup) { // a CD: the laser goes from the hub to the edge, and is lit while it's reading
-    const reach = audio.duration ? audio.currentTime / audio.duration : 0;
     if (!pickup.dataset.reach || Math.abs(reach - +pickup.dataset.reach) >= 0.002) { pickup.dataset.reach = reach; pickup.style.setProperty("--reach", reach.toFixed(3)); }
     return;
   }
@@ -2170,7 +2288,12 @@ function accentSetting() {
 }
 
 /* ---------- effects: pictures from the sound on Now Playing, drawn by effects.js ---------- */
-const FX = window.Effects || null, fxStyles = FX ? FX.styles : {}, familyOf = (name) => Object.keys(fxStyles).find((k) => fxStyles[k].some(([style]) => style === name)) || ""; // each effect is one choice with several styles
+const FX = window.Effects || null, fxStyles = FX ? FX.styles : {}, familyOf = (name) => Object.keys(fxStyles).find((k) => fxStyles[k].some(([style]) => style === name)) || "", firstStyle = (family) => ((fxStyles[family] || [])[0] || [""])[0]; // each effect is one choice with several styles
+/* Recipes: effects written as data (see effects.js). The ones you make or bring in are kept in this browser, and come back as styles of Recipes when the app starts. */
+let myRecipes = {};
+try { myRecipes = JSON.parse(store("curator-recipes") || "{}") || {}; } catch { myRecipes = {}; }
+if (FX) for (const [key, raw] of Object.entries(myRecipes)) if (FX.recipes.keep(key, raw) && !FX.recipes.raw(key)) delete myRecipes[key]; // one that can't be read at all is left out
+const saveRecipes = () => store("curator-recipes", JSON.stringify(myRecipes));
 let fxName = familyOf(store("curator-fx")) ? store("curator-fx") : "", fxEverywhere = store("curator-fx-all") === "1", fxFull = false, fxIdle = 0, fxMorph = store("curator-fx-morph") === "1", fxSeen = [];
 const fxShowing = () => !!FX && !!fxName && !calm.matches && (fxEverywhere || onNowPage());
 /* Sliders for the effect showing. 100% is how it was designed, each style remembers its own, and only what's been moved is saved. */
@@ -2197,20 +2320,145 @@ function fxAdjust() {
 const fxBar = () => (FX && !calm.matches ? el("div", { class: "fx-bar" },
   el("div", { class: "fx-picks", role: "group", "aria-label": "Effects" }, el("span", { class: "fx-label" }, "Effect"), [["", "None"], ...FX.names].map(([k, t]) => {
     const on = familyOf(fxName) === k;
-    return el("button", { class: `chip${on ? " on" : ""}`, type: "button", "aria-pressed": String(on), onclick: () => setFx(k && familyOf(store(`curator-fx-${k}`)) === k ? store(`curator-fx-${k}`) : k) }, t);
-  }), fxName ? el("select", { class: "fx-style", "aria-label": "Style", title: "Style", onchange: (e) => setFx(e.target.value) }, fxStyles[familyOf(fxName)].map(([k, t]) => el("option", { value: k, selected: fxName === k }, t))) : null),
+    return el("button", { class: `chip${on ? " on" : ""}`, type: "button", "aria-pressed": String(on), onclick: () => setFx(k && familyOf(store(`curator-fx-${k}`)) === k ? store(`curator-fx-${k}`) : firstStyle(k)) }, t); // the style you last had of it, or its first: a family's own name is no style
+  }), fxName ? el("select", { class: "fx-style", "aria-label": "Style", title: "Style", onchange: (e) => setFx(e.target.value) }, (fxStyles[familyOf(fxName)] || []).map(([k, t]) => el("option", { value: k, selected: fxName === k }, t))) : null),
   el("button", { class: `btn small${fxMorph ? " on" : ""}`, type: "button", "aria-pressed": String(fxMorph), title: fxMorph ? "Changes into another effect now and then, on the beat. Click to stay on this one" : "Change into another effect now and then, on the beat: any style of any of them", onclick: () => setMorph(!fxMorph) }, icon("morph", 14), "Morph"),
+  fxName && FX.versions(fxName) ? el("button", { class: "btn small", type: "button", title: "Another version of this effect, now (or press N): how many, what shape, folded how, the colors. It changes by itself too as the song goes, which Adjust can slow down or stop", onclick: () => FX.another() }, icon("shuffle", 14), "Another version") : null,
   fxName ? el("button", { class: `btn small${fxAdjusting ? " on" : ""}`, type: "button", "aria-pressed": String(fxAdjusting), title: "Adjust this effect", onclick: () => { fxAdjusting = !fxAdjusting; paintFxBar(); } }, icon("sliders", 14), "Adjust") : null,
   fxName ? el("button", { class: `btn small${fxEverywhere ? " on" : ""}`, type: "button", "aria-pressed": String(fxEverywhere), title: fxEverywhere ? "Showing behind every page. Click to keep it to Now Playing" : "Show it behind every page", onclick: () => setFxEverywhere(!fxEverywhere) }, icon("grid", 14), "All pages") : null, // Glow, Flash, Sparkle and Full view are on the play bar, so they aren't here as well
-  fxName && fxAdjusting ? fxAdjust() : null) : null);
+  fxName && canRecord() ? el("button", { class: `btn small rec${recorder ? " on" : ""}`, id: "fx-rec", type: "button", "aria-pressed": String(!!recorder), title: recorder ? "Stop, and save the video (or press R)" : "Record what the effect does, with the sound, as a video (or press R)", onclick: toggleRecord }, icon("rec", 14), el("span", {}, recordLabel())) : null,
+  fxName && familyOf(fxName) === "recipes" ? el("button", { class: `btn small${fxWriting ? " on" : ""}`, type: "button", "aria-pressed": String(fxWriting), title: "See how this effect is made, change it as it plays, or make one of your own", onclick: () => { fxWriting = !fxWriting; fxAdjusting = false; paintFxBar(); } }, icon("code", 14), "Recipe") : null,
+  fxName && fxAdjusting ? fxAdjust() : null,
+  fxName && fxWriting && familyOf(fxName) === "recipes" ? recipeEditor() : null) : null);
 const paintFxBar = () => { const b = $(".fx-bar"); if (b) b.replaceWith(fxBar()); };
+/* The recipe editor: the recipe as text, tried as you type, so the effect behind changes with it. Yours can be saved, given to someone as a file, and brought in from one. */
+let fxWriting = false, recipeDraft = null; // what's been typed and not saved, kept while the bar is drawn again
+const slugOf = (text) => fold(String(text ?? "")).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "recipe";
+function freshRecipeKey(name) { let key; do key = `recipe-mine-${slugOf(name)}-${Math.random().toString(36).slice(2, 6)}`; while (myRecipes[key]); return key; }
+function takeRecipes(text) { // a file someone gave you: one recipe, or a list of them. Says how many came in, and what was wrong
+  let given;
+  try { given = JSON.parse(text); } catch { return { added: [], problem: "That file isn't a recipe: it isn't JSON." }; }
+  const list = (Array.isArray(given) ? given : [given]).slice(0, 50), added = [], problems = [];
+  for (const raw of list) {
+    const key = freshRecipeKey((raw && raw.name) || "recipe"), said = FX.recipes.keep(key, raw);
+    if (!FX.recipes.raw(key)) { problems.push(...(said || ["One of them couldn't be read."])); continue; }
+    if (said && said.length) problems.push(`${String(raw.name || "One of them").slice(0, 40)}: ${said[0]} Open its recipe to fix it.`); // it came in, drawing what's wrong as it would be by default
+    myRecipes[key] = raw;
+    added.push(key);
+  }
+  saveRecipes();
+  return { added, problem: problems[0] || "" };
+}
+function recipeEditor() {
+  const key = fxName, mine = !!myRecipes[key], example = FX.recipes.example(key), raw = FX.recipes.raw(key) || {};
+  const text = el("textarea", { class: "recipe-text", rows: 16, spellcheck: "false", autocomplete: "off", "aria-label": "The recipe" });
+  text.value = recipeDraft && recipeDraft.key === key ? recipeDraft.text : JSON.stringify(raw, null, 2);
+  const said = el("p", { class: "recipe-said", role: "status" }), file = el("input", { type: "file", accept: ".json,application/json", hidden: true });
+  let timer = 0;
+  const tried = () => { // read what's typed, and show it straight away if it can be drawn
+    let given;
+    try { given = JSON.parse(text.value); } catch (ex) { said.textContent = `Not quite JSON yet: ${String(ex.message).replace(/^JSON\.parse: /, "")}`; said.classList.add("bad"); return null; }
+    const problems = FX.recipes.keep(key, given) || [];
+    said.textContent = problems.length ? problems.slice(0, 3).join(" ") : recipeDraft ? "Showing what you typed. It isn't saved yet." : "This is how it's made. Change anything and the effect changes as you type.";
+    said.classList.toggle("bad", problems.length > 0);
+    return problems.length ? null : given;
+  };
+  text.addEventListener("input", () => { recipeDraft = { key, text: text.value }; clearTimeout(timer); timer = setTimeout(tried, 350); });
+  const save = () => { // yours is saved over; an example is saved as a new one of yours
+    const given = tried();
+    if (!given) return toast("Fix what's wrong first, then save it.");
+    const to = mine ? key : freshRecipeKey(given.name || "recipe");
+    myRecipes[to] = given;
+    FX.recipes.keep(to, given);
+    if (!mine && example) FX.recipes.drop(key); // the example goes back to how it came
+    saveRecipes();
+    recipeDraft = null;
+    toast(mine ? "Saved." : `Saved as ${given.name || "a recipe"} of yours, under Recipes.`);
+    if (to !== key) setFx(to); else paintFxBar();
+  };
+  file.addEventListener("change", async () => {
+    const one = file.files[0];
+    file.value = "";
+    if (!one) return;
+    if (one.size > 64 * 1024) return toast("That file is too big to be a recipe.");
+    let r;
+    try { r = takeRecipes(await one.text()); } catch { return toast("That file couldn't be read as a recipe."); } // whatever is in it, you're told
+    if (!r.added.length) return toast(r.problem || "Nothing in that file could be used.");
+    toast(`Brought in ${plural(r.added.length, "recipe")}.${r.problem ? ` ${r.problem}` : ""}`);
+    recipeDraft = null;
+    setFx(r.added[0]);
+  });
+  const ref = FX.recipes;
+  const body = el("div", { class: "card fx-adjust fx-recipe" },
+    el("div", { class: "recipe-head" }, el("strong", {}, raw.name || "Recipe"), mine ? el("span", { class: "note" }, "yours") : example ? el("span", { class: "note" }, "comes with the app") : null),
+    text, said,
+    el("div", { class: "recipe-tools" },
+      el("button", { class: "btn small primary", type: "button", onclick: save }, mine ? "Save" : "Save as yours"),
+      el("button", { class: "btn small", type: "button", title: "Save it as a file, to give to someone", onclick: () => { const given = tried(); if (given) saveFile(`${slugOf(given.name || "recipe")}.pressling-effect.json`, JSON.stringify(given, null, 2), "application/json"); } }, icon("export", 14), "Export"),
+      el("button", { class: "btn small", type: "button", title: "Bring in a recipe someone gave you", onclick: () => file.click() }, icon("import", 14), "Import"), file,
+      mine ? el("button", { class: "btn small", type: "button", onclick: () => { delete myRecipes[key]; saveRecipes(); FX.recipes.drop(key); recipeDraft = null; toast("Deleted."); setFx(firstRecipe()); } }, "Delete")
+        : example && recipeDraft ? el("button", { class: "btn small", type: "button", onclick: () => { FX.recipes.drop(key); recipeDraft = null; paintFxBar(); } }, "Back to how it came") : null),
+    el("details", { class: "recipe-help" }, el("summary", {}, "How recipes are made"),
+      el("p", {}, "A recipe has a name, how much of the last picture stays (fade, 0 to 0.98), and up to 8 layers. Leave out zoom and turn, or give them formulas, and the last picture comes back bigger or turned, so everything streams."),
+      el("p", {}, `Each layer has a shape (${ref.shapes.join(", ")}) and any of ${ref.parts.join(", ")}. Each is a number or a formula. x and y go from 0 to 1 across and down, size is a part of the shorter side, hue goes round the colors, light is 0 to 1, width is in pixels, x2 and y2 are a line's other end and amount is how tall a wave is.`),
+      el("p", {}, `In a formula: ${ref.names.join(", ")}, pi and tau. t is the time in seconds, i is which one of the n in the layer, u goes from 0 to 1 along them, beat goes from 0 to 1 between kicks and aspect is the width over the height. And these: ${ref.functions.join(", ")}. band(x) is the sound from the bass at 0 to the highs at 1, and wave(x) the waveform. + - * / % ^ and < > work too.`)));
+  setTimeout(tried, 0);
+  return body;
+}
+const firstRecipe = () => (fxStyles.recipes[0] || [""])[0];
+/* Recording: what the effect does, as a video, with the song's sound when it can be had. The browser makes the file (WebM) and it's saved like any download. */
+let recorder = null, recordStart = 0, recordTimer = 0, recordStarting = false;
+const canRecord = () => !!(FX && window.MediaRecorder && window.HTMLCanvasElement && HTMLCanvasElement.prototype.captureStream);
+const recordLabel = () => { if (!recorder) return "Record"; const s = Math.floor((Date.now() - recordStart) / 1000); return `Stop ${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+const paintRecord = () => { const b = $("#fx-rec"); if (b) b.lastChild.textContent = recordLabel(); };
+async function toggleRecord() {
+  if (recorder) return recorder.stop();
+  const picture = $("#fx");
+  if (!picture || picture.hidden) return toast("Put an effect on first.");
+  if (recordStarting) return; // a second press while the first is still getting going
+  recordStarting = true;
+  const wired = await wireSound(); // also when nothing has played yet: the sound is connected now, so the video has it once the music starts
+  recordStarting = false;
+  if (picture.hidden) return; // the effect went off meanwhile
+  const tracks = [...picture.captureStream(30).getVideoTracks()];
+  let sound = null;
+  if (wired) { sound = kickContext.createMediaStreamDestination(); deckSources.forEach((s) => s.connect(sound)); tracks.push(...sound.stream.getAudioTracks()); } // the song, as it comes out of the player
+  const letGo = () => { if (sound) deckSources.forEach((s) => { try { s.disconnect(sound); } catch { /* already gone */ } }); tracks.forEach((t) => t.stop()); };
+  const type = ["video/webm;codecs=vp9,opus", "video/webm;codecs=vp8,opus", "video/webm"].find((t) => MediaRecorder.isTypeSupported(t));
+  let made;
+  try { made = new MediaRecorder(new MediaStream(tracks), { ...(type ? { mimeType: type } : {}), videoBitsPerSecond: 6000000 }); }
+  catch { letGo(); return toast("This browser can't record the picture."); }
+  const pieces = [], what = fxName;
+  made.ondataavailable = (e) => { if (e.data && e.data.size) pieces.push(e.data); };
+  made.onerror = () => { if (made.state !== "inactive") made.stop(); }; // what it has so far is saved
+  made.onstop = () => {
+    clearInterval(recordTimer);
+    letGo();
+    recorder = null;
+    paintFxBar();
+    const video = new Blob(pieces, { type: made.mimeType || "video/webm" }), name = `pressling-${what.replace(/^recipe-/, "")}-${new Date().toLocaleString("sv").replace(/[^\d]+/g, "-")}.webm`;
+    if (!video.size) return toast("Nothing was recorded.");
+    const url = URL.createObjectURL(video), link = el("a", { href: url, download: name });
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    toast(`Saved ${name}, wherever your browser keeps downloads.`);
+  };
+  try { made.start(1000); } catch { letGo(); return toast("This browser can't record the picture."); } // before anything says a recording is on
+  recorder = made;
+  recordStart = Date.now();
+  recordTimer = setInterval(() => { paintRecord(); if (Date.now() - recordStart > 30 * 60 * 1000 && recorder) recorder.stop(); }, 500); // half an hour at most: a video file that long is already big
+  paintFxBar();
+  if (!wired) toast("Recording the picture only: the sound couldn't be had.");
+}
 function syncFx() { // after anything that changes whether a picture should be showing
   if (!FX) return;
   const on = fxShowing(), here = onNowPage();
   document.body.classList.toggle("fx-on", on);
   document.body.classList.toggle("fx-around", on && !here); // behind the other pages it's fainter, because there's more to read
   FX.tuning(fxTuning[fxName] || {});
-  if (on) FX.show(fxName); else FX.hide();
+  if (on) FX.show(fxName); else { FX.hide(); if (recorder) recorder.stop(); } // with the picture gone there's nothing left to record, so what was recorded is saved
   if (fxFull && !(on && here)) fullFx(false);
   startSound();
 }
@@ -2221,6 +2469,7 @@ function setFxEverywhere(on) {
   syncFx();
 }
 function setFx(name) {
+  if (!familyOf(name)) name = ""; // a name that is no style (an old saved one, a family's own name) means no effect, never a page that can't be drawn
   if (fxName && fxName !== name) fxSeen = [...fxSeen.filter((s) => s !== fxName), fxName].slice(-6); // so Morph doesn't go straight back to one
   fxName = name;
   store("curator-fx", name);
@@ -2231,6 +2480,7 @@ function setFx(name) {
 }
 /* Morph: the effect changes into another by itself now and then, on the beat. effects.js says when; this picks which, from any style of any effect, and not one just seen. */
 function morphFx() {
+  if (fxWriting && familyOf(fxName) === "recipes") return; // not while a recipe is being written: the editor would go with the effect
   const all = FX.names.flatMap(([k]) => fxStyles[k].map(([style]) => style)), fresh = all.filter((s) => s !== fxName && !fxSeen.includes(s));
   FX.slow();
   setFx(fresh[Math.floor(Math.random() * fresh.length)] || all.find((s) => s !== fxName));
@@ -2265,7 +2515,7 @@ function goFull() { // just the picture, from any page
   if (!FX || calm.matches) return;
   if (fxFull) return fullFx(false);
   if (!current()) return toast("Put a song on first.");
-  if (!fxName) setFx(store("curator-fx-last") || "trails");
+  if (!fxName) setFx(familyOf(store("curator-fx-last")) ? store("curator-fx-last") : "trails");
   if (onNowPage()) return fullFx(true);
   fullFromDeck = wantFull = true;
   openNow();
@@ -2276,7 +2526,7 @@ window.addEventListener("mousemove", wakeFx);
 const ambient = (() => { // a tiny picture stretched over the window: it looks blurred, and moving it costs next to nothing, unlike a real blur
   const SIZE = 64, THUMB = 9, CAP = 112, FLOOR = 190; // how bright (dark theme) or how dark (light theme) it may get: the words on top have to stay readable
   const box = el("div", { class: "ambient", "aria-hidden": "true" }), layers = [0, 1].map(() => el("canvas", { width: SIZE, height: SIZE }));
-  box.append(...layers, el("div", { class: "ambient-scrim" }), el("div", { class: "ambient-flash" }), ...["euphoric", "acid", "hard", "psy"].map((mood) => el("div", { class: `vibe vibe-${mood}` })));
+  box.append(...layers, el("div", { class: "ambient-scrim" }), el("div", { class: "ambient-flash" }), ...["euphoric", "acid", "hard", "psy"].map((mood) => el("div", { class: `vibe vibe-${mood}` })), el("div", { class: "timeglow" }), el("div", { class: "era" }));
   document.body.prepend(box);
   const thumb = el("canvas", { width: THUMB, height: THUMB });
   let front = 0, turn = 0;
@@ -2318,7 +2568,7 @@ const decks = [audio, el("audio", { preload: "auto" })];
 audio.after(decks[1]);
 const P = { queue: [], i: -1, label: "", original: null, shuffle: false, repeat: "off", radio: null }; // original: the order to go back to when shuffle goes off. radio: the song a radio started from
 const current = () => S.byId.get(P.queue[P.i]);
-let dragging = false;
+let dragging = false, wanted = false; // wanted: the music is meant to be playing. Kept here because a file that fails to load already reads as paused by the time the page hears of it
 function playQueue(ids, start, label, radio) {
   if (label !== "To check") S.listen = false;
   const list = [...ids]; // its own copy: the queue changes, the list it came from doesn't
@@ -2387,9 +2637,8 @@ function setShuffle(on) {
       P.original = [...P.queue];
       P.queue = [...P.queue.slice(0, P.i + 1), ...shuffled(P.queue.slice(P.i + 1))]; // what's already played stays where it is
     } else if (P.original) {
-      P.queue = P.original;
+      if (P.original.includes(id)) { P.queue = P.original; P.i = P.queue.indexOf(id); } // only if the song playing is in the old order: otherwise the queue stays as it is
       P.original = null;
-      P.i = P.queue.indexOf(id);
     }
     paintPanel();
     saveSpot();
@@ -2431,14 +2680,32 @@ function restoreSpot() {
   P.radio = S.byId.has(saved.radio) ? saved.radio : null;
   loadCurrent(false, +saved.at || 0);
 }
+/* When the library is read again, a song whose file has moved (a genre change moves it to another folder) comes back under a new id.
+   What's queued follows it there, by its artist and title. A song that has really gone leaves the queue, unless it's the one playing. */
+function reconcile(was) {
+  if (![P.queue, P.original || [], S.list].some((list) => list.some((id) => !S.byId.has(id)))) return; // nothing moved: the usual case
+  const name = (s) => `${s.area}\n${s.artist}\n${s.title}`, fresh = new Map(S.songs.filter((s) => !was.has(s.id)).map((s) => [name(s), s.id]));
+  const now = (id) => (S.byId.has(id) ? id : (was.has(id) && fresh.get(name(was.get(id)))) || null), playing = P.queue[P.i], queue = [];
+  const follow = (list) => list.map((id) => now(id) || (id === playing ? id : null)).filter((id) => id !== null);
+  let at = -1;
+  P.queue.forEach((id, k) => { const to = now(id) || (k === P.i ? id : null); if (k === P.i) at = queue.length; if (to !== null) queue.push(to); });
+  P.queue = queue;
+  P.i = at;
+  if (P.original) P.original = follow(P.original);
+  S.list = S.list.map(now).filter((id) => id !== null);
+  if (P.radio) P.radio = now(P.radio);
+  if (drawerSong) drawerSong = now(drawerSong) || drawerSong;
+  saveSpot();
+}
 function playFrom(id) {
   const i = S.list.indexOf(id);
   i >= 0 ? playQueue(S.list, i, "") : playQueue([id], 0, "");
 }
 function step(d) {
-  let n = P.i + d;
-  if (P.repeat === "all" && P.queue.length) n = (n + P.queue.length) % P.queue.length; // round again
-  if (!P.queue.length || n < 0 || n >= P.queue.length) { audio.pause(); return; }
+  const size = P.queue.length, round = (n) => (P.repeat === "all" && size ? ((n % size) + size) % size : n); // round again
+  let n = round(P.i + d);
+  for (let k = 1; k < size && n >= 0 && n < size && !S.byId.has(P.queue[n]); k++) n = round(n + (d < 0 ? -1 : 1)); // past a song that has left the library since it was queued
+  if (!size || n < 0 || n >= size || !S.byId.has(P.queue[n])) { if (d < 0 && current()) startOver(); else audio.pause(); return; } // nothing before the first song: it starts over, and the music doesn't stop
   P.i = n;
   loadCurrent();
   if (S.listen) { const card = document.querySelector(`.item[data-song="${current().id}"]`); if (card) card.scrollIntoView({ block: "center", behavior: "smooth" }); }
@@ -2473,7 +2740,9 @@ function loadCurrent(autoplay = true, at = 0) {
   const s = current();
   if (!s) return;
   endFade();
+  dragging = false; // a seek bar held across the change can't freeze the clock
   resumeAt = at; // set on every load, so a spot that was never reached can't land on the next song
+  wanted = !!autoplay;
   listenAgain();
   topUpRadio();
   matchLevel(s);
@@ -2504,7 +2773,12 @@ function showSong(s) { // everything on the page that goes with the song that's 
   $(".np").classList.add("ready");
   ambient(s);
   followPlaying();
-  if (onNowPage()) pageNow();
+  if (onNowPage()) {
+    const was = document.activeElement, typing = was && was.matches(".recipe-text") ? [was.selectionStart, was.selectionEnd, was.scrollTop] : null;
+    pageNow();
+    const box = typing && $(".recipe-text"); // the page was drawn again for the new song: a recipe being typed keeps the keyboard and its place, so the next keys aren't taken as shortcuts
+    if (box) { box.focus(); box.setSelectionRange(typing[0], typing[1]); box.scrollTop = typing[2]; }
+  }
   saveSpot();
   if (quickFollow) quickFollow(s);
 }
@@ -2532,8 +2806,9 @@ function startFade(n, deck) {
   outGain = volGain;
   audio = deck;
   armedId = null;
-  fadeLength = fadeSecs;
+  fadeLength = Math.max(0.5, Math.min(fadeSecs, isFinite(outgoing.duration) ? outgoing.duration - outgoing.currentTime : fadeSecs)); // never longer than what is left of the old song
   fadeIn = 0;
+  dragging = false; // a seek bar held across the change can't freeze the clock
   P.i = n;
   const s = current();
   resumeAt = 0;
@@ -2542,14 +2817,15 @@ function startFade(n, deck) {
   matchLevel(s);
   audio.play().catch(() => {});
   showTime($("#dur"), clock(audio.duration));
-  showSong(s);
+  let far = 0; // the furthest the fade has got: seeking back in the new song never brings the old one back up
   fadeTimer = setInterval(() => {
-    const part = Math.min(1, audio.currentTime / fadeLength);
+    const part = (far = Math.max(far, Math.min(1, audio.currentTime / fadeLength)));
     fadeIn = Math.sin((part * Math.PI) / 2); // equal power: the two together stay as loud as one all the way through
     fadeOut = Math.cos((part * Math.PI) / 2);
     setVolume();
     if (part >= 1) endFade();
   }, 40);
+  showSong(s); // after the fade is under way, so nothing that goes wrong while painting can leave the new song silent
 }
 function endFade() {
   if (!outgoing) return;
@@ -2573,8 +2849,10 @@ function paintFade() {
    Off until you turn it on, because to be watched the sound has to go through the browser's audio path. That only gets connected once it's known to be running, so it can't silence the music. */
 const GLOWING = ".btn.primary, .play-btn, .pill.on, .chip.on, .icon-btn.active, .nav.active svg, [data-song].playing .cover .over, .wave-done";
 const calm = matchMedia("(prefers-reduced-motion: reduce)");
-let kickOn = store("curator-kick") === "on", flashOn = store("curator-flash") === "on", sparkleOn = store("curator-sparkle") === "on", kickContext = null, kickLevel = null, hatLevel = null, kickWide = null, kickFrame = 0;
-const kick = { slow: 0, prev: 0, last: 0 }, hat = { slow: 0, prev: 0, last: 0, glint: 0, orb: 0 };
+let kickOn = store("curator-kick") === "on", flashOn = store("curator-flash") === "on", sparkleOn = store("curator-sparkle") === "on", kickContext = null, kickLevel = null, hatLevel = null, kickWide = null, kickHear = null, kickFrame = 0, deckSources = [];
+const kick = { slow: 0, prev: 0, last: 0, size: 0, volume: -1, moved: 0 }, hat = { slow: 0, prev: 0, last: 0, glint: 0, orb: 0 };
+const HEARD_AT = 0.8; // the volume everything that listens was tuned at: where the slider starts
+const hearUp = () => HEARD_AT / Math.max(0.04, +$("#vol").value); // the meters hear the sound after the volume slider. So for them it's turned back to what it is at the usual volume, and a quiet room gets the same picture. Twenty times at most: below that there's next to nothing to hear
 function soundSince(meter, samples) { // the sound since the last look, so a slow machine that looks less often doesn't miss what came in between
   let lastLook = 0;
   return () => {
@@ -2592,7 +2870,12 @@ async function wireSound() { // true once the sound is going through it and can 
     if (kickContext.state !== "running") await Promise.race([kickContext.resume(), new Promise((r) => setTimeout(r, 400))]);
     if (kickContext.state !== "running") return false;
     if (!kickLevel) {
-      const low = kickContext.createBiquadFilter(), meter = kickContext.createAnalyser(), high = kickContext.createBiquadFilter(), hatMeter = kickContext.createAnalyser(), wide = kickContext.createAnalyser();
+      const low = kickContext.createBiquadFilter(), meter = kickContext.createAnalyser(), high = kickContext.createBiquadFilter(), hatMeter = kickContext.createAnalyser(), wide = kickContext.createAnalyser(), hear = kickContext.createGain();
+      hear.gain.value = hearUp(); // only what's watched goes through this. What you hear doesn't
+      hear.connect(low);
+      hear.connect(high);
+      hear.connect(wide);
+      kickHear = hear;
       low.type = "lowpass";
       low.frequency.value = 130; // the kick, and not much else
       meter.fftSize = 2048;
@@ -2606,7 +2889,7 @@ async function wireSound() { // true once the sound is going through it and can 
       wide.minDecibels = -90;
       wide.maxDecibels = -15;
       kickWide = wide;
-      decks.forEach((d) => { const source = kickContext.createMediaElementSource(d); source.connect(kickContext.destination); source.connect(low); source.connect(high); source.connect(wide); });
+      deckSources = decks.map((d) => { const source = kickContext.createMediaElementSource(d); source.connect(kickContext.destination); source.connect(hear); return source; }); // kept, so a recording can have the sound too
       kickContext.addEventListener("statechange", () => { if (kickContext.state === "suspended" && !audio.paused) kickContext.resume().catch(() => {}); });
       kickLevel = soundSince(meter, new Float32Array(2048));
       hatLevel = soundSince(hatMeter, new Float32Array(1024));
@@ -2622,9 +2905,35 @@ let tripHue = 280; // the color the next psychedelic kick lands in
 const moodOf = (s) => genresOf(s).map((g) => Packs.moodOf(g)).find(Boolean) || ""; // the genre on the file first, then the others it's listed under
 let vibesOn = store("curator-vibes") !== "off", vibe = "", moodStrength = Number.isFinite(parseFloat(store("curator-mood"))) ? Math.min(1, Math.max(0, parseFloat(store("curator-mood")))) : 0.6;
 document.documentElement.style.setProperty("--mood", String(moodStrength));
+/* The time of day, the season and the record's era change the look too: night is darker and more neon, dawn brings a sunrise (most of all on psytrance), evening is warm;
+   a record from the seventies gets film grain, the eighties scanlines, the nineties a VHS wobble. In the pictures the season sends snow, petals, fireflies or leaves now and then,
+   and a long session turns into a party, with more visitors. Settings, under Mood, turns the time and the era off. */
+let followTime = store("curator-time") !== "off", followEra = store("curator-era") !== "off", listened = 0;
+const hourNow = (d = new Date()) => { const hr = d.getHours(); return hr >= 22 || hr < 5 ? "night" : hr < 8 ? "dawn" : hr >= 18 ? "dusk" : "day"; };
+const seasonNow = (d = new Date()) => { const m = d.getMonth(); return m === 11 || m <= 1 ? "winter" : m <= 4 ? "spring" : m <= 7 ? "summer" : "autumn"; };
+const eraOf = (s) => { const y = +((s && s.year) || 0); return !y ? "" : y < 1980 ? "70s" : y < 1990 ? "80s" : y < 2000 ? "90s" : ""; };
+function paintTime() {
+  const hour = followTime ? hourNow() : "", era = followEra ? eraOf(current()) : "";
+  document.body.dataset.hour = hour;
+  document.body.dataset.era = era;
+  if (FX && FX.when) FX.when({ hour, season: followTime ? seasonNow() : "", era, party: listened > 7200 ? 2 : listened > 2700 ? 1 : 0 });
+}
+let lastPlayed = performance.now();
+setInterval(() => { // once a minute: how long you've been listening (a pause of ten minutes ends the party), and the time of day
+  if (!audio.paused) { listened += 60; lastPlayed = performance.now(); } else if (listened && performance.now() - lastPlayed > 600000) listened = 0;
+  paintTime();
+}, 60000);
+if ($("#fx")) $("#fx").after(el("div", { class: "era fx-era", "aria-hidden": "true" })); // the era's look over the pictures too, which cover the background in Full view
+(() => { // a little film grain for the seventies, drawn once
+  const c = el("canvas", { width: 128, height: 128 }), g = c.getContext("2d"), img = g.createImageData(128, 128);
+  for (let i = 0; i < img.data.length; i += 4) { const v = Math.random() * 255; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 60; }
+  g.putImageData(img, 0, 0);
+  document.documentElement.style.setProperty("--grain", `url(${c.toDataURL()})`);
+})();
 function setVibe(s) {
   vibe = acidFor ? "acid" : (vibesOn && s && moodOf(s)) || "";
   document.body.dataset.vibe = vibe;
+  paintTime();
   if (FX) { FX.mood(vibe); FX.song(s ? songName(s) || s.file : ""); }
   document.querySelectorAll(".ambient canvas").forEach((c) => c.getAnimations().forEach((a) => { if (a.animationName === "ambient-turn") a.updatePlaybackRate(DRIFT[vibe] || 1); }));
   if (vibe !== "acid" && vibe !== "psy") $("#play").style.filter = "";
@@ -2640,7 +2949,7 @@ function usePackSettings(s) {
     logoAfter = performance.now() + waitFor("logo", true);
     visitAfter = performance.now() + waitFor("visitors", true);
   }
-  if (s.tuning) { fxTuning = s.tuning; saveTuning(); }
+  if (s.tuning) { fxTuning = JSON.parse(JSON.stringify(s.tuning)); saveTuning(); } // a copy: the sliders must never write into the pack itself
   if (s.accent !== undefined) { store("curator-accent", s.accent); paintAccent(); }
   if (s.moodStrength !== undefined) { moodStrength = s.moodStrength; store("curator-mood", String(moodStrength)); document.documentElement.style.setProperty("--mood", String(moodStrength)); }
   if (s.vibes !== undefined) { vibesOn = s.vibes; store("curator-vibes", vibesOn ? "on" : "off"); }
@@ -2742,6 +3051,8 @@ function surprisesSetting() {
 function vibeSetting() {
   return el("div", { class: "card accent-setting" }, el("h2", {}, "Mood"), el("p", { class: "note" }, "The background, the way a kick lands and who visits change with the genre of what's playing: softer for trance, yellow for acid, darker and quicker for hardcore, every color at once for goa and psytrance. An effect covers the background, so it shows best with no effect on."),
     el("label", { class: "filter-check vibe-note" }, el("input", { type: "checkbox", checked: vibesOn, onchange: (e) => { vibesOn = e.target.checked; store("curator-vibes", vibesOn ? "on" : "off"); setVibe(current()); } }), "Let the look follow the music"),
+    el("label", { class: "filter-check vibe-note" }, el("input", { type: "checkbox", checked: followTime, onchange: (e) => { followTime = e.target.checked; store("curator-time", followTime ? "on" : "off"); paintTime(); } }), "Follow the time of day and the season: darker late at night, a sunrise at dawn, snow in winter"),
+    el("label", { class: "filter-check vibe-note" }, el("input", { type: "checkbox", checked: followEra, onchange: (e) => { followEra = e.target.checked; store("curator-era", followEra ? "on" : "off"); paintTime(); } }), "Give older records the look of their time: film grain, scanlines, a VHS wobble"),
     (() => { const shown = el("span", { class: "fx-value" }, `${Math.round(moodStrength * 100)}%`); return el("label", { class: "fx-knob vibe-note" }, el("span", {}, "Strength of the background"), el("input", { type: "range", min: 0, max: 1, step: 0.05, value: moodStrength, oninput: (e) => { moodStrength = +e.target.value; store("curator-mood", String(moodStrength)); document.documentElement.style.setProperty("--mood", String(moodStrength)); shown.textContent = `${Math.round(moodStrength * 100)}%`; } }), shown); })());
 }
 function glow(strength) { // soft and over quickly. Each runs by itself, so nothing is redrawn between kicks
@@ -2945,12 +3256,19 @@ function setSparkle(on) {
   startSound();
 }
 function findKick(now) { // how strong, 0 to 1, or -1 if this moment isn't a kick
-  const level = kickLevel(), hit = level > kick.prev * 1.1 && level > kick.slow * 1.3 && level > 0.003 && now - kick.last > 250; // 250 ms: the bass note between two kicks isn't one
+  const level = kickLevel(), ago = now - kick.last, hit = level > kick.prev * 1.1 && level > kick.slow * 1.3 && level > 0.003 && (ago > 250 || (ago > 70 && level > kick.size * 1.5)); // 250 ms: the bass note between two kicks isn't one. Unless it's half as big again as what was taken for the last kick: then that was a small sound just ahead of the real one
   kick.slow = kick.slow ? kick.slow + (level - kick.slow) * 0.03 : level; // what's usual just now, so it works at any volume
   kick.prev = level;
+  if (ago <= 70) kick.size = Math.max(kick.size, level); // how big the last one got
   if (!hit) return -1;
   kick.last = now;
+  kick.size = level;
   return Math.min(1, level / kick.slow - 1.3);
+}
+function lowNow(now) { // how big the low end is just now as the song has it, not as loud as it's playing: the meter hears the volume too. 0 while that can't be told: two songs crossing, the volume moving, or next to none
+  if (audio.volume !== kick.volume) { kick.volume = audio.volume; kick.moved = now; }
+  const heard = audio.volume * hearUp(); // how much of the song reaches the meter: the slider is taken back out on the way there, even volume and a fade aren't
+  return !outgoing && heard > 0.02 && now - kick.moved > 300 ? kick.prev / heard : 0;
 }
 function findHat(now) { // the same idea at the very top of the sound. They come much quicker than kicks, so the gap allowed is short
   const level = hatLevel(), hit = level > hat.prev * 1.2 && level > hat.slow * 1.2 && level > 0.0012 && now - hat.last > 70;
@@ -2985,8 +3303,8 @@ function soundFrame(now) {
   const hearing = !!kickLevel && !audio.paused, picture = fxShowing() && (hearing || onNowPage()), guests = visiting(); // on the other pages it only moves while there's music
   if (document.hidden || !((glowing() && hearing) || picture || guests)) return;
   kickFrame = requestAnimationFrame(soundFrame);
-  const hit = hearing ? findKick(now) : -1, tick = hearing ? findHat(now) : -1;
-  if (FX && hearing && !(picture || guests)) FX.frame(now, kickWide, hit, tick, false); // no picture to draw, but it still follows how the song is going
+  const hit = hearing ? findKick(now) : -1, tick = hearing ? findHat(now) : -1, low = hearing ? lowNow(now) : 0;
+  if (FX && hearing && !(picture || guests)) FX.frame(now, kickWide, hit, tick, false, low); // no picture to draw, but it still follows how the song is going
   const flow = FX && hearing ? FX.flow() : null, lift = flow ? 0.6 + 0.8 * flow.intensity : 1; // softer in a calm part, harder in a drop
   if (hit >= 0 && glowing()) {
     if (kickOn) glow(Math.min(1.5, hit * lift));
@@ -2999,7 +3317,7 @@ function soundFrame(now) {
   if (hit >= 0) bobbing(now, hit);
   if (hit >= 0) logoNow(now, hit);
   if (hit >= 0) visitNow(now, hit);
-  if (picture || guests) FX.frame(now, hearing ? kickWide : null, hit, tick, picture);
+  if (picture || guests) FX.frame(now, hearing ? kickWide : null, hit, tick, picture, low);
 }
 async function startSound() {
   if (!glowing() && !fxShowing() && !visiting()) return;
@@ -3073,9 +3391,11 @@ function topUpRadio() {
   if (!picks.length) { // everything has been played: go round again
     P.queue = P.queue.slice(P.i);
     P.i = 0;
+    P.original = null; // the order from before shuffle is no longer this queue's
     picks = radioPicks(seed, new Set(P.queue), RADIO_BATCH);
   }
   P.queue.push(...picks);
+  if (P.original) P.original.push(...picks); // so turning shuffle off still finds them
 }
 function startRadio(s) {
   const picks = radioPicks(s, new Set([s.id]), RADIO_BATCH), label = `Radio: ${s.title || s.file}`;
@@ -3295,12 +3615,24 @@ async function learnWave(s) { // measured the first time it's needed, then kept
 }
 const togglePlay = () => { if (!audio.src) return; audio.paused ? audio.play().catch(() => {}) : audio.pause(); };
 const onDeck = (type, fn) => decks.forEach((d) => d.addEventListener(type, (e) => { if (e.target === audio) fn(e); })); // only the deck you're listening to speaks for the player
-onDeck("play", () => { paintPlay(); if (outgoing) outgoing.play().catch(() => {}); startSound(); });
-onDeck("pause", () => { paintPlay(); saveSpot(); if (outgoing) outgoing.pause(); });
+onDeck("play", () => { wanted = !audio.paused; paintPlay(); if (outgoing) outgoing.play().catch(() => {}); startSound(); });
+onDeck("pause", () => { wanted = !audio.paused; paintPlay(); saveSpot(); if (outgoing) outgoing.pause(); }); // read afresh, not taken as "paused": a pause left over from a file that failed can come in after the next one has started
 window.addEventListener("pagehide", saveSpot);
-const startOver = () => { audio.currentTime = 0; listenAgain(); };
+const startOver = () => { endFade(); audio.currentTime = 0; listenAgain(); }; // a crossfade under way is over: this song from its start, at full volume
+const goBack = () => (audio.currentTime > 4 ? startOver() : step(-1)); // Previous, on the page or on the keyboard's media key: the start of this song first, then the one before
+let failed = 0; // songs in a row the browser couldn't play
 onDeck("ended", () => { if (P.repeat === "one") { startOver(); audio.play().catch(() => {}); } else step(1); });
-onDeck("error", () => { if (audio.getAttribute("src")) toast("This file can't be played in the browser."); });
+onDeck("error", () => {
+  const s = current(), src = audio.getAttribute("src");
+  if (s && src && src !== `/audio/${s.id}`) loadCurrent(wanted, audio.currentTime); // its file moved while it played (a genre change does that): carry on from the same place in the file where it is now
+  else if (src) { // one file the browser can't play doesn't end the music: on to the next, three in a row at most, and never while you're judging songs
+    const on = wanted && P.label !== "To check" && ++failed <= 3 && upNext() >= 0;
+    toast(`${s ? songName(s) || s.file : "This file"} can't be played in the browser.${on ? " On to the next." : ""}`);
+    if (on) step(1);
+    else audio.pause();
+  }
+});
+onDeck("playing", () => { failed = 0; });
 onDeck("timeupdate", () => {
   countListening();
   watchFade();
@@ -3320,7 +3652,7 @@ wireSeek($("#seek"));
 showTime($("#cur"), "0:00");
 showTime($("#dur"), "0:00");
 $("#play").addEventListener("click", togglePlay);
-$("#prev").addEventListener("click", () => (audio.currentTime > 4 ? startOver() : step(-1)));
+$("#prev").addEventListener("click", goBack);
 $("#next").addEventListener("click", () => step(1));
 $(".np").addEventListener("click", () => { if (current()) openDrawer(current().id); }); // the title inside is the keyboard's way in
 $("#np-cover").addEventListener("click", (e) => { e.stopPropagation(); if (current()) (onNowPage() ? closeNow() : openNow()); });
@@ -3341,6 +3673,7 @@ function setVolume() {
   const level = (gain, fade) => Math.max(0, Math.min(1, +$("#vol").value * gain * fade));
   audio.volume = level(volGain, fadeIn);
   if (outgoing) outgoing.volume = level(outGain, fadeOut);
+  if (kickHear) kickHear.gain.setTargetAtTime(hearUp(), kickContext.currentTime, 0.03);
 }
 function gainFor(s) {
   if (!evenOn) return 1;
@@ -3569,7 +3902,7 @@ view.addEventListener("pointermove", (e) => {
 view.addEventListener("pointerleave", () => { hotMove = null; if (!hotFrame) hotFrame = requestAnimationFrame(paintHot); }, { passive: true });
 document.addEventListener("visibilitychange", startSound);
 if ("mediaSession" in navigator) {
-  navigator.mediaSession.setActionHandler("previoustrack", () => step(-1));
+  navigator.mediaSession.setActionHandler("previoustrack", goBack);
   navigator.mediaSession.setActionHandler("nexttrack", () => step(1));
 }
 
@@ -3647,8 +3980,10 @@ window.addEventListener("keydown", (e) => {
     setFx(all[(all.indexOf(fxName) + 1) % all.length]);
     return e.preventDefault();
   }
+  if (!typing && FX && fxName && onNowPage() && !e.ctrlKey && !e.altKey && !e.metaKey && e.key === "n") { FX.another(); return e.preventDefault(); } // another version of it
+  if (!typing && FX && fxName && onNowPage() && !e.ctrlKey && !e.altKey && !e.metaKey && e.key === "r" && !e.repeat && canRecord()) { toggleRecord(); return e.preventDefault(); } // start or stop recording it
   if (e.key === "Escape") { if (onNowPage()) closeNow(); else if (!roomy.matches) closeDrawer(); }
-  else if (e.code === "Space" && !typing && e.target.tagName !== "BUTTON" && e.target.tagName !== "A") { e.preventDefault(); togglePlay(); }
+  else if (e.code === "Space" && !typing && !(e.target.closest && e.target.closest("button, a, summary, [role=button]"))) { e.preventDefault(); togglePlay(); } // on a button, a link, a fold or a chart's column, Space presses that instead
   else if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !typing && !e.ctrlKey && !e.altKey && !e.metaKey && current()) { // ten seconds either way, or with Shift a song
     e.preventDefault();
     const way = e.key === "ArrowRight" ? 1 : -1;

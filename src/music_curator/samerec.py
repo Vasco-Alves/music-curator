@@ -85,7 +85,7 @@ def same_recording(copy, ref, tmp):
 def hf_db(p):
     """Mean level above 16 kHz (dB): low values mean a low-quality source with the top end cut off."""
     out = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", p, "-af", "highpass=f=16000,volumedetect",
-                          "-f", "null", "-"], capture_output=True, text=True).stderr
+                          "-f", "null", "-"], capture_output=True, text=True, encoding="utf-8", errors="replace").stderr  # ffmpeg prints the song's tags too, in UTF-8: read as Windows text, a Cyrillic title lost the whole answer
     for line in out.splitlines():
         if "mean_volume" in line:
             return float(line.split("mean_volume:")[1].split("dB")[0])

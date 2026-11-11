@@ -338,12 +338,16 @@ class Writer:
             row["status"] = "dry"
             return row
 
+        tmp = None
         try:
             payload = None
             if ending == ".mp3":
                 with open(audio_src, "rb") as f:
                     payload = audio_payload(f.read())
-            cover = open(e["cover"], "rb").read() if e.get("cover") and os.path.exists(e["cover"]) else None
+            cover = None
+            if e.get("cover") and os.path.exists(e["cover"]):
+                with open(e["cover"], "rb") as f:
+                    cover = f.read()
             os.makedirs(dest_dir, exist_ok=True)
             tmp = os.path.join(dest_dir, f".tmp_{e['key']}{ending}")
             if ending == ".mp3":
@@ -353,26 +357,40 @@ class Writer:
             else:
                 _write_remuxed(audio_src, tmp, e, e["cover"] if cover else None)
             os.replace(tmp, dest)
-        except Exception as ex:  # noqa: BLE001
+        except BaseException as ex:  # noqa: BLE001
+            try:  # a half-written copy isn't left lying in your library
+                if tmp and os.path.exists(tmp):
+                    os.remove(tmp)
+            except OSError:
+                pass
+            if not isinstance(ex, Exception):  # Ctrl+C and the like still stop the run
+                raise
             row["status"] = f"error: {ex}"
             say(f"[{e['key']}] ERROR {base}: {ex}")
             return self._logged(row)
 
-        out = probe(dest)
         problems = []
-        for k, want in (("title", e["title"]), ("artist", e["artist"]), ("genre", e["genre"]),
-                        ("date", str(e["year"])), ("album", e.get("album", "")), ("comment", e.get("discogs", ""))):
-            if (out["tags"].get(k) or "") != (want or ""):
-                problems.append(f"{k}={out['tags'].get(k)!r}")
-        if abs(out["secs"] - src["secs"]) > 0.2:
-            problems.append(f"duration {src['secs']} -> {out['secs']}")
-        if cover and not out["pics"]:
-            problems.append("cover missing")
-        audio_ok, audio_note = compare_audio(dest, audio_src, payload)
-        if not audio_ok:
-            problems.append(audio_note)
-        elif audio_note:
-            row["notes"] = "; ".join(x for x in (row["notes"], audio_note) if x)
+        try:  # the song is in your library from here on: whatever goes wrong with the check, the log has to say it's there
+            out = probe(dest)
+            for k, want in (("title", e["title"]), ("artist", e["artist"]), ("genre", e["genre"]),
+                            ("date", str(e["year"])), ("album", e.get("album", "")), ("comment", e.get("discogs", ""))):
+                if (out["tags"].get(k) or "") != (want or ""):
+                    problems.append(f"{k}={out['tags'].get(k)!r}")
+            if abs(out["secs"] - src["secs"]) > 0.2:
+                problems.append(f"duration {src['secs']} -> {out['secs']}")
+            if cover and not out["pics"]:
+                problems.append("cover missing")
+            audio_ok, audio_note = compare_audio(dest, audio_src, payload)
+            if not audio_ok:
+                problems.append(audio_note)
+            elif audio_note:
+                row["notes"] = "; ".join(x for x in (row["notes"], audio_note) if x)
+        except BaseException as ex:  # noqa: BLE001
+            problems.append(f"the new copy couldn't be checked after it was written ({str(ex) or type(ex).__name__})")
+            if not isinstance(ex, Exception):  # Ctrl+C in the middle of the check: the row is written first, then the run stops
+                row["status"] = "check: " + "; ".join(problems)
+                self._logged(row)
+                raise
         row["status"] = "ok" if not problems else "check: " + "; ".join(problems)
         existing[norm_key(base)] = dest
         say(f"[{e['key']}] {row['status'].upper():<5} {os.path.relpath(dest, lib)}")

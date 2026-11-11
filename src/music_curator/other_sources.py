@@ -27,19 +27,32 @@ _last = [0.0]
 def mb(path, cache):
     url = "https://musicbrainz.org/ws/2/" + path
     cf = os.path.join(cache, "mb_" + hashlib.sha1(url.encode()).hexdigest() + ".json")
-    if os.path.exists(cf):
-        return json.load(open(cf, encoding="utf-8"))
+    try:
+        with open(cf, encoding="utf-8") as f:
+            kept = json.load(f)
+        if isinstance(kept, dict) and "error" not in kept:  # an answer kept from before; a failure an older version kept is asked again
+            return kept
+    except (OSError, ValueError):  # nothing kept yet, or a file cut short
+        pass
     wait = 1.2 - (time.time() - _last[0])  # MusicBrainz asks for at most 1 request per second
     if wait > 0:
         time.sleep(wait)
     req = urllib.request.Request(url, headers={"User-Agent": UA, "Accept": "application/json"})
     try:
-        data = json.load(urllib.request.urlopen(req, timeout=30))
+        with urllib.request.urlopen(req, timeout=30) as r:
+            data = json.load(r)
     except Exception as ex:  # noqa: BLE001
-        data = {"error": str(ex)}
+        _last[0] = time.time()
+        return {"error": str(ex)}  # not kept: one bad moment on the network isn't "MusicBrainz doesn't have it" for good
     _last[0] = time.time()
-    json.dump(data, open(cf, "w", encoding="utf-8"))
+    with open(cf, "w", encoding="utf-8") as f:
+        json.dump(data, f)
     return data
+
+
+def _quoted(text):
+    """The text as one phrase for a MusicBrainz search: a quote or a backslash inside it would end the phrase early."""
+    return '"' + re.sub(r'(["\\])', r"\\\1", text) + '"'
 
 
 def credit_mb(ac):
@@ -49,7 +62,7 @@ def credit_mb(ac):
 
 def try_musicbrainz(it, cache):
     a, t = it["search_artist"], it["search_title"]
-    q = f'recording:"{t}" AND artist:"{a}"'
+    q = f"recording:{_quoted(t)} AND artist:{_quoted(a)}"
     res = mb(f"recording?query={urllib.parse.quote(q)}&fmt=json&limit=15", cache)
     best = None
     for r in res.get("recordings", []):

@@ -6,6 +6,7 @@ and the one outside service it talks to is Discogs. Looks right, on Double-check
 does: it changes no music.
 """
 import collections
+import copy
 import csv
 import datetime
 import hashlib
@@ -33,9 +34,10 @@ CSP = ("default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline';
        "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 LAN_COOKIE = "curator_lan"
 PC_ONLY = {"/api/settings", "/api/settings/compare", "/api/settings/extras", "/api/settings/check", "/api/settings/pick", "/api/spotify/check", "/api/spotify/move", "/api/spotify/stream", "/api/spotify/send", "/api/export/copy", "/api/export/playlists"}  # choosing folders, writing files elsewhere and signing in to Spotify all happen on the computer
-ACTIONS = {"keep", "genre", "identify", "drop", "recheck", "better", "cover", "flag", "add", "added", "pick", "stream", "wrong"}
+ACTIONS = {"keep", "genre", "identify", "drop", "recheck", "better", "cover", "flag", "add", "added", "remove", "pick", "stream", "wrong"}
+ANSWERS_BUSY = "Your answers file couldn't be opened just now, so nothing was saved. Try again in a moment."  # saving anyway could put back answers that were taken out of it since it was last read
 WORDS = dict(keep="keep as it is", genre="change the genre", identify="identify it", drop="not worth keeping",
-             recheck="look at it again", better="find a better copy", cover="find a cover", flag="flagged", add="add it to a playlist", added="added to a playlist",
+             recheck="look at it again", better="find a better copy", cover="find a cover", flag="flagged", add="add it to a playlist", added="added to a playlist", remove="take it out of a Spotify playlist",
              pick="use the version you picked", stream="it's on Spotify", wrong="take it out and look again")
 LOW_KBPS = 128  # below this a song is worth a better copy
 CLOSE_GAP_S = 6  # an Auto-matched song this far from the record's length is worth a closer listen (Curate lets in up to 20 s)
@@ -388,28 +390,29 @@ class Collection:
             self.ideas_names = []
 
     def _read_decisions(self):
-        """The answers can change behind the page's back: `curator apply` takes away the ones it has carried out."""
+        """The answers can change behind the page's back: `curator apply` takes away the ones it has carried out. False if the file is there but couldn't be looked at just now, so what's in memory may be out of date."""
         try:
             st = os.stat(self.paths["decisions"])
         except FileNotFoundError:
             self.decisions, self.decisions_sig, self.decisions_broken = {}, None, False
-            return
+            return True
         except (OSError, TypeError, ValueError):
-            return
+            return False
         sig = (st.st_mtime_ns, st.st_size)
         if sig == self.decisions_sig:
-            return
+            return True
         try:
             with open(self.paths["decisions"], encoding="utf-8-sig") as f:  # some editors add a byte-order mark
                 loaded = json.load(f)
             if not isinstance(loaded, dict):
                 raise ValueError("not a list of answers")
         except OSError:  # keep what we have and try on the next load
-            return
+            return False
         except ValueError:  # hand-edited into something unreadable: saving over it would lose every answer in it
             self.decisions_broken = True
-            return
+            return True
         self.decisions, self.decisions_sig, self.decisions_broken = {k: v for k, v in loaded.items() if isinstance(v, dict)}, sig, False
+        return True
 
     def _read_log(self):
         path = self.paths["log"]
@@ -579,7 +582,7 @@ class Collection:
         stem = os.path.splitext(song["file"])[0]
         held = self.curated.get(key) if area == "inbox" and not song["done"] else None
         listed = self._reason(stem, song["artist"], song["title"]) if area != "library" else ""
-        reason = held["why"] if held and (held.get("said") or not listed) else listed  # what someone found out says more than Curate's names and lengths, unless Curate is answering what you told it
+        reason = (held["why"] or "Not verified yet, so it isn't in your library.") if held and (held.get("said") or not listed) else listed  # what someone found out says more than Curate's names and lengths, unless Curate is answering what you told it; a song held back always gets a line on the page, even if the reason was left empty
         back = self.log_back.get(norm(path)) if area == "inbox" and not song["done"] and not held else None
         if back is not None and not reason:  # taken out of the library and not looked up again yet
             reason = f"You said Curate's match wasn't right{f': {back}' if back else ''}. Press Curate to look it up again."
@@ -731,7 +734,8 @@ class Collection:
     def decide(self, body):
         """Save (or undo, with action null) one decision. Returns an error message, or None."""
         with self.lock:
-            self._read_decisions()
+            if not self._read_decisions():
+                return ANSWERS_BUSY
             if self.decisions_broken:
                 return f"Your answers file ({os.path.basename(self.paths['decisions'])}) can't be read, so nothing was saved. Ask your AI app to repair it."
             song = self.songs.get(str(body.get("id")))
@@ -743,36 +747,41 @@ class Collection:
             if not re.fullmatch(r"[a-z]{1,20}", kind):
                 return "bad kind"
             key = f"{kind}:{song['key']}"
+            answers = dict(self.decisions)  # a copy: the answers in memory change only once the change is in the file
             if action is None:
-                self.decisions.pop(key, None)
+                answers.pop(key, None)
             elif not isinstance(action, str) or action not in ACTIONS:
                 return "bad action"
             else:
-                self.decisions[key] = dict(
+                answers[key] = dict(
                     kind=kind, action=action, song=f"{song['artist']} - {song['title']}".strip(" -"), file=song["key"],
                     genre=str(body.get("genre") or "")[:60], note=str(body.get("note") or "")[:1000],
                     at=datetime.datetime.now().isoformat(timespec="seconds"))
-            return self._save_decisions()
+            return self._save_decisions(answers)
 
-    def _save_decisions(self):
+    def _save_decisions(self, answers):
+        """Write these answers to the file, and only then take them as the ones in memory: a save that fails leaves the page showing what the file really says. Returns an error message, or None."""
         tmp = self.paths["decisions"] + ".tmp"
         try:
             os.makedirs(os.path.dirname(tmp) or ".", exist_ok=True)
             with open(tmp, "w", encoding="utf-8", errors="replace") as f:
-                json.dump(self.decisions, f, ensure_ascii=False, indent=1)
+                json.dump(answers, f, ensure_ascii=False, indent=1)
             os.replace(tmp, self.paths["decisions"])
         except OSError as ex:
-            return f"Couldn't save that: {ex}"
+            return f"Couldn't save that: {ex.strerror or ex}"
+        self.decisions = answers
         return None
 
     def update_answers(self, change):
         """Change several answers in one step, on the latest version of the list. Returns an error message, or None."""
         with self.lock:
-            self._read_decisions()
+            if not self._read_decisions():
+                return ANSWERS_BUSY
             if self.decisions_broken:
                 return f"Your answers file ({os.path.basename(self.paths['decisions'])}) can't be read, so nothing was saved."
-            change(self.decisions)
-            return self._save_decisions()
+            answers = copy.deepcopy(self.decisions)  # a copy all the way down: `change` alters answers in place
+            change(answers)
+            return self._save_decisions(answers)
 
     def played(self, song_id):
         """Count one listen. Returns what the page shows for that song now, or an error."""
@@ -1001,15 +1010,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
         self.end_headers()
         if self.command == "HEAD":
             return
-        with open(path, "rb") as f:
-            f.seek(first)
-            left = last - first + 1
-            while left > 0:
-                chunk = f.read(min(256 * 1024, left))
-                if not chunk:
-                    break
-                self.wfile.write(chunk)
-                left -= len(chunk)
+        left = last - first + 1
+        try:
+            with open(path, "rb") as f:
+                f.seek(first)
+                while left > 0:
+                    chunk = f.read(min(256 * 1024, left))
+                    if not chunk:
+                        break
+                    self.wfile.write(chunk)
+                    left -= len(chunk)
+        except OSError:  # the file went away mid-song, or the browser stopped listening
+            pass
+        if left > 0:  # fewer bytes went out than the headers promised (the file got shorter, or moved): hanging up is the only way left to say so, or the browser waits for the rest for ever
+            self.close_connection = True
 
     def do_POST(self):
         self.body_read = False
@@ -1227,8 +1241,12 @@ def lan_key():
     except OSError:
         pass
     made = secrets.token_hex(5)
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(made + "\n")
+    try:
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(made + "\n")
+    except OSError:  # it still works for this run; the link changes the next time the app starts
+        pass
     return made
 
 

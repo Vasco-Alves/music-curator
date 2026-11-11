@@ -68,17 +68,39 @@ def token():
     return t
 
 
+def _is_api(url):
+    """Whether this address is the Discogs API itself. The token goes there and nowhere else: "starts with" would also say yes to api.discogs.com.example.net."""
+    try:
+        there, home = urllib.parse.urlsplit(url), urllib.parse.urlsplit(API)
+        return (there.scheme, there.hostname, there.port or 443) == (home.scheme, home.hostname, home.port or 443)
+    except ValueError:
+        return False
+
+
+class _TokenStaysHome(urllib.request.HTTPRedirectHandler):
+    """When an answer sends the request on to another site, the token doesn't go with it."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        new = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new is not None and not _is_api(new.full_url):
+            new.remove_header("Authorization")
+        return new
+
+
+_opener = urllib.request.build_opener(_TokenStaysHome)
+
+
 def _request(url, binary=False):
     for attempt in range(6):
         wait = 1.1 - (time.time() - _last[0])  # stay under 60 requests/min
         if wait > 0:
             time.sleep(wait)
         headers = {"User-Agent": UA}
-        if url.startswith(API):
+        if _is_api(url):
             headers["Authorization"] = "Discogs token=" + token()
         req = urllib.request.Request(url, headers=headers)
         try:
-            with urllib.request.urlopen(req, timeout=30) as r:
+            with _opener.open(req, timeout=30) as r:
                 _last[0] = time.time()
                 return r.read() if binary else json.load(r)
         except urllib.error.HTTPError as e:
@@ -282,6 +304,8 @@ def main(argv=None):
         print(json.dumps(search(artist=argv[1], track=argv[2]), ensure_ascii=False, indent=1))
     elif cmd == "image":
         data = _request(argv[1], binary=True)
+        if data is None:  # before the file is opened: a picture that isn't there shouldn't leave an empty file behind
+            sys.exit("Nothing was found at that address.")
         with open(argv[2], "wb") as f:
             f.write(data)
         print(f"saved {len(data)} bytes")

@@ -12,7 +12,7 @@ window.Packs = (() => {
       psy: ["THIRD EYE: OPEN", "FRACTALS ON THE HORIZON", "THE TOADSTOOLS ARE DANCING", "KALEIDOSCOPE AHEAD. KEEP LOOKING", "SUNRISE IN 3 HOURS", "THE COLORS ARE LOUDER OUT HERE"],
     },
     signs: [{ bg: "#f2f2ea", ink: "#121212", lines: ["SPEED", "LIMIT", "303"] }, { bg: "#0e6b3c", ink: "#ffffff", lines: ["NEXT RAVE", "2 LIGHT YEARS"] }, { bg: "#b3141a", ink: "#ffffff", lines: ["WRONG", "WAY"] }, { bg: "#f2c10e", ink: "#121212", lines: ["CAUTION", "BLACK HOLES"] }, { bg: "#f2f2ea", ink: "#b3141a", lines: ["NO PARKING", "ON THE EVENT", "HORIZON"] }],
-    told: { jump: "JUMPING", stop: "HANDBRAKE ON", trail: "LEAVING A TRAIL", exposure: "HOLD STILL. TAKING A PHOTO", glass: "SOMETHING HIT THE GLASS", cow: "WAS THAT A COW", sign: "OBEY THE SIGNS", vinyl: "VERY LARGE RECORD AHEAD", astronaut: "IS THAT STEVE" },
+    told: { jump: "JUMPING", stop: "HANDBRAKE ON", trail: "LEAVING A TRAIL", exposure: "HOLD STILL. TAKING A PHOTO", glass: "SOMETHING HIT THE GLASS", cow: "WAS THAT A COW", sign: "OBEY THE SIGNS", vinyl: "VERY LARGE RECORD AHEAD", astronaut: "IS THAT STEVE", gas: "GAS GIANT AHEAD. HOLD ON", sea: "WATER WORLD. BRING A TOWEL", lava: "THAT ONE IS ON FIRE. GOING IN", tuned: "THIS PLANET KNOWS THE SONG", ice: "LOOKS COLD DOWN THERE", toxic: "DO NOT OPEN THE WINDOWS", climb: "PULLING UP" },
     empty: { songs: "Nothing. Not even on a white label.", shelves: "Nothing by that name in the crates.", check: "Nothing left to check. Your ears can rest.", answered: "All answered. Your ears can rest." },
     notes: { late: "3 a.m. Excellent choice.", again: "Still this one? Good." },
   };
@@ -46,7 +46,7 @@ window.Packs = (() => {
   function cleanGenres(raw) {
     return Object.fromEntries(Object.entries(object(raw)).slice(0, 400).map(([genre, mood]) => [text(genre, 60), mood]).filter(([genre, mood]) => genre && (MOODS.includes(mood) || mood === "none")));
   }
-  const KNOBS = new Set(["light", "react", "speed", "drag", "spark", "nod", "turns", "moves", "shots", "folk", "pit", "tilt"]);
+  const KNOBS = new Set(["light", "react", "speed", "drag", "spark", "nod", "turns", "moves", "shots", "folk", "pit", "tilt", "vary", "dream", "falls"]);
   function cleanSurprise(raw, sized) {
     const s = object(raw), out = {};
     if (["off", "rare", "some", "often", "always"].includes(s.often)) out.often = s.often;

@@ -280,8 +280,11 @@ class Client:
             try:
                 self._take_tokens(dict(grant_type="refresh_token", refresh_token=self.refresh_token, client_id=self.client_id))
                 return
-            except Stop:
-                self.refresh_token = None
+            except Stop as ex:
+                refused = isinstance(ex.__cause__, urllib.error.HTTPError) and ex.__cause__.code in (400, 401)
+                if not refused:  # the network, or Spotify having a bad moment: your sign-in is still good, so you aren't asked to sign in again
+                    raise Stop("Couldn't reach Spotify just now, so it stopped there. Try again in a moment.") from ex
+                self.refresh_token = None  # Spotify turned the sign-in down: it takes a new one
         self.sign_in()
 
     def _wait_or_stop(self, ex):
@@ -490,9 +493,10 @@ def check(client, collection):
     collection.refresh()
     songs = {s["key"]: s for s in collection.songs.values() if s["area"] == "library"}
     answers = {k: d for k, d in collection.decisions.items() if d.get("kind") == "playlist" and d.get("action") in ("add", "added") and d.get("file") in songs}
-    wanted = sorted({n for d in answers.values() for n in _lines(d)})
+    takeouts = {k: d for k, d in collection.decisions.items() if d.get("kind") == "unlist" and d.get("action") == "remove" and d.get("file") in songs}  # songs you said to take out of a playlist
+    wanted = sorted({n for d in [*answers.values(), *takeouts.values()] for n in _lines(d)})
 
-    keys = {key: _names_on_spotify(collection, songs[d["file"]]) for key, d in answers.items()}
+    keys = {key: _names_on_spotify(collection, songs[d["file"]]) for key, d in {**answers, **takeouts}.items()}
 
     present, read, stopped, unknown, mine = {}, {}, "", [], {}
     cache = _read_cache(collection.paths)
@@ -531,9 +535,22 @@ def check(client, collection):
                     rows[row.get("playlist")] = row
         removals = [rows[n] for n in sorted(rows, key=lambda n: str(n).casefold())]
 
-    counts = dict(arrived=0, missing=0)
+    counts = dict(arrived=0, missing=0, out=0, still=0)
 
     def change(current):
+        for key in takeouts:  # done once Spotify doesn't have it in that playlist any more
+            d = current.get(key)
+            if not isinstance(d, dict) or d.get("kind") != "unlist" or d.get("action") != "remove":
+                continue
+            names = _lines(d)
+            out = [n for n in names if n in present and not keys[key] & present[n]]
+            left = [n for n in names if n not in out]
+            counts["out"] += len(out)
+            counts["still"] += len([n for n in left if n in present])
+            if not left:
+                current.pop(key)
+            elif out:
+                d["note"] = "\n".join(left)
         for key in answers:
             d = current.get(key)  # read again: you may have answered something while Spotify was being read
             if not isinstance(d, dict) or d.get("action") not in ("add", "added"):
@@ -562,8 +579,10 @@ def check(client, collection):
     parts = [stopped] if stopped else []
     if problem:
         parts.append(problem)
-    if present and not problem:
+    if present and not problem and answers:
         parts.append(f"{counts['arrived']} arrived, {counts['missing']} still not in {'their playlists' if len(present) > 1 else 'the playlist'}.")
+    if present and not problem and takeouts:
+        parts.append(f"{counts['out']} taken out, {counts['still']} still to take out.")
     if removals is not None:
         total, lists = sum(r["count"] for r in removals), sum(1 for r in removals if r["count"])
         parts.append(f"{total} to remove in {lists} playlist{'' if lists == 1 else 's'}." if total else "Nothing to remove.")

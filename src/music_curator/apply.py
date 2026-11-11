@@ -181,13 +181,26 @@ def _aside_folder(paths):
     return os.path.join(base, SET_ASIDE)
 
 
+def _whole(src, dst):
+    """Copy a file so that it only gets its name once all of it is there: closing the app or pulling the drive halfway never leaves half a song under the song's own name."""
+    handle, tmp = tempfile.mkstemp(prefix=TEMP_PREFIX, suffix=TEMP_SUFFIX, dir=os.path.dirname(dst) or ".")
+    os.close(handle)
+    try:
+        shutil.copy2(src, tmp)
+        os.rename(tmp, dst)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.remove(tmp)
+        raise
+
+
 def _move(src, dst):
     """Move a file, leaving nothing half done if it won't go (a song that's playing can't be moved)."""
     if os.path.exists(dst):
         raise OSError(f"{dst} is already there")
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     try:
-        shutil.move(src, dst)
+        shutil.move(src, dst, copy_function=_whole)  # on the same drive it's renamed in one step; to another drive it's copied first
     except BaseException:
         if os.path.exists(src) and os.path.exists(dst):  # copied to another drive, but the original wouldn't let go
             os.remove(dst)
@@ -199,7 +212,7 @@ def _copy(src, dst):
         raise OSError(f"{dst} is already there")
     os.makedirs(os.path.dirname(dst), exist_ok=True)
     try:
-        shutil.copy2(src, dst)
+        _whole(src, dst)
     except BaseException:
         if os.path.exists(dst):
             os.remove(dst)
@@ -274,6 +287,7 @@ class Run:
         if needs_log and not dry_run:
             self.log_file, self.log = _open_log(paths["log"])
             _sweep(paths["library"])
+            _sweep(_aside_folder(paths))  # a copy on its way there when a run was stopped: the original it was made from is still where it was
 
     def close(self):
         if self.log_file:

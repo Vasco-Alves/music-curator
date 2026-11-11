@@ -310,11 +310,16 @@ class Run:
         return {k: v for k, v in loaded.items() if isinstance(v, dict)} if isinstance(loaded, dict) else {}
 
     def _read_waiting(self):
+        path = webapp.curated_path(self.paths)
         try:
-            with open(webapp.curated_path(self.paths), encoding="utf-8-sig") as f:
+            with open(path, encoding="utf-8-sig") as f:
                 songs = json.load(f)["songs"]
             return {k: v for k, v in songs.items() if isinstance(v, dict)}
-        except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        except FileNotFoundError:
+            return {}
+        except OSError as ex:  # there, but not readable just now: carrying on would end with an empty list written over what you said about these songs
+            raise Stop(f"The list of waiting songs ({os.path.basename(path)}) can't be read just now ({ex.strerror or ex}), so Curate stopped before looking anything up.") from ex
+        except (ValueError, KeyError, TypeError, AttributeError):  # damaged: there is nothing in it to keep
             return {}
 
     def _save_waiting(self):
@@ -369,13 +374,13 @@ class Run:
         self.songs[key] = entry
         self.say(f"  waiting  {key.rsplit('/', 1)[-1]}: {entry['why']}")
 
-    def add(self, key, item, tags, notes):
-        """Write the song. False if it didn't go in: it's on the waiting list instead, unless Stop was pressed first."""
+    def add(self, key, item, tags, notes, said=""):
+        """Write the song. False if it didn't go in: it's on the waiting list instead, unless Stop was pressed first. `said` is what you said it is, kept with it if it has to wait."""
         trouble = audio_trouble(item["src"], item.get("secs"), self.stopping)
         if trouble is None:
             return False
         if trouble:
-            self.hold(key, trouble)
+            self.hold(key, trouble, said=said)
             return False
         cover = "" if self.dry else fetch_cover(tags.get("cover_url"), self.covers)
         entry = dict(key=item["key"], src=item["src"], artist=tags["artist"], title=tags["title"], album=tags.get("album") or "", year=str(tags.get("year") or ""),
@@ -383,7 +388,7 @@ class Run:
         try:
             row = self.writer.write(entry)
         except Exception as ex:  # noqa: BLE001  a naming rule that can't be filled in, a full disk: one song, not the whole run
-            self.hold(key, f"The new copy couldn't be written: {ex}")
+            self.hold(key, f"The new copy couldn't be written: {ex}", said=said)
             return False
         status = row["status"]
         if status in ("ok", "dry") or status.startswith("check"):
@@ -395,7 +400,7 @@ class Run:
             return True
         m = re.match(r"skipped: already in library \((.+)\)$", status)
         codec = re.match(r"skipped: source is (\w+), not (\w+)", status)
-        self.hold(key, f"Already in your library: {os.path.basename(m[1])}" if m else _wrong_name(codec[2], codec[1]) if codec else status)
+        self.hold(key, f"Already in your library: {os.path.basename(m[1])}" if m else _wrong_name(codec[2], codec[1]) if codec else status, said=said)
         return False
 
     def _compare(self, key, item, found):
@@ -420,18 +425,22 @@ class Run:
         return None if outcome["failed"] or outcome["stopped"] or outcome["unreadable"] else known  # one that couldn't be compared gets another go next time
 
     def _judged(self, key, item, said=""):
+        """Look the song up, then add it or leave it waiting. True once what you said has been dealt with: the song went in, or it waits with your words kept for the next run."""
         used, found = lookup(item, self.history, self.library_keys)
         self.looked += 1
         why = judge(used, found)
         if why:
             self.hold(key, f'You said "{said}". {why}' if said else why, found, said=said, audio=self._compare(key, used, found))
-            return
+            return True
         how = found.get("how") or ""
         gap = found.get("dur_diff")
         length = "no length on the record" if gap is None else "length matches the record" if abs(gap) <= 1 else f"length within {abs(gap)} s of the record"
         toss = "genre toss-up: " + " / ".join(found["genre_options"]) if found.get("toss_up") else ""
-        if self.add(key, item, found, [f"{AUTO_NOTE}: {how}, {length}", *found.get("notes", []), toss]) and not toss:
-            self.history.setdefault(resolve.norm(found["artist"]), found["genre"])  # a genre nobody has judged doesn't decide the next song's
+        if self.add(key, item, found, [f"{AUTO_NOTE}: {how}, {length}", *found.get("notes", []), toss], said):
+            if not toss:
+                self.history.setdefault(resolve.norm(found["artist"]), found["genre"])  # a genre nobody has judged doesn't decide the next song's
+            return True
+        return not said or (self.songs.get(key) or {}).get("said") == said  # Stop was pressed before it could go in: your answer stays for the next run
 
     def one(self, item):
         key = key_of(item)
@@ -450,8 +459,8 @@ class Run:
             names = said_names(answer.get("note"))
             if not names:  # "anything that helps" is for a person or an agent to read
                 return
-            self._judged(key, with_names(item, *names), " - ".join(names))
-            self._retire(answer_key, answer)
+            if self._judged(key, with_names(item, *names), " - ".join(names)):
+                self._retire(answer_key, answer)
             return
         remembered = said_names((self.songs.get(key) or {}).get("said"))
         if remembered:
