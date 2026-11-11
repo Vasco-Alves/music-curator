@@ -446,6 +446,21 @@ body.fx-full main { overflow: hidden; }
 body.fx-full .fx-bar, body.fx-full .player, body.fx-full .fx-title { transition: opacity .5s; }
 body.fx-full.idle { cursor: none; }
 body:not(.fx-full) .fx-keep { display: none; } /* only full view hides its controls, so only there can they be kept */
+@media (min-width: 1500px) { /* full view on a wide screen: the effects bar is one row across the whole top, the effects on the left and the buttons on the right */
+  body.fx-full main > * { max-width: none; } /* (in full view the page is the whole screen, however wide) */
+  body.fx-full .fx-bar { position: fixed !important; top: 14px !important; left: 8px !important; right: 8px !important; justify-content: flex-end !important; }
+  body.fx-full .fx-bar .fx-picks { margin-right: auto; }
+}
+/* Wide screens: the pages use more of the width, a step at a time, so a big monitor isn't a narrow column between empty sides. Settings and the other forms keep their own narrower widths */
+@container content (min-width: 1700px) {
+  main > * { max-width: 1600px; }
+  .cols { grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); } /* the panels side by side, as many as fit */
+}
+@container content (min-width: 2100px) { main > * { max-width: 2000px; } }
+@media (min-width: 2000px) and (min-height: 1200px) { /* a big screen: a bigger record on Now Playing */
+  .now-stage .sleeve { width: min(42vh, 30vw, 640px); }
+  .fx-bar ~ .now-stage .sleeve { width: min(38vh, 30vw, 600px); }
+}
 body.fx-full.idle .fx-bar, body.fx-full.idle .player, body.fx-full.idle .fx-title { opacity: 0; } /* nothing but the picture, until the mouse moves */
 kbd { padding: 1px 5px; border-radius: 4px; background: var(--surface-3); color: var(--ink-2); font: 600 11px ui-monospace, Consolas, monospace; }
 .chip kbd, .quick-card .btn kbd { margin-right: 6px; }
