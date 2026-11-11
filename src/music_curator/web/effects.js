@@ -82,10 +82,14 @@ window.Effects = (() => {
     dirty = false;
     clean = null;
   }
-  function keepUp(dt) { // a machine that can't keep up gets fewer pixels, not a stuttering picture
+  let keptUp = 0; // looks in a row, a second and a half each, at a good pace
+  function keepUp(dt) { // a machine that can't keep up gets fewer pixels, not a stuttering picture, and gets them back once it keeps up again (something else may have been busy for a while)
     slowTime += dt;
     if (++slowFrames < 90) return;
-    if (slowTime / slowFrames > 0.036 && quality > 0.4) { quality = Math.max(0.4, quality - 0.2); fit(); }
+    const each = slowTime / slowFrames;
+    if (each > 0.036 && quality > 0.4) { quality = Math.max(0.4, quality - 0.2); keptUp = 0; fit(); }
+    else if (each < 0.022 && quality < 1) { if (++keptUp >= 4) { quality = Math.min(1, quality + 0.2); keptUp = 0; fit(); } } // about six seconds of good frames: a step back up
+    else keptUp = 0;
     slowTime = slowFrames = 0;
   }
 
@@ -5189,6 +5193,8 @@ window.Effects = (() => {
   }
   const pixelFolk = { big: null, bigX: null, small: null, smallX: null, was: null }; // the visitors' own layer over a pixel world: at the picture's size, and at the world's (its dots are averaged from the big one, so an edge is a dot part see-through, never a fine line. Making every dot either there or not would mean reading the small one back from the graphics card every frame, which cost ten times as much)
   function pixelOver() { // over a pixel world, what is laid over the picture (the visitors, the 303's singer) is drawn on a layer of its own, and pixelDone() puts it on in the world's own dots. Says whether it did
+    const crisp = FAMILY[name] === "pixel" && !morph ? "pixelated" : ""; // and the browser stretches a pixel world to the window in clean square dots, not smoothed; during a change of effect it stays smooth, for the other one's sake
+    if (canvas.style.imageRendering !== crisp) canvas.style.imageRendering = crisp;
     if (FAMILY[name] !== "pixel" || !pixelLast || !(crowd.folk.length || acidShows() || bandShows() || pointer.rings.length)) return false;
     const P = pixelFolk;
     if (!P.big || P.big.width !== w || P.big.height !== h) [P.big, P.bigX] = paper(w, h);
