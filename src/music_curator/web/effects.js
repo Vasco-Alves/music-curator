@@ -9,6 +9,7 @@ window.Effects = (() => {
   const stage = canvas.getContext("2d", { alpha: false }), spare = document.createElement("canvas"), back = spare.getContext("2d", { alpha: false });
   let g = stage; // what's being drawn on: the picture, or for a moment the visitors' own layer over the app
   const sound = { bands: new Float32Array(BANDS), wave: new Float32Array(POINTS), bass: 0, mid: 0, treble: 0, level: 0, kick: 0, hat: 0, kickHit: 0, hatHit: 0, t: 0, dt: 0.016 };
+  const pointer = { on: false, x: 0, y: 0, at: -1e9, tap: null, tapped: null, rings: [] }; // the mouse over the picture, in the picture's own dots: on while it is over the picture itself (not the page's buttons or words), at when it last moved (the clock, in ms), and tapped, a click, there for the one frame after it lands, as kickHit is for a kick. rings: the soft rings that clicks send out
   const T = { light: 1, react: 1, speed: 1, drag: 1, spark: 1, nod: 1, turns: 1, moves: 1, shots: 1, folk: 1, acid: 1, pit: 1, tilt: 1, vary: 1, dream: 1, falls: 1, color: 1, echo: 1, breathe: 1, sounds: 1 }; // what's been adjusted for the effect showing: 1 is how it was designed
   const STYLES = { // each effect and its styles, by the name a style goes by
     ribbon: [["ribbon", "Classic"], ["silk", "Silk"], ["helix", "Helix"], ["strings", "Strings"]],
@@ -5168,7 +5169,7 @@ window.Effects = (() => {
   }
   const pixelFolk = { big: null, bigX: null, small: null, smallX: null, was: null }; // the visitors' own layer over a pixel world: at the picture's size, and at the world's (its dots are averaged from the big one, so an edge is a dot part see-through, never a fine line. Making every dot either there or not would mean reading the small one back from the graphics card every frame, which cost ten times as much)
   function pixelOver() { // over a pixel world, what is laid over the picture (the visitors, the 303's singer) is drawn on a layer of its own, and pixelDone() puts it on in the world's own dots. Says whether it did
-    if (FAMILY[name] !== "pixel" || !pixelLast || !(crowd.folk.length || acidShows())) return false;
+    if (FAMILY[name] !== "pixel" || !pixelLast || !(crowd.folk.length || acidShows() || pointer.rings.length)) return false;
     const P = pixelFolk;
     if (!P.big || P.big.width !== w || P.big.height !== h) [P.big, P.bigX] = paper(w, h);
     P.bigX.setTransform(1, 0, 0, 1, 0, 0); P.bigX.globalAlpha = 1; P.bigX.globalCompositeOperation = "source-over"; P.bigX.clearRect(0, 0, w, h);
@@ -8621,14 +8622,41 @@ window.Effects = (() => {
     pending = "";
     morph = { from: realNow, long: slow ? 2600 : 1100, way: pickWay(), seeds: Array.from({ length: 64 }, Math.random), x: rnd(0.3, 0.7), y: rnd(0.3, 0.7) };
   }
+  function pointerRings() { // a click on the picture sends a soft ring out from where it landed, in the record's colors, and the kick pushes it on
+    const L = pointer.rings;
+    if (pointer.tapped) { if (L.length >= 6) L.shift(); L.push({ x: pointer.tapped.x, y: pointer.tapped.y, age: 0, tone: around(Math.random()) }); }
+    if (!L.length) return;
+    const big = Math.hypot(w, h), dt = Math.min(0.1, sound.dt);
+    g.save();
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = "lighter";
+    for (let k = L.length - 1; k >= 0; k--) {
+      const r = L[k];
+      r.age += dt * (1 + 1.5 * sound.kick);
+      const p = r.age / 1.6; // from a dot to the edge of the picture in about a second and a half
+      if (p >= 1) { L.splice(k, 1); continue; }
+      const radius = big * (0.03 + 0.5 * eased(p)), fade = 0.5 * (1 - p) * (1 - p);
+      g.strokeStyle = rgba(r.tone, 1);
+      g.globalAlpha = fade;
+      g.lineWidth = Math.max(1.5, big * 0.006 * (1 - 0.6 * p));
+      g.beginPath(); g.arc(r.x, r.y, radius, 0, TAU); g.stroke();
+      g.globalAlpha = fade * 0.5; // and a fainter one just behind it
+      g.lineWidth *= 0.5;
+      g.beginPath(); g.arc(r.x, r.y, radius * 0.72, 0, TAU); g.stroke();
+    }
+    g.restore();
+  }
   function drawFrame() {
+    pointer.tapped = pointer.tap && realNow - pointer.tap.at < 300 ? pointer.tap : null; // a click is news for the one frame after it, for the picture and the visitors alike
+    pointer.tap = null;
     const inScene = folkInScene();
     drawScene();
     drawTwinkles();
     if (!inScene) invite(TRIPS[name] || ROAM);
-    if (acidShows() || (fadesInPlace() && (morph || (!inScene && crowd.folk.length) || dreaming()))) { clean = copyOf(clean); dirty = true; }
+    if (acidShows() || (fadesInPlace() && (morph || (!inScene && crowd.folk.length) || dreaming() || pointer.rings.length))) { clean = copyOf(clean); dirty = true; }
     if (morph) blend();
     const inPixels = pixelOver(); // over a pixel world, the visitors and the singer are drawn in its own big square dots
+    pointerRings();
     if (!inScene) drawFolk();
     acidSing(); // the 303's singer, over whoever else is visiting
     pixelDone(inPixels);
@@ -8779,6 +8807,8 @@ window.Effects = (() => {
       slowNext = false;
       morph = null;
       crowd.folk = [];
+      pointer.rings.length = 0;
+      pointer.on = false;
       dream.on = dream.held = dream.bloom = 0;
       dream.motes.length = 0;
       canvas.hidden = true;
@@ -8786,6 +8816,16 @@ window.Effects = (() => {
     slow() { slowNext = true; }, // the next change takes its time, for when it changes by itself
     wander(pick) { wanders = pick || null; roam.on = 0; roam.due = rnd(40, 80); }, // Morph: what to call for the next effect now and then, or nothing to stay on this one
     full(on) { alone = on; },
+    pointer(x, y, how) { // the mouse, from the page: where it is on the screen and what it did ("move" or "down"), or "off" when it has left the picture or is over the page's own things
+      if (how === "off") { pointer.on = false; return; }
+      const r = canvas.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+      pointer.x = ((x - r.left) * w) / r.width;
+      pointer.y = ((y - r.top) * h) / r.height;
+      pointer.on = true;
+      pointer.at = realNow;
+      if (how === "down") pointer.tap = { x: pointer.x, y: pointer.y, at: realNow };
+    },
     mood(next) { mood = next || ""; }, // what's playing decides who comes by
     song(text, kind) { if ((text || "") !== nowSong) { flow.floor = 0.19; flow.bare = 0.13; flow.since = Math.max(flow.since, 1.4); flow.thump = 0; flow.spare = 0; acidNewSong(); } nowSong = text || ""; genre = typeof kind === "string" ? kind : ""; }, // kind: the song's genres in words ("Acid, Techno"), for the effects that go by the kind of music. The name is for the cockpit's news, and a new song's usual is learned afresh: the last song's kick isn't this one's
     words: ["warp", "stop", "moo", "aliens"],
