@@ -9,7 +9,7 @@ window.Effects = (() => {
   const stage = canvas.getContext("2d", { alpha: false }), spare = document.createElement("canvas"), back = spare.getContext("2d", { alpha: false });
   let g = stage; // what's being drawn on: the picture, or for a moment the visitors' own layer over the app
   const sound = { bands: new Float32Array(BANDS), wave: new Float32Array(POINTS), bass: 0, mid: 0, treble: 0, level: 0, kick: 0, hat: 0, kickHit: 0, hatHit: 0, t: 0, dt: 0.016 };
-  const pointer = { on: false, x: 0, y: 0, at: -1e9, tap: null, tapped: null, rings: [] }; // the mouse over the picture, in the picture's own dots: on while it is over the picture itself (not the page's buttons or words), at when it last moved (the clock, in ms), and tapped, a click, there for the one frame after it lands, as kickHit is for a kick. rings: the soft rings that clicks send out
+  const pointer = { on: false, x: 0, y: 0, at: -1e9, tap: null, tapped: null, taken: false, rings: [] }; // the mouse over the picture, in the picture's own dots: on while it is over the picture itself (not the page's buttons or words), at when it last moved (the clock, in ms), and tapped, a click, there for the one frame after it lands, as kickHit is for a kick. An effect that answers a click in its own way sets taken in that frame, and then no ring goes out. rings: the soft rings that clicks send out
   const T = { light: 1, react: 1, speed: 1, drag: 1, spark: 1, nod: 1, turns: 1, moves: 1, shots: 1, folk: 1, acid: 1, pit: 1, tilt: 1, vary: 1, dream: 1, falls: 1, color: 1, echo: 1, breathe: 1, sounds: 1 }; // what's been adjusted for the effect showing: 1 is how it was designed
   const STYLES = { // each effect and its styles, by the name a style goes by
     ribbon: [["ribbon", "Classic"], ["silk", "Silk"], ["helix", "Helix"], ["strings", "Strings"]],
@@ -8624,7 +8624,7 @@ window.Effects = (() => {
   }
   function pointerRings() { // a click on the picture sends a soft ring out from where it landed, in the record's colors, and the kick pushes it on
     const L = pointer.rings;
-    if (pointer.tapped) { if (L.length >= 6) L.shift(); L.push({ x: pointer.tapped.x, y: pointer.tapped.y, age: 0, tone: around(Math.random()) }); }
+    if (pointer.tapped && !pointer.taken) { if (L.length >= 6) L.shift(); L.push({ x: pointer.tapped.x, y: pointer.tapped.y, age: 0, tone: around(Math.random()) }); }
     if (!L.length) return;
     const big = Math.hypot(w, h), dt = Math.min(0.1, sound.dt);
     g.save();
@@ -8649,6 +8649,7 @@ window.Effects = (() => {
   function drawFrame() {
     pointer.tapped = pointer.tap && realNow - pointer.tap.at < 300 ? pointer.tap : null; // a click is news for the one frame after it, for the picture and the visitors alike
     pointer.tap = null;
+    pointer.taken = false;
     const inScene = folkInScene();
     drawScene();
     drawTwinkles();
