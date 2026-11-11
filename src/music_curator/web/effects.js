@@ -23,7 +23,7 @@ window.Effects = (() => {
     worlds: [["tube", "Energy tube"], ["heads", "Neon heads"], ["sphere", "Sound sphere"], ["solids", "Shapes in space"], ["city", "Neon city"]],
     pixel: [["runner", "Runner"], ["arcade", "Arcade"], ["places", "Places"], ["life", "Living grid"]],
     visions: [["faces", "Faces"], ["forms", "Forms"], ["beings", "Beings"]],
-    aero: [["aero", "Frutiger Aero"], ["aqua", "Aqua"]],
+    aero: [["aero", "Frutiger Aero"], ["aqua", "Aqua"], ["dorfic", "DORFic"], ["eco", "Frutiger Eco"], ["darkaero", "Dark Aero"], ["zen", "Technozen"]],
   };
   const FOLK_OF = { arcade: ["astronaut", "shapes", "neon", "jelly"], ocean: ["jelly", "whale", "jelly", "shapes"], neonroad: ["neon", "shapes", "saucer", "neon"], aurora: ["saucer", "astronaut", "neon", "saucer"], // some places have their own visitors
     tube: ["shapes", "neon", "eye", "saucer"], heads: ["saucer", "eye", "shapes", "neon"], sphere: ["astronaut", "saucer", "shapes", "jelly"], solids: ["shapes", "saucer", "neon", "astronaut"], city: ["saucer", "neon", "saucer", "shapes"] };
@@ -343,7 +343,7 @@ window.Effects = (() => {
       }
       for (let i = 0, n = Math.round(60 * T.shots); i < n; i++) { const a = rnd(0, TAU), v = rnd(0.25, 0.9) * most; sparks.push({ x: w / 2, y: h / 2, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: rnd(0.7, 1.4), age: 0, tone: around(rnd(0, 1)) }); }
     }
-    if (flow.part === "build" && sparks.length < 160) for (let n = flow.build * T.shots * dt * 60; n > Math.random(); n--) sparks.push({ x: rnd(0, w), y: h + 5, vx: rnd(-0.02, 0.02) * w, vy: -h * (0.25 + 0.9 * flow.build), life: rnd(1.2, 2.2), age: 0, tone: around(rnd(0, 1)), rise: true });
+    if (flow.part === "build" && sparks.length < 160 && !agPale.has(name)) for (let n = flow.build * T.shots * dt * 60; n > Math.random(); n--) sparks.push({ x: rnd(0, w), y: h + 5, vx: rnd(-0.02, 0.02) * w, vy: -h * (0.25 + 0.9 * flow.build), life: rnd(1.2, 2.2), age: 0, tone: around(rnd(0, 1)), rise: true });
     if (!sparks.length && !wave && !lights) return;
     g.save();
     g.globalCompositeOperation = "lighter";
@@ -353,7 +353,7 @@ window.Effects = (() => {
     for (let i = sparks.length - 1; i >= 0; i--) {
       const p = sparks[i];
       p.age += dt;
-      if (p.age > p.life || p.y < -20) { sparks.splice(i, 1); continue; }
+      if (p.age > p.life || p.y < -20 || (p.rise && asPale.has(name))) { sparks.splice(i, 1); continue; } // (a pale picture has no rising sparks: they would look like rain)
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       if (!p.rise) { p.vx *= 0.97; p.vy *= 0.97; }
@@ -370,8 +370,8 @@ window.Effects = (() => {
       g.beginPath();
       g.arc(w / 2, h / 2, (1 - wave) * most * 0.8, 0, TAU);
       g.stroke();
-      g.globalAlpha = 1;
-      g.fillStyle = `rgba(255,255,255,${(0.3 * wave ** 3 * T.light).toFixed(3)})`;
+      g.globalAlpha = agPale.has(name) ? 0.12 : 1; // (on a pale picture the white flash is kept faint, or it would turn the whole picture white)
+      g.fillStyle = `rgba(255,255,255,${(0.3 * wave ** 3 * T.light * (asPale.has(name) ? 0.12 : 1)).toFixed(3)})`;
       g.fillRect(0, 0, w, h);
       wave = Math.max(0, wave - dt / 0.9);
     }
@@ -4983,6 +4983,10 @@ window.Effects = (() => {
     beings: { body: ["mixed", "tess", "cell24", "cage", "web", "cell16", "star"], eyes: ["mixed", "mixed", "two", "one"], spin: [1, 0.6, 1.6] },
     aero: { froth: [1, 0.6, 1.5], sunx: [0.8, 0.2, 0.62, 0.35], tide: [0.64, 0.56, 0.72], glassy: [0.3, 0, 0.6], breeze: [0.3, -0.4, 0.7, 0], golden: [0, 0.4, 0.7] },
     aqua: { school: [1, 0.65, 1.4], kelp: [1, 0.5, 1.5], caps: [1, 0.4, 1.7], shine: [1, 0.7, 1.4], murk: [0, 0.45, 0.2], current: [0, 0.6, -0.6] },
+    dorfic: { swish: [1, 0.6, 1.5], arcset: [1, 0.5, 1.6], dusk: [0, 0.5, 1, 0.25], shardy: [1, 0.4, 1.8], sunway: [0.64, 0.36, 0.5, 0.74] },
+    eco: { breeze: [1, 0.6, 1.6], leafy: [1, 0.5, 1.6], golden: [0, 0.4, 0.8, 0.2], mills: [1, 0.3, 1.8], canopy: [1, 0.7, 1.3] },
+    darkaero: { streaks: [1, 0.6, 1.5], orbs: [1, 0.65, 1.4], panes: [1, 0.4, 1.6], floor: [0.64, 0.58, 0.7], lean: [0.35, 0.15, 0.6], glow: [1, 0.75, 1.3] },
+    zen: { flurry: [1, 0.6, 1.5], size: [1, 0.85, 1.15], floor: [0.47, 0.42, 0.53], lean: [0.3, 0.12, 0.5], wind: [1, 0.4, -0.8], glow: [1, 0.75, 1.3], perch: [0.5, 0.4, 0.6] },
     kaleido: { blobs: [5, 3, 8], line: ["wave", "ring", "none"], spin: [1, -1, 2] },
     plasma: { scale: [1, 0.55, 1.7], stripes: [2, 1, 4], swirl: [0, 1, 2] },
     fractal: { sides: [0, 3, 4, 5, 6, 8], child: [0.22, 0.32, 0.15], spin: [1, -1] },
@@ -4998,7 +5002,7 @@ window.Effects = (() => {
     solids: { mode: ["field", "nested", "orbit", "field"], forms: ["mixed", "cube", "icosa", "tetra", "dodeca"], spin: [1, 2, 0.5] },
     city: { heights: [1, 0.6, 1.5], weave: [1, 0, 2], look: ["neon", "glass", "neon"] },
   };
-  const GLIDES = new Set(["school", "kelp", "caps", "shine", "murk", "current", "froth", "sunx", "tide", "glassy", "breeze", "golden", "hour", "going", "weather", "rails", "hops", "foes", "scroll", "gait", "kin", "wings", "flair", "course", "veil", "stack", "hue", "order", "waves", "twists", "loops", "floor", "height", "glow", "spin", "roll", "drift", "flat", "size", "reach", "scale", "swirl", "child", "curve", "twist", "bends", "twirl", "swell", "depth", "wobble", "heights", "weave"]);
+  const GLIDES = new Set(["flurry", "wind", "perch", "streaks", "orbs", "panes", "lean", "leafy", "mills", "canopy", "swish", "arcset", "dusk", "shardy", "sunway", "school", "kelp", "caps", "shine", "murk", "current", "froth", "sunx", "tide", "glassy", "breeze", "golden", "hour", "going", "weather", "rails", "hops", "foes", "scroll", "gait", "kin", "wings", "flair", "course", "veil", "stack", "hue", "order", "waves", "twists", "loops", "floor", "height", "glow", "spin", "roll", "drift", "flat", "size", "reach", "scale", "swirl", "child", "curve", "twist", "bends", "twirl", "swell", "depth", "wobble", "heights", "weave"]);
   const dialsOf = (style) => VERSIONS[style] && { hue: HUES, order: [0, 0, 1, 2], ...VERSIONS[style] };
   const LIVE = new Set(["fold", "form", "glasses", "roots"]), TAKES = { fold: 0.45, form: 1, glasses: 0.16, roots: 0.5 }; // these go over in the picture itself: the old fold lets go as the new one takes hold, a ring bends from one shape into the other, a head takes its glasses off and puts others on, and Newton's new roots open as a ring of light. Each takes this much of a slow change
   const vary = { aim: {}, on: 0, due: 40, turned: {}, was: {}, over: {}, trip: null }; // where each dial is going, what a fold or a shape was and how far over it is, and the slow change that's on
@@ -10653,7 +10657,1543 @@ window.Effects = (() => {
   for (const kind of ["lantern", "shrine", "sakura", "hanami"]) STILL.add(kind); // they fill the picture, or hang from its top, so they aren't pushed around
   const NIGHT_GUESTS = { neko: drawNightNeko, popup: drawNightPopup, crane: drawNightCrane }; // and the ones that visit the app itself
   /* ==== nightcore: end ==== */
-  const DRAW = { aqua: awAquaFx, aero: awAeroFx, beings: beingsFx, life: livingGrid, places: placesFx, arcade: arcadeFx, runner: runnerFx, forms: formsFx, faces, ribbon, silk, helix, strings, bars, mirror, leds, terrain, scope, trails, tunnel, vortex, prism, ripple, comets, stars: starfield, whirl, dust, links, fireworks, halo, sun, rings, mandala, rays, space, warp: space, drift: space, orbit: space, visitors: space, well,
+  /* ==== aerosun: begin ==== */
+  /* Aero, its sunny side. DORFic: daylight futurism, as on posters and record sleeves of the early two-thousands: a warm white page with a sun disc and rings round it, thick orange and yellow swooshes,
+     thin grey lines with dots along them, a panel of fine dots and a few sharp shards, all flat and clean. Frutiger Eco: a sunny green world: glossy leaves, dewdrops, light through the trees,
+     a clear stream, white turbines on a far hill and dandelion seeds on the wind.
+     Both keep their own colors first and let the record's or the mood's in as accents. Both answer the mouse: over them things lean or blow away, and a click grows something where it lands. */
+  const asClock = { dorfic: -1, eco: -1 }; // when each was last drawn (the clock, in ms): a picture can be drawn twice in one frame, and the second time nothing moves on
+  const asStep = (key) => { const fresh = asClock[key] !== realNow; asClock[key] = realNow; return fresh ? Math.min(0.2, sound.dt) : 0; }; // this frame's step in seconds, or none the second time round
+  const asWrap = (a, round = TAU) => a - round * Math.floor(a / round); // an angle or a place kept inside one turn of itself, so nothing grows without end
+  function asMouse(M, dt) { // the mouse as these pictures feel it: followed softly, how near it is (none when it has gone, less once it has rested a while) and how fast it moves, in dots a second
+    if (!dt) return;
+    if (pointer.tapped) M.tapAt = pointer.tapped.at; // when the last click landed: a finger on a phone taps and lifts, and never moves after it, so a pointer that has not moved since then is let go of quickly
+    const ago = realNow - pointer.at, here = pointer.on && ago < 20000, rest = pointer.at === M.tapAt ? clamp(ago / 1500) : 0.55 * clamp((ago - 2000) / 6000) + 0.45 * clamp((ago - 12000) / 8000), k = 1 - Math.exp(-dt * 14), ease = 1 - Math.exp(-dt * 6);
+    if (here && M.near < 0.02) { M.x = pointer.x; M.y = pointer.y; M.vx = M.vy = 0; } // back after a while away: from where it is now, not from where it left
+    const nx = here ? M.x + (pointer.x - M.x) * k : M.x, ny = here ? M.y + (pointer.y - M.y) * k : M.y;
+    M.vx += ((nx - M.x) / dt - M.vx) * ease;
+    M.vy += ((ny - M.y) / dt - M.vy) * ease;
+    M.x = nx;
+    M.y = ny;
+    M.near += ((here ? 1 - rest : 0) - M.near) * (1 - Math.exp(-dt * 4));
+  }
+  const asLift = () => (flow.part === "build" ? Math.max(0.4, flow.build) : clamp((flow.build - 0.35) / 0.4)); // how much of a build is on (with no kick at all the build creeps up to a quarter and sits there, which is no build)
+  FOLK_OF.dorfic = ["shapes", "astronaut", "shapes", "saucer"]; // glass shapes and a spaceman suit a sunny future; nothing from the deep sea
+  FOLK_OF.eco = ["petals", "shapes", "petals", "saucer"]; // petals on the wind, now and then a glass shape, and once in a while a saucer over the fields
+  const asPale = new Set(["dorfic", "eco"]); // the pale pictures: on these drawFlow leaves out a build's rising sparks of light, which look like rain on a bright sky, and keeps the drop's white flash faint, as it would otherwise turn the whole picture white
+
+  /* DORFic. The sun disc sits where the version puts it and wanders slowly over a song; rings turn round it, swooshes sweep round it on tilted ovals, each coming and going in its own time,
+     and grey lines are drawn and taken away again across the page. Later in the day (a dial, and a slow swing over a few minutes) the oranges deepen. */
+  const AS_ORANGE = [255, 116, 22], AS_YELLOW = [255, 192, 30], AS_AMBER = [255, 150, 44], AS_GREY = [148, 146, 142], AS_INK = [38, 36, 42], AS_PAPER = [252, 250, 246], AS_NO_DASH = [];
+  const AS_SHADES = [-0.26, -0.13, 0, 0.13, 0.26]; // how much darker or lighter a shard's face is than its color
+  const asDorf = { w: 0, h: 0, arcs: [], swooshes: [], rails: [], shards: [], ripples: [], pulses: [], blooms: [], bits: [], burst: 9, burstTurn: 0, spinKick: 0, lift: 0, swell: 0, panel: { x: 0, y: 0, tx: 0, ty: 0, due: 0 }, grid: null, gridFor: 0, dash: [8, 5], faces: [], mouse: { x: 0, y: 0, vx: 0, vy: 0, near: 0, tapAt: -1 }, tap: null };
+  const asAt = [0, 0, 0, 0], asEdge = new Float32Array(41 * 4); // a place along a line (x, y and which way it goes), and a swoosh's two edges, worked out into these each time
+  function asSwoosh(i, done = 0) { // one of the big curved strokes: part of a tilted oval near the sun, thick at its head and thin at its tail, swept in and later swept away again
+    const life = rnd(14, 30), sweep = i === 0, dir = Math.random() < 0.5 ? 1 : -1, span = sweep ? rnd(1.2, 2) : rnd(1.2, 2.5), below = Math.random() < 0.7 ? 1 : -1; // the first is the big one: a wide band over the top (or under the bottom) of an oval centred well below (or above) the sun
+    return { i, a: sweep ? rnd(1.3, 1.8) : rnd(0.55, 1.2), b: sweep ? rnd(0.5, 0.8) : rnd(0.14, 0.5), tilt: sweep ? rnd(-0.25, 0.25) : rnd(-0.5, 0.5), dx: rnd(-0.3, 0.3), dy: sweep ? below * rnd(0.45, 0.7) : rnd(-0.16, 0.16), start: sweep ? -below * Math.PI / 2 - (dir * span) / 2 + rnd(-0.3, 0.3) : rnd(0, TAU), span, thick: [0.1, 0.085, 0.07, 0.06, 0.08, 0.02, 0.045][i % 7] * rnd(0.85, 1.15), tone: [0, 1, 5, 3, 0, 4, 1][i % 7], dir, rate: sweep ? rnd(0.02, 0.05) : rnd(0.04, 0.11), life, age: life * done, flex: 0, flexV: 0 };
+  }
+  function asRail(done = 0) { // a thin line over part of the page: along, off at forty-five degrees, along again, with small dots on it and a ring at each end
+    const m = Math.min(w, h), pts = [], lens = [0], dir = Math.random() < 0.5 ? 1 : -1;
+    let x = dir > 0 ? rnd(0.02, 0.55) * w : rnd(0.45, 0.98) * w, y = rnd(0.06, 0.94) * h;
+    pts.push([x, y]);
+    for (let k = 0, n = 2 + Math.floor(rnd(0, 3)); k < n; k++) {
+      if (k % 2 === 0) x += rnd(0.07, 0.26) * w * dir; // along
+      else { const d = rnd(0.03, 0.11) * m * (Math.random() < 0.5 ? 1 : -1); x += Math.abs(d) * dir; y = Math.max(h * 0.03, Math.min(h * 0.97, y + d)); } // and off at forty-five degrees, staying on the page
+      pts.push([x, y]);
+      lens.push(lens[k] + Math.hypot(x - pts[k][0], y - pts[k][1]));
+    }
+    const life = rnd(18, 42);
+    return { pts, lens, long: lens[lens.length - 1], gap: m * rnd(0.024, 0.04), ticks: Math.random() < 0.3, life, age: life * done, tone: Math.random() < 0.2 ? 4 : 2 };
+  }
+  function asAlong(R, s) { // the place this far along a line, into asAt
+    const L = R.lens;
+    let k = 1;
+    while (k < L.length - 1 && L[k] < s) k++;
+    const a = R.pts[k - 1], b = R.pts[k], long = Math.max(1e-6, L[k] - L[k - 1]), f = Math.max(0, Math.min(1, (s - L[k - 1]) / long));
+    asAt[0] = a[0] + (b[0] - a[0]) * f; asAt[1] = a[1] + (b[1] - a[1]) * f; asAt[2] = (b[0] - a[0]) / long; asAt[3] = (b[1] - a[1]) / long;
+    return asAt;
+  }
+  function asShard(i) { // a low-poly shard: a few flat triangles round a point, each face lit a little differently, drifting and slowly turning
+    const n = 4 + Math.floor(rnd(0, 3)), ring = [], tris = [], c = [rnd(-0.2, 0.2), rnd(-0.2, 0.2)];
+    for (let k = 0; k < n; k++) { const a = (k / n) * TAU + rnd(-0.3, 0.3), r = rnd(0.45, 1); ring.push([Math.cos(a) * r, Math.sin(a) * r * rnd(0.55, 1)]); }
+    for (let k = 0; k < n; k++) if (k < n - 1 || Math.random() < 0.5) tris.push([c, ring[k], ring[(k + 1) % n], Math.floor(rnd(0, AS_SHADES.length))]);
+    return { tris, x: rnd(0, 1), y: rnd(0, 1), size: rnd(0.035, 0.085), rot: rnd(0, TAU), spin: rnd(-0.3, 0.3), flip: rnd(0, TAU), flipRate: rnd(0.2, 0.6) * (Math.random() < 0.5 ? 1 : -1), vx: rnd(-0.012, 0.012), vy: rnd(-0.008, 0.008), tone: [0, 1, 5, 2, 0, 6, 1][i % 7] }; // where it is in parts of the picture, and how fast it goes in parts of it a second
+  }
+  function asDorfSet() { // a fresh page for the size the picture is now
+    const D = asDorf, m = Math.min(w, h);
+    D.w = w; D.h = h;
+    D.arcs = Array.from({ length: 16 }, (_, i) => ({ r: 1.24 + i * 0.2 + rnd(-0.04, 0.04), start: rnd(0, TAU), span: i % 5 === 1 ? TAU : rnd(0.7, 4), kind: ["thin", "dash", "thin", "thick", "dots", "thin"][i % 6], tone: i % 4 === 3 ? 0 : i === 5 || i === 11 ? 3 : i % 7 === 6 ? 4 : 2, rate: rnd(0.03, 0.1) * (i % 2 ? 1 : -1) }));
+    D.swooshes = Array.from({ length: 7 }, (_, i) => asSwoosh(i, rnd(0.15, 0.85)));
+    D.rails = Array.from({ length: 7 }, () => asRail(rnd(0.1, 0.6)));
+    D.shards = Array.from({ length: 16 }, (_, i) => asShard(i));
+    D.ripples.length = D.pulses.length = D.blooms.length = D.bits.length = 0;
+    D.burst = 9; D.spinKick = 0;
+    D.dash = [m * 0.022, m * 0.013];
+    D.panel.due = 0;
+  }
+  function asDorfTones(tones, dusk) { // the day's colors: orange, yellow, grey, the accent, ink, amber and paper white, leaning to the mood (redder for hardcore, greener for acid, softer for trance) and later in the day to a deeper orange
+    let o = AS_ORANGE, y = AS_YELLOW, a = AS_AMBER;
+    if (mood === "hard") { o = mix(o, [228, 40, 32], 0.55); y = mix(y, [255, 116, 46], 0.5); a = mix(a, [214, 58, 44], 0.45); }
+    else if (mood === "acid") { y = mix(y, [222, 236, 36], 0.5); a = mix(a, [176, 214, 40], 0.35); }
+    else if (mood === "euphoric") { o = mix(o, [255, 150, 140], 0.3); y = mix(y, [255, 224, 150], 0.35); a = mix(a, [246, 164, 206], 0.4); }
+    o = mix(o, [222, 70, 34], 0.3 * dusk);
+    y = mix(y, [255, 156, 40], 0.3 * dusk);
+    return [o, y, AS_GREY, mood === "psy" ? tones[0] : mix(tones[0], o, mood ? 0.15 : 0.25), AS_INK, a, AS_PAPER];
+  }
+  function asSwooshDraw(S, sx, sy, m, tall, shown, P, M) { // one swoosh: its middle line round its oval, bent toward the mouse, and the two edges either side of it as thick as it is there
+    const A = S.a * (tall ? w * 0.75 : Math.max(w, h) * 0.5), B = S.b * (tall ? h * 0.4 : m * 0.5) * (1 + 0.14 * S.flex), tilt = S.tilt, ct = Math.cos(tilt), st = Math.sin(tilt), cx = sx + S.dx * w, cy = sy + S.dy * h * (tall ? 1.6 : 1); // on a tall picture, as on a phone, they still sweep across it, and spread further down
+    const head = eased(clamp(S.age / 1.8)), tail = eased(clamp((S.age - S.life + 2) / 2)), wide = (head - tail) || 1e-3, thick = S.thick * m * (V.swish ?? 1) ** 0.5 * (1 + 0.1 * S.flex) * (1 - 0.3 * flow.calm), sigma = 2 * (0.26 * m) ** 2, N = 40;
+    if (head - tail < 0.01) return;
+    for (let k = 0; k <= N; k++) {
+      const u = tail + (wide * k) / N, th = S.start + S.dir * S.span * u, ex = A * Math.cos(th), ey = B * Math.sin(th), tx = -A * Math.sin(th) * S.dir, ty = B * Math.cos(th) * S.dir;
+      let x = cx + ex * ct - ey * st, y = cy + ex * st + ey * ct;
+      const gx = tx * ct - ty * st, gy = tx * st + ty * ct, gl = Math.hypot(gx, gy) || 1, nx = -gy / gl, ny = gx / gl, q = k / N, half = 0.5 * thick * Math.sin(Math.PI * q) ** 0.8 * (0.3 + 0.7 * q);
+      if (M.near > 0.01) { const dx = M.x - x, dy = M.y - y, pull = 0.55 * M.near * Math.exp(-(dx * dx + dy * dy) / sigma); x += dx * pull; y += dy * pull; } // the mouse draws it toward itself
+      asEdge[k * 4] = x + nx * half; asEdge[k * 4 + 1] = y + ny * half; asEdge[k * 4 + 2] = x - nx * half; asEdge[k * 4 + 3] = y - ny * half;
+    }
+    g.beginPath();
+    g.moveTo(asEdge[0], asEdge[1]);
+    for (let k = 1; k <= N; k++) g.lineTo(asEdge[k * 4], asEdge[k * 4 + 1]);
+    for (let k = N; k >= 0; k--) g.lineTo(asEdge[k * 4 + 2], asEdge[k * 4 + 3]);
+    g.closePath();
+    g.globalAlpha = 0.93 * shown;
+    g.fillStyle = rgba(P[S.tone], 1);
+    g.fill();
+    if (S.tone === 4 || thick < m * 0.02) return;
+    g.globalAlpha = 0.4 * shown; // a clean shine along its outer side
+    g.strokeStyle = "#fff";
+    g.lineWidth = Math.max(1, thick * 0.09);
+    g.beginPath();
+    for (let k = 3; k <= N - 3; k++) { const x = asEdge[k * 4] * 0.72 + asEdge[k * 4 + 2] * 0.28, y = asEdge[k * 4 + 1] * 0.72 + asEdge[k * 4 + 3] * 0.28; if (k === 3) g.moveTo(x, y); else g.lineTo(x, y); }
+    g.stroke();
+  }
+  function asBloom(x, y, m) { // a click: a small sun opens where it landed and throws off shards
+    const D = asDorf;
+    if (D.blooms.length >= 5) D.blooms.shift();
+    D.blooms.push({ x, y, age: 0 });
+    for (let k = 0; k < 12; k++) {
+      if (D.bits.length >= 72) D.bits.shift();
+      const a = (k / 12) * TAU + rnd(-0.2, 0.2), v = m * rnd(0.5, 1.3), r = m * 0.035;
+      D.bits.push({ x: x + Math.cos(a) * r, y: y + Math.sin(a) * r, vx: Math.cos(a) * v, vy: Math.sin(a) * v, rot: rnd(0, TAU), spin: rnd(-6, 6), size: m * rnd(0.012, 0.03), age: 0, life: rnd(1, 1.8), tone: [0, 1, 5, 2, 3, 6][k % 6] });
+    }
+  }
+  function asDorficFx() { // DORFic: the kick ripples the rings and flexes the swooshes, hi-hats run dots along the lines, the bass swells the sun, a build turns the swooshes faster and adds rings, and the drop throws out a sunburst and sets the shards spinning
+    const D = asDorf, dt = asStep("dorfic"), { t, kickHit, hatHit } = sound, m = Math.min(w, h), tall = h > w * 1.15, M = D.mouse;
+    if (D.w !== w || D.h !== h) asDorfSet();
+    asMouse(M, dt);
+    D.lift += (asLift() - D.lift) * (1 - Math.exp(-dt * 1.2)); // eased, so the drop doesn't stop the build dead
+    D.swell += (sound.bass - D.swell) * (1 - Math.exp(-dt * 9));
+    const dusk = clamp((V.dusk ?? 0) + 0.22 * Math.sin(t * 0.021)), tones = moodColors(3), P = asDorfTones(tones, dusk), lift = D.lift;
+    const way = V.sunway ?? 0.64, roam = 0.1 * Math.sin(t * 0.019) + 0.05 * Math.sin(t * 0.047 + 2), sx = tall ? w * (0.5 + (way - 0.5) * 0.8 + 1.2 * roam) : w * (way + roam), sy = h * (tall ? 0.3 + 0.06 * Math.sin(t * 0.023 + 1) : 0.44 + 0.1 * Math.sin(t * 0.023 + 1.3)), R = m * 0.15 * (1 + 0.08 * D.swell); // the sun: where the version puts it, wandering a good way from there over a few minutes, and a little bigger with the bass
+    const tap = pointer.tapped; // a click: a small sun of its own, and no ring
+    if (tap && tap !== D.tap) { D.tap = tap; asBloom(tap.x, tap.y, m); }
+    if (tap && tap === D.tap) pointer.taken = true;
+    if (dt && kickHit) { if (D.ripples.length >= 5) D.ripples.shift(); D.ripples.push({ age: 0, a: kickHit }); for (const S of D.swooshes) S.flexV += kickHit * (2.6 + 2.4 * lift) * (S.i % 2 ? 1 : -1); }
+    if (dt && flow.dropHit) { D.burst = D.burst < 4.2 ? Math.min(D.burst, 0.7) : 0; D.spinKick = 1; } // a drop that lands again while the rays are out keeps them at full reach and only starts their fade over
+    D.burst = Math.min(99, D.burst + dt);
+    D.burstTurn = asWrap(D.burstTurn + dt * 0.12);
+    D.spinKick *= Math.exp(-dt / 2.4);
+
+    g.setTransform(1, 0, 0, 1, 0, 0); // the page: a warm white, paler round the sun, never a white that would wash out the words over it
+    g.globalCompositeOperation = "source-over";
+    g.globalAlpha = 1;
+    g.fillStyle = rgba(mix(mix(alone ? [247, 245, 240] : [214, 211, 204], alone ? [250, 234, 214] : [218, 203, 186], 0.55 * dusk), tones[1], 0.035), 1); // behind the words of Now Playing about 84 in a hundred of full white; in full view brighter
+    g.fillRect(0, 0, w, h);
+    const warm = g.createRadialGradient(sx, sy, R * 0.5, sx, sy, Math.max(w, h) * 0.85);
+    warm.addColorStop(0, rgba(mix(P[1], [255, 255, 255], 0.65), alone ? 0.38 : 0.18));
+    warm.addColorStop(1, rgba(P[1], 0));
+    g.fillStyle = warm;
+    g.fillRect(0, 0, w, h);
+
+    const Pn = D.panel, gap = Math.max(6, Math.round(m * 0.022)); // a panel of fine dots, away from the sun, that moves somewhere else now and then
+    if (t > Pn.due || Pn.due - t > 80) { Pn.tx = sx > w / 2 ? rnd(0.03, 0.3) : rnd(0.42, 0.68); Pn.ty = tall ? rnd(0.55, 0.78) : rnd(0.08, 0.6); if (!Pn.due) { Pn.x = Pn.tx; Pn.y = Pn.ty; } Pn.due = t + rnd(30, 55); }
+    Pn.x += (Pn.tx - Pn.x) * (1 - Math.exp(-dt * 0.15)); Pn.y += (Pn.ty - Pn.y) * (1 - Math.exp(-dt * 0.15));
+    if (!D.grid || D.gridFor !== gap) { const [c, x] = paper(gap); x.fillStyle = rgba(AS_INK, 0.55); x.beginPath(); x.arc(gap / 2, gap / 2, Math.max(0.8, gap * 0.1), 0, TAU); x.fill(); D.grid = g.createPattern(c, "repeat"); D.gridFor = gap; }
+    const px = Pn.x * w, py = Pn.y * h, pw = w * (tall ? 0.6 : 0.27), ph = h * (tall ? 0.16 : 0.32), off = asWrap(t * m * 0.004, gap), cl = m * 0.03;
+    g.globalAlpha = 0.5;
+    g.fillStyle = D.grid;
+    g.translate(off, 0);
+    g.fillRect(px - off, py, pw, ph);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = 0.7; // its corners
+    g.strokeStyle = rgba(AS_GREY, 1);
+    g.lineWidth = Math.max(1, m * 0.0018);
+    g.beginPath();
+    for (const [cx, cy, ux, uy] of [[px, py, 1, 1], [px + pw, py, -1, 1], [px, py + ph, 1, -1], [px + pw, py + ph, -1, -1]]) { g.moveTo(cx + ux * cl, cy); g.lineTo(cx, cy); g.lineTo(cx, cy + uy * cl); }
+    g.stroke();
+
+    const thin = Math.max(1, m * 0.0018), sigma = 2 * (0.2 * m) ** 2, dotR = Math.max(1.2, m * 0.0034); // the grey lines: drawn in, kept a while, taken away from their start
+    for (let i = 0; i < D.rails.length; i++) { const R0 = D.rails[i]; R0.age += dt; if (R0.age > R0.life) D.rails[i] = asRail(0); }
+    for (const tone of [2, 4]) {
+      g.beginPath();
+      for (const L of D.rails) {
+        if (L.tone !== tone) continue;
+        const s0 = L.long * eased(clamp((L.age - L.life + 1.6) / 1.6)), s1 = L.long * eased(clamp(L.age / 1.6));
+        if (s1 - s0 < 1) continue;
+        asAlong(L, s0); g.moveTo(asAt[0], asAt[1]);
+        for (let k = 1; k < L.pts.length - 1; k++) if (L.lens[k] > s0 && L.lens[k] < s1) g.lineTo(L.pts[k][0], L.pts[k][1]);
+        asAlong(L, s1); g.lineTo(asAt[0], asAt[1]);
+        if (L.ticks) for (let s = Math.ceil(s0 / (L.gap / 2)) * (L.gap / 2); s < s1; s += L.gap / 2) { asAlong(L, s); const tk = m * 0.006; g.moveTo(asAt[0] + asAt[3] * tk, asAt[1] - asAt[2] * tk); g.lineTo(asAt[0] - asAt[3] * tk, asAt[1] + asAt[2] * tk); }
+      }
+      g.globalAlpha = tone === 4 ? 0.75 : 0.85;
+      g.strokeStyle = rgba(P[tone], 1);
+      g.lineWidth = thin;
+      g.stroke();
+    }
+    g.beginPath(); // the dots along them, leaning toward the mouse, and the nearest lit orange
+    const ends = new Path2D(), lit = new Path2D();
+    for (const L of D.rails) {
+      const s0 = L.long * eased(clamp((L.age - L.life + 1.6) / 1.6)), s1 = L.long * eased(clamp(L.age / 1.6));
+      if (s1 - s0 < 1) continue;
+      for (let s = Math.ceil(s0 / L.gap) * L.gap; s <= s1; s += L.gap) {
+        asAlong(L, s);
+        let x = asAt[0], y = asAt[1], r = dotR;
+        if (M.near > 0.01) { const dx = M.x - x, dy = M.y - y, d = Math.hypot(dx, dy) || 1, f = M.near * Math.exp(-(d * d) / sigma); x += (dx / d) * f * L.gap * 0.6; y += (dy / d) * f * L.gap * 0.6; r *= 1 + 1.2 * f; if (f > 0.3) { lit.moveTo(x + r, y); lit.arc(x, y, r, 0, TAU); continue; } }
+        g.moveTo(x + r, y); g.arc(x, y, r, 0, TAU);
+      }
+      asAlong(L, s0); ends.moveTo(asAt[0] + m * 0.008, asAt[1]); ends.arc(asAt[0], asAt[1], m * 0.008, 0, TAU);
+      asAlong(L, s1); ends.moveTo(asAt[0] + m * 0.008, asAt[1]); ends.arc(asAt[0], asAt[1], m * 0.008, 0, TAU);
+    }
+    g.globalAlpha = 0.85;
+    g.fillStyle = rgba(P[2], 1);
+    g.fill();
+    g.fillStyle = rgba(P[0], 1);
+    g.fill(lit);
+    g.strokeStyle = rgba(P[4], 1);
+    g.lineWidth = thin;
+    g.stroke(ends);
+    if (dt && hatHit && D.pulses.length < 30) { const L = D.rails[Math.floor(rnd(0, D.rails.length))]; if (L.age > 1.6 && L.age < L.life - 1.6) D.pulses.push({ L, s: 0, v: L.long / rnd(0.5, 0.9), tone: Math.random() < 0.35 ? 3 : 0 }); } // a hi-hat runs a dot along one of them
+    for (let i = D.pulses.length - 1; i >= 0; i--) {
+      const p = D.pulses[i];
+      p.s += p.v * dt;
+      if (p.s > p.L.long || !D.rails.includes(p.L)) { D.pulses.splice(i, 1); continue; }
+      g.fillStyle = rgba(P[p.tone], 1);
+      for (let k = 3; k >= 0; k--) { const s = p.s - k * m * 0.014; if (s < 0) continue; asAlong(p.L, s); g.globalAlpha = k ? 0.22 * (4 - k) : 1; g.beginPath(); g.arc(asAt[0], asAt[1], m * (k ? 0.004 : 0.0065), 0, TAU); g.fill(); }
+    }
+
+    if (D.burst < 4.2) { // the drop: a sunburst of rays out from behind the sun
+      const grow = eased(clamp(D.burst / 0.7)), fade = 1 - clamp((D.burst - 0.4) / 3.8), N = 28, reach = R * (1.15 + 3.4 * grow), half = (TAU / N) * 0.22;
+      for (const tone of [0, 1]) {
+        g.beginPath();
+        for (let k = tone; k < N; k += 2) { const a = (k / N) * TAU + D.burstTurn; g.moveTo(sx + Math.cos(a - half * 0.3) * R, sy + Math.sin(a - half * 0.3) * R); g.lineTo(sx + Math.cos(a - half) * reach, sy + Math.sin(a - half) * reach); g.lineTo(sx + Math.cos(a + half) * reach, sy + Math.sin(a + half) * reach); g.lineTo(sx + Math.cos(a + half * 0.3) * R, sy + Math.sin(a + half * 0.3) * R); }
+        g.globalAlpha = 0.5 * fade * (tone ? 0.8 : 1);
+        g.fillStyle = rgba(P[tone], 1);
+        g.fill();
+      }
+    }
+
+    const rings = 6 + 4 * (V.arcset ?? 1) + 5 * lift; // the rings round the sun: more in a build, and a kick sends a ripple out through them
+    for (const rp of D.ripples) rp.age += dt;
+    while (D.ripples.length && D.ripples[0].age > 1.2) D.ripples.shift();
+    g.lineCap = "round";
+    for (let i = 0; i < D.arcs.length; i++) {
+      const A = D.arcs[i], shown = clamp(rings - i);
+      A.start = asWrap(A.start + A.rate * dt * (1 + 2 * lift));
+      if (shown <= 0) continue;
+      let r = A.r, push = 0;
+      for (const rp of D.ripples) { const front = 1.1 + rp.age * 3.2, f = Math.exp(-((r - front) ** 2) / 0.06) * (1 - rp.age / 1.2); push += f * rp.a; }
+      r += 0.09 * push * (1 - flow.calm * 0.6);
+      const rad = R / (1 + 0.08 * D.swell) * r, wide = A.kind === "thick" ? m * 0.011 : thin * (1 + 1.2 * push);
+      g.globalAlpha = (A.kind === "thick" ? 0.8 : 0.85) * shown;
+      g.strokeStyle = rgba(P[A.tone], 1);
+      g.fillStyle = g.strokeStyle;
+      g.lineWidth = wide;
+      if (A.kind === "dots") { g.beginPath(); const step = (m * 0.02) / rad; for (let a = 0; a < A.span; a += step) { const x = sx + Math.cos(A.start + a) * rad, y = sy + Math.sin(A.start + a) * rad; g.moveTo(x + thin * 1.3, y); g.arc(x, y, thin * 1.3, 0, TAU); } g.fill(); continue; }
+      if (A.kind === "dash") g.setLineDash(D.dash);
+      g.beginPath();
+      g.arc(sx, sy, rad, A.start, A.start + A.span);
+      g.stroke();
+      if (A.kind === "dash") g.setLineDash(AS_NO_DASH);
+    }
+    const moonAt = t * 0.15, moonR = (R / (1 + 0.08 * D.swell)) * D.arcs[2].r; // a small black disc going round on one of the rings
+    g.globalAlpha = 0.9;
+    g.fillStyle = rgba(AS_INK, 1);
+    g.beginPath();
+    g.arc(sx + Math.cos(moonAt) * moonR, sy + Math.sin(moonAt) * moonR, m * 0.011, 0, TAU);
+    g.fill();
+
+    const many = 3 + 2 * (V.swish ?? 1); // the swooshes: half behind the sun and half in front
+    for (const S of D.swooshes) {
+      S.age += dt;
+      if (S.age > S.life) Object.assign(S, asSwoosh(S.i));
+      S.start = asWrap(S.start + S.dir * S.rate * (1 + 2.6 * lift + 0.6 * flow.drop) * dt);
+      if (dt) spring(S, "flex", "flexV", 90, 8, dt);
+    }
+    for (let i = 0; i < D.swooshes.length; i += 2) if (many - i > 0) asSwooshDraw(D.swooshes[i], sx, sy, m, tall, clamp(many - i), P, M);
+    if (flow.calm > 0.02) softBlob(g, sx, sy, R * 2.3, mix(P[1], [255, 255, 255], 0.3), 0.35 * flow.calm); // in a calm part a soft haze of light round it
+    const sun = g.createLinearGradient(sx, sy - R, sx, sy + R); // the sun disc itself: flat, yellow at the top and orange below
+    sun.addColorStop(0, rgba(mix(P[1], [255, 255, 255], 0.15), 1));
+    sun.addColorStop(1, rgba(P[0], 1));
+    g.globalAlpha = 1;
+    g.fillStyle = sun;
+    g.beginPath();
+    g.arc(sx, sy, R, 0, TAU);
+    g.fill();
+    g.globalAlpha = 0.35;
+    g.fillStyle = rgba(mix(P[1], [255, 255, 255], 0.5), 1);
+    g.beginPath();
+    g.arc(sx - R * 0.12, sy - R * 0.12, R * 0.62, 0, TAU);
+    g.fill();
+    g.globalAlpha = 0.8;
+    g.strokeStyle = rgba(AS_INK, 1);
+    g.lineWidth = thin;
+    g.beginPath();
+    g.arc(sx, sy, R * 1.07, -2.6 + t * 0.05, 0.4 + t * 0.05);
+    g.stroke();
+    for (let i = 1; i < D.swooshes.length; i += 2) if (many - i > 0) asSwooshDraw(D.swooshes[i], sx, sy, m, tall, clamp(many - i), P, M);
+
+    const faces = D.faces; // the shards' faces, in every color and lighting, worked out once a frame and shared by all of them
+    for (let c = 0; c < 7; c++) { faces[c] = faces[c] || []; for (let s = 0; s < AS_SHADES.length; s++) { const k = AS_SHADES[s]; faces[c][s] = rgba(mix(P[c], k > 0 ? [255, 255, 255] : AS_INK, Math.abs(k)), 1); } }
+    const count = 5 + 5 * (V.shardy ?? 1), spin = 1 + 7 * D.spinKick;
+    for (let i = 0; i < D.shards.length; i++) {
+      const S = D.shards[i], shown = clamp(count - i);
+      S.x += S.vx * dt * (1 + lift); S.y += S.vy * dt * (1 + lift);
+      if (S.x < -0.12) S.x += 1.24; else if (S.x > 1.12) S.x -= 1.24;
+      if (S.y < -0.12) S.y += 1.24; else if (S.y > 1.12) S.y -= 1.24;
+      S.rot = asWrap(S.rot + S.spin * spin * dt);
+      S.flip = asWrap(S.flip + S.flipRate * spin * dt);
+      if (shown <= 0) continue;
+      const size = S.size * m * 1.4, c = Math.cos(S.rot), s = Math.sin(S.rot), f = Math.cos(S.flip), fx = (f < 0 ? -1 : 1) * Math.max(0.15, Math.abs(f)), back = f < 0 ? -1 : 0;
+      g.setTransform(c * fx * size, s * fx * size, -s * size, c * size, S.x * w, S.y * h);
+      g.globalAlpha = 0.92 * shown;
+      for (const [p0, p1, p2, shade] of S.tris) { g.fillStyle = faces[S.tone][Math.max(0, shade + back)]; g.beginPath(); g.moveTo(p0[0], p0[1]); g.lineTo(p1[0], p1[1]); g.lineTo(p2[0], p2[1]); g.closePath(); g.fill(); }
+      if (S.tone === 6) { g.strokeStyle = faces[2][2]; g.lineWidth = thin / size; g.stroke(); } // a white shard keeps a grey edge so it shows on the white
+    }
+    g.setTransform(1, 0, 0, 1, 0, 0);
+
+    for (let i = D.blooms.length - 1; i >= 0; i--) { // what the clicks made: small suns opening, rings round them, and shards flying off
+      const B = D.blooms[i];
+      B.age += dt;
+      const p = clamp(B.age / 0.55), fade = 1 - clamp((B.age - 2.4) / 1.2);
+      if (fade <= 0) { D.blooms.splice(i, 1); continue; }
+      const r = m * 0.07 * eased(p) * (1 + 0.2 * Math.sin(p * Math.PI)) * (1 + 0.05 * sound.kick), paint = g.createRadialGradient(B.x - r * 0.3, B.y - r * 0.3, 0, B.x, B.y, Math.max(1, r));
+      paint.addColorStop(0, rgba(mix(P[1], [255, 255, 255], 0.25), 1));
+      paint.addColorStop(1, rgba(P[0], 1));
+      g.globalAlpha = fade;
+      g.fillStyle = paint;
+      g.beginPath(); g.arc(B.x, B.y, Math.max(0.5, r), 0, TAU); g.fill();
+      g.lineWidth = thin;
+      for (const k of [1, 2]) { g.globalAlpha = fade * 0.7 * (1 - clamp(B.age / 3.4)); g.strokeStyle = rgba(P[k === 1 ? 0 : 2], 1); g.beginPath(); g.arc(B.x, B.y, Math.max(1, r * (1.25 + 0.35 * k) + m * 0.05 * k * B.age), 0, TAU); g.stroke(); }
+    }
+    for (let i = D.bits.length - 1; i >= 0; i--) {
+      const b = D.bits[i];
+      b.age += dt;
+      if (b.age > b.life) { D.bits.splice(i, 1); continue; }
+      const slow = Math.exp(-dt * 1.8);
+      b.x += b.vx * dt; b.y += b.vy * dt; b.vx *= slow; b.vy *= slow; b.rot = asWrap(b.rot + b.spin * dt);
+      const c = Math.cos(b.rot) * b.size, s = Math.sin(b.rot) * b.size;
+      g.setTransform(c, s, -s, c, b.x, b.y);
+      g.globalAlpha = 1 - clamp((b.age - b.life * 0.5) / (b.life * 0.5));
+      g.fillStyle = faces[b.tone][2];
+      g.beginPath(); g.moveTo(0, -1); g.lineTo(0.9, 0.7); g.lineTo(-0.8, 0.5); g.closePath(); g.fill();
+    }
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = 1;
+    g.lineCap = "butt";
+  }
+
+  /* Frutiger Eco. A canopy of glossy leaves along the top with the sun behind it and its light coming down through, a far hill with turbines, a meadow with a clear stream winding down it,
+     grass in front, leaves and dandelion seeds on the wind, and dewdrops that ripen on the leaf tips and fall on the kick. The land goes slowly by, the sun crosses the sky over a long song,
+     clouds come and go, and in a calm part the seeds come out. Its greens and blues are its own: the record and the mood come in through a light tint, the turbines' lamps and the flowers that clicks grow. */
+  const AS_LEAVES = [[[18, 96, 42], [64, 158, 62], [150, 214, 110]], [[40, 136, 44], [112, 196, 66], [196, 240, 140]], [[96, 170, 30], [176, 226, 70], [232, 250, 170]], [[14, 120, 92], [60, 190, 140], [170, 240, 210]]]; // each kind of leaf's edge, middle and shine: deep, fresh, lime and a sea green
+  const asEco = { w: 0, h: 0, art: null, canopy: [], leaves: [], seeds: [], clouds: [], drops: [], splashes: [], sprouts: [], bushes: [], flowers: [], wind: 0.3, gust: 0, flare: 0, flareAt: 99, swell: 0, lift: 0, bob: 0, bobV: 0, puff: 0, far: 0, near: 0, grassA: 0, grassB: 0, turn: 0, water: 0, mouse: { x: 0, y: 0, vx: 0, vy: 0, near: 0, tapAt: -1 }, tap: null };
+  function asEcoArt() { // the leaves, a dewdrop, a dandelion seed and two clouds, each painted once
+    const leaf = AS_LEAVES.map(([edge, middle, shine]) => {
+      const [c, x] = paper(64, 128), body = new Path2D();
+      body.moveTo(32, 120); body.bezierCurveTo(2, 98, 3, 36, 32, 4); body.bezierCurveTo(61, 36, 62, 98, 32, 120); body.closePath();
+      const across = x.createLinearGradient(4, 0, 60, 0);
+      across.addColorStop(0, rgba(edge, 1)); across.addColorStop(0.42, rgba(middle, 1)); across.addColorStop(1, rgba(edge, 1));
+      x.fillStyle = across; x.fill(body);
+      x.save(); x.clip(body);
+      const lit = x.createRadialGradient(22, 42, 2, 24, 46, 42);
+      lit.addColorStop(0, rgba(shine, 0.9)); lit.addColorStop(1, rgba(shine, 0));
+      x.fillStyle = lit; x.fillRect(0, 0, 64, 128);
+      x.strokeStyle = "rgba(255,255,255,0.6)"; x.lineWidth = 3; x.lineCap = "round"; // the gloss: a bright streak down one side
+      x.beginPath(); x.moveTo(19, 98); x.quadraticCurveTo(12, 58, 28, 16); x.stroke();
+      x.strokeStyle = rgba(mix(shine, [255, 255, 255], 0.3), 0.35); x.lineWidth = 1;
+      x.beginPath(); for (let k = 1; k <= 5; k++) { const y = 112 - k * 17; x.moveTo(32, y); x.lineTo(14, y - 13); x.moveTo(32, y); x.lineTo(50, y - 13); } x.stroke();
+      x.restore();
+      x.strokeStyle = rgba(mix(shine, [255, 255, 255], 0.3), 0.75); x.lineWidth = 1.6;
+      x.beginPath(); x.moveTo(32, 122); x.quadraticCurveTo(33.5, 64, 32, 10); x.stroke();
+      x.strokeStyle = rgba(shine, 0.55); x.lineWidth = 1.2; x.stroke(body);
+      x.strokeStyle = rgba(edge, 1); x.lineWidth = 3;
+      x.beginPath(); x.moveTo(32, 119); x.lineTo(32, 128); x.stroke();
+      return c;
+    });
+    const [drop, d] = paper(48), ball = d.createRadialGradient(19, 17, 2, 24, 26, 22);
+    ball.addColorStop(0, "rgba(240,252,255,0.35)"); ball.addColorStop(0.7, "rgba(150,215,245,0.45)"); ball.addColorStop(1, "rgba(50,140,205,0.8)");
+    d.fillStyle = ball; d.beginPath(); d.arc(24, 24, 21, 0, TAU); d.fill();
+    d.strokeStyle = "rgba(255,255,255,0.85)"; d.lineWidth = 1.6; d.stroke();
+    d.fillStyle = "rgba(255,255,255,0.95)"; d.beginPath(); d.ellipse(17, 15, 6.5, 4, -0.6, 0, TAU); d.fill();
+    d.fillStyle = "rgba(255,255,255,0.6)"; d.beginPath(); d.arc(31, 33, 2.2, 0, TAU); d.fill();
+    const [seed, s] = paper(48);
+    softBlob(s, 24, 18, 16, [255, 255, 255], 0.35);
+    s.strokeStyle = "rgba(255,255,255,0.9)"; s.lineWidth = 0.9; s.fillStyle = "#fff";
+    s.beginPath(); for (let k = 0; k <= 14; k++) { const a = -Math.PI - 0.35 + ((Math.PI + 0.7) * k) / 14, r = 15 - 2 * Math.abs(Math.sin(k)); s.moveTo(24, 20); s.lineTo(24 + Math.cos(a) * r, 20 + Math.sin(a) * r); } s.stroke();
+    for (let k = 0; k <= 14; k += 2) { const a = -Math.PI - 0.35 + ((Math.PI + 0.7) * k) / 14; s.fillRect(24 + Math.cos(a) * 14 - 1, 20 + Math.sin(a) * 14 - 1, 2, 2); }
+    s.strokeStyle = "rgba(250,250,240,0.9)"; s.lineWidth = 1.1; s.beginPath(); s.moveTo(24, 20); s.lineTo(24, 40); s.stroke();
+    s.fillStyle = "rgba(200,190,160,0.95)"; s.beginPath(); s.ellipse(24, 42, 1.6, 3.2, 0, 0, TAU); s.fill();
+    const clouds = [0, 1].map((k) => { // a soft heap of white, a little blue underneath
+      const [c, x] = paper(256, 112);
+      for (const [cx, cy, r] of k ? [[60, 74, 34], [100, 56, 44], [150, 60, 40], [196, 76, 32], [128, 82, 36]] : [[48, 80, 28], [86, 62, 36], [128, 50, 44], [176, 64, 38], [214, 82, 26], [120, 84, 40]]) softBlob(x, cx, cy, r * 1.5, [255, 255, 255], 0.95);
+      x.globalCompositeOperation = "source-atop";
+      const under = x.createLinearGradient(0, 40, 0, 112);
+      under.addColorStop(0, "rgba(170,200,230,0)"); under.addColorStop(1, "rgba(150,185,220,0.55)");
+      x.fillStyle = under; x.fillRect(0, 0, 256, 112);
+      return c;
+    });
+    const bush = [[[30, 110, 40], [96, 180, 70], [190, 240, 150]], [[24, 118, 80], [70, 186, 120], [180, 245, 200]], [[20, 86, 34], [60, 146, 52], [150, 214, 110]]].map(([dark, middle, shine]) => { // a round glossy bush: a few balls of leaves lit from the upper left
+      const [c, x] = paper(128, 80), lobes = [[52, 42, 28], [78, 34, 30], [30, 54, 22], [102, 50, 24], [44, 62, 16], [68, 60, 18], [92, 62, 16]];
+      x.setTransform(0.86, 0, 0, 0.86, 64 * 0.14, 80 * 0.14); // a little smaller than the sprite, standing on its foot, so the leaves round the edge have room
+      x.fillStyle = rgba(middle, 1); // one shape of round lobes with small leaves sticking out all round its edge, then lit from above and shaded below as a whole
+      x.beginPath(); for (const [cx, cy, r] of lobes) { x.moveTo(cx + r, cy); x.arc(cx, cy, r, 0, TAU); } x.fill();
+      lobes.forEach(([cx, cy, r], j) => { for (let k = 0, n = Math.round(r * 0.55); k < n; k++) { const a = Math.PI + (k + 0.5) * (Math.PI / n) + 0.25 * (hashOf(j * 13 + k) - 0.5), long = r * (0.26 + 0.14 * hashOf(j * 7 + k * 3)); x.beginPath(); x.ellipse(cx + Math.cos(a) * (r + long * 0.35), cy + Math.sin(a) * (r + long * 0.35), long, long * 0.42, a, 0, TAU); x.fill(); } });
+      x.setTransform(1, 0, 0, 1, 0, 0);
+      x.globalCompositeOperation = "source-atop";
+      const shade = x.createLinearGradient(0, 4, 0, 78);
+      shade.addColorStop(0, rgba(shine, 0.85)); shade.addColorStop(0.45, rgba(middle, 0)); shade.addColorStop(1, rgba(dark, 0.95));
+      x.fillStyle = shade; x.fillRect(0, 0, 128, 80);
+      x.setTransform(0.86, 0, 0, 0.86, 64 * 0.14, 80 * 0.14);
+      for (const [cx, cy, r] of lobes.slice(0, 4)) { softBlob(x, cx - r * 0.3, cy - r * 0.35, r * 0.75, shine, 0.45); x.fillStyle = "rgba(255,255,255,0.4)"; x.beginPath(); x.ellipse(cx - r * 0.4, cy - r * 0.55, r * 0.26, r * 0.12, -0.5, 0, TAU); x.fill(); }
+      x.strokeStyle = rgba(dark, 0.35); x.lineWidth = 1.2; x.lineCap = "round"; // and the leaves inside it, drawn as small curved strokes
+      x.beginPath(); for (let k = 0; k < 46; k++) { const [cx, cy, r] = lobes[k % lobes.length], a = hashOf(k * 3.3) * TAU, d = r * 0.8 * Math.sqrt(hashOf(k * 5.1)), px = cx + Math.cos(a) * d, py = cy + Math.sin(a) * d, tilt = hashOf(k * 1.9) * 2 - 1; x.moveTo(px - 3, py + tilt * 2); x.quadraticCurveTo(px, py - 2.5, px + 3, py - tilt * 2); } x.stroke();
+      x.setTransform(1, 0, 0, 1, 0, 0);
+      x.globalCompositeOperation = "source-over";
+      return c;
+    });
+    return { leaf, drop, seed, clouds, bush };
+  }
+  function asEcoLeaf(L, anywhere) { // a leaf on the wind, coming in from the left, or anywhere at the start
+    const m = Math.min(w, h);
+    L.depth = rnd(0, 1); L.size = m * rnd(0.075, 0.13) * (0.6 + 0.5 * L.depth);
+    L.x = anywhere ? rnd(0, w) : -L.size * rnd(1, 3); L.y = rnd(0.12, 0.8) * h;
+    L.vx = 0; L.vy = 0; L.rot = rnd(0, TAU); L.spin = rnd(-1.2, 1.2); L.flip = rnd(0, TAU); L.flipRate = rnd(0.8, 2.2) * (Math.random() < 0.5 ? 1 : -1); L.tone = Math.floor(rnd(0, 4)); L.phase = rnd(0, TAU);
+    return L;
+  }
+  function asEcoSeed(S, anywhere) { // a dandelion seed, coming in low from the left, or anywhere at the start
+    const m = Math.min(w, h);
+    S.x = anywhere ? rnd(0, w) : -m * 0.05; S.y = anywhere ? rnd(0.15, 0.85) * h : rnd(0.4, 0.95) * h; S.vx = 0; S.vy = 0; S.size = m * rnd(0.05, 0.08); S.phase = rnd(0, TAU); S.spark = 0;
+    return S;
+  }
+  function asEcoSet() { // a fresh world for the size the picture is now
+    const E = asEco, m = Math.min(w, h), across = Math.ceil(w / (m * 0.058)) + 4;
+    E.w = w; E.h = h;
+    if (!E.art) E.art = asEcoArt();
+    const leafAt = (u) => { const edge = Math.abs(2 * u - 1) ** 2, depth = rnd(0, 1); return { x: u * w, drop: rnd(0, 0.04) + 0.16 * edge * rnd(0.4, 1), len: rnd(0.07, 0.14) * (1 + 0.8 * edge), lean: rnd(-0.6, 0.6) - 0.5 * (2 * u - 1) * edge, tone: depth < 0.35 ? [0, 3][Math.floor(rnd(0, 2))] : [0, 1, 3, 1, 2][Math.floor(rnd(0, 5))], depth, phase: rnd(0, TAU), ripe: rnd(0, 1), tipX: 0, tipY: 0 }; }; // a hanging leaf: how far along, how far below the branch and how long (in parts of the picture's short side), which way it hangs. Deeper, longer and thicker toward the sides, so the leaves frame the picture
+    E.canopy = [...Array.from({ length: across }, (_, i) => leafAt((i + rnd(-0.4, 0.4)) / (across - 4) - 0.04)), ...Array.from({ length: Math.ceil(across * 0.4) }, () => leafAt(Math.random() < 0.5 ? rnd(-0.03, 0.2) : rnd(0.8, 1.03)))].sort((a, b) => a.depth - b.depth);
+    E.bushes = Array.from({ length: 160 }, (_, k) => ({ here: hashOf(k * 2.1 + 5) < 0.62, size: rnd(0.09, 0.19), kind: Math.floor(rnd(0, 3)), at: hashOf(k + 0.3) * 0.6 })); // round glossy bushes along the nearer rise, going by with it: one place every 24/160 of a picture's width, some of them empty
+    E.leaves = Array.from({ length: 28 }, () => asEcoLeaf({}, true));
+    E.seeds = Array.from({ length: 22 }, () => asEcoSeed({}, true));
+    E.clouds = Array.from({ length: 4 }, (_, i) => ({ x: rnd(-0.2, 1) * w, y: rnd(0.16, 0.36), size: rnd(0.7, 1.25), v: rnd(0.006, 0.014), kind: i % 2 }));
+    E.flowers = Array.from({ length: 26 }, () => ({ u: rnd(0, 1), v: rnd(0.08, 0.85), tone: Math.random() < 0.5 ? 0 : Math.random() < 0.5 ? 1 : 2 })); // small white, yellow and record-colored flowers on the meadow: where along (a part of the world going by) and how far down it
+    E.drops.length = E.splashes.length = E.sprouts.length = 0;
+    E.gust = E.flare = 0;
+    E.flareAt = 99;
+  }
+  const AS_BLADES = Float32Array.from({ length: 997 * 4 }, (_, i) => hashOf(Math.floor(i / 4) * [1, 1.7, 2.3, 5.1][i % 4])); // each blade of grass: where in its place it stands, which green it is, how tall and how it leans, from 997 places that come round again
+  const AS_GRASS = [[40, 128, 40], [84, 168, 56], [140, 206, 84], [42, 136, 42], [89, 178, 59], [148, 218, 89]].map((c) => rgba(c, 1)); // the three greens of the grass in front, and the same a little lighter for the row behind it
+  const asRidge = (u, far) => (far ? 0.075 + 0.03 * Math.sin(TAU * u * 0.375 + 0.5) + 0.016 * Math.sin(TAU * u * 0.875 + 1.1) + 0.007 * Math.sin(TAU * u * 1.875 + 2) : 0.03 + 0.016 * Math.sin(TAU * u * 0.5 + 2) + 0.008 * Math.sin(TAU * u * 1.25 + 0.4)); // how high the far hill (or the nearer rise) stands above the horizon, in parts of the picture's height, at a place u along the world. It comes round again every 24 widths of the picture
+  function asSprout(x, y, tones) { // a click on the meadow (or anywhere): a shoot comes up, opens two leaves and flowers
+    const E = asEco;
+    if (E.sprouts.length >= 5) E.sprouts.shift();
+    E.sprouts.push({ x, y, age: 0, lean: rnd(-1, 1), tone: mix(mix(tones[0], [255, 255, 255], 0.35), [255, 176, 206], 0.15), turn: rnd(0, TAU) });
+  }
+  function asSplash(x, y, r) { // a drop hits the ground or the water, or is clicked: a ring and a few droplets thrown up
+    const E = asEco;
+    if (E.splashes.length >= 16) E.splashes.shift();
+    E.splashes.push({ x, y, r, age: 0, seed: rnd(0, TAU) });
+  }
+  function asEcoFx() { // Frutiger Eco: on the kick dewdrops fall from the leaves and splash, the hi-hats make the seeds sparkle, the bass bends the grass and spins the turbines, a build lifts the wind, and the drop is a gust: leaves swirl up and the sunbeams flare
+    const E = asEco, dt = asStep("eco"), { t, kickHit, hatHit } = sound, m = Math.min(w, h), tall = h > w * 1.15, M = E.mouse, tones = moodColors(3);
+    if (E.w !== w || E.h !== h) asEcoSet();
+    const A = E.art;
+    asMouse(M, dt);
+    E.lift += (asLift() - E.lift) * (1 - Math.exp(-dt * 1.2));
+    E.swell += (sound.bass - E.swell) * (1 - Math.exp(-dt * 8));
+    if (dt && kickHit) E.bobV += kickHit * (6.5 + 3 * E.lift + 2.5 * flow.drop); // the kick: the whole meadow nods, on a spring, so the leaves above dip and swing back, the grass bows and the bushes bounce
+    if (dt) spring(E, "bob", "bobV", 150, 11, dt); // quick to answer, settled again before the next kick
+    const nod = Math.max(-0.6, Math.min(0.6, E.bob));
+    const windAim = (V.breeze ?? 1) * (0.3 + 0.25 * flow.intensity + 1.0 * E.lift + 0.6 * flow.drop) * (1 - 0.55 * flow.calm);
+    E.wind += (windAim - E.wind) * (1 - Math.exp(-dt * 0.8));
+    if (dt && flow.dropHit) { // the gust: every leaf on the wind thrown upward, and the ones not out yet torn off the canopy to swirl up with them
+      const out = Math.ceil(8 + 8 * (V.leafy ?? 1) + 6 * E.gust);
+      E.leaves.forEach((L, i) => { if (i >= out && E.canopy.length) { const C = E.canopy[Math.floor(rnd(0, E.canopy.length))]; L.x = C.tipX; L.y = C.tipY; L.vx = m * rnd(-0.4, 0.4); } L.vy = Math.min(L.vy, -m * rnd(0.5, 1.1)); L.spin *= 1.5; });
+      E.gust = 1;
+      if (E.flareAt > 1.5) E.flareAt = 0;
+    }
+    E.gust *= Math.exp(-dt / 2.2);
+    E.flareAt = Math.min(99, E.flareAt + dt);
+    E.flare = E.flareAt < 0.6 ? eased(E.flareAt / 0.6) : Math.exp(-(E.flareAt - 0.6) / 2.6); // the sunbeams open up over half a second and then settle, so the drop is a flare and not a flash
+    for (const L of E.leaves) L.spin = Math.max(-4, Math.min(4, L.spin * (1 - 0.15 * dt) + (L.spin < 0 ? -0.1 : 0.1) * dt)); // a spin given by the gust settles back
+    const go = 1 + 1.6 * E.wind; // the land goes slowly by, the far hill slowest
+    E.far = asWrap(E.far + dt * 0.0016 * go, 24);
+    E.near = asWrap(E.near + dt * 0.004 * go, 24);
+    const blade = m * 0.011; // and the grass in front fastest, counted in blades, so it comes round again exactly
+    E.grassA = asWrap(E.grassA + (dt * 0.0072 * go * w) / blade, 997);
+    E.grassB = asWrap(E.grassB + (dt * 0.012 * go * w) / blade, 997);
+    E.water = asWrap(E.water + dt * (0.07 + 0.03 * E.wind));
+    E.turn = asWrap(E.turn + dt * ((flow.bpm ? flow.bpm / 60 : 2) * (TAU / 6)) * (0.8 + 1.4 * E.swell + 0.3 * E.wind)); // about one blade past the top every two beats, quicker with the bass
+    const gold = clamp((V.golden ?? 0) + 0.2 * Math.sin(t * 0.017)), hang = V.canopy ?? 1, horizon = h * (tall ? 0.6 : 0.58), lean = 0.35 * E.wind + 0.5 * E.gust;
+    const sunX = w * (0.5 + 0.36 * Math.sin(t * 0.0075 + 0.6)), sunY = h * (tall ? 0.05 : 0.07);
+
+    const seedsOut = 10 + 12 * flow.calm; // how many dandelion seeds are out: more in a calm part
+    const tap = pointer.tapped; // a click: on a dewdrop it splashes, on the land a shoot comes up, in the sky a puff of seeds blows out from it; either way no ring
+    if (tap && tap !== E.tap) {
+      E.tap = tap;
+      const near = Math.max(14, m * 0.045);
+      let hit = null;
+      for (const D of E.drops) if (Math.hypot(D.x - tap.x, D.y - tap.y) < near) hit = D;
+      if (hit) { asSplash(hit.x, hit.y, hit.r * 2.2); hit.gone = true; } // (a clicked drop bursts bigger than one that just lands)
+      else {
+        for (const L of E.canopy) if (L.ripe > 0.3 && Math.hypot(L.tipX - tap.x, L.tipY - tap.y) < near) hit = L;
+        if (hit) { asSplash(hit.tipX, hit.tipY, m * 0.03 * (0.4 + 0.6 * hit.ripe)); hit.ripe = 0; }
+        else if (tap.y > horizon - h * asRidge(E.near + tap.x / w, false) + m * 0.01) asSprout(tap.x, tap.y, tones); // on the meadow: something grows there
+        else for (let n = 0, out = Math.max(1, Math.floor(seedsOut)); n < 8; n++) { const S = E.seeds[(E.puff + n) % out], a = (n / 8) * TAU + rnd(-0.3, 0.3), v = m * rnd(0.25, 0.6); S.x = tap.x + Math.cos(a) * m * 0.01; S.y = tap.y + Math.sin(a) * m * 0.01; S.vx = Math.cos(a) * v; S.vy = Math.sin(a) * v - m * 0.1; S.spark = 1; } // in the sky: seeds burst out of it as if blown off a dandelion, sparkling
+        E.puff = (E.puff + 8) % 997;
+      }
+    }
+    if (tap && tap === E.tap) pointer.taken = true;
+
+    g.setTransform(1, 0, 0, 1, 0, 0); // the sky: azure above, pale at the horizon, warmer when the light turns golden
+    g.globalCompositeOperation = "source-over";
+    g.globalAlpha = 1;
+    const lit = alone ? 1 : 0.86, top = mix([66, 150, 224], [104, 146, 206], 0.25 * gold), low = mix([198, 234, 248], [250, 222, 176], 0.5 * gold), sky = g.createLinearGradient(0, 0, 0, horizon);
+    sky.addColorStop(0, rgba(top.map((c) => c * (0.6 + 0.4 * lit)), 1));
+    sky.addColorStop(1, rgba(low.map((c) => c * lit), 1));
+    g.fillStyle = sky;
+    g.fillRect(0, 0, w, horizon + 2);
+    softBlob(g, sunX, sunY, m * 0.65, mix([255, 250, 228], [255, 226, 170], gold), alone ? 0.9 : 0.7); // the sun, behind the leaves
+    softBlob(g, sunX, sunY, m * 0.14, [255, 255, 245], alone ? 0.95 : 0.75);
+    for (const C of E.clouds) { // clouds crossing, now and then a new one
+      C.x += C.v * w * dt * (1 + 0.6 * E.wind);
+      const cw = m * 0.5 * C.size, ch = cw * 0.44;
+      if (C.x > w + cw * 0.1) { C.x = -cw * rnd(1, 1.6); C.y = rnd(0.16, 0.38); C.size = rnd(0.7, 1.25); }
+      g.globalAlpha = alone ? 0.9 : 0.75;
+      g.drawImage(A.clouds[C.kind], C.x, C.y * horizon * 1.2 - ch / 2, cw, ch);
+    }
+    g.globalAlpha = 1;
+
+    const step = Math.max(4, w / 120), rise = Math.max(h, w * 0.42); // how tall the hills stand: on a very wide picture a little taller than its height alone would make them
+    g.fillStyle = rgba(mix(low.map((c) => c * lit), [118, 164, 204], 0.42), 1); // a far blue range behind everything, going by slowest of all
+    g.beginPath();
+    g.moveTo(0, horizon + 2);
+    for (let x = 0; x <= w + step; x += step) { const u = E.far * 0.5 + x / w; g.lineTo(x, horizon - rise * (0.12 + 0.045 * Math.sin(TAU * u * 0.25 + 2.2) + 0.03 * Math.sin(TAU * u * 0.75 + 0.7) + 0.012 * Math.sin(TAU * u * 1.5 + 4))); }
+    g.lineTo(w, horizon + 2);
+    g.fill();
+    const hazy = mix(low.map((c) => c * lit), [66, 136, 150], 0.52); // the far hill, hazy, with its turbines
+    g.fillStyle = rgba(hazy, 1);
+    g.beginPath();
+    g.moveTo(0, horizon + 2);
+    for (let x = 0; x <= w + step; x += step) g.lineTo(x, horizon - rise * asRidge(E.far + x / w, true));
+    g.lineTo(w, horizon + 2);
+    g.fill();
+    const gapU = 24 / 200, firstK = Math.floor((E.far - 0.1) / gapU), mills = V.mills ?? 1, white = rgba(mix([240, 246, 250], hazy, 0.22), 1), blades = new Path2D(), towers = new Path2D(), lamps = [];
+    for (let k = firstK; k <= firstK + Math.ceil(1.2 / gapU) + 1; k++) {
+      const key = ((k % 200) + 200) % 200, farm = hashOf(Math.floor(key / 7) * 7.3 + 1), aim = (farm > 0.3 ? 0.5 : 0.08) * (0.4 + 0.6 * mills), chance = hashOf(key * 3.7 + 2), here = clamp((aim - chance) / 0.05);
+      if (here <= 0) continue;
+      const x = (k * gapU - E.far + hashOf(key + 9) * gapU * 0.4) * w, base = horizon - rise * asRidge(E.far + x / w, true) + 2, tall0 = h * 0.15 * (0.75 + 0.4 * hashOf(key * 1.3)) * here, hubY = base - tall0, arm = tall0 * 0.58, foot = Math.max(1, tall0 * 0.035);
+      towers.moveTo(x - foot, base); towers.lineTo(x - foot * 0.4, hubY); towers.lineTo(x + foot * 0.4, hubY); towers.lineTo(x + foot, base); towers.closePath();
+      towers.moveTo(x + foot * 2.2, hubY); towers.arc(x, hubY, foot * 1.1, 0, TAU);
+      for (let b = 0; b < 3; b++) { const a = E.turn + hashOf(key + 3) * TAU + (b * TAU) / 3, c = Math.cos(a), s = Math.sin(a), side = arm * 0.05; blades.moveTo(x + c * arm, hubY + s * arm); blades.lineTo(x - s * side, hubY + c * side); blades.lineTo(x + s * side, hubY - c * side); blades.closePath(); }
+      lamps.push(x, hubY - foot * 0.2, here);
+    }
+    g.fillStyle = white;
+    g.fill(towers);
+    g.fill(blades);
+    g.fillStyle = rgba(mix(tones[1], [255, 90, 70], 0.4), 0.85); // a small lamp on each, in the record's colors
+    const lampR = Math.max(1, m * 0.003);
+    for (let i = 0; i < lamps.length; i += 3) { const on = Math.max(Math.sin(t * 2.4 + i) > 0.2 ? 0.55 : 0, sound.kick); if (on < 0.05) continue; g.globalAlpha = lamps[i + 2] * on; g.fillRect(lamps[i] - lampR, lamps[i + 1] - lampR, lampR * 2, lampR * 2); } // they light up on the kick too
+    g.globalAlpha = 1;
+
+    const meadow = g.createLinearGradient(0, horizon - h * 0.06, 0, h); // the nearer rise and the meadow below it
+    meadow.addColorStop(0, rgba(mix([132, 200, 104], [190, 196, 96], 0.35 * gold).map((c) => c * (0.85 + 0.15 * lit)), 1));
+    meadow.addColorStop(0.35, rgba(mix([92, 176, 74], [150, 170, 70], 0.3 * gold), 1));
+    meadow.addColorStop(1, rgba([34, 112, 44], 1));
+    g.fillStyle = meadow;
+    g.beginPath();
+    g.moveTo(0, h);
+    for (let x = 0; x <= w + step; x += step) g.lineTo(x, horizon - h * asRidge(E.near + x / w, false));
+    g.lineTo(w, h);
+    g.fill();
+    for (const p of [0.25, 0.5, 0.75]) { // soft swells across the meadow, the nearer ones going by faster
+      const y0 = horizon + (h - horizon) * p * p, amp = (h - horizon) * 0.03 * (0.5 + p);
+      g.beginPath();
+      for (let x = 0; x <= w + step; x += step) { const y = y0 + amp * Math.sin(TAU * ((x / w) * 1.3 + E.near * 0.5 * (1 + p))); if (x) g.lineTo(x, y); else g.moveTo(x, y); }
+      g.strokeStyle = "rgba(20,92,30,0.1)";
+      g.lineWidth = (h - horizon) * (0.04 + 0.08 * p);
+      g.stroke();
+      g.translate(0, -(h - horizon) * (0.03 + 0.05 * p));
+      g.strokeStyle = "rgba(214,255,160,0.08)";
+      g.lineWidth *= 0.5;
+      g.stroke();
+      g.setTransform(1, 0, 0, 1, 0, 0);
+    }
+    const dotR = Math.max(1.2, m * 0.0045); // small flowers on it, going by with the land
+    for (const tone of [0, 1, 2]) {
+      g.beginPath();
+      for (const F of E.flowers) { if (F.tone !== tone) continue; const x = asWrap(F.u - E.near / 6, 1) * w * 1.1 - w * 0.05, y = horizon + (h - horizon) * F.v ** 1.4, r = dotR * (0.6 + F.v) * (1 + 0.3 * sound.kick); g.moveTo(x + r, y); g.arc(x, y, r, 0, TAU); }
+      g.fillStyle = tone === 2 ? rgba(mix(tones[0], [255, 255, 255], 0.2), 0.9) : tone ? "rgba(255,226,80,0.85)" : "rgba(255,255,255,0.85)"; // the third in the record's color, so each song has its own flowers
+      g.fill();
+    }
+
+    const course = (p) => w * (0.5 + 0.22 * Math.sin(TAU * E.near / 8 + 1.2) * (0.4 + 0.6 * p) + 0.16 * Math.sin(p * 3.4 + TAU * E.near / 4) * p ** 0.7), width = (p) => Math.max(w, h * 0.7) * (0.006 + 0.15 * p ** 1.7); // the stream: where it runs at each part of the way down from the horizon (0) to the bottom (1), and how wide it is there
+    const brook = new Path2D(), yAt = (p) => horizon - h * 0.004 + (h - horizon + h * 0.04) * p;
+    for (let k = 0; k <= 24; k++) { const p = k / 24; brook[k ? "lineTo" : "moveTo"](course(p) - width(p) / 2, yAt(p)); }
+    for (let k = 24; k >= 0; k--) { const p = k / 24; brook.lineTo(course(p) + width(p) / 2, yAt(p)); }
+    brook.closePath();
+    const water = g.createLinearGradient(0, horizon, 0, h);
+    water.addColorStop(0, rgba(mix(low.map((c) => c * lit), [150, 214, 240], 0.5), 1));
+    water.addColorStop(1, "rgb(56,164,222)");
+    g.fillStyle = water;
+    g.fill(brook);
+    g.strokeStyle = "rgba(225,250,255,0.55)";
+    g.lineWidth = Math.max(1, m * 0.0025);
+    g.stroke(brook);
+    g.lineCap = "round"; // light running down it
+    g.strokeStyle = "rgba(255,255,255,0.75)";
+    for (let i = 0; i < 18; i++) {
+      const q = asWrap(i * 0.618034 + E.water, 1), p = q ** 1.25, side = (hashOf(i + 0.5) - 0.5) * 0.7, x = course(p) + side * width(p), y = yAt(p), long = h * (0.004 + 0.045 * p);
+      g.globalAlpha = 0.7 * Math.sin(Math.PI * q);
+      g.lineWidth = Math.max(1, m * 0.004 * (0.3 + p));
+      g.beginPath(); g.moveTo(x, y); g.lineTo(course(Math.min(1, p + long / h)) + side * width(p), y + long); g.stroke();
+    }
+    g.globalAlpha = 1;
+
+    const bushGap = 24 / 160, firstB = Math.floor((E.near - 0.15) / bushGap); // round bushes along the rise, the stream coming out from behind them
+    for (let k = firstB; k <= firstB + Math.ceil(1.3 / bushGap) + 1; k++) {
+      const B = E.bushes[((k % 160) + 160) % 160];
+      if (!B.here) continue;
+      const x = (k * bushGap - E.near + B.at * bushGap) * w, y = horizon - h * asRidge(E.near + x / w, false), bw = m * B.size * 1.6 * (1 + 0.06 * nod), bh = m * B.size * (1 - 0.1 * nod); // a little squashed on the kick, standing where it stood
+      g.drawImage(A.bush[B.kind], x - bw / 2, y + m * B.size * 0.28 - bh, bw, bh);
+    }
+    const blowAt = (x, y, reach) => { if (M.near < 0.01) return 0; const dx = x - M.x, dy = y - M.y; return M.near * Math.exp(-(dx * dx + dy * dy) / (2 * reach * reach)); }; // how much the mouse's breath reaches a place
+    const fly = (L, back) => { // a leaf on the wind, tumbling as it goes; the back ones are behind the grass
+      if (back !== L.depth < 0.45) return;
+      const c = Math.cos(L.rot), s = Math.sin(L.rot), f = Math.cos(L.flip), fx = (f < 0 ? -1 : 1) * Math.max(0.2, Math.abs(f)), size = L.size;
+      g.setTransform(c * fx, s * fx, -s, c, L.x, L.y);
+      g.globalAlpha = L.shown * (0.75 + 0.25 * L.depth);
+      g.drawImage(A.leaf[L.tone], -size * 0.25, -size * 0.5, size * 0.5, size);
+    };
+    const flying = 8 + 8 * (V.leafy ?? 1) + 6 * E.gust; // how many are out: more while a gust lasts
+    for (let i = 0; i < E.leaves.length; i++) { // how they move: on the wind, round and up in a gust, away from the mouse
+      const L = E.leaves[i];
+      L.shown = clamp(flying - i);
+      const wx = E.wind * m * (0.35 + 0.45 * L.depth) + m * 0.06 * Math.sin(t * 0.7 + L.phase), wy = m * (0.035 + 0.03 * Math.sin(t * 0.9 + L.phase * 1.3)) - m * 0.08 * E.lift, k = 1 - Math.exp(-dt * 1.4);
+      let ax = wx, ay = wy;
+      if (E.gust > 0.02) { const dx = L.x - w * 0.5, dy = L.y - h * 0.55, d = Math.hypot(dx, dy) || 1; ax += (-dy / d) * m * 1.3 * E.gust; ay += (dx / d) * m * 1.3 * E.gust - m * 0.7 * E.gust; }
+      L.vx += (ax - L.vx) * k; L.vy += (ay - L.vy) * k;
+      const b = blowAt(L.x, L.y, m * 0.16);
+      if (b > 0.001) { const dx = L.x - M.x, dy = L.y - M.y, d = Math.hypot(dx, dy) || 1, push = b * (m * 5 + 2.5 * Math.hypot(M.vx, M.vy)) * dt; L.vx += (dx / d) * push; L.vy += (dy / d) * push; L.spin += (dx > 0 ? 1 : -1) * b * 3 * dt; }
+      L.x += L.vx * dt; L.y += L.vy * dt;
+      L.rot = asWrap(L.rot + L.spin * dt * (1 + E.wind));
+      L.flip = asWrap(L.flip + L.flipRate * dt * (1 + 0.6 * E.wind + E.gust));
+      if (L.x > w + L.size * 2 || L.y > h + L.size * 2 || L.y < -L.size * 3) asEcoLeaf(L, false);
+      else if (L.x < -L.size * 4) L.x = w + L.size * 1.5; // blown back past the left edge: round to the right
+    }
+    for (const L of E.leaves) if (L.shown > 0) fly(L, true);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = 1;
+
+    const bladeGap = blade, rows = [[0.93, 0.62, 0.0045, E.grassA], [1, 1, 0.0058, E.grassB]]; // the grass in front, in two rows: bent by the wind and the bass, and away from the mouse
+    for (const [base, tallness, thick, along] of rows) {
+      const shift = along * bladeGap, n = Math.ceil(w / bladeGap) + 3, first = Math.floor(shift / bladeGap), y0 = h * base + m * 0.01, tufts = [new Path2D(), new Path2D(), new Path2D()], H = AS_BLADES;
+      for (let j = first; j < first + n; j++) {
+        const k = (((j % 997) + 997) % 997) * 4, x = j * bladeGap - shift + H[k] * bladeGap, len = m * (0.05 + 0.07 * H[k + 2]) * tallness, b = blowAt(x, y0 - len, m * 0.14);
+        const bend = 0.12 * Math.sin(t * 1.3 + x * 0.011) + lean * 0.45 + 0.35 * E.swell + 0.4 * nod + (M.x < x ? 1 : -1) * 0.7 * b + 0.1 * H[k + 3] - 0.05, sb = Math.sin(bend) * len, P = tufts[Math.floor(H[k + 1] * 3)];
+        P.moveTo(x, y0); P.quadraticCurveTo(x + sb * 0.2, y0 - len * 0.55, x + sb, y0 - Math.cos(bend) * len);
+      }
+      g.lineWidth = Math.max(1.2, m * thick);
+      for (let tone = 0; tone < 3; tone++) { g.strokeStyle = AS_GRASS[base < 1 ? tone + 3 : tone]; g.stroke(tufts[tone]); }
+    }
+
+    for (const L of E.leaves) if (L.shown > 0) fly(L, false);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = 1;
+
+    const hangTop = m * 0.02; // the canopy along the top: a branch and its leaves, swaying, with dewdrops ripening on the tips
+    g.strokeStyle = "rgb(70,84,44)";
+    g.lineWidth = Math.max(2, m * 0.009);
+    g.beginPath();
+    for (let x = -10; x <= w + 10; x += step * 2) { const y = hangTop * hang + m * 0.018 * Math.sin(x / w * 4 + 1) + m * 0.012 * Math.sin(x / w * 9.7); if (x === -10) g.moveTo(x, y); else g.lineTo(x, y); }
+    g.stroke();
+    for (const L of E.canopy) {
+      const ax = L.x, ay = hangTop * hang + m * 0.018 * Math.sin(ax / w * 4 + 1) + m * 0.012 * Math.sin(ax / w * 9.7) + L.drop * m * hang + nod * m * 0.014 * (0.5 + L.depth), len = L.len * m * (0.7 + 0.45 * hang), b = blowAt(ax, ay + len * 0.6, m * 0.14);
+      const a = L.lean + 0.08 * Math.sin(t * 0.8 + L.phase) - lean * 0.25 + 0.35 * E.gust * Math.sin(t * 5 + L.phase) + (M.x < ax ? -1 : 1) * 0.6 * b + 0.3 * nod * (L.phase < 3.14 ? 1 : -1), c = Math.cos(Math.PI + a), s = Math.sin(Math.PI + a);
+      g.setTransform(c, s, -s, c, ax, ay);
+      g.globalAlpha = 0.8 + 0.2 * L.depth;
+      g.drawImage(A.leaf[L.tone], -len * 0.27, -len, len * 0.54, len);
+      L.tipX = ax - len * 0.96 * Math.sin(a); L.tipY = ay + len * 0.96 * Math.cos(a);
+      L.ripe = Math.min(1, L.ripe + dt / 9);
+    }
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = 1;
+    if (dt && kickHit) for (let n = kickHit > 0.85 || flow.part === "drop" ? 2 : 1, i = Math.floor(rnd(0, E.canopy.length)), k = 0; n > 0 && k < E.canopy.length; k++) { // the kick shakes a ripe drop loose
+      const L = E.canopy[(i + k) % E.canopy.length];
+      if (L.ripe < 0.7 || E.drops.length >= 20) continue;
+      E.drops.push({ x: L.tipX, y: L.tipY, vy: 0, r: m * 0.016 * (0.4 + 0.6 * L.ripe) * (kickHit > 0.85 ? 1.25 : 1), land: rnd(horizon + h * 0.05, h * 0.97) });
+      L.ripe = 0;
+      n--;
+    }
+    for (const L of E.canopy) if (L.ripe > 0.15) { const r = m * 0.016 * (0.4 + 0.6 * L.ripe); g.globalAlpha = clamp((L.ripe - 0.15) * 5); g.drawImage(A.drop, L.tipX - r, L.tipY - r * 0.4, r * 2, r * 2); }
+    g.globalAlpha = 1;
+    for (let i = E.drops.length - 1; i >= 0; i--) { // falling, and splashing where they land
+      const D = E.drops[i];
+      if (D.gone) { E.drops.splice(i, 1); continue; }
+      D.vy += h * 2.4 * dt; D.y += D.vy * dt; D.x += E.wind * m * 0.1 * dt;
+      if (D.y >= D.land) { asSplash(D.x, D.land, D.r * 1.3); E.drops.splice(i, 1); continue; }
+      g.drawImage(A.drop, D.x - D.r, D.y - D.r * 1.3, D.r * 2, D.r * 2.6);
+    }
+    g.fillStyle = "rgba(225,246,255,0.9)";
+    for (let i = E.splashes.length - 1; i >= 0; i--) { // a ring of water with a soft blue edge, so it shows on the pale sky as well as on the grass
+      const S = E.splashes[i];
+      S.age += dt;
+      const p = S.age / 0.6;
+      if (p >= 1) { E.splashes.splice(i, 1); continue; }
+      g.globalAlpha = (1 - p) * 0.9;
+      g.beginPath(); g.ellipse(S.x, S.y, S.r * (1 + 4 * eased(p)), S.r * (0.35 + 1.4 * eased(p)), 0, 0, TAU);
+      g.lineWidth = Math.max(2, m * 0.005); g.strokeStyle = "rgba(70,160,225,0.45)"; g.stroke();
+      g.lineWidth = Math.max(1, m * 0.0022); g.strokeStyle = "rgba(240,252,255,0.95)"; g.stroke();
+      g.beginPath();
+      for (let k = 0; k < 5; k++) { const a = S.seed + (k / 5) * Math.PI - Math.PI, v = S.r * 9, x = S.x + Math.cos(a) * v * S.age * 1.6, y = S.y - (Math.abs(Math.sin(a)) * v * 3 * S.age - 0.5 * h * 2.4 * S.age * S.age * 0.6), r = S.r * 0.28 * (1 - p); g.moveTo(x + r, y); g.arc(x, y, Math.max(0.5, r), 0, TAU); }
+      g.fill();
+    }
+    g.globalAlpha = 1;
+
+    const fan = (0.5 - sunX / w) * 0.7, beam = g.createRadialGradient(sunX, sunY, m * 0.04, sunX, sunY, h * 1.15), strength = (alone ? 0.2 : 0.15) * (1 + 0.15 * E.lift + 1.4 * E.flare); // the sunbeams coming down through the leaves, flaring on the drop
+    beam.addColorStop(0, rgba(mix([255, 250, 220], [255, 224, 170], gold), Math.min(0.6, strength)));
+    beam.addColorStop(1, "rgba(255,248,220,0)");
+    g.fillStyle = beam;
+    g.beginPath();
+    for (let k = 0; k < 6; k++) { const a = Math.PI / 2 + fan + (k - 2.5) * 0.23 + 0.05 * Math.sin(t * 0.3 + k * 1.9), half = (0.03 + 0.018 * Math.sin(t * 0.5 + k * 1.7)) * (1 + 0.7 * E.flare), far = h * 1.2; g.moveTo(sunX, sunY); g.lineTo(sunX + Math.cos(a - half) * far, sunY + Math.sin(a - half) * far); g.lineTo(sunX + Math.cos(a + half) * far, sunY + Math.sin(a + half) * far); g.closePath(); }
+    g.fill();
+
+    // dandelion seeds: more of them out in a calm part; they sparkle on the hi-hats and the mouse blows them away
+    if (dt && hatHit) for (let n = 0; n < 2; n++) { const S = E.seeds[Math.floor(rnd(0, Math.min(E.seeds.length, Math.ceil(seedsOut))))]; S.spark = Math.max(S.spark, hatHit); }
+    for (let i = 0; i < E.seeds.length; i++) {
+      const S = E.seeds[i], shown = clamp(seedsOut - i), k = 1 - Math.exp(-dt * 1.1);
+      let ax = E.wind * m * 0.3 + m * 0.03 * Math.sin(t * 0.6 + S.phase), ay = -m * 0.012 + m * 0.02 * Math.sin(t * 0.8 + S.phase * 1.7) - m * 0.06 * E.lift - m * 0.5 * E.gust;
+      if (E.gust > 0.02) ax += m * 0.6 * E.gust;
+      S.vx += (ax - S.vx) * k; S.vy += (ay - S.vy) * k;
+      const b = blowAt(S.x, S.y, m * 0.2);
+      if (b > 0.001) { const dx = S.x - M.x, dy = S.y - M.y, d = Math.hypot(dx, dy) || 1, push = b * (m * 7 + 3 * Math.hypot(M.vx, M.vy)) * dt; S.vx += (dx / d) * push; S.vy += (dy / d) * push; }
+      S.x += S.vx * dt; S.y += S.vy * dt;
+      S.spark *= Math.exp(-dt / 0.3);
+      if (S.x > w + S.size || S.y < -S.size * 2 || S.y > h + S.size) asEcoSeed(S, false);
+      else if (S.x < -S.size * 3) S.x = w + S.size;
+      if (shown <= 0) continue;
+      const turn = 0.25 * Math.sin(t * 0.9 + S.phase) + 0.3 * clamp(S.vx / (m * 0.6)), c = Math.cos(turn), s = Math.sin(turn);
+      g.setTransform(c, s, -s, c, S.x, S.y);
+      g.globalAlpha = 0.9 * shown;
+      g.drawImage(A.seed, -S.size / 2, -S.size * 0.42, S.size, S.size);
+      if (S.spark > 0.05) { g.setTransform(1, 0, 0, 1, 0, 0); glint(S.x, S.y - S.size * 0.05, S.size * 1.5 * S.spark, 0.9 * S.spark * shown); g.globalCompositeOperation = "source-over"; }
+    }
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = 1;
+
+    for (let i = E.sprouts.length - 1; i >= 0; i--) { // what the clicks grew: a shoot, two leaves unfurling, a flower opening, and then it fades
+      const S = E.sprouts[i];
+      S.age += dt;
+      const fade = 1 - clamp((S.age - 5.5) / 1.4);
+      if (fade <= 0) { E.sprouts.splice(i, 1); continue; }
+      const up = eased(clamp(S.age / 1.1)), open = eased(clamp((S.age - 0.5) / 0.9)), bloom = eased(clamp((S.age - 1.3) / 1)), len = m * 0.11, sway = 0.06 * Math.sin(t * 1.4 + S.turn) + 0.15 * lean, tx = S.x + (S.lean * 0.3 + sway) * len * up, ty = S.y - len * up;
+      g.globalAlpha = fade;
+      g.strokeStyle = "rgb(62,150,50)";
+      g.lineWidth = Math.max(1.5, m * 0.006);
+      g.lineCap = "round";
+      g.beginPath(); g.moveTo(S.x, S.y); g.quadraticCurveTo(S.x - S.lean * len * 0.2, S.y - len * 0.5 * up, tx, ty); g.stroke();
+      if (open > 0) for (const side of [-1, 1]) { const size = m * 0.065 * open, a = side * (0.25 + 0.95 * open) + sway, c = Math.cos(a), s = Math.sin(a), bx = S.x - S.lean * len * 0.05, by = S.y - len * 0.42 * up; g.setTransform(c, s, -s, c, bx, by); g.drawImage(A.leaf[side < 0 ? 1 : 2], -size * 0.25, -size, size * 0.5, size); }
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      if (bloom > 0) {
+        const r = m * 0.03 * bloom * (1 + 0.04 * sound.kick);
+        g.fillStyle = rgba(S.tone, 1);
+        for (let k = 0; k < 6; k++) { const a = S.turn + (k / 6) * TAU + S.age * 0.15, c = Math.cos(a), s = Math.sin(a); g.setTransform(c, s, -s, c, tx, ty); g.beginPath(); g.ellipse(r * 0.62, 0, r * 0.62, r * 0.32, 0, 0, TAU); g.fill(); }
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.globalAlpha = fade * 0.55; // the gloss on the petals, and a sunny middle
+        g.fillStyle = "#fff";
+        g.beginPath(); g.arc(tx - r * 0.35, ty - r * 0.35, r * 0.3, 0, TAU); g.fill();
+        g.globalAlpha = fade;
+        g.fillStyle = "rgb(255,210,60)";
+        g.beginPath(); g.arc(tx, ty, r * 0.3, 0, TAU); g.fill();
+      }
+    }
+    g.globalAlpha = 1;
+
+    const tint = mood === "hard" ? [255, 80, 60] : mood === "acid" ? [214, 255, 60] : mood === "euphoric" ? [255, 196, 240] : tones[0]; // a light wash of the mood or the record over it all
+    g.fillStyle = rgba(tint, mood ? 0.08 : 0.05);
+    g.fillRect(0, 0, w, h);
+    g.lineCap = "butt";
+  }
+  /* ==== aerosun: end ==== */
+  /* ==== aeroglass: begin ==== */
+  /* Aero: the glossy, hopeful look of the 2000s, all glass, water and light. Two of its styles are here, each put together from those things and from no picture in particular.
+     Dark Aero is the gloss on black: balls and panes of glass over a black mirror of a floor, long streaks of light curving through them as in a long exposure, and soft lights far off.
+     Technozen is the quiet one: a pale silver space over still water, smooth stones, a thin ring of light like a gadget at rest, and petals drifting by. */
+  const agArt = new Map(); // the small pictures these are drawn from, each made once and kept: glass, glows, petals and stones, by what it is and its tone
+  function agSprite(kind, tone, paint) { // one of them, made the first time it is wanted. Its tone is rounded, so a color that turns slowly makes a new one only now and then
+    const q = tone && tone.map((v) => Math.min(255, Math.round(v / 20) * 20)), key = q ? kind + "|" + q.join(",") : kind;
+    let art = agArt.get(key);
+    if (art) { agArt.delete(key); agArt.set(key, art); return art; } // (the one used last goes to the back of the line, so the ones let go are those not wanted for a while)
+    art = paint(q);
+    agArt.set(key, art);
+    if (agArt.size > 140) agArt.delete(agArt.keys().next().value);
+    return art;
+  }
+  function agTick(st) { // the time on the wall since this style last moved on, or -1 when it already has in this frame (it can be asked for twice in one frame while the effect is being changed, and moves on only once)
+    if (st.seen === realNow) return -1;
+    const real = st.seen < 0 ? 0.016 : Math.min(0.1, Math.max(0, (realNow - st.seen) / 1000));
+    st.seen = realNow;
+    return real;
+  }
+  function agFollow(st, real) { // how much the mouse counts just now, eased: all of it while it moves over the picture, letting go when it has rested a few seconds or gone
+    const aim = pointer.on ? clamp(1 - (realNow - pointer.at - 5000) / 4000) : 0, k = Math.min(1, real * 6);
+    if (pointer.on && st.hover < 0.02) { st.px = pointer.x; st.py = pointer.y; } // (from nothing it starts where the mouse is, not from where it was last time)
+    else if (pointer.on) { st.px += (pointer.x - st.px) * k; st.py += (pointer.y - st.py) * k; }
+    st.hover += (aim - st.hover) * Math.min(1, real * 3);
+  }
+  function agGlowArt(tone) { // a soft round glow
+    const S = 128, m = S / 2, [c, x] = paper(S), f = x.createRadialGradient(m, m, 0, m, m, m);
+    f.addColorStop(0, rgba(tone, 1));
+    f.addColorStop(0.35, rgba(tone, 0.42));
+    f.addColorStop(1, rgba(tone, 0));
+    x.fillStyle = f;
+    x.fillRect(0, 0, S, S);
+    return c;
+  }
+  const agGlow = (tone) => agSprite("glow", tone, agGlowArt);
+  function agLineArt(tone) { // a line of light, fading out at both ends
+    const [c, x] = paper(128, 4), f = x.createLinearGradient(0, 0, 128, 0);
+    f.addColorStop(0, rgba(tone, 0));
+    f.addColorStop(0.5, rgba(tone, 1));
+    f.addColorStop(1, rgba(tone, 0));
+    x.fillStyle = f;
+    x.fillRect(0, 0, 128, 4);
+    return c;
+  }
+  const agWhite = [255, 255, 255];
+  function agVivid(c, least) { // a color kept clear: two far-apart colors mixed half and half come out grey, so one that has gone dull is given back some color, whatever its hue
+    const m = (c[0] + c[1] + c[2]) / 3, spread = Math.max(...c) - Math.min(...c);
+    if (spread >= least || spread < 1) return c;
+    return c.map((v) => Math.max(0, Math.min(255, m + ((v - m) * least) / spread)));
+  }
+
+  /* Dark Aero. Everything is drawn from small pictures made once: each ball of glass is a dark body with its edge lit all round, and a shine on top that is turned toward the light. */
+  const agDarkTones = [[0, 196, 180], [40, 172, 255], [30, 214, 124], [70, 110, 255]]; // teal, cyan, emerald and a deep blue: the glows of dark glass. The record's colors reach the last one most
+  const agTone = () => [0, 1, 2, 3, 3][Math.floor(Math.random() * 5)]; // which of them a piece of glass or a streak takes: the record's own color two times in five
+  const agPaneShapes = [[1.5, 1], [1, 1.3], [2.1, 0.72]]; // the shapes of the panes of glass, across by down
+  const agDark = { seen: -1, tap: null, W: 0, mirror: null, orbs: [], panes: [], streaks: [], bokeh: [], ripples: [], flares: [], hover: 0, px: 0, py: 0, sweep: 9, wave: 0, low: 0, spawn: 0, pts: new Float32Array(4), skyFill: null, floorFill: null };
+  function agFill(old, key, make) { // a color fade for a large area, kept from frame to frame and made again only when its colors or its place change
+    return old && old.key === key ? old : { key, fill: make() };
+  }
+  function agOrbArt(tone) { // a ball of dark glass: deep inside, colored low down where the light comes through, and its edge lit all round
+    const R = 64, S = 176, m = S / 2, [c, x] = paper(S);
+    let f = x.createRadialGradient(m, m, R * 0.92, m, m, R * 1.36);
+    f.addColorStop(0, rgba(tone, 0.22));
+    f.addColorStop(1, rgba(tone, 0));
+    x.fillStyle = f;
+    x.fillRect(0, 0, S, S);
+    f = x.createRadialGradient(m, m + R * 0.42, R * 0.04, m, m + R * 0.1, R * 1.05);
+    f.addColorStop(0, rgba(mix(tone, agWhite, 0.2), 0.75));
+    f.addColorStop(0.42, rgba(mix(tone, [0, 0, 0], 0.5), 0.62));
+    f.addColorStop(1, rgba(mix(tone, [0, 0, 0], 0.86), 0.82));
+    x.fillStyle = f;
+    x.beginPath(); x.arc(m, m, R, 0, TAU); x.fill();
+    f = x.createRadialGradient(m, m, R * 0.68, m, m, R);
+    f.addColorStop(0, rgba(tone, 0));
+    f.addColorStop(0.78, rgba(tone, 0.16));
+    f.addColorStop(1, rgba(mix(tone, agWhite, 0.45), 0.9));
+    x.fillStyle = f;
+    x.beginPath(); x.arc(m, m, R, 0, TAU); x.fill();
+    x.strokeStyle = rgba(mix(tone, agWhite, 0.6), 0.45);
+    x.lineWidth = 1.2;
+    x.beginPath(); x.arc(m, m, R - 0.7, 0, TAU); x.stroke();
+    return c;
+  }
+  function agShineArt() { // what a ball of glass shows of the light, drawn with the light straight above it: a curved shine along that side, a bright spot, and a little of it coming back off the far side
+    const R = 64, S = 176, m = S / 2, [c, x] = paper(S);
+    x.save();
+    x.beginPath(); x.arc(m, m, R * 0.93, 0, TAU); x.clip();
+    let f = x.createLinearGradient(0, m - R, 0, m - R * 0.08);
+    f.addColorStop(0, "rgba(255,255,255,0.62)");
+    f.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = f;
+    x.beginPath(); x.ellipse(m, m - R * 0.52, R * 0.68, R * 0.42, 0, 0, TAU); x.fill();
+    x.restore();
+    f = x.createRadialGradient(m, m - R * 0.72, 0, m, m - R * 0.72, R * 0.2);
+    f.addColorStop(0, "rgba(255,255,255,0.95)");
+    f.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = f;
+    x.fillRect(m - R * 0.2, m - R * 0.92, R * 0.4, R * 0.4);
+    f = x.createRadialGradient(m, m + R * 0.76, 0, m, m + R * 0.76, R * 0.34);
+    f.addColorStop(0, "rgba(255,255,255,0.22)");
+    f.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = f;
+    x.fillRect(m - R * 0.34, m + R * 0.42, R * 0.68, R * 0.68);
+    return c;
+  }
+  function agRimArt(tone) { // the edge of a ball lit all round, for when a band of light passes over it or it is clicked
+    const R = 64, S = 176, m = S / 2, [c, x] = paper(S), f = x.createRadialGradient(m, m, R * 0.8, m, m, R * 1.25);
+    f.addColorStop(0, rgba(tone, 0));
+    f.addColorStop(0.42, rgba(mix(tone, agWhite, 0.5), 0.9));
+    f.addColorStop(1, rgba(tone, 0));
+    x.fillStyle = f;
+    x.fillRect(0, 0, S, S);
+    return c;
+  }
+  function agPaneArt(tone, shape) { // a pane of glass with rounded corners: faintly colored, a sheen across it, its edge caught by the light and its top edge brightest
+    const [a, b] = agPaneShapes[shape], PW = Math.round(160 * a), PH = Math.round(160 * b), pad = 6, [c, x] = paper(PW + pad * 2, PH + pad * 2);
+    x.translate(pad, pad);
+    let f = x.createLinearGradient(0, 0, PW * 0.3, PH);
+    f.addColorStop(0, rgba(mix(tone, agWhite, 0.35), 0.2));
+    f.addColorStop(0.5, rgba(tone, 0.05));
+    f.addColorStop(1, rgba(tone, 0.13));
+    x.beginPath(); x.roundRect(0, 0, PW, PH, 12);
+    x.fillStyle = f;
+    x.fill();
+    x.save();
+    x.clip();
+    f = x.createLinearGradient(PW * 0.12, 0, PW * 0.58, PH * 0.4);
+    f.addColorStop(0, "rgba(255,255,255,0)");
+    f.addColorStop(0.45, "rgba(255,255,255,0.15)");
+    f.addColorStop(0.56, "rgba(255,255,255,0.03)");
+    f.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = f;
+    x.fillRect(0, 0, PW, PH);
+    x.restore();
+    x.lineWidth = 1.6;
+    x.strokeStyle = rgba(mix(tone, agWhite, 0.4), 0.55);
+    x.stroke();
+    f = x.createLinearGradient(0, 0, PW, 0);
+    f.addColorStop(0, "rgba(255,255,255,0)");
+    f.addColorStop(0.3, "rgba(255,255,255,0.75)");
+    f.addColorStop(1, "rgba(255,255,255,0.08)");
+    x.strokeStyle = f;
+    x.lineWidth = 1.4;
+    x.beginPath(); x.moveTo(12, 0.8); x.lineTo(PW - 12, 0.8); x.stroke();
+    return c;
+  }
+  function agBokehArt(tone) { // a light far off and out of focus: a soft disc, a little brighter at its edge as a lens makes it
+    const S = 48, m = S / 2, [c, x] = paper(S), f = x.createRadialGradient(m, m, 0, m, m, m - 1);
+    f.addColorStop(0, rgba(tone, 0.32));
+    f.addColorStop(0.72, rgba(tone, 0.42));
+    f.addColorStop(0.9, rgba(mix(tone, agWhite, 0.3), 0.66));
+    f.addColorStop(1, rgba(tone, 0));
+    x.fillStyle = f;
+    x.fillRect(0, 0, S, S);
+    return c;
+  }
+  function agBandArt() { // a soft upright band of light, for the one that sweeps across on the drop
+    const [c, x] = paper(64, 8), f = x.createLinearGradient(0, 0, 64, 0);
+    f.addColorStop(0, "rgba(255,255,255,0)");
+    f.addColorStop(0.5, "rgba(255,255,255,1)");
+    f.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = f;
+    x.fillRect(0, 0, 64, 8);
+    return c;
+  }
+  function agOrb(o, fresh) { // a ball of glass somewhere new: anywhere at the start, otherwise coming in from the side it drifts in from
+    o.vx = rnd(0.004, 0.011) * (Math.random() < 0.5 ? -1 : 1);
+    o.x = fresh ? rnd(0, 1) : o.vx > 0 ? -0.14 : 1.14;
+    o.y = rnd(0.05, 0.95);
+    o.r = rnd(0.035, 0.095) * (Math.random() < 0.25 ? 1.5 : 1);
+    o.tone = agTone();
+    o.ph = rnd(0, TAU);
+    o.glow = 0; o.due = -1; o.size = 0; o.ring = 9;
+    return o;
+  }
+  function agPane(o, fresh) { // a pane of glass somewhere new, slowly turning as it drifts
+    o.vx = rnd(0.003, 0.007) * (Math.random() < 0.5 ? -1 : 1);
+    o.shape = Math.floor(rnd(0, agPaneShapes.length));
+    o.s = rnd(0.17, 0.3);
+    o.x = fresh ? rnd(0, 1) : o.vx > 0 ? -0.2 : 1.2;
+    o.y = rnd(0, 1);
+    o.tone = agTone();
+    o.rot = rnd(-0.3, 0.3);
+    o.turn = rnd(0.05, 0.12);
+    o.ph = rnd(0, TAU);
+    o.glow = 0; o.due = -1; o.size = 0;
+    return o;
+  }
+  function agStreak(fresh) { // a streak of light, as a long exposure draws one: a gentle curve right across, with a brighter light running along it
+    return { y0: rnd(0.12, 0.9), amp: rnd(0.06, 0.24) * (Math.random() < 0.5 ? -1 : 1), k: rnd(0.5, 1.4), ph: rnd(0, TAU), tilt: rnd(-0.5, 0.5), tone: agTone(), size: rnd(0.6, 1.3), head: rnd(-0.2, 1.2),
+      v: rnd(0.1, 0.22) * (Math.random() < 0.5 ? -1 : 1), age: fresh ? rnd(0, 10) : 0, life: rnd(16, 34), drift: rnd(0.03, 0.09), out: 0, fade: 0, pts: new Float32Array(2 * 41) };
+  }
+  const agStreakY = (s, u, t) => s.y0 + s.tilt * (u - 0.5) + s.amp * Math.sin(s.k * u * Math.PI + s.ph + t * s.drift); // where a streak is at a place across, as a share of the space above the floor
+  function agBend(st, x, y, out, at, M) { // a point of a streak, pushed aside round the mouse, as if the light bent round something in its way
+    if (st.hover > 0.01) {
+      const dx = x - st.px, dy = y - st.py, R = M * 0.2, f = Math.exp(-(dx * dx + dy * dy) / (R * R)) * st.hover * 0.9; // (a smooth swelling round the mouse: nothing moves at its very middle, so a streak never kinks)
+      x += dx * f;
+      y += dy * f;
+    }
+    out[at] = x;
+    out[at + 1] = y;
+  }
+  function agDrawStreak(st, s, t, Y, pal, light, M) {
+    const n = 40, tone = pal[s.tone], p = s.pts, q = st.pts, lw = Math.max(1, M * 0.0036) * s.size;
+    if (light < 0.01) return;
+    for (let i = 0; i <= n; i++) { const u = -0.08 + (1.16 * i) / n; agBend(st, u * w, agStreakY(s, u, t) * Y, p, i * 2, M); }
+    g.beginPath();
+    g.moveTo(p[0], p[1]);
+    for (let i = 1; i <= n; i++) g.lineTo(p[i * 2], p[i * 2 + 1]);
+    g.strokeStyle = rgba(tone, 1);
+    g.globalAlpha = Math.min(1, 0.06 * light); g.lineWidth = lw * 7; g.stroke(); // a wide soft glow, a narrower one, and a fine bright line in the middle
+    g.globalAlpha = Math.min(1, 0.17 * light); g.lineWidth = lw * 2.4; g.stroke();
+    g.strokeStyle = rgba(mix(tone, agWhite, 0.55), 1);
+    g.globalAlpha = Math.min(1, 0.5 * light); g.lineWidth = lw * 0.7; g.stroke();
+    const dir = s.v > 0 ? 1 : -1; // the light running along it, brightest at its head
+    g.lineWidth = lw * 1.5;
+    for (let k = 0; k < 6; k++) {
+      const u0 = s.head - dir * 0.16 * (1 - k / 6), u1 = s.head - dir * 0.16 * (1 - (k + 1) / 6);
+      agBend(st, u0 * w, agStreakY(s, u0, t) * Y, q, 0, M);
+      agBend(st, u1 * w, agStreakY(s, u1, t) * Y, q, 2, M);
+      g.globalAlpha = Math.min(1, 0.75 * light * ((k + 1) / 6) ** 1.5);
+      g.beginPath(); g.moveTo(q[0], q[1]); g.lineTo(q[2], q[3]); g.stroke();
+    }
+    const r = lw * 7;
+    g.globalAlpha = Math.min(1, 0.5 * light);
+    g.drawImage(agGlow(mix(tone, agWhite, 0.4)), q[2] - r, q[3] - r, r * 2, r * 2);
+  }
+  function agDarkStart(st) { // a fresh start: glass scattered about, streaks coming in, lights far off
+    st.W = w;
+    st.orbs = Array.from({ length: 10 }, () => agOrb({}, true));
+    st.panes = Array.from({ length: 7 }, () => agPane({}, true));
+    st.streaks = Array.from({ length: 5 }, () => agStreak(true));
+    st.bokeh = Array.from({ length: 38 }, () => ({ x: rnd(0, 1), y: rnd(0, 1), r: rnd(0.006, 0.024), d: rnd(0, 1), tone: agTone(), ph: rnd(0, TAU), tw: 0 }));
+    st.ripples = []; st.flares = [];
+    st.sweep = 9;
+  }
+  function agPulse(list, kickHit, real, dt, wide) { // the glow that passes through the glass on a kick, reaching each piece a moment later the further right it is; and each piece drifting on
+    for (const o of list) {
+      if (kickHit) { if (o.due >= 0) o.glow = Math.max(o.glow, o.size); o.due = clamp(o.x) * 0.24; o.size = Math.min(1, kickHit); }
+      if (o.due >= 0 && (o.due -= real) < 0) { o.glow = Math.max(o.glow, o.size); o.due = -1; }
+      o.glow *= Math.exp(-real / 0.28);
+      o.x += o.vx * dt;
+      if (o.x > 1 + wide || o.x < -wide) (o.ring === undefined ? agPane : agOrb)(o, false);
+    }
+  }
+  function agDarkAero() { // Dark Aero: balls and panes of glass over a black mirror, long streaks of light curving through
+    const st = agDark, { t, kick, kickHit, hatHit, bass } = sound, dt = Math.min(0.4, sound.dt), real = agTick(st), M = Math.min(w, h), B = Math.max(w, h);
+    const Y = Math.round(h * (V.floor ?? 0.64)), F = h - Y, lean = V.lean ?? 0.35, glow = V.glow ?? 1, acc = moodColors(3), calm = flow.calm, hour = t * 0.012;
+    const pal = agDarkTones.map((c, i) => agVivid(mix(mix(c, agDarkTones[(i + 1) % 3], 0.3 * (0.5 + 0.5 * Math.sin(hour + i * 2.1))), mix(acc[i % 3], agWhite, 0.12), clamp(i === 3 ? lean * 2.2 : lean * 0.3)), 150)); // the glows drift into one another over minutes, and the record's colors come in
+    const building = flow.part === "build" || flow.build > 0.35 ? clamp((flow.build - 0.2) / 0.6) : 0;
+    if (!st.W) agDarkStart(st);
+    if (real >= 0) {
+      agFollow(st, real);
+      st.low += (bass - st.low) * Math.min(1, real * 3); // the bass, slowed: it sends the wave along the floor
+      st.wave = (st.wave + dt * (1.1 + 1.6 * st.low)) % TAU;
+      st.sweep = Math.min(9, st.sweep + real); // the band of light that sweeps across on the drop takes a second and a half
+      if (flow.dropHit && st.sweep > 1.2) st.sweep = 0;
+      agPulse(st.orbs, kickHit, real, dt, 0.15);
+      agPulse(st.panes, kickHit, real, dt, 0.22);
+      for (const o of st.orbs) o.ring = Math.min(9, o.ring + real);
+      if (hatHit) for (let i = 0; i < 4; i++) { const b = st.bokeh[Math.floor(Math.random() * st.bokeh.length)]; b.tw = Math.max(b.tw, hatHit); } // the hi-hats light a few far-off lights
+      for (const b of st.bokeh) { b.tw *= Math.exp(-real / 0.16); b.x -= dt * 0.005 * (0.4 + b.d); if (b.x < -0.05) { b.x += 1.1; b.y = rnd(0, 1); } }
+      const want = Math.min(12, Math.round(4.5 * (V.streaks ?? 1) * (1 - 0.35 * calm) + 4 * building + 2 * flow.drop)); // more streaks through a build, and fewer when it is calm
+      let alive = 0;
+      for (const s of st.streaks) if (!s.out) alive++;
+      st.spawn -= real;
+      if (alive < want && st.spawn <= 0 && st.streaks.length < 16) { st.streaks.push(agStreak(false)); st.spawn = building ? 0.25 : 0.9; }
+      else if (alive > want) { const s = st.streaks.find((s) => !s.out); if (s) s.out = 1; }
+      for (let i = st.streaks.length - 1; i >= 0; i--) {
+        const s = st.streaks[i];
+        s.age += dt;
+        if (s.age > s.life) s.out = 1; // each streak lasts a while and gives way to another, so the picture never settles
+        s.fade = s.out ? s.fade - real / 1.6 : Math.min(1, s.fade + real / 1.6);
+        if (s.out && s.fade <= 0) { st.streaks.splice(i, 1); continue; }
+        s.head += s.v * dt * (1 + 2.2 * building + 0.8 * flow.drop);
+        if (s.head > 1.25) s.head -= 1.5; else if (s.head < -0.25) s.head += 1.5;
+      }
+      for (let i = st.ripples.length - 1; i >= 0; i--) if ((st.ripples[i].age += real) > 2.6) st.ripples.splice(i, 1);
+      for (let i = st.flares.length - 1; i >= 0; i--) if ((st.flares[i].age += real) > 1.4) st.flares.splice(i, 1);
+    }
+    const tap = pointer.tapped; // (a click is taken once, and looked for on every call: the frame it lands in may already have moved on in an earlier call)
+    if (tap && tap !== st.tap) { // a click: a ripple on the floor under it, and the nearest ball rings with light
+      st.tap = tap;
+      if (st.ripples.length >= 8) st.ripples.shift();
+      st.ripples.push({ x: tap.x, u: tap.y >= Y ? clamp((tap.y - Y) / Math.max(1, F)) : Math.min(0.92, 0.06 + (Y - tap.y) / Math.max(1, Y) * 0.7), age: 0, tone: pal[1] });
+      if (tap.y < Y) { if (st.flares.length >= 4) st.flares.shift(); st.flares.push({ x: tap.x, y: tap.y, age: 0, tone: pal[1] }); } // a click in the dark above the floor also lights up softly where it landed, so it is seen there and not only down on the floor
+      let best = null, far = Infinity;
+      for (let i = 0; i < st.orbs.length; i++) {
+        const o = st.orbs[i], r = o.r * M, d = Math.hypot(o.x * w - tap.x, agOrbY(o, t, Y, M) - tap.y) - r;
+        if (i < 7 * (V.orbs ?? 1) - 0.4 && d < far) { far = d; best = o; }
+      }
+      if (best) best.ring = 0;
+    }
+    if (tap) pointer.taken = true;
+
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = "source-over";
+    const low = rgba(mix([4, 12, 26], pal[0], 0.08).map(Math.round), 1);
+    st.skyFill = agFill(st.skyFill, low + Y, () => { const f = g.createLinearGradient(0, 0, 0, Y); f.addColorStop(0, "rgb(1,2,6)"); f.addColorStop(1, low); return f; });
+    g.fillStyle = st.skyFill.fill;
+    g.fillRect(0, 0, w, Y);
+    g.globalCompositeOperation = "lighter";
+    for (let i = 0; i < 3; i++) { // great soft glows wandering far behind
+      const gx = (0.5 + 0.4 * Math.sin(t * 0.011 * (i + 1) + i * 2.1)) * w, gy = (0.32 + 0.24 * Math.sin(t * 0.017 * (i + 1.5) + i)) * Y, r = B * (0.3 + 0.06 * i);
+      g.globalAlpha = Math.min(1, (0.12 + 0.05 * flow.intensity + 0.04 * st.low) * glow);
+      g.drawImage(agGlow(pal[i === 2 ? 3 : i]), gx - r, gy - r, r * 2, r * 2);
+    }
+    for (const b of st.bokeh) { // lights far off, out of focus
+      const r = b.r * M, x = b.x * w, y = b.y * Y * 0.96;
+      g.globalAlpha = Math.min(1, (0.2 + 0.1 * Math.sin(t * 0.6 + b.ph) + 0.7 * b.tw) * glow);
+      g.drawImage(agSprite("bokeh", pal[b.tone], agBokehArt), x - r, y - r, r * 2, r * 2);
+    }
+    const light = (0.45 + 0.9 * kick + 0.3 * sound.mid) * (0.75 + 0.35 * flow.intensity) * (1 - 0.2 * calm) * (1 + 0.4 * building) * glow; // the streaks pulse brighter on the kick, and the tune keeps them lit when there is none
+    g.lineCap = "round";
+    for (let i = 0; i < st.streaks.length; i += 2) agDrawStreak(st, st.streaks[i], t, Y, pal, light * st.streaks[i].fade, M); // half of them behind the glass
+    const sp = st.sweep / 1.5, band = sp < 1 ? Math.sin(Math.PI * sp) : 0, bandX = (-0.15 + 1.3 * sp) * w, swept = (x) => (band ? band * Math.exp(-(((x - bandX) / (0.08 * w)) ** 2)) : 0);
+    const panes = 4 * (V.panes ?? 1);
+    for (let i = 0; i < st.panes.length; i++) { // panes of glass, slowly turning, lit by the kick's glow and by the drop's band
+      const o = st.panes[i], seen = clamp(panes - i);
+      if (seen <= 0) continue;
+      const [a, b] = agPaneShapes[o.shape], pw = o.s * M, ph = (pw * b) / a, hd = Math.hypot(pw, ph) / 2, x = o.x * w, y = hd + o.y * Math.max(0, Y - 2 * hd - 4) + Math.sin(t * 0.3 + o.ph) * M * 0.01;
+      const art = agSprite("pane" + o.shape, pal[o.tone], (tone) => agPaneArt(tone, o.shape)), k = pw / (art.width - 12), sx = Math.max(0.16, Math.abs(Math.cos(t * o.turn + o.ph))), rot = o.rot + 0.08 * Math.sin(t * 0.2 + o.ph), c = Math.cos(rot), s = Math.sin(rot);
+      g.setTransform(c * k * sx, s * k * sx, -s * k, c * k, x, y);
+      g.globalAlpha = seen * 0.9;
+      g.drawImage(art, -art.width / 2, -art.height / 2);
+      const more = (o.glow * 0.7 + swept(x) * 0.9) * glow;
+      if (more > 0.01) { g.globalAlpha = Math.min(1, seen * more); g.drawImage(art, -art.width / 2, -art.height / 2); }
+    }
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    for (let i = 1; i < st.streaks.length; i += 2) agDrawStreak(st, st.streaks[i], t, Y, pal, light * st.streaks[i].fade, M); // and half in front of it
+    const orbs = 7 * (V.orbs ?? 1), shine = agSprite("shine", null, agShineArt), toward = -Math.PI / 2 - 0.6 + 0.35 * Math.sin(t * 0.021); // where the light comes from when the mouse is not there: above and to the left, moving a little
+    for (let i = 0; i < st.orbs.length; i++) {
+      const o = st.orbs[i], seen = clamp(orbs - i);
+      if (seen <= 0) continue;
+      const r = o.r * M * (1 + 0.12 * Math.sin(t * 0.05 + o.ph)), x = o.x * w, y = agOrbY(o, t, Y, M), S = (r * 176) / 64, tone = pal[o.tone];
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.globalCompositeOperation = "source-over";
+      g.globalAlpha = seen;
+      g.drawImage(agSprite("orb", tone, agOrbArt), x - S / 2, y - S / 2, S, S);
+      g.globalCompositeOperation = "lighter";
+      if (o.glow > 0.02) { const q = r * 1.25; g.globalAlpha = Math.min(1, seen * o.glow * 0.65 * glow); g.drawImage(agGlow(tone), x - q, y - q + r * 0.2, q * 2, q * 2); } // the kick's glow passing through it
+      let lx = Math.cos(toward), ly = Math.sin(toward), near = 0;
+      if (st.hover > 0.01) { const dx = st.px - x, dy = st.py - y, d = Math.hypot(dx, dy) + 0.001; lx += (dx / d - lx) * st.hover; ly += (dy / d - ly) * st.hover; near = st.hover * Math.exp(-d / (r * 4)); } // the mouse is a light: the shine turns toward it
+      const turn = Math.atan2(ly, lx) + Math.PI / 2, c = Math.cos(turn), s = Math.sin(turn), k = r / 64;
+      g.setTransform(c * k, s * k, -s * k, c * k, x, y);
+      g.globalAlpha = Math.min(1, seen * (0.7 + 0.3 * near));
+      g.drawImage(shine, -88, -88);
+      const rang = o.ring < 2 ? (1 - o.ring / 2) ** 2 : 0, rim = Math.min(1, swept(x) * 0.75 + rang + 0.25 * near);
+      if (rim > 0.01) { g.setTransform(k, 0, 0, k, x, y); g.globalAlpha = seen * rim; g.drawImage(agSprite("rim", tone, agRimArt), -88, -88); } // its edge lit all round: when the band passes, or when it is clicked
+      if (rang > 0) { // and a ring of light going out from it, for two seconds
+        const p = o.ring / 2;
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.strokeStyle = rgba(mix(tone, agWhite, 0.5), 1);
+        g.globalAlpha = seen * 0.8 * (1 - p) ** 2;
+        g.lineWidth = Math.max(1, r * 0.05);
+        g.beginPath(); g.arc(x, y, r * (1.05 + 1.6 * eased(p)), 0, TAU); g.stroke();
+      }
+    }
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    if (st.hover > 0.01 && st.py < Y) { const r = M * 0.14; g.globalAlpha = 0.06 * st.hover; g.drawImage(agGlow(pal[1]), st.px - r, st.py - r, r * 2, r * 2); } // a faint light where the mouse is
+    g.globalCompositeOperation = "lighter";
+    for (const f of st.flares) { // where a click landed above the floor: a soft light that swells and fades, and a thin ring of it going out
+      const p = Math.min(1, f.age / 1.4), r = M * (0.05 + 0.09 * eased(Math.min(1, p * 2))), q = M * (0.02 + 0.16 * eased(p));
+      g.globalAlpha = 0.4 * (1 - p) ** 2 * glow;
+      g.drawImage(agGlow(f.tone), f.x - r, f.y - r, r * 2, r * 2);
+      g.strokeStyle = rgba(mix(f.tone, agWhite, 0.5), 1);
+      g.lineWidth = Math.max(1, M * 0.003);
+      g.globalAlpha = 0.6 * (1 - p) ** 2;
+      g.beginPath(); g.arc(f.x, f.y, q, 0, TAU); g.stroke();
+    }
+    if (band) { // the drop's band of light, leaning a little as it sweeps across
+      g.setTransform(1, 0, -0.22, 1, Y * 0.11, 0);
+      g.globalAlpha = 0.1 * band;
+      g.drawImage(agSprite("band", null, agBandArt), bandX - w * 0.07, 0, w * 0.14, Y);
+      g.setTransform(1, 0, 0, 1, 0, 0);
+    }
+    g.globalCompositeOperation = "source-over"; // the floor: black and glossy, with everything above mirrored in it, fading with distance, and the bass sending a slow wave through the mirror
+    g.globalAlpha = 1;
+    const top = rgba(mix([3, 8, 16], pal[0], 0.05).map(Math.round), 1);
+    st.floorFill = agFill(st.floorFill, top + Y + "," + h, () => { const f = g.createLinearGradient(0, Y, 0, h); f.addColorStop(0, top); f.addColorStop(1, "rgb(1,2,4)"); return f; });
+    g.fillStyle = st.floorFill.fill;
+    g.fillRect(0, Y, w, F);
+    const sH = Math.max(2, Math.round(h / 220)), amp = M * (0.0006 + 0.011 * st.low * st.low), up = Math.min(F, Y);
+    if (!st.mirror || st.mirror[0].width !== w || st.mirror[0].height < up) st.mirror = paper(w, Math.max(up, Math.ceil(h * 0.5))); // what is above the floor, copied once a frame so the floor can be made from it in thin strips
+    const [mc, mx] = st.mirror;
+    mx.globalCompositeOperation = "copy";
+    mx.drawImage(g.canvas, 0, Y - up, w, up, 0, 0, w, up);
+    for (let y = 0; y < F; y += sH) {
+      const src = up - y - sH, u = y / F;
+      if (src < 0) break;
+      g.globalAlpha = 0.52 * (1 - u) ** 1.4;
+      g.drawImage(mc, 0, src, w, sH, amp * (0.3 + 1.4 * u) * Math.sin(u * 9 - st.wave * 2), Y + y, w, sH);
+    }
+    g.globalCompositeOperation = "lighter";
+    g.globalAlpha = Math.min(1, (0.35 + 0.25 * kick) * glow); // where the floor meets the dark, a thin line of light
+    g.drawImage(agSprite("line", pal[0], agLineArt), -w * 0.1, Y - 1, w * 1.2, 2);
+    g.globalAlpha = 0.22 * glow;
+    g.drawImage(agGlow(pal[0]), -w * 0.1, Y - M * 0.03, w * 1.2, M * 0.06);
+    g.globalAlpha = 0.07 * glow; // and a soft sheen across the gloss
+    g.drawImage(agGlow(pal[1]), w * 0.15, Y + F * 0.05, w * 0.7, F * 0.6);
+    if (st.ripples.length) { // the clicks' ripples, spreading on the floor
+      g.save();
+      g.beginPath(); g.rect(0, Y, w, F); g.clip();
+      g.lineWidth = Math.max(1, M * 0.003);
+      for (const r of st.ripples) {
+        const p = Math.min(1, r.age / 2.6), y = Y + F * r.u, rx = M * (0.02 + 0.6 * eased(p)) * (0.5 + 0.8 * r.u), ry = 0.1 + 0.3 * r.u;
+        g.strokeStyle = rgba(mix(r.tone, agWhite, 0.3), 1);
+        for (let k = 0; k < 3; k++) {
+          const q = rx * (1 - k * 0.24);
+          if (q <= 1) continue;
+          g.globalAlpha = 0.55 * (1 - p) ** 2 * (1 - k * 0.3);
+          g.beginPath(); g.ellipse(r.x, y, q, q * ry, 0, 0, TAU); g.stroke();
+        }
+      }
+      g.restore();
+    }
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = "source-over";
+    g.lineCap = "butt"; // (line ends put back as they were)
+  }
+  const agOrbY = (o, t, Y, M) => { const r = o.r * M * 1.12; return r * 1.15 + o.y * Math.max(0, Y - r * 2.5) + Math.sin(t * 0.4 + o.ph) * M * 0.012; }; // how high a ball floats: always clear of the floor, bobbing a little
+
+  /* Technozen. The stones and the petals are small pictures too, and the ring is drawn as forty little arcs, so a build can light them one by one. */
+  const agZenLight = [[86, 200, 186], [92, 186, 222], [140, 208, 140]]; // aqua green, aqua and a soft leaf green: the light of a gadget at rest
+  const agPetalTones = [[212, 236, 202], [226, 244, 240], [246, 244, 240], [242, 222, 228]]; // pale leaf, aqua white, white, and one the record's colors lean into most
+  const agStoneTones = [[150, 152, 154], [126, 130, 136], [166, 164, 158], [110, 116, 122]]; // the greys of smooth stones
+  const agPale = new Set(["zen"]); // pictures too pale for two things made for dark ones: the build's rising sparks, which would look like rain here (the ring's arcs lighting one by one show the build instead), and the drop's white flash, which would turn the whole picture white, so it is kept faint
+  const agZen = { seen: -1, tap: null, W: 0, stones: [], petals: [], ripples: [], pebbles: [], drops: [], hover: 0, px: 0, py: 0, cam: 0, tx: -1e9, ty: 0, low: 0, lit: 0, full: 0, idle: 0, dew: 2, dropAt: -9, gust: 0, ids: 0, skyFill: null, waterFill: null };
+  const agZenWide = 2.6; // the slow journey along the water is this many pictures long before it comes round again
+  function agStoneArt(seed, flat, tone) { // a smooth stone of its own shape, a little uneven, lit softly from above
+    const S = 120, H = Math.round(S * flat) + 8, [c, x] = paper(S, H), cx = S / 2, cy = H / 2, rx = S / 2 - 3, ry = H / 2 - 3;
+    x.beginPath();
+    for (let i = 0; i <= 32; i++) {
+      const a = (i / 32) * TAU, k = 1 + 0.035 * Math.sin(2 * a + seed) + 0.025 * Math.sin(3 * a + seed * 1.7), px = cx + Math.cos(a) * rx * k, py = cy + Math.sin(a) * ry * k * (Math.sin(a) > 0 ? 0.94 : 1);
+      if (i) x.lineTo(px, py); else x.moveTo(px, py);
+    }
+    x.closePath();
+    const f = x.createRadialGradient(cx - rx * 0.25, cy - ry * 0.55, 1, cx, cy, rx * 1.05);
+    f.addColorStop(0, rgba(mix(tone, agWhite, 0.4), 1));
+    f.addColorStop(0.55, rgba(tone, 1));
+    f.addColorStop(1, rgba(mix(tone, [20, 24, 30], 0.45), 1));
+    x.fillStyle = f;
+    x.fill();
+    return c;
+  }
+  function agPetalArt(tone, leaf, back) { // a petal of its own design, rounded at one end and drawn to a point at the other with a faint fold down it; or a small leaf, pointed at both ends with a vein. Its back is a little darker
+    const S = 40, H = 24, m = H / 2, [c, x] = paper(S, H), face = back ? mix(tone, [70, 90, 80], 0.18) : tone;
+    x.beginPath();
+    if (leaf) { x.moveTo(2, m); x.quadraticCurveTo(S / 2, -m * 0.55, S - 2, m); x.quadraticCurveTo(S / 2, H + m * 0.55, 2, m); }
+    else { x.moveTo(S - 2, m); x.bezierCurveTo(S * 0.62, 0, 3, 0.5, 3, m); x.bezierCurveTo(3, H - 0.5, S * 0.62, H, S - 2, m); }
+    x.closePath();
+    const f = x.createLinearGradient(0, 0, S * 0.4, H);
+    f.addColorStop(0, rgba(mix(face, agWhite, 0.45), 1));
+    f.addColorStop(1, rgba(mix(face, [60, 80, 70], 0.12), 1));
+    x.fillStyle = f;
+    x.fill();
+    x.strokeStyle = rgba(mix(face, [40, 60, 50], 0.4), 0.35);
+    x.lineWidth = 0.8;
+    x.stroke();
+    x.strokeStyle = leaf ? rgba(mix(face, [40, 70, 40], 0.35), 0.5) : "rgba(255,255,255,0.45)";
+    x.beginPath(); x.moveTo(5, m); x.quadraticCurveTo(S / 2, m - 1.5, S - 6, m); x.stroke();
+    return c;
+  }
+  function agRingArt(tone, R) { // the soft halo round the ring of light, at one size
+    const G = Math.max(6, R * 0.22), S = Math.ceil((R + G) * 2 + 4), m = S / 2, [c, x] = paper(S), f = x.createRadialGradient(m, m, Math.max(0, R - G), m, m, R + G);
+    f.addColorStop(0, rgba(tone, 0));
+    f.addColorStop(0.5, rgba(tone, 0.55));
+    f.addColorStop(1, rgba(tone, 0));
+    x.fillStyle = f;
+    x.fillRect(0, 0, S, S);
+    return c;
+  }
+  const agPar = (u) => Math.round((0.35 + 0.9 * u) * 20) / 20; // how fast a thing on the water goes by, nearer ones faster (in twentieths, so the slow journey can wrap round without a jump)
+  function agZenStart(st) { // a fresh start: stones placed along a long stretch of water, the ring at rest, a few petals already in the air
+    st.W = w;
+    st.stones = [];
+    for (const [row, n] of [[0.17, 4], [0.47, 3], [0.8, 2]]) { // three rows, far, middle and near. Each row goes by at its own pace with its stones spaced evenly along the journey, so they never bunch up and there are nearly always two or three in view
+      const step = agZenWide / n, off = rnd(0, step);
+      for (let i = 0; i < n; i++) {
+        const stack = i === 0 || Math.random() < 0.3 ? 2 + Math.floor(rnd(0, 2.6)) : 1, base = rnd(0.09, 0.15) * (row > 0.7 ? 0.85 : 1), parts = []; // (one stack of stones at least in every row)
+        for (let j = 0; j < stack; j++) { const s = base * (j ? rnd(0.55, 0.8) ** j : 1), flat = j ? rnd(0.42, 0.56) : rnd(0.4, 0.62), id = ++st.ids, seed = rnd(0, TAU), tone = agStoneTones[Math.floor(rnd(0, 4))]; parts.push({ s, flat, art: () => agSprite("stone" + id, null, () => agStoneArt(seed, flat, tone)) }); }
+        st.stones.push({ wx: off + (i + rnd(-0.15, 0.15)) * step, u: row + rnd(-0.05, 0.05), par: agPar(row), parts, glint: 0 });
+      }
+    }
+    st.stones.sort((a, b) => a.u - b.u);
+    st.petals = [];
+    for (let i = 0; i < 10; i++) st.petals.push(agPetal(st, true));
+    st.ripples = []; st.pebbles = []; st.drops = [];
+    st.lit = st.full = 0;
+  }
+  function agPetal(st, fresh) { // a petal or a leaf coming in on the wind, from the side it blows from, or from above
+    const wind = V.wind ?? 1, side = Math.random() < 0.55, u = rnd(0.05, 0.95);
+    return { x: fresh ? rnd(0, 1) * w : side ? (wind >= 0 ? -0.04 * w : 1.04 * w) : rnd(0, 1) * w, y: fresh ? rnd(0.05, 0.9) * h * 0.45 : side ? rnd(0.02, 0.6) * h * 0.5 : -0.04 * h, u, leaf: Math.random() < 0.3, tone: Math.floor(rnd(0, 4)),
+      vx: 0, vy: 0, rot: rnd(0, TAU), spin: rnd(-1.2, 1.2), flip: rnd(0, TAU), flipV: rnd(1.2, 2.6) * (Math.random() < 0.5 ? -1 : 1), whirl: 0, sheen: 0, on: false, age: 0, life: rnd(7, 13), ph: rnd(0, TAU) };
+  }
+  function agRipple(st, x, u, size, life, strength, rings) { // a ring on the water, spreading and fading
+    if (st.ripples.length >= 30) st.ripples.shift();
+    st.ripples.push({ x, u: clamp(u), age: 0, size, life, strength, rings });
+  }
+  function agPush(st, x, y, reach, kick) { // the petals near a place blown away from it, spinning
+    for (const p of st.petals) {
+      if (p.on) continue;
+      const dx = p.x - x, dy = p.y - y, d = Math.hypot(dx, dy) + 0.001;
+      if (d > reach) continue;
+      const f = (1 - d / reach) * kick;
+      p.vx += (dx / d) * f; p.vy += (dy / d) * f * 0.6 - f * 0.25;
+      p.whirl = Math.min(8, p.whirl + 6 * (1 - d / reach)); p.spin += rnd(-3, 3) * (1 - d / reach);
+    }
+  }
+  function agTechnozen() { // Technozen: still water in a pale silver space, smooth stones, a thin ring of quiet light and petals drifting by. Calm even in a hard song, but it answers every beat
+    const st = agZen, { t, kick, kickHit, hatHit, bass } = sound, dt = Math.min(0.4, sound.dt), real = agTick(st), M = Math.min(w, h);
+    const Y = Math.round(h * (V.floor ?? 0.47)), F = h - Y, lean = V.lean ?? 0.3, glow = V.glow ?? 1, wind = V.wind ?? 1, acc = moodColors(3), L = alone ? 1.05 : 0.95; // (in full view it may be as bright as it likes; behind the page's words it stays a little lower)
+    const building = flow.part === "build" || flow.build > 0.35 ? clamp((flow.build - 0.25) / 0.6) : 0, hour = 0.5 + 0.5 * Math.sin(t * 0.017);
+    const ringTone = agVivid(mix(mix(agZenLight[0], agZenLight[hour > 0.5 ? 2 : 1], Math.abs(hour - 0.5) * 1.2), acc[0], clamp(lean * (mood === "hard" ? 0.45 : 0.7))), 120); // the light goes from aqua to leaf green and back over a few minutes
+    const N = 40, R0 = Math.min(M * 0.2 * (V.size ?? 1) * (1 + 0.1 * Math.sin(t * 0.0061)), (Y - h * 0.05) / 2.25), R = R0 * (1 + 0.012 * st.low), wide = agZenWide; // the ring grows and shrinks a little over many minutes
+    const cx = w * ((V.perch ?? 0.5) + 0.1 * Math.sin(t * 0.009)), cy = Y - R0 * 1.12; // and drifts slowly to one side and back (once in about twelve minutes), so the picture is never quite the same one
+    if (!st.W) agZenStart(st);
+    if (real >= 0) {
+      agFollow(st, real);
+      st.low += (bass - st.low) * Math.min(1, real * 2.5); // the ring breathes with the bass
+      st.cam = (st.cam + dt * 0.008) % 52; // the slow journey along the water: the stones go by over five minutes or so
+      st.idle = (st.idle + dt * 0.45) % TAU; // a soft light going round the ring, as a gadget shows it is resting
+      st.gust += (0.5 + 0.5 * Math.sin(t * 0.05) * Math.sin(t * 0.013) - st.gust) * Math.min(1, real);
+      const aim = building * N;
+      st.lit = aim > st.lit ? Math.min(aim, st.lit + real * 6) : Math.max(aim, st.lit - real * 8); // a build lights the ring's arcs one by one
+      st.full *= Math.exp(-real / 1.2);
+      if (flow.dropHit && t - st.dropAt > 1.5) { // the drop: one big ripple from under the ring, and the petals scatter
+        st.dropAt = t;
+        st.full = 1;
+        agRipple(st, cx, 0.2, 0.75, 5, 1, 3);
+        agRipple(st, cx, 0.2, 0.5, 4, 0.7, 2);
+        agPush(st, cx, cy, M * 1.2, M * 0.6);
+      }
+      if (kickHit) { // each kick, a ring on the water: here and there, now and then round a floating petal
+        const on = st.petals.filter((p) => p.on);
+        if (on.length && Math.random() < 0.4) { const p = on[Math.floor(Math.random() * on.length)]; agRipple(st, p.x, p.u, 0.09, 2.2, 0.6, 2); }
+        else agRipple(st, rnd(0.08, 0.92) * w, rnd(0.08, 0.9), (0.14 + 0.06 * flow.intensity) * (0.6 + 0.4 * kickHit), building ? 1.8 : 2.8, 0.95, building ? 2 : 3);
+      }
+      if (hatHit) { // the hi-hats catch the petals as they turn: a glint, and a quicker turn
+        for (const p of st.petals) if (!p.on && Math.random() < 0.3) { p.sheen = Math.max(p.sheen, hatHit); p.whirl = Math.min(8, p.whirl + 2.5); }
+        if (building > 0.2) agRipple(st, rnd(0.1, 0.9) * w, rnd(0.1, 0.9), 0.05, 1.3, 0.5, 1); // and through a build the ripples come faster
+      }
+      st.dew -= real;
+      if (st.dew < 0) { st.dew = rnd(2.5, 5); if (flow.since > 1.5) agRipple(st, rnd(0.1, 0.9) * w, rnd(0.1, 0.9), 0.07, 3.2, 0.5, 2); } // now and then a drop of dew falls, so the water is never quite still
+      for (let i = st.pebbles.length - 1; i >= 0; i--) {
+        const pb = st.pebbles[i];
+        pb.age += real;
+        if (pb.age >= 0.32) { // in: rings spreading, a few drops thrown up, and the petals near it spun away
+          const y = Y + F * pb.u;
+          agRipple(st, pb.x, pb.u, 0.16, 3.2, 1, 3);
+          agRipple(st, pb.x, pb.u, 0.1, 2.6, 0.8, 2);
+          st.ripples[st.ripples.length - 1].age = -0.25;
+          for (let k = 0; k < 7; k++) { if (st.drops.length >= 40) st.drops.shift(); st.drops.push({ x: pb.x, y, base: y, vx: rnd(-0.12, 0.12) * M, vy: -rnd(0.25, 0.5) * M, age: 0 }); }
+          agPush(st, pb.x, y, M * 0.35, M * 0.5);
+          st.pebbles.splice(i, 1);
+        }
+      }
+      for (let i = st.drops.length - 1; i >= 0; i--) { const d = st.drops[i]; d.vy += M * 2 * real; d.x += d.vx * real; d.y += d.vy * real; d.age += real; if (d.y > d.base || d.age > 2) st.drops.splice(i, 1); }
+      for (let i = st.ripples.length - 1; i >= 0; i--) if ((st.ripples[i].age += real) > st.ripples[i].life) st.ripples.splice(i, 1);
+      if (pointer.on && st.hover > 0.2 && pointer.y > Y + 2 && realNow - pointer.at < 200 && Math.hypot(pointer.x - st.tx, pointer.y - st.ty) > M * 0.035) { // tiny ripples following the mouse over the water
+        st.tx = pointer.x; st.ty = pointer.y;
+        agRipple(st, pointer.x, (pointer.y - Y) / F, 0.035, 1.4, 0.55, 1);
+      }
+      for (const s of st.stones) { // a stone glints as the mouse passes it
+        const x = ((((s.wx - st.cam * s.par) % wide) + wide) % wide - 0.3) * w, y = Y + F * (0.06 + 0.9 * s.u), size = s.parts[0].s * M * (0.45 + 0.85 * s.u);
+        const aim = st.hover * Math.exp(-((Math.hypot(st.px - x, st.py - (y - size * 0.3)) / (size * 1.1)) ** 2));
+        s.glint += (aim - s.glint) * Math.min(1, real * (aim > s.glint ? 8 : 1.5));
+      }
+      const want = Math.min(40, Math.round(18 * (V.flurry ?? 1) * (0.8 + 0.4 * flow.intensity))); // the petals in the air: coming in on the wind, turning, drifting down to the water and floating there a while
+      let flying = 0;
+      for (const p of st.petals) if (!p.on) flying++;
+      if (flying < want && Math.random() < real * 2.5 && st.petals.length < 56) st.petals.push(agPetal(st, false));
+      const blow = wind * M * 0.05 * (0.6 + 0.8 * st.gust);
+      for (let i = st.petals.length - 1; i >= 0; i--) {
+        const p = st.petals[i], land = Y + F * (0.06 + 0.9 * p.u);
+        if (p.on) {
+          p.x -= dt * 0.008 * agPar(p.u) * w;
+          p.age += dt;
+          if (p.age > p.life || p.x < -0.1 * w) st.petals.splice(i, 1);
+          continue;
+        }
+        const ease = Math.min(1, real * 0.8);
+        p.vx += (blow * (0.4 + p.u) - p.vx) * ease;
+        p.vy += (M * (0.012 + 0.02 * p.u) - p.vy) * ease;
+        p.x += (p.vx + Math.sin(t * 0.9 + p.ph) * M * 0.012) * dt;
+        p.y += p.vy * dt;
+        p.whirl *= Math.exp(-real / 0.7);
+        p.rot = (p.rot + p.spin * dt) % TAU;
+        p.flip = (p.flip + p.flipV * (1 + p.whirl) * dt) % TAU;
+        p.spin += (Math.sign(p.spin || 1) * 0.6 - p.spin) * Math.min(1, real * 0.3);
+        p.sheen *= Math.exp(-real / 0.12);
+        if (p.y >= land && p.vy > 0) { p.on = true; p.y = land; if (st.ripples.length < 24) agRipple(st, p.x, p.u, 0.025, 1.4, 0.4, 1); } // landing on the water, with a tiny ring
+        else if (p.x < -0.08 * w || p.x > 1.08 * w || p.y > h + 20 || p.y < -0.3 * h) st.petals.splice(i, 1);
+      }
+    }
+    const tap = pointer.tapped; // (taken once, and looked for on every call, as in Dark Aero)
+    if (tap && tap !== st.tap) { // a click drops a pebble in: from where it was clicked down into the water
+      st.tap = tap;
+      const u = tap.y > Y + 2 ? (tap.y - Y) / F : 0.08;
+      if (st.pebbles.length >= 6) { const old = st.pebbles.find((p) => p.age < 0.32); if (old) old.age = 0.32; else st.pebbles.shift(); } // (with six already falling, the oldest lands at once, so every click is answered and none is lost)
+      st.pebbles.push({ x: tap.x, from: tap.y > Y + 2 ? tap.y - M * 0.14 : tap.y, u, age: 0, art: Math.floor(rnd(0, 4)) });
+    }
+    if (tap) pointer.taken = true;
+
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = "source-over";
+    const lift = (c) => c.map((v) => Math.min(255, Math.round(v * L))), skyTop = rgba(lift(mix([188, 196, 204], ringTone, 0.05)), 1), skyLow = rgba(lift(mix([214, 220, 220], ringTone, 0.06)), 1);
+    st.skyFill = agFill(st.skyFill, skyTop + skyLow + Y, () => { const f = g.createLinearGradient(0, 0, 0, Y); f.addColorStop(0, skyTop); f.addColorStop(1, skyLow); return f; });
+    g.fillStyle = st.skyFill.fill;
+    g.fillRect(0, 0, w, Y);
+    const lx = cx + w * 0.3 * Math.sin(t * 0.013), ly = Y * 0.55, lr = Math.max(w, h) * 0.45; // soft light in the space, wandering slowly behind the ring
+    g.globalAlpha = 0.2 * glow;
+    g.drawImage(agGlow(ringTone), lx - lr, ly - lr, lr * 2, lr * 2);
+    g.globalAlpha = 0.3;
+    g.drawImage(agGlow(lift([236, 240, 238])), w * 0.6 - w * 0.5 * Math.sin(t * 0.009) - lr * 0.7, Y * 0.3 - lr * 0.5, lr * 1.4, lr);
+    const waterTop = rgba(lift(mix([206, 213, 214], ringTone, 0.04)), 1), waterLow = rgba(lift(mix([146, 162, 170], ringTone, 0.05)), 1);
+    st.waterFill = agFill(st.waterFill, waterTop + waterLow + Y + "," + h, () => { const f = g.createLinearGradient(0, Y, 0, h); f.addColorStop(0, waterTop); f.addColorStop(1, waterLow); return f; });
+    g.globalAlpha = 1;
+    g.fillStyle = st.waterFill.fill;
+    g.fillRect(0, Y, w, F);
+    g.globalAlpha = 0.12 * glow; // the light mirrored in the water
+    g.drawImage(agGlow(ringTone), lx - lr, Y + (Y - ly) * 0.4 - lr * 0.4, lr * 2, lr * 0.8);
+    g.globalAlpha = 0.5; // a far shore, pale in the haze, going by slowest of all
+    g.fillStyle = rgba(lift(mix([194, 202, 206], ringTone, 0.07)), 1);
+    g.beginPath();
+    g.moveTo(0, Y);
+    for (let x = 0; x <= w + 16; x += 16) { const u = x / w + st.cam * 0.2; g.lineTo(x, Y - M * (0.03 + 0.018 * Math.sin(u * 4.833 + 1) + 0.01 * Math.sin(u * 13.896))); } // (its waves fit the slow journey's round exactly, so it never jumps)
+    g.lineTo(w, Y);
+    g.fill();
+    g.globalAlpha = 0.5; // a mist where the water meets the space
+    g.drawImage(agGlow(lift([236, 240, 240])), -w * 0.2, Y - M * 0.07, w * 1.4, M * 0.14);
+    const breath = 0.5 + 0.5 * Math.min(1, st.low * 1.4), halo = agSprite("halo" + Math.round(R0 / 8), ringTone, (tone) => agRingArt(tone, Math.round(R0 / 8) * 8)), hs = (halo.width * R) / (Math.round(R0 / 8) * 8 || 1);
+    const near = st.hover * Math.exp(-(((Math.hypot(st.px - cx, st.py - cy) - R) / (R * 0.5)) ** 2)), at = Math.atan2(st.py - cy, st.px - cx);
+    const shine = (i) => { // how lit one arc of the ring is: resting and breathing, the soft light going round, the build's count, the drop, the kick, and the mouse near it
+      const a = -Math.PI / 2 + ((i + 0.5) / N) * TAU, round = (d) => Math.abs(Math.atan2(Math.sin(d), Math.cos(d)));
+      return (0.28 + 0.24 * breath + 0.3 * Math.exp(-((round(a - st.idle) / 0.4) ** 2))) * (1 - 0.45 * building) + 1.1 * clamp(st.lit - i) + 0.4 * st.full + 0.1 * kick + 0.5 * near * Math.exp(-((round(a - at) / 0.5) ** 2));
+    };
+    const deep = mix(ringTone, [30, 80, 84], 0.22), ring = (sy, oy, alpha, wobble) => { // the ring itself, or (upside down, fainter and wavering) its reflection in the water
+      g.lineCap = "round";
+      const lw = Math.max(1.5, R * 0.028);
+      for (let i = 0; i < N; i++) {
+        const a0 = -Math.PI / 2 + (i / N) * TAU + (TAU / N) * 0.12, a1 = a0 + (TAU / N) * 0.76, on = shine(i), dx = wobble ? Math.sin(Math.sin(a0) * 6 + t * 1.3) * R * 0.02 : 0;
+        g.setTransform(1, 0, 0, sy, cx + dx, oy);
+        g.beginPath(); g.arc(0, 0, R, a0, a1);
+        g.strokeStyle = rgba(ringTone, 1);
+        g.globalAlpha = Math.min(1, alpha * 0.12 * on * glow); // a soft glow round each arc, and the arc itself, both stronger the more it is lit
+        g.lineWidth = lw * 3.4;
+        g.stroke();
+        g.strokeStyle = rgba(deep, 1);
+        g.globalAlpha = Math.min(1, alpha * (0.18 + 0.55 * on) * glow);
+        g.lineWidth = lw * (0.8 + 0.3 * Math.min(1.5, on));
+        g.stroke();
+        if (!wobble && on > 0.9) { g.strokeStyle = "rgba(255,255,255,1)"; g.globalAlpha = Math.min(1, (on - 0.9) * 0.9); g.lineWidth = lw * 0.35; g.stroke(); } // the brightest are white in the middle, like a lit diode
+      }
+      g.setTransform(1, 0, 0, 1, 0, 0);
+    };
+    g.globalAlpha = Math.min(1, (0.3 + 0.4 * breath + 0.3 * st.full) * glow);
+    g.drawImage(halo, cx - hs / 2, cy - hs / 2, hs, hs);
+    g.globalAlpha = 0.22 * glow; // a little light held inside it, and a fine silver line just within
+    g.drawImage(agGlow(lift([246, 250, 248])), cx - R * 0.9, cy - R * 0.9, R * 1.8, R * 1.8);
+    g.strokeStyle = "rgba(255,255,255,1)";
+    g.globalAlpha = 0.5;
+    g.lineWidth = Math.max(1, R * 0.008);
+    g.beginPath(); g.arc(cx, cy, R * 0.92, 0, TAU); g.stroke();
+    ring(1, cy, 1, false);
+    const line = agSprite("line", ringTone, agLineArt), side = (0.35 + 0.3 * (1 - breath)) * glow; // two short lines of quiet light either side of it, breathing the other way
+    for (const sgn of [-1, 1]) { g.globalAlpha = side; g.drawImage(line, cx + sgn * R * 1.9 - R * 0.5, cy - Math.max(1.5, R * 0.014), R, Math.max(3, R * 0.028)); }
+    g.globalAlpha = 0.45 * glow; // and a thin line of it where the water meets the space, with a light going slowly along it
+    g.drawImage(line, -w * 0.1, Y - 1.5, w * 1.2, 3);
+    const dot = (((t * 0.03) % 1.2) - 0.1) * w, dr = M * 0.03;
+    g.globalAlpha = 0.45 * glow;
+    g.drawImage(agGlow(mix(ringTone, agWhite, 0.5)), dot - dr, Y - dr * 0.3, dr * 2, dr * 0.6);
+    g.globalAlpha = Math.min(1, (0.14 + 0.2 * breath) * glow); // the ring mirrored in the water
+    g.drawImage(halo, cx - hs / 2, 2 * Y - cy - hs / 2, hs, hs);
+    ring(-1, 2 * Y - cy, 0.34, true);
+    for (let i = 0; i < 12; i++) { // faint lines of light lying on the still water
+      const u = ((i * 0.618034) % 1) ** 1.5 * 0.94 + 0.03, len = w * (0.08 + 0.22 * u), x = ((((i * 0.37 + t * 0.004 * (0.5 + u)) % 1.4) + 1.4) % 1.4 - 0.2) * w, th = 1 + 2.5 * u;
+      g.globalAlpha = 0.3 + 0.12 * Math.sin(t * 0.5 + i);
+      g.drawImage(agSprite("line", agWhite, agLineArt), x - len / 2, Y + F * u - th / 2, len, th);
+    }
+    g.lineCap = "round";
+    for (const r of st.ripples) { // the ripples: a dark and a light line each, flattened by distance
+      if (r.age < 0) continue;
+      const p = r.age / r.life, y = Y + F * (0.02 + 0.96 * r.u), squash = 0.1 + 0.24 * r.u, rad = r.size * M * (0.15 + 0.85 * (1 - (1 - p) ** 2)) * (0.45 + 0.8 * r.u), a = r.strength * (1 - p) ** 1.5, lw = Math.max(1, M * 0.003 * (0.6 + r.u));
+      for (let k = 0; k < r.rings; k++) {
+        const q = rad * (1 - 0.26 * k), fade = a * (1 - 0.3 * k);
+        if (q < 1 || fade < 0.01) continue;
+        g.lineWidth = lw;
+        g.strokeStyle = "rgba(72,94,108,1)";
+        g.globalAlpha = Math.min(1, fade * 0.6);
+        g.beginPath(); g.ellipse(r.x, y, q, q * squash, 0, 0, TAU); g.stroke();
+        g.strokeStyle = "rgba(255,255,255,1)";
+        g.globalAlpha = Math.min(1, fade * 0.8);
+        g.beginPath(); g.ellipse(r.x, y + lw * 1.2, q * 0.985, q * squash, 0, 0, TAU); g.stroke();
+      }
+    }
+    for (const s of st.stones) { // the stones, nearer ones bigger and going by faster, each mirrored in the water with a line round it where it goes in
+      const x = ((((s.wx - st.cam * s.par) % wide) + wide) % wide - 0.3) * w, y = Y + F * (0.06 + 0.9 * s.u), k = 0.45 + 0.85 * s.u, bw = s.parts[0].s * M * k;
+      if (x < -bw * 2 || x > w + bw * 2) continue;
+      for (const flipY of [-1, 1]) {
+        g.setTransform(1, 0, 0, flipY, 0, flipY < 0 ? 2 * y : 0);
+        g.globalAlpha = flipY < 0 ? 0.22 : 1;
+        let top = y;
+        const lit = flipY > 0 && s.glint > 0.01, alpha = g.globalAlpha;
+        for (let j = 0; j < s.parts.length; j++) {
+          const part = s.parts[j], art = part.art(), sw = part.s * M * k, sh = (sw * art.height) / art.width, keep = j ? 1 : 0.7, sx = j ? x - sw / 2 + Math.sin(j * 2.3 + s.wx) * sw * 0.08 : x - sw / 2, sy = j ? top - sh * 0.88 : y - sh * keep; // the lowest one sits in the water
+          for (let pass = 0; pass < (lit ? 2 : 1); pass++) { // (and once more, added as light, while the mouse's glint is on it)
+            if (pass) { g.globalCompositeOperation = "lighter"; g.globalAlpha = Math.min(1, s.glint * 0.3); }
+            g.drawImage(art, 0, 0, art.width, art.height * keep, sx, sy, sw, sh * keep);
+          }
+          g.globalCompositeOperation = "source-over";
+          g.globalAlpha = alpha;
+          top = j ? top - sh * 0.8 : y - sh * keep;
+        }
+        if (lit) { const gw = bw * 0.45; g.globalAlpha = Math.min(1, s.glint); g.drawImage(agGlow(agWhite), x - bw * 0.2 - gw / 2, top + bw * 0.08 - gw * 0.3, gw, gw * 0.6); } // and a bright spot of it near the top
+      }
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.lineWidth = Math.max(1, M * 0.002);
+      g.strokeStyle = "rgba(80,96,104,1)";
+      g.globalAlpha = 0.4;
+      g.beginPath(); g.ellipse(x, y, bw * 0.5, Math.max(0.5, bw * 0.045), 0, 0, TAU); g.stroke();
+      g.strokeStyle = "rgba(255,255,255,1)";
+      g.globalAlpha = 0.6;
+      g.beginPath(); g.ellipse(x, y + 1.5, bw * 0.56, Math.max(0.5, bw * 0.05), 0, 0.15, Math.PI - 0.15); g.stroke();
+    }
+    const tones = agPetalTones.map((c, i) => mix(c, acc[i % 3], clamp(i === 3 ? lean * 1.6 : lean * 0.2)));
+    for (const p of st.petals) { // floating petals first, then the ones in the air
+      if (!p.on) continue;
+      const size = (M * (0.03 + 0.03 * p.u)) / 40, c = Math.cos(p.rot), s = Math.sin(p.rot), fy = 0.34;
+      g.setTransform(c * size, s * size * fy, -s * size, c * size * fy, p.x, Y + F * (0.06 + 0.9 * p.u) + Math.sin(t * 0.8 + p.ph) * M * 0.002); // (where the water is now, should the version move it)
+      g.globalAlpha = clamp((p.life - p.age) / 2) * 0.95;
+      g.drawImage(agSprite("petal" + (p.leaf ? 1 : 0), tones[p.tone], (tone) => agPetalArt(tone, p.leaf, false)), -20, -12);
+    }
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    for (const pb of st.pebbles) { // a pebble on its way down
+      const y = pb.from + (Y + F * pb.u - pb.from) * (pb.age / 0.32) ** 2, s = M * 0.022 * (0.6 + 0.6 * pb.u);
+      g.globalAlpha = 1;
+      g.drawImage(agSprite("pebble" + pb.art, null, () => agStoneArt(pb.art * 1.7, 0.62, agStoneTones[pb.art])), pb.x - s, y - s * 0.7, s * 2, s * 1.4);
+    }
+    for (const d of st.drops) { // and the drops it threw up
+      const r = Math.max(1, M * 0.0035);
+      g.globalAlpha = 0.85;
+      g.fillStyle = "rgba(255,255,255,1)";
+      g.beginPath(); g.arc(d.x, d.y, r, 0, TAU); g.fill();
+      g.strokeStyle = "rgba(90,110,122,1)";
+      g.lineWidth = 0.8;
+      g.globalAlpha = 0.5;
+      g.stroke();
+    }
+    for (const p of st.petals) {
+      if (p.on) continue;
+      const size = (M * (0.03 + 0.03 * p.u)) / 40, c = Math.cos(p.rot), s = Math.sin(p.rot), turn = Math.cos(p.flip), fy = Math.sign(turn || 1) * Math.max(0.12, Math.abs(turn)), back = turn < 0;
+      g.setTransform(c * size, s * size, -s * size * fy, c * size * fy, p.x, p.y);
+      g.globalAlpha = 1;
+      g.drawImage(agSprite("petal" + (p.leaf ? 1 : 0) + (back ? "b" : ""), tones[p.tone], (tone) => agPetalArt(tone, p.leaf, back)), -20, -12);
+      if (p.sheen > 0.03) { g.globalAlpha = Math.min(1, p.sheen * 0.7); g.drawImage(agSprite("petalw" + (p.leaf ? 1 : 0), agWhite, (tone) => agPetalArt(tone, p.leaf, false)), -20, -12); } // a glint as it turns on a hi-hat
+    }
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = "source-over";
+    g.lineCap = "butt"; // (line ends put back as they were)
+  }
+  FOLK_OF.darkaero = ["shapes", "jelly", "whale", "shapes"]; // glass shapes, and creatures of light, suit the dark
+  FOLK_OF.zen = ["astronaut"]; // on the pale water only somebody floating slowly past: the autumn leaves are too busy and too warm here, and the visitors made of light vanish on it
+  /* ==== aeroglass: end ==== */
+  const DRAW = { zen: agTechnozen, darkaero: agDarkAero, eco: asEcoFx, dorfic: asDorficFx, aqua: awAquaFx, aero: awAeroFx, beings: beingsFx, life: livingGrid, places: placesFx, arcade: arcadeFx, runner: runnerFx, forms: formsFx, faces, ribbon, silk, helix, strings, bars, mirror, leds, terrain, scope, trails, tunnel, vortex, prism, ripple, comets, stars: starfield, whirl, dust, links, fireworks, halo, sun, rings, mandala, rays, space, warp: space, drift: space, orbit: space, visitors: space, well,
     kaleido, plasma, fractal, julia, mandel, newton, ocean, neonroad, aurora, tube: tubeFx, heads: headsFx, sphere: sphereFx, solids: solidsFx, city: cityFx };
 
   /* From one effect to another. The change waits for the next frame, which draws the old picture once more with nobody visiting and keeps it.
@@ -10763,6 +12303,8 @@ window.Effects = (() => {
     placeSt.world = ""; placeSt.over = 1; placeSt.gT = Math.max(placeSt.gT, 12); // Places opens straight in the place for the music playing now: no wipe from where it was last time, and no grand thing left half done
     lifeNow.grid = null; // the living grid plants a new garden each time it is shown
     awReset(next); // Frutiger Aero starts with a fresh sky, and Aqua with a fresh tank
+    if (next === "dorfic") asDorf.w = 0; if (next === "eco") asEco.w = 0; // DORFic and Frutiger Eco lay out a fresh page and a fresh world each time they are shown (each only its own, so one still showing on its way out is left as it is)
+    if (next === "darkaero") agDark.W = 0; if (next === "zen") agZen.W = 0; // Dark Aero and Technozen set out afresh each time they are shown (each only its own, so one still showing on its way out is left as it is)
     afterImages.ghosts.length = 0; // the last effect's after-images go with it, and a fold starts open
     afterImages.rate = afterImages.span = 0;
     trippy.fold = 0;
