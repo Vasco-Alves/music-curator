@@ -7405,7 +7405,7 @@ window.Effects = (() => {
     const mark = new Int32Array(N), two = new Uint8Array(N), flips = new Uint8Array(N), jit = new Uint8Array(N), tired = new Float32Array(N), scenery = new Uint8Array(dotsW * dotsH), backdrop = new Uint32Array(dotsW * dotsH);
     const img = new ImageData(dotsW, dotsH), out = new Uint32Array(img.data.buffer), ramp = new Uint32Array(8 * 5), pegTones = new Uint32Array(2); // ramp: for each ink five colors, [backdrop, ember, dim, body, hot]; a cell's light walks up and down them
     const cx = (cols - 1) / 2, cy = (rows - 1) / 2, reach = Math.hypot(cx, cy) + 2, roll = () => Math.random(), int = (n) => Math.floor(Math.random() * n);
-    const K = { phase: 0, kicks: 0, planted: 0, ring: -1, sown: 0, sinceDrop: 9, gardens: 0, slow: 0, antSteps: 0, sandTicks: 0, heap: 0, hatch: 0, drain: 0.02, tick: 0, stamps: 0 }; // the song's place in it all, which goes along onto another grid: see adopt()
+    const K = { phase: 0, kicks: 0, planted: 0, ring: -1, sown: 0, sinceDrop: 9, gardens: 0, slow: 0, antSteps: 0, sandTicks: 0, heap: 0, hatch: 0, drain: 0.02, tick: 0, stamps: 0, pulse: -1, pulseOf: 0 }; // the song's place in it all, which goes along onto another grid: see adopt(). pulse: how far the last kick's ring of light has run, in cells (-1: none), and pulseOf how bright it is
     let sym = 2, share = 1, lean = 1, trail = 1, pace = R.pace, quicken = 1, bead = 1, turnNow = NaN, dark = 0, inkCount = 3, front = [], ants = [];
     for (let y = 0; y < rows; y++) for (let x = 0; x < cols; x++) { far[y * cols + x] = Math.hypot(x - cx, y - cy); const u = Math.abs(2 * x - cols + 1), v = Math.abs(2 * y - rows + 1); let n = (Math.min(u, v) * 374761393 + Math.max(u, v) * 668265263) | 0; n = Math.imul(n ^ (n >>> 13), 1274126177); jit[y * cols + x] = (n ^ (n >>> 16)) & 63; } // jit: a number 0..63 that is the same at every mirror image of a cell
     const chanceAt = (x, y) => { let n = (x * 374761393 + y * 668265263) | 0; n = Math.imul(n ^ (n >>> 13), 1274126177); return ((n ^ (n >>> 16)) >>> 0) / 4294967296; }; // a number 0..1 that is always the same for the same dot
@@ -7650,6 +7650,7 @@ window.Effects = (() => {
         if (hit && !hushed) {
           K.kicks = (K.kicks + 1) % 16;
           const bar = K.kicks % 4 === 1;
+          K.pulse = 0; K.pulseOf = clamp(strong) * (bar ? 1 : 0.7); // every kick sends a ring of light out from the middle, the first of a bar a brighter one
           if (kind === "cells") kickCells(strong, bar);
           else if (kind === "bloom") { const [x, y] = spot(); if (coral) seedBloom(x, bar ? y : R.both && K.kicks % 2 ? 1 : rows - 2, 1, bar ? 12 : 30 + int(40)); else seedBloom(x, y, 1, bar ? 8 + Math.round(4 * strong) : 3 + Math.round(3 * strong)); } // coral: from the floor, and at the start of a bar a small one adrift
           else if (sands) kickSand(bar);
@@ -7690,16 +7691,19 @@ window.Effects = (() => {
         }
         if (K.ring > reach) K.ring = -1;
       }
+      if (K.pulse >= 0) { K.pulse += dt * (reach / 0.35); if (K.pulse > reach * 0.8 + 3 || K.ring >= 0) K.pulse = -1; } // the kick's ring runs out in about a third of a second, and makes way for the drop's
     }
     function paint(dt) { // each cell's light eases to where it should be (quickly up, slowly down: the trail) and picks its color from the ramp: the top left dot a shade up and the bottom right a shade down, which makes the bead
       const up = 1 - Math.exp(-dt / R.up), down = 1 - Math.exp(-dt / (R.down * trail * (1 + 0.8 * flow.calm))), hi = bead ? 0.6 : 0.3, lo = bead ? 0.1 : 0.05, rest = dt * 2;
+      const P = K.pulse, band = 3.5, ringLight = 0.65 * K.pulseOf * T.react, kickLight = 0.2 * clamp(sound.kick) * T.react; // the kick, shown in the light only: a ring three or four cells wide, bright at its front and fading behind it, and a flash of the living cells
       for (let y = 0, i = 0; y < rows; y++) for (let x = 0, o = y * 2 * dotsW; x < cols; x++, i++, o += 2) {
         const aim = tgt[i], F = tired[i]; let L = lum[i];
         if (F > 0) tired[i] = F > rest ? F - rest : 0;
         if (L !== aim) { if (aim > L) L += (aim - L) * (F > 0 ? up * (1 - 0.85 * F) : up); else { L += (aim - L) * down; if (L > 0.3) tired[i] = 1; } if (Math.abs(aim - L) < 0.004) L = aim; lum[i] = L; } // (a cell that has only just gone dark comes back slowly: nothing blinks)
         if (st[i] === 255) { out[o] = out[o + 1] = pegTones[1]; out[o + dotsW] = out[o + dotsW + 1] = pegTones[0]; continue; }
-        if (L < 0.1) { out[o] = backdrop[o]; out[o + 1] = backdrop[o + 1]; out[o + dotsW] = backdrop[o + dotsW]; out[o + dotsW + 1] = backdrop[o + dotsW + 1]; continue; }
-        const v = L * 4 + 0.5, k = ink[i] * 5, a = Math.min(4, (v + hi) | 0), b = Math.min(4, (v + lo) | 0), c = (v - lo) | 0, d = (v - hi) | 0;
+        const behind = P >= 0 ? P - far[i] : -1, shown = L + (L >= 0.1 ? kickLight : 0) + (behind >= 0 && behind < band ? ringLight * (1 - behind / band) : 0);
+        if (shown < 0.1) { out[o] = backdrop[o]; out[o + 1] = backdrop[o + 1]; out[o + dotsW] = backdrop[o + dotsW]; out[o + dotsW + 1] = backdrop[o + dotsW + 1]; continue; }
+        const v = shown * 4 + 0.5, k = (L < 0.1 ? 1 : ink[i]) * 5, a = Math.min(4, (v + hi) | 0), b = Math.min(4, (v + lo) | 0), c = (v - lo) | 0, d = (v - hi) | 0;
         out[o] = a ? ramp[k + a] : backdrop[o]; out[o + 1] = b ? ramp[k + b] : backdrop[o + 1]; out[o + dotsW] = c ? ramp[k + c] : backdrop[o + dotsW]; out[o + dotsW + 1] = d > 0 ? ramp[k + d] : backdrop[o + dotsW + 1];
       }
       if (kind === "ants") for (const a of ants) drawAnt(a);
@@ -7721,6 +7725,7 @@ window.Effects = (() => {
       Object.assign(K, o.K);
       sym = o.sym;
       if (K.ring >= 0) K.ring *= reach / o.reach;
+      if (K.pulse >= 0) K.pulse *= reach / o.reach;
     }
     const kept = () => ({ cols, rows, reach, sym, st, ink, fuel, age, lum, tgt, front, ants, K });
     return { cols, rows, world: worldName, rule: ruleName, img, K, tones, dials, frame, adopt, kept };
@@ -7763,7 +7768,7 @@ window.Effects = (() => {
     g.save();
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.globalCompositeOperation = "lighter";
-    g.globalAlpha = 0.35;
+    g.globalAlpha = 0.35 + 0.2 * clamp(sound.kick) * T.react; // and the glow swells a little on the kick
     g.drawImage(soft, 0, 0, w, h);
     g.restore();
   }
