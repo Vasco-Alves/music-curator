@@ -34,7 +34,7 @@ const ICONS = {
   play: "M8 5v14l11-7z", pause: "M7 5h3.5v14H7zM13.5 5H17v14h-3.5z", prev: "M19 6v12l-9-6zM6 6h2.2v12H6z", next: "M5 6v12l9-6zM15.8 6H18v12h-2.2z",
   repeat: "M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3", upnext: "M4 6h16M4 12h9M4 18h9M16 12.500v7l5.500-3.500z",
   kick: "M3 12h4l2.500-7 4 14 2.500-7h5", flash: "M13 3 5 14h6l-1 7 8-11h-6z", screen: "M3 5h18v12H3zM8 21h8M12 17v4", heart: "M12 20.500s-7.500-4.600-9.200-9.200C1.700 8.200 3.600 5 6.800 5c2.200 0 3.900 1.200 5.200 3 1.300-1.800 3-3 5.200-3 3.200 0 5.100 3.200 4 6.300-1.700 4.600-9.200 9.200-9.200 9.200z", sparkle: "M11 4l1.800 5.700L18.500 11.500l-5.700 1.800L11 19l-1.800-5.700L3.500 11.500l5.700-1.800zM19 3v4M17 5h4", grip: "M9 6h.01M15 6h.01M9 12h.01M15 12h.01M9 18h.01M15 18h.01", fade: "M3 6c7 0 11 12 18 12M3 18c7 0 11-12 18-12", radio: "M12 13.5a1.500 1.500 0 1 0 0-3 1.500 1.500 0 0 0 0 3zM8.200 8a5.500 5.500 0 0 0 0 8M15.800 8a5.500 5.500 0 0 1 0 8M5.200 5a10 10 0 0 0 0 14M18.800 5a10 10 0 0 1 0 14", plus: "M12 5v14M5 12h14", minus: "M5 12h14", rec: "M12 6.500a5.500 5.500 0 1 0 0 11 5.500 5.500 0 0 0 0-11z", code: "M8 7l-5 5 5 5M16 7l5 5-5 5M13.500 5l-3 14", import: "M12 4v11M8 11l4 4 4-4M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5", chevron: "M6 9l6 6 6-6", expand: "M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5", even: "M6 9v6M10 9v6M14 9v6M18 9v6M3 5h18M3 19h18", user: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4.500 20a7.500 7.500 0 0 1 15 0",
-  morph: "M4 12a8 8 0 0 1 8-8h8v8a8 8 0 0 1-8 8H4zM9 12h6", disc: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z", tag: "M4 4h7.5l8.500 8.500-7.500 7.500L4 11.500zM8 8h.01", export: "M12 15V4M8 8l4-4 4 4M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5",
+  morph: "M4 12a8 8 0 0 1 8-8h8v8a8 8 0 0 1-8 8H4zM9 12h6", pin: "M9 4h6M10 4v6l-3 4h10l-3-4V4M12 14v6", disc: "M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z", tag: "M4 4h7.5l8.500 8.500-7.500 7.500L4 11.500zM8 8h.01", export: "M12 15V4M8 8l4-4 4 4M5 14v5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5",
 };
 const FILLED = new Set(["play", "pause", "prev", "next"]);
 function icon(name, size = 18, cls) {
@@ -2303,6 +2303,7 @@ try { myRecipes = JSON.parse(store("curator-recipes") || "{}") || {}; } catch { 
 if (FX) for (const [key, raw] of Object.entries(myRecipes)) if (FX.recipes.keep(key, raw) && !FX.recipes.raw(key)) delete myRecipes[key]; // one that can't be read at all is left out
 const saveRecipes = () => store("curator-recipes", JSON.stringify(myRecipes));
 let fxName = familyOf(store("curator-fx")) ? store("curator-fx") : "", fxEverywhere = store("curator-fx-all") === "1", fxFull = false, fxIdle = 0, fxMorph = store("curator-fx-morph") === "1", fxSeen = [];
+let fxKeep = store("curator-full-keep") === "1"; // in full view the controls stay on screen when the mouse rests
 const fxShowing = () => !!FX && !!fxName && !calm.matches && (fxEverywhere || onNowPage());
 /* Sliders for the effect showing. 100% is how it was designed, each style remembers its own, and only what's been moved is saved. */
 let fxTuning = {}, fxAdjusting = false;
@@ -2334,6 +2335,7 @@ const fxBar = () => (FX && !calm.matches ? el("div", { class: "fx-bar" },
   fxName && FX.versions(fxName) ? el("button", { class: "btn small", type: "button", title: "Another version of this effect, now (or press N): how many, what shape, folded how, the colors. It changes by itself too as the song goes, which Adjust can slow down or stop", onclick: () => FX.another() }, icon("shuffle", 14), "Another version") : null,
   fxName ? el("button", { class: `btn small${fxAdjusting ? " on" : ""}`, type: "button", "aria-pressed": String(fxAdjusting), title: "Adjust this effect", onclick: () => { fxAdjusting = !fxAdjusting; paintFxBar(); } }, icon("sliders", 14), "Adjust") : null,
   fxName ? el("button", { class: `btn small${fxEverywhere ? " on" : ""}`, type: "button", "aria-pressed": String(fxEverywhere), title: fxEverywhere ? "Showing behind every page. Click to keep it to Now Playing" : "Show it behind every page", onclick: () => setFxEverywhere(!fxEverywhere) }, icon("grid", 14), "All pages") : null, // Glow, Flash, Sparkle and Full view are on the play bar, so they aren't here as well
+  el("button", { class: `btn small fx-keep${fxKeep ? " on" : ""}`, type: "button", "aria-pressed": String(fxKeep), title: fxKeep ? "The controls stay on screen. Click to let them go when the mouse rests (or press K)" : "Keep the controls on screen when the mouse rests (or press K)", onclick: () => setFullKeep(!fxKeep) }, icon("pin", 14), "Keep controls"),
   fxName && canRecord() ? el("button", { class: `btn small rec${recorder ? " on" : ""}`, id: "fx-rec", type: "button", "aria-pressed": String(!!recorder), title: recorder ? "Stop, and save the video (or press R)" : "Record what the effect does, with the sound, as a video (or press R)", onclick: toggleRecord }, icon("rec", 14), el("span", {}, recordLabel())) : null,
   fxName && familyOf(fxName) === "recipes" ? el("button", { class: `btn small${fxWriting ? " on" : ""}`, type: "button", "aria-pressed": String(fxWriting), title: "See how this effect is made, change it as it plays, or make one of your own", onclick: () => { fxWriting = !fxWriting; fxAdjusting = false; paintFxBar(); } }, icon("code", 14), "Recipe") : null,
   fxName && fxAdjusting ? fxAdjust() : null,
@@ -2501,11 +2503,17 @@ function setMorph(on, now = true) {
   else paintFxBar();
 }
 if (FX && fxMorph) FX.wander(morphFx);
-function wakeFx() { // in full view the controls and the pointer go away until the mouse moves
+function wakeFx() { // in full view the controls and the pointer go away until the mouse moves, unless they're kept
   if (!fxFull) return;
   document.body.classList.remove("idle");
   clearTimeout(fxIdle);
-  fxIdle = setTimeout(() => document.body.classList.add("idle"), 3000);
+  if (!fxKeep) fxIdle = setTimeout(() => document.body.classList.add("idle"), 3000);
+}
+function setFullKeep(on) {
+  fxKeep = on;
+  store("curator-full-keep", on ? "1" : "");
+  paintFxBar();
+  wakeFx();
 }
 let fullFromDeck = false, wantFull = false; // gone straight to the picture from another page, so leaving it goes back there
 function fullFx(on) {
@@ -4023,6 +4031,7 @@ window.addEventListener("keydown", (e) => {
     setFx(all[(all.indexOf(fxName) + 1) % all.length]);
     return e.preventDefault();
   }
+  if (!typing && fxFull && !e.ctrlKey && !e.altKey && !e.metaKey && e.key === "k" && !e.repeat) { setFullKeep(!fxKeep); toast(fxKeep ? "The controls stay on screen." : "The controls go when the mouse rests."); return e.preventDefault(); } // keep the controls, or let them go
   if (!typing && FX && fxName && onNowPage() && !e.ctrlKey && !e.altKey && !e.metaKey && e.key === "n") { FX.another(); return e.preventDefault(); } // another version of it
   if (!typing && FX && fxName && onNowPage() && !e.ctrlKey && !e.altKey && !e.metaKey && e.key === "r" && !e.repeat && canRecord()) { toggleRecord(); return e.preventDefault(); } // start or stop recording it
   if (e.key === "Escape") { if (onNowPage()) closeNow(); else if (!roomy.matches) closeDrawer(); }

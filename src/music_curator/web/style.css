@@ -445,6 +445,7 @@ body.fx-full.idle .fx-title { pointer-events: none; } /* hidden buttons can't be
 body.fx-full main { overflow: hidden; }
 body.fx-full .fx-bar, body.fx-full .player, body.fx-full .fx-title { transition: opacity .5s; }
 body.fx-full.idle { cursor: none; }
+body:not(.fx-full) .fx-keep { display: none; } /* only full view hides its controls, so only there can they be kept */
 body.fx-full.idle .fx-bar, body.fx-full.idle .player, body.fx-full.idle .fx-title { opacity: 0; } /* nothing but the picture, until the mouse moves */
 kbd { padding: 1px 5px; border-radius: 4px; background: var(--surface-3); color: var(--ink-2); font: 600 11px ui-monospace, Consolas, monospace; }
 .chip kbd, .quick-card .btn kbd { margin-right: 6px; }
