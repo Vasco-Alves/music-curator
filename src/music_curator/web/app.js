@@ -2546,6 +2546,9 @@ const overPicture = (e) => fxShowing() && (fxFull || onNowPage()) && !(e.target 
 window.addEventListener("pointermove", (e) => { if (FX && fxName) FX.pointer(e.clientX, e.clientY, overPicture(e) ? "move" : "off"); }, { passive: true });
 window.addEventListener("pointerdown", (e) => { if (FX && fxName && e.button === 0 && overPicture(e)) FX.pointer(e.clientX, e.clientY, "down"); }, { passive: true });
 document.addEventListener("mouseout", (e) => { if (!e.relatedTarget && FX) FX.pointer(0, 0, "off"); }); // out of the window
+const fingerUp = (e) => { if (FX && e.pointerType !== "mouse") FX.pointer(0, 0, "off"); }; // a finger or a pen lifted: a tap is a click, and no hover is left behind where it was
+window.addEventListener("pointerup", fingerUp, { passive: true });
+window.addEventListener("pointercancel", fingerUp, { passive: true });
 
 /* ---------- the background takes its colors from what's playing ---------- */
 const ambient = (() => { // a tiny picture stretched over the window: it looks blurred, and moving it costs next to nothing, unlike a real blur
