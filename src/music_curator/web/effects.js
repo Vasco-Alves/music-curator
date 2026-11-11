@@ -23,6 +23,7 @@ window.Effects = (() => {
     worlds: [["tube", "Energy tube"], ["heads", "Neon heads"], ["sphere", "Sound sphere"], ["solids", "Shapes in space"], ["city", "Neon city"]],
     pixel: [["runner", "Runner"], ["arcade", "Arcade"], ["places", "Places"], ["life", "Living grid"]],
     visions: [["faces", "Faces"], ["forms", "Forms"], ["beings", "Beings"]],
+    aero: [["aero", "Frutiger Aero"], ["aqua", "Aqua"]],
   };
   const FOLK_OF = { arcade: ["astronaut", "shapes", "neon", "jelly"], ocean: ["jelly", "whale", "jelly", "shapes"], neonroad: ["neon", "shapes", "saucer", "neon"], aurora: ["saucer", "astronaut", "neon", "saucer"], // some places have their own visitors
     tube: ["shapes", "neon", "eye", "saucer"], heads: ["saucer", "eye", "shapes", "neon"], sphere: ["astronaut", "saucer", "shapes", "jelly"], solids: ["shapes", "saucer", "neon", "astronaut"], city: ["saucer", "neon", "saucer", "shapes"] };
@@ -4977,6 +4978,8 @@ window.Effects = (() => {
     places: { land: ["a", "b", "c", "d"], hour: [0, 0, 0.25, 0.5, 0.75], going: [1, 1, -1], weather: [1, 0.3, 1.8] },
     life: { rule: [0, 0, 0, 1, 2], sym: [0, 0, 2, 4, 8], trail: [1, 0.7, 1.5], pace: [1, 1, 0.5, 2], bead: [1, 1, 0] },
     beings: { body: ["mixed", "tess", "cell24", "cage", "web", "cell16", "star"], eyes: ["mixed", "mixed", "two", "one"], spin: [1, 0.6, 1.6] },
+    aero: { froth: [1, 0.6, 1.5], sunx: [0.8, 0.2, 0.62, 0.35], tide: [0.64, 0.56, 0.72], glassy: [0.3, 0, 0.6], breeze: [0.3, -0.4, 0.7, 0], golden: [0, 0.4, 0.7] },
+    aqua: { school: [1, 0.65, 1.4], kelp: [1, 0.5, 1.5], caps: [1, 0.4, 1.7], shine: [1, 0.7, 1.4], murk: [0, 0.45, 0.2], current: [0, 0.6, -0.6] },
     kaleido: { blobs: [5, 3, 8], line: ["wave", "ring", "none"], spin: [1, -1, 2] },
     plasma: { scale: [1, 0.55, 1.7], stripes: [2, 1, 4], swirl: [0, 1, 2] },
     fractal: { sides: [0, 3, 4, 5, 6, 8], child: [0.22, 0.32, 0.15], spin: [1, -1] },
@@ -4992,7 +4995,7 @@ window.Effects = (() => {
     solids: { mode: ["field", "nested", "orbit", "field"], forms: ["mixed", "cube", "icosa", "tetra", "dodeca"], spin: [1, 2, 0.5] },
     city: { heights: [1, 0.6, 1.5], weave: [1, 0, 2], look: ["neon", "glass", "neon"] },
   };
-  const GLIDES = new Set(["hour", "going", "weather", "rails", "hops", "foes", "scroll", "gait", "kin", "wings", "flair", "course", "veil", "stack", "hue", "order", "waves", "twists", "loops", "floor", "height", "glow", "spin", "roll", "drift", "flat", "size", "reach", "scale", "swirl", "child", "curve", "twist", "bends", "twirl", "swell", "depth", "wobble", "heights", "weave"]);
+  const GLIDES = new Set(["school", "kelp", "caps", "shine", "murk", "current", "froth", "sunx", "tide", "glassy", "breeze", "golden", "hour", "going", "weather", "rails", "hops", "foes", "scroll", "gait", "kin", "wings", "flair", "course", "veil", "stack", "hue", "order", "waves", "twists", "loops", "floor", "height", "glow", "spin", "roll", "drift", "flat", "size", "reach", "scale", "swirl", "child", "curve", "twist", "bends", "twirl", "swell", "depth", "wobble", "heights", "weave"]);
   const dialsOf = (style) => VERSIONS[style] && { hue: HUES, order: [0, 0, 1, 2], ...VERSIONS[style] };
   const LIVE = new Set(["fold", "form", "glasses", "roots"]), TAKES = { fold: 0.45, form: 1, glasses: 0.16, roots: 0.5 }; // these go over in the picture itself: the old fold lets go as the new one takes hold, a ring bends from one shape into the other, a head takes its glasses off and puts others on, and Newton's new roots open as a ring of light. Each takes this much of a slow change
   const vary = { aim: {}, on: 0, due: 40, turned: {}, was: {}, over: {}, trip: null }; // where each dial is going, what a fold or a shape was and how far over it is, and the slow change that's on
@@ -9403,7 +9406,692 @@ window.Effects = (() => {
     g.restore();
   }
   /* ==== band: end ==== */
-  const DRAW = { beings: beingsFx, life: livingGrid, places: placesFx, arcade: arcadeFx, runner: runnerFx, forms: formsFx, faces, ribbon, silk, helix, strings, bars, mirror, leds, terrain, scope, trails, tunnel, vortex, prism, ripple, comets, stars: starfield, whirl, dust, links, fireworks, halo, sun, rings, mandala, rays, space, warp: space, drift: space, orbit: space, visitors: space, well,
+  /* ==== aerowater: begin ==== */
+  /* Aero, the airy side of the family. Frutiger Aero: a bright sky running down into clear water, clouds and a sun in a corner, and glossy bubbles and small glass orbs rising through it all.
+     Aqua: inside a bright aquarium, with light rippling over everything, a school of glossy fish that turns together on the kick, gel capsules and bubbles rising and seaweed swaying from the floor.
+     Everything glossy is painted once as a small picture and then only placed, so a sky full of bubbles costs little. Both answer the mouse: hovering moves things gently aside, a click pops a bubble or feeds the fish. */
+  const awArts = new Map(); // the little pictures, kept by what they are and their colors rounded a little, so colors that keep turning (as psy's do) only make a few new ones a second
+  function awArt(kind, tone, wide, tall, make, tone2 = tone) {
+    const q = tone.map((v) => Math.max(0, Math.min(15, (v | 0) >> 4))), q2 = tone2.map((v) => Math.max(0, Math.min(15, (v | 0) >> 4))), key = kind + q.join(",") + ":" + q2.join(",");
+    let art = awArts.get(key);
+    if (art) { awArts.delete(key); awArts.set(key, art); return art; } // (one in use goes to the back of the queue, so it's never the one let go)
+    if (awArts.size >= 64) awArts.delete(awArts.keys().next().value);
+    const [c, x] = paper(wide, tall);
+    make(x, q.map((v) => v * 17), q2.map((v) => v * 17));
+    awArts.set(key, c);
+    return c;
+  }
+  const awHash = (n) => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); }; // the same number between 0 and 1 every time for the same n, for things scattered but fixed
+  const awArea = () => Math.max(0.7, Math.min(1.5, Math.sqrt((w * h) / 518400))); // how much room there is, against a picture of 960 by 540: a bigger picture gets a few more things in it
+  const awVivid = (c) => { const top = Math.max(c[0], c[1], c[2], 1); return [(c[0] * 235) / top, (c[1] * 235) / top, (c[2] * 235) / top]; }; // a color as bright as it will go and still the same color, for glints and stripes
+  const awStep = (st) => { const dt = st.at === realNow ? 0 : Math.min(0.12, sound.dt); st.at = realNow; return dt; }; // a style can be drawn twice in one frame (for a picture of it as it changes): only the first call moves anything on
+  const AW_TROPIC = [[255, 136, 36], [255, 204, 46], [236, 72, 140]], AW_GLASS = [[70, 200, 228], [96, 206, 140], [110, 160, 240]]; // the warm colors of tropical fish, which the record's colors lean, and the colors of glass orbs, which catch the record's colors only in their light
+  FOLK_OF.aero = ["whale", "shapes", "jelly", "shapes"]; // visitors who suit a sky over water: a whale drifting by, glassy shapes, a jellyfish
+  FOLK_OF.aqua = ["jelly", "whale", "jelly", "shapes"];
+
+  let awBubble = null;
+  function awBubbleArt() { // a soap bubble: clear in the middle, a bright rim, a curved glint at the top left and the light coming back up through its bottom
+    if (awBubble) return awBubble;
+    const m = 64, R = 60, [c, x] = paper(128), body = x.createRadialGradient(m, m, 0, m, m, R);
+    body.addColorStop(0, "rgba(255,255,255,0.03)"); body.addColorStop(0.62, "rgba(225,245,255,0.07)"); body.addColorStop(0.88, "rgba(235,250,255,0.28)"); body.addColorStop(1, "rgba(255,255,255,0.62)");
+    x.fillStyle = body; x.beginPath(); x.arc(m, m, R, 0, TAU); x.fill();
+    x.strokeStyle = "rgba(255,255,255,0.75)"; x.lineWidth = 1.6; x.beginPath(); x.arc(m, m, R - 0.8, 0, TAU); x.stroke();
+    x.lineCap = "round";
+    for (const [wide, a] of [[10, 0.07], [6, 0.15], [2.5, 0.42]]) { x.strokeStyle = `rgba(255,255,255,${a})`; x.lineWidth = wide; x.beginPath(); x.arc(m, m, R - 8, 0.15 * Math.PI, 0.75 * Math.PI); x.stroke(); } // the light from below
+    for (const [wide, a] of [[13, 0.12], [7, 0.4], [3.5, 0.92]]) { x.strokeStyle = `rgba(255,255,255,${a})`; x.lineWidth = wide; x.beginPath(); x.arc(m, m, R - 13, 1.08 * Math.PI, 1.42 * Math.PI); x.stroke(); } // the curved glint
+    softBlob(x, m - 22, m - 26, 22, [255, 255, 255], 0.42);
+    x.fillStyle = "rgba(255,255,255,0.95)"; x.beginPath(); x.arc(m + (R - 13) * Math.cos(1.56 * Math.PI), m + (R - 13) * Math.sin(1.56 * Math.PI), 3.6, 0, TAU); x.fill();
+    return (awBubble = c);
+  }
+  const awSheenArt = (a, b) => awArt("sheen", a, 128, 128, (x, A, B) => { // the colors a bubble's skin catches round its rim, one color shading into another
+    const lin = x.createLinearGradient(20, 10, 108, 118);
+    lin.addColorStop(0, rgba(A, 1)); lin.addColorStop(0.5, rgba(mix(A, B, 0.5), 0.5)); lin.addColorStop(1, rgba(B, 1));
+    x.fillStyle = lin; x.beginPath(); x.arc(64, 64, 60, 0, TAU); x.fill();
+    x.globalCompositeOperation = "destination-in";
+    const ring = x.createRadialGradient(64, 64, 27, 64, 64, 60);
+    ring.addColorStop(0, "rgba(0,0,0,0)"); ring.addColorStop(0.7, "rgba(0,0,0,0.45)"); ring.addColorStop(1, "rgba(0,0,0,0.9)");
+    x.fillStyle = ring; x.fillRect(0, 0, 128, 128);
+  }, b);
+  const awOrbArt = (a, b) => awArt("orb", a, 128, 128, (x, A, B) => { // a small glass orb: the sky's light across its top, its own color inside, and light gathered at the bottom where it comes through
+    const m = 64, R = 58, body = x.createRadialGradient(m, m + 18, 4, m, m + 4, R);
+    body.addColorStop(0, rgba(mix(A, [255, 255, 255], 0.65), 0.95)); body.addColorStop(0.55, rgba(A, 0.85)); body.addColorStop(1, rgba(mix(A, [0, 20, 40], 0.5), 0.92));
+    x.fillStyle = body; x.beginPath(); x.arc(m, m, R, 0, TAU); x.fill();
+    const top = x.createLinearGradient(0, m - R, 0, m);
+    top.addColorStop(0, "rgba(255,255,255,0.88)"); top.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = top; x.beginPath(); x.ellipse(m, m - R * 0.42, R * 0.7, R * 0.44, 0, 0, TAU); x.fill();
+    softBlob(x, m, m + R * 0.66, R * 0.42, mix(B, [255, 255, 255], 0.6), 0.75);
+    x.strokeStyle = "rgba(255,255,255,0.55)"; x.lineWidth = 1.5; x.beginPath(); x.arc(m, m, R - 0.8, 0, TAU); x.stroke();
+    x.fillStyle = "rgba(255,255,255,0.95)"; x.beginPath(); x.arc(m - 20, m - 34, 4, 0, TAU); x.fill();
+  }, b);
+  const awGlowArt = (tone) => awArt("glow", tone, 128, 128, (x, A) => { // a soft round light, white in the middle
+    const r = x.createRadialGradient(64, 64, 0, 64, 64, 63);
+    r.addColorStop(0, rgba(mix(A, [255, 255, 255], 0.6), 1)); r.addColorStop(0.22, rgba(A, 0.5)); r.addColorStop(0.55, rgba(A, 0.12)); r.addColorStop(1, rgba(A, 0));
+    x.fillStyle = r; x.fillRect(0, 0, 128, 128);
+  });
+  const awDiscArt = (tone) => awArt("disc", tone, 64, 64, (x, A) => { // one of the pale rings a camera's lens throws across the picture from the sun
+    const r = x.createRadialGradient(32, 32, 0, 32, 32, 31);
+    r.addColorStop(0, rgba(A, 0.06)); r.addColorStop(0.72, rgba(A, 0.16)); r.addColorStop(0.9, rgba(mix(A, [255, 255, 255], 0.5), 0.42)); r.addColorStop(1, rgba(A, 0));
+    x.fillStyle = r; x.fillRect(0, 0, 64, 64);
+  });
+  const awSwooshArt = (tone) => awArt("swoosh", tone, 512, 128, (x, A) => { // a soft band of light sweeping in a curve, with fine lines beside it, fading out at both ends
+    x.globalCompositeOperation = "lighter"; x.lineCap = "round";
+    const curve = (dy) => { x.beginPath(); x.moveTo(-20, 104 + dy); x.bezierCurveTo(150, 122 + dy, 330, 6 + dy, 532, 30 + dy); };
+    for (const [wide, a, pale] of [[50, 0.05, 0], [26, 0.09, 0], [12, 0.18, 0.5], [3.5, 0.75, 1]]) { curve(0); x.lineWidth = wide; x.strokeStyle = rgba(mix(A, [255, 255, 255], pale), a); x.stroke(); }
+    curve(13); x.lineWidth = 1.5; x.strokeStyle = "rgba(255,255,255,0.45)"; x.stroke();
+    curve(-11); x.lineWidth = 1; x.strokeStyle = rgba(mix(A, [255, 255, 255], 0.6), 0.4); x.stroke();
+    x.globalCompositeOperation = "destination-in";
+    const ends = x.createLinearGradient(0, 0, 512, 0);
+    ends.addColorStop(0, "rgba(0,0,0,0)"); ends.addColorStop(0.3, "rgba(0,0,0,1)"); ends.addColorStop(0.7, "rgba(0,0,0,1)"); ends.addColorStop(1, "rgba(0,0,0,0)");
+    x.fillStyle = ends; x.fillRect(0, 0, 512, 128);
+  });
+  let awClouds = null;
+  function awCloudArt(v) { // three soft white clouds, a little blue underneath, the same three every time
+    if (!awClouds) awClouds = [0, 1, 2].map((seed) => {
+      const W = 384, H = 180, base = H * 0.74, [c, x] = paper(W, H);
+      for (let i = 0; i < 20; i++) { // round puffs sitting on a flat bottom, the biggest in the middle
+        const u = 0.14 + 0.72 * awHash(seed * 31 + i), r = (12 + 36 * awHash(seed * 17 + i * 3.1) ** 1.5) * (1.25 - 1.2 * Math.abs(u - 0.5)), cy = base - r * (0.35 + 0.5 * awHash(seed * 7 + i * 1.7)), puff = x.createRadialGradient(u * W, cy, 0, u * W, cy, r);
+        puff.addColorStop(0, "rgba(255,255,255,0.95)"); puff.addColorStop(0.72, "rgba(255,255,255,0.88)"); puff.addColorStop(1, "rgba(255,255,255,0)");
+        x.fillStyle = puff; x.beginPath(); x.arc(u * W, cy, r, 0, TAU); x.fill();
+      }
+      x.globalCompositeOperation = "destination-out"; // the bottom cut flat, softly
+      const cut = x.createLinearGradient(0, base - 6, 0, base + 10);
+      cut.addColorStop(0, "rgba(0,0,0,0)"); cut.addColorStop(1, "rgba(0,0,0,1)");
+      x.fillStyle = cut; x.fillRect(0, base - 6, W, H - base + 6);
+      x.globalCompositeOperation = "source-atop"; // grey-blue underneath, where the sun doesn't reach
+      const under = x.createLinearGradient(0, base - 60, 0, base);
+      under.addColorStop(0, "rgba(255,255,255,0)"); under.addColorStop(1, "rgba(150,178,220,0.6)");
+      x.fillStyle = under; x.fillRect(0, 0, W, H);
+      return c;
+    });
+    return awClouds[v];
+  }
+  function awFishArt(a, b) { // a glossy tropical fish facing right, banded in a second color edged in white; its tail is a picture of its own, so it can swing
+    return awArt("fish", a, 160, 80, (x, A, B) => {
+      const body = new Path2D();
+      body.moveTo(154, 42); body.bezierCurveTo(146, 14, 100, 4, 66, 18); body.bezierCurveTo(52, 25, 42, 34, 34, 40); body.bezierCurveTo(42, 46, 52, 55, 66, 62); body.bezierCurveTo(100, 76, 146, 70, 154, 42); body.closePath();
+      x.fillStyle = rgba(mix(A, [255, 255, 255], 0.25), 0.6); // the fins, behind the body
+      x.beginPath(); x.moveTo(120, 17); x.quadraticCurveTo(96, -4, 62, 10); x.lineTo(70, 24); x.closePath(); x.fill();
+      x.beginPath(); x.moveTo(104, 65); x.quadraticCurveTo(90, 82, 70, 77); x.lineTo(76, 62); x.closePath(); x.fill();
+      const shade = x.createLinearGradient(0, 8, 0, 74);
+      shade.addColorStop(0, rgba(mix(A, [0, 0, 0], 0.28), 1)); shade.addColorStop(0.45, rgba(A, 1)); shade.addColorStop(0.8, rgba(mix(A, [255, 255, 255], 0.45), 1)); shade.addColorStop(1, rgba(mix(A, [255, 255, 255], 0.72), 1));
+      x.fillStyle = shade; x.fill(body);
+      x.save(); x.clip(body);
+      for (const [at, wide] of [[106, 13], [72, 9]]) { x.fillStyle = "rgba(255,255,255,0.9)"; x.beginPath(); x.ellipse(at, 40, wide / 2 + 3, 44, 0, 0, TAU); x.fill(); x.fillStyle = rgba(B, 1); x.beginPath(); x.ellipse(at, 40, wide / 2, 44, 0, 0, TAU); x.fill(); }
+      const gloss = x.createLinearGradient(0, 8, 0, 40);
+      gloss.addColorStop(0, "rgba(255,255,255,0.78)"); gloss.addColorStop(1, "rgba(255,255,255,0)");
+      x.fillStyle = gloss; x.beginPath(); x.ellipse(106, 23, 42, 12, -0.08, 0, TAU); x.fill();
+      x.restore();
+      x.strokeStyle = "rgba(255,255,255,0.6)"; x.lineWidth = 1.5; x.stroke(body);
+      x.fillStyle = "#fff"; x.beginPath(); x.arc(134, 36, 7, 0, TAU); x.fill(); // the eye
+      x.fillStyle = "#0b1622"; x.beginPath(); x.arc(135.5, 36, 4.6, 0, TAU); x.fill();
+      x.fillStyle = "#fff"; x.beginPath(); x.arc(134, 34, 1.7, 0, TAU); x.fill();
+    }, b);
+  }
+  const awTailArt = (a) => awArt("tail", a, 64, 80, (x, A) => {
+    const fan = x.createLinearGradient(60, 0, 0, 0);
+    fan.addColorStop(0, rgba(A, 0.95)); fan.addColorStop(1, rgba(mix(A, [255, 255, 255], 0.5), 0.55));
+    x.fillStyle = fan; x.beginPath(); x.moveTo(62, 40); x.quadraticCurveTo(30, 18, 4, 4); x.quadraticCurveTo(16, 40, 4, 76); x.quadraticCurveTo(30, 62, 62, 40); x.fill();
+    x.strokeStyle = "rgba(255,255,255,0.5)"; x.lineWidth = 1.2;
+    for (const k of [-0.5, 0, 0.5]) { x.beginPath(); x.moveTo(58, 40); x.lineTo(14, 40 + k * 56); x.stroke(); }
+  });
+  function awFishSet(tv) { // this frame's three kinds of fish: warm tropical bodies leaning to the record's colors, banded in another of them
+    return [0, 1, 2].map((i) => { const body = mix(AW_TROPIC[i], tv[i], 0.3); return [awFishArt(body, mix(tv[(i + 1) % 3], [255, 255, 255], 0.25)), awTailArt(body)]; });
+  }
+  function awDrawFish(x, y, len, alpha, [body, tail], wag, face, tilt) { // one fish len dots long. face is 1 swimming right and -1 left; in between it is turning and seen from the front
+    const k = len / 160, c = Math.cos(tilt), s = Math.sin(tilt), a = c * k * face, b = s * k * face, cc = -s * k, d = c * k;
+    g.globalAlpha = alpha;
+    g.setTransform(a, b, cc, d, x - 44 * a, y - 44 * b); // the tail swings about where it meets the body
+    g.rotate(wag);
+    g.drawImage(tail, -62, -40);
+    g.setTransform(a, b, cc, d, x, y);
+    g.drawImage(body, -80, -40);
+  }
+  const awWingArt = (a, b) => awArt("wing", a, 96, 96, (x, A, B) => { // a butterfly's two wings on one side, see-through and glossy; the other side is the same picture turned over
+    const fore = new Path2D(), hind = new Path2D();
+    fore.moveTo(2, 46); fore.bezierCurveTo(14, 12, 62, 0, 90, 10); fore.bezierCurveTo(95, 28, 70, 44, 6, 50); fore.closePath();
+    hind.moveTo(4, 50); hind.bezierCurveTo(40, 52, 76, 62, 64, 84); hind.bezierCurveTo(52, 96, 22, 84, 4, 54); hind.closePath();
+    for (const [p, ex, ey] of [[hind, 64, 86], [fore, 90, 10]]) {
+      const fill = x.createLinearGradient(2, 48, ex, ey);
+      fill.addColorStop(0, rgba(mix(A, [255, 255, 255], 0.2), 0.92)); fill.addColorStop(1, rgba(B, 0.7));
+      x.fillStyle = fill; x.fill(p);
+      x.strokeStyle = "rgba(255,255,255,0.75)"; x.lineWidth = 1.4; x.stroke(p);
+    }
+    x.strokeStyle = "rgba(255,255,255,0.35)"; x.lineWidth = 1;
+    for (const [ex, ey] of [[86, 14], [70, 30], [50, 44], [58, 80], [36, 80]]) { x.beginPath(); x.moveTo(4, 48); x.quadraticCurveTo((4 + ex) / 2, (48 + ey) / 2 - 6, ex, ey); x.stroke(); }
+    const gloss = x.createLinearGradient(0, 4, 0, 30);
+    gloss.addColorStop(0, "rgba(255,255,255,0.6)"); gloss.addColorStop(1, "rgba(255,255,255,0)");
+    x.save(); x.clip(fore); x.fillStyle = gloss; x.beginPath(); x.ellipse(52, 16, 34, 9, -0.25, 0, TAU); x.fill(); x.restore();
+    x.fillStyle = "rgba(255,255,255,0.85)"; for (const [px, py, r] of [[78, 16, 3], [70, 22, 2]]) { x.beginPath(); x.arc(px, py, r, 0, TAU); x.fill(); }
+  }, b);
+
+  /* Frutiger Aero. The sky and the water are two gradients made fresh each frame (they're cheap); everything in them is a little picture made once. The bubbles rise for about twenty seconds each,
+     so the picture is never the same twice; the clouds go by and come back as others, now and then a few fish cross under the water or a butterfly over it, and over four minutes or so the light warms and cools again. */
+  const awSky = { list: [], drops: [], rings: [], clouds: [], fish: [], fly: null, at: -1, tap: null, W: 0, H: 0, day: 0, bassS: 0, glow: 0, gx: 0, gy: 0, burstAt: -9, flare: 1, swoosh: 1, swooshAt: 10, flip: 1, swooshY: 0.4, fishAt: 18, flyAt: 32 };
+  const awCloud = (x, k) => ({ x, k, y: rnd(0.1, 0.6), s: rnd(0.75, 1.3), v: Math.floor(rnd(0, 3)), speed: rnd(0.6, 1.4) }); // where it is across (in widths of the picture) and how high (in heights of the sky)
+  function awSkyBubble(x, y, boost, small) { // one bubble on its way up, or now and then a glass orb (which it is depends on the version: see glassy)
+    if (awSky.list.length >= 90) return;
+    const S = Math.min(w, h), k = Math.random(), r = S * (small ? rnd(0.009, 0.022) : 0.022 + 0.068 * k * k);
+    awSky.list.push({ x, y, r, rise: 0.028 + (0.45 * r) / S, ph: rnd(0, TAU), u: Math.random(), slot: Math.floor(rnd(0, 3)), px: 0, py: 0, boost });
+  }
+  function awSkyStart() { // a sky of its own when it starts or the picture changes size: clouds already out and bubbles already on their way up
+    Object.assign(awSky, { W: w, H: h, fly: null, flare: 1, swoosh: 1, glow: 0, tap: pointer.tapped });
+    awSky.list.length = awSky.drops.length = awSky.rings.length = awSky.fish.length = 0;
+    awSky.clouds = Array.from({ length: 7 }, (_, i) => awCloud(((i + rnd(0, 0.5)) / 7) * 1.8 - 0.4, (i * 3) % 7)); // spread round a loop wider than the picture, so there are always some in sight
+    for (let i = 0; i < 16 * awArea(); i++) awSkyBubble(rnd(0, w), rnd(0.1, 1.05) * h, 1);
+    awSky.swooshAt = sound.t + rnd(6, 12); awSky.fishAt = sound.t + rnd(10, 20); awSky.flyAt = sound.t + rnd(18, 34);
+  }
+  const awOrbness = (b) => clamp(((V.glassy ?? 0.3) - b.u) * 6 + 0.5); // 0 a bubble, 1 a glass orb: as the dial moves, the ones near it turn from one into the other
+  function awSkyTap(tap, S) { // a click: the bubble under it pops, an orb under it is knocked away, and on empty sky a little cluster of bubbles rises from there. It says whether anything happened
+    let hit = null;
+    for (const b of awSky.list) if (Math.hypot(b.x - tap.x, b.y - tap.y) < b.r * (1 - 0.4 * awOrbness(b)) * 1.1 + S * 0.012 && (!hit || b.r > hit.r)) hit = b;
+    if (hit && awOrbness(hit) < 0.5) {
+      awSky.list.splice(awSky.list.indexOf(hit), 1);
+      const n = Math.min(16, 9 + Math.round((hit.r / S) * 80));
+      for (let i = 0; i < n && awSky.drops.length < 120; i++) { const a = (i / n) * TAU + rnd(-0.2, 0.2), v = S * rnd(0.25, 0.6); awSky.drops.push({ x: hit.x + Math.cos(a) * hit.r, y: hit.y + Math.sin(a) * hit.r, vx: Math.cos(a) * v, vy: Math.sin(a) * v - S * 0.18, r: S * rnd(0.006, 0.012), life: rnd(0.7, 1.1), left: 1 }); }
+      if (awSky.rings.length < 8) awSky.rings.push({ x: hit.x, y: hit.y, r: hit.r, age: 0 });
+      twinkle(hit.x, hit.y, hit.r * 1.6, 0.35);
+      return true;
+    }
+    if (hit) {
+      const dx = hit.x - tap.x, dy = hit.y - tap.y, d = Math.hypot(dx, dy) || 1, a = d < 1 ? rnd(0, TAU) : Math.atan2(dy, dx);
+      hit.px += Math.cos(a) * S * 1.1; hit.py += Math.sin(a) * S * 1.1;
+      if (awSky.rings.length < 8) awSky.rings.push({ x: tap.x, y: tap.y, r: hit.r * 0.6, age: 0 });
+      twinkle(hit.x - hit.r * 0.4, hit.y - hit.r * 0.5, hit.r, 0.4);
+      return true;
+    }
+    const had = awSky.list.length;
+    for (let i = 0; i < 8; i++) awSkyBubble(tap.x + rnd(-1, 1) * S * 0.035, tap.y + rnd(-1, 1) * S * 0.035, rnd(1.8, 2.8), true);
+    return awSky.list.length > had; // (a sky already full of bubbles has no room for more)
+  }
+  function awAeroFx() {
+    if (awSky.W !== w || awSky.H !== h) awSkyStart();
+    const { t, kick, hatHit } = sound, dt = awStep(awSky), S = Math.min(w, h), area = awArea(), tones = moodColors(3), tv = tones.map(awVivid);
+    const calm = flow.calm, lift = clamp((flow.build - 0.3) / 0.5), intense = flow.intensity, drop = flow.drop, breeze = V.breeze ?? 0.3; // lift: how far a build has got (with no kick at all the build creeps to a quarter, which isn't one)
+    awSky.bassS += (sound.bass - awSky.bassS) * Math.min(1, dt * 5); // the bass, eased, so the sun and the water breathe rather than blink
+    awSky.day = (awSky.day + (dt * TAU) / 260) % TAU; // the light warming and cooling again over about four minutes
+    const bassS = awSky.bassS, day = Math.sin(awSky.day), warm = clamp((V.golden ?? 0) * 0.85 + 0.08 * (day + 1)), dim = 1 - 0.12 * calm, lit = (c) => mix(c, [24, 64, 128], 0.2 * calm); // a calm part dims it toward a deeper blue
+    const top = lit(mix(mix([26, 100, 196], [58, 92, 168], warm), tones[0], 0.1)), middle = lit(mix(mix([88, 168, 232], [150, 158, 204], warm), tones[1], 0.08)), low = lit(mix(mix([160, 212, 240], [242, 202, 160], warm), tones[2], 0.08));
+    const near = lit(mix(mix([66, 186, 212], [120, 172, 182], warm * 0.6), tones[1], 0.12)), mid = lit(mix([22, 130, 186], tones[1], 0.1)), deep = lit(mix([6, 60, 118], tones[2], 0.08));
+    const hy = h * (V.tide ?? 0.64) + h * 0.012 * Math.sin(t * 0.045) - h * (0.004 + 0.018 * bassS), shine = clamp(0.5 + 0.18 * bassS + 0.28 * lift + 0.1 * drop - 0.24 * calm); // where the water starts (the bass lifts it a little), and how bright the sun is
+    const sx = w * ((V.sunx ?? 0.8) + 0.07 * Math.cos(awSky.day)), sy = hy * (0.2 - 0.07 * day), fishes = awFishSet(tv); // the sun wanders a little along its corner as the light changes
+    // the mouse: a soft light follows it, as if through glass, and fades when it has rested a while or gone
+    const rest = realNow - pointer.at, aimGlow = pointer.on ? (rest < 4000 ? 1 : rest < 12000 ? 0.4 : 0) : 0; // (a mouse left lying on the picture, or a phone after a tap, lets go after a while: the light fades and the bubbles pass through again)
+    if (pointer.on && awSky.glow < 0.02) { awSky.gx = pointer.x; awSky.gy = pointer.y; }
+    awSky.glow += (aimGlow - awSky.glow) * Math.min(1, dt * 3);
+    if (pointer.on) { awSky.gx += (pointer.x - awSky.gx) * Math.min(1, dt * 7); awSky.gy += (pointer.y - awSky.gy) * Math.min(1, dt * 7); }
+    const tap = pointer.tapped;
+    if (tap && tap !== awSky.tap) { awSky.tap = tap; if (awSkyTap(tap, S)) pointer.taken = true; } // (when the click made nothing, the usual ring answers it instead)
+
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = "source-over";
+    const sky = g.createLinearGradient(0, 0, 0, hy);
+    sky.addColorStop(0, rgba(top, 1)); sky.addColorStop(0.6, rgba(middle, 1)); sky.addColorStop(1, rgba(low, 1));
+    g.fillStyle = sky;
+    g.fillRect(0, 0, w, hy + h * 0.03);
+    const sun = awGlowArt([255, 226, 182]), R = S * (0.55 + 0.12 * bassS + 0.22 * lift); // the sun in its corner, breathing with the bass and brighter through a build
+    g.globalCompositeOperation = "lighter";
+    g.globalAlpha = 0.75 * shine; g.drawImage(sun, sx - R, sy - R, R * 2, R * 2);
+    g.globalAlpha = Math.min(1, (0.9 + 0.3 * kick) * shine); g.drawImage(sun, sx - R * 0.18, sy - R * 0.18, R * 0.36, R * 0.36); // (the sun's heart beats with the kick)
+    g.globalAlpha = 0.45 * shine; g.drawImage(sun, sx - w * 0.5, sy - S * 0.018, w, S * 0.036); // the flat streak a lens draws through it
+    g.globalCompositeOperation = "source-over";
+    const cover = 0.68 + 0.32 * Math.sin(awSky.day * 2 + 1); // the sky clouds over and clears again, slowly: some clouds fade out and come back
+    for (const c of awSky.clouds) { // drifting with the breeze, and gone off one side to come back on the other as another cloud
+      c.x += dt * (0.003 + 0.012 * breeze);
+      if (c.x > 1.4) Object.assign(c, awCloud(c.x - 1.8, c.k)); else if (c.x < -0.4) Object.assign(c, awCloud(c.x + 1.8, c.k));
+      const cw = Math.max(w * 0.3, S * 0.62) * c.s, ch = (cw * 180) / 384, shown = clamp(cover * 7 - c.k);
+      if (shown < 0.01) continue;
+      g.globalAlpha = 0.86 * dim * shown;
+      g.drawImage(awCloudArt(c.v), c.x * w - cw / 2, c.y * hy - ch * 0.6, cw, ch);
+    }
+    if (dt && (t > awSky.swooshAt || (flow.dropHit && awSky.swoosh >= 1))) { awSky.swoosh = 0; awSky.swooshAt = t + rnd(13, 26); awSky.flip = Math.random() < 0.5 ? 1 : -1; awSky.swooshY = rnd(0.3, 0.65); } // a soft swoosh of light sweeps through now and then, and on the drop
+    if (awSky.swoosh < 1) {
+      awSky.swoosh = Math.min(1, awSky.swoosh + dt / 4.5);
+      const p = awSky.swoosh, cy = awSky.swooshY * hy, sh = Math.max(S * 0.4, h * 0.28);
+      g.globalCompositeOperation = "lighter";
+      g.globalAlpha = Math.sin(Math.PI * p) ** 1.5 * (0.5 + 0.25 * intense) * dim;
+      g.setTransform(1, 0, 0, awSky.flip, 0, cy * (1 - awSky.flip)); // (turned upside down every other time or so)
+      g.drawImage(awSwooshArt(mix(tv[0], [200, 236, 255], 0.5)), -0.3 * w + (p - 0.5) * 0.4 * w, cy - sh / 2, w * 1.6, sh);
+      g.setTransform(1, 0, 0, 1, 0, 0);
+    }
+    // the water: its edge rocks a little, more with the bass
+    g.globalCompositeOperation = "source-over";
+    g.globalAlpha = 1;
+    const sea = g.createLinearGradient(0, hy - h * 0.01, 0, h), amp = h * (0.0025 + 0.006 * bassS), edge = new Path2D();
+    sea.addColorStop(0, rgba(near, 1)); sea.addColorStop(0.3, rgba(mid, 1)); sea.addColorStop(1, rgba(deep, 1));
+    for (let i = 0; i <= 48; i++) { const u = i / 48, y = hy + Math.sin(u * 19 + t * 0.9) * amp + Math.sin(u * 43 - t * 1.7) * amp * 0.5; if (i) edge.lineTo(u * w, y); else edge.moveTo(0, y); }
+    const body = new Path2D(edge);
+    body.lineTo(w, h); body.lineTo(0, h); body.closePath();
+    g.fillStyle = sea;
+    g.fill(body);
+    const deepH = h - hy, gleam = g.createLinearGradient(0, hy, 0, hy + deepH * 0.22); // the sky shining back off the water near its edge
+    gleam.addColorStop(0, rgba(low, 0.28 * dim)); gleam.addColorStop(1, rgba(low, 0));
+    g.globalCompositeOperation = "lighter"; g.fillStyle = gleam; g.fillRect(0, hy - h * 0.01, w, deepH * 0.22 + h * 0.01);
+    g.globalCompositeOperation = "source-over";
+    if (dt && t > awSky.fishAt) { // now and then a few fish cross under the water
+      awSky.fishAt = t + rnd(22, 44);
+      if (deepH > S * 0.12 && !awSky.fish.length) {
+        const dir = Math.random() < 0.5 ? 1 : -1, n = 3 + Math.floor(rnd(0, 3)), y0 = rnd(0.3, 0.62), len = S * rnd(0.08, 0.11), v = w * rnd(0.07, 0.1), slot = Math.floor(rnd(0, 3));
+        for (let i = 0; i < n; i++) awSky.fish.push({ x: dir > 0 ? -len * (1.5 + i * 1.7) : w + len * (1.5 + i * 1.7), y: y0 + rnd(-0.12, 0.12), dir, len: len * rnd(0.85, 1.1), v: v * rnd(0.95, 1.05), ph: rnd(0, TAU), slot: (slot + (i % 2)) % 3 });
+      }
+    }
+    for (let i = awSky.fish.length - 1; i >= 0; i--) {
+      const f = awSky.fish[i];
+      f.x += f.dir * f.v * dt * (0.8 + 0.4 * intense);
+      f.ph = (f.ph + dt * 7) % TAU;
+      if ((f.dir > 0 && f.x > w + f.len * 2) || (f.dir < 0 && f.x < -f.len * 2)) { awSky.fish.splice(i, 1); continue; }
+      awDrawFish(f.x, hy + deepH * f.y + Math.sin(t * 1.4 + f.ph * 0.3) * S * 0.01, f.len, 0.8 * dim, fishes[f.slot], Math.sin(f.ph) * 0.35, f.dir, 0.06 * Math.sin(t * 1.4 + f.ph * 0.3));
+    }
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = "lighter";
+    g.fillStyle = "#fff";
+    for (let k = 0; k < 18; k++) { // the sun's road across the water
+      const q = k / 18, y = hy + deepH * (0.01 + 0.9 * q ** 1.5), len = w * (0.012 + 0.06 * q) * (0.45 + 0.55 * Math.sin(t * 2.3 + k * 1.9) ** 2), x = sx + Math.sin(t * 1.1 + k * 2.7) * w * 0.012 * (1 + 3 * q);
+      g.globalAlpha = shine * 0.5 * (1 - q * 0.8);
+      g.fillRect(x - len / 2, y, len, Math.max(1, h * 0.002 * (1 + 2 * q)));
+    }
+    for (let i = 0; i < 64; i++) { // light glittering on the ripples, bigger nearer
+      const q = awHash(i), x = ((((awHash(i + 0.5) + t * (0.004 + 0.01 * awHash(i + 0.3)) * (breeze < 0 ? -1 : 1)) % 1) + 1) % 1) * w, on = (0.5 + 0.5 * Math.sin(t * (1.3 + 2 * awHash(i + 0.7)) + i * 2.1)) ** 6;
+      if (on < 0.03) continue;
+      g.globalAlpha = 0.45 * on * (0.5 + 0.5 * q) * (0.7 + 0.5 * drop) * dim;
+      g.fillRect(x, hy + deepH * (0.02 + 0.9 * q ** 1.6), w * (0.004 + 0.02 * q ** 1.3), Math.max(1, h * 0.0018 * (1 + 2 * q)));
+    }
+    g.globalAlpha = Math.min(1, 0.55 + 0.4 * kick) * dim; // (the bright edge of the water catches the kick)
+    g.strokeStyle = "#fff";
+    g.lineWidth = Math.max(1, h / 450);
+    g.stroke(edge);
+    g.globalCompositeOperation = "source-over";
+    if (dt && !awSky.fly && t > awSky.flyAt) { awSky.fly = { dir: Math.random() < 0.5 ? 1 : -1, p: 0, y: rnd(0.25, 0.6), ph: 0, k: Math.floor(rnd(0, 3)), long: rnd(12, 18) }; awSky.flyAt = t + rnd(30, 60); } // now and then a butterfly over it all
+    if (awSky.fly) {
+      const f = awSky.fly;
+      f.p += dt / f.long;
+      f.ph = (f.ph + dt * TAU * 4.5) % TAU;
+      if (f.p >= 1) awSky.fly = null;
+      else {
+        const x = f.dir > 0 ? -0.08 * w + 1.16 * w * f.p : 1.08 * w - 1.16 * w * f.p, y = hy * (f.y + 0.08 * Math.sin(f.p * TAU * 2.3)) + S * 0.012 * Math.sin(f.ph), k = (S * 0.07) / 96, open = 0.2 + 0.8 * Math.abs(Math.cos(f.ph)), art = awWingArt(mix(tv[f.k], [255, 255, 255], 0.15), tv[(f.k + 1) % 3]);
+        g.globalAlpha = 0.95;
+        g.setTransform(open * k, 0, 0, k, x, y); g.drawImage(art, 0, -48);
+        g.setTransform(-open * k, 0, 0, k, x, y); g.drawImage(art, 0, -48);
+        g.setTransform(1, 0, 0, 1, 0, 0);
+        g.fillStyle = "rgba(24,36,58,0.9)"; g.beginPath(); g.ellipse(x, y + S * 0.004, S * 0.0035, S * 0.018, 0, 0, TAU); g.fill();
+      }
+    }
+    // the bubbles: more as the song lifts and through a build, fewer in a calm part; a burst from below on the drop
+    const L = awSky.list, aim = Math.max(8 * area, (V.froth ?? 1) * (12 + 10 * intense + 14 * lift) * (1 - 0.45 * calm) * area); // (never fewer than about eight, so a long calm part still drifts)
+    if (dt && L.length < aim) for (let n = (aim / 12) * (1 + lift) * dt; n > Math.random(); n--) awSkyBubble(rnd(-0.05, 1.05) * w, h + S * 0.1, 1);
+    if (flow.dropHit && t - awSky.burstAt > 2) { awSky.burstAt = t; awSky.flare = 0; for (let i = 0; i < 24; i++) awSkyBubble(rnd(0.08, 0.92) * w, h + rnd(0, 0.3) * h, rnd(2.6, 3.6)); } // (a drop can land twice in a moment: once is enough)
+    const push = awSky.glow > 0.01 && pointer.on, fade = Math.exp(-dt * 1.5), up = 0.75 + 0.35 * intense + 1.1 * lift;
+    for (let i = L.length - 1; i >= 0; i--) {
+      const b = L[i];
+      b.boost += (1 - b.boost) * Math.min(1, dt * 0.6);
+      b.y -= b.rise * h * dt * b.boost * up;
+      b.x += (breeze * 0.025 * w + Math.sin(t * 0.8 + b.ph) * 0.012 * w) * dt;
+      if (push) { const dx = b.x - pointer.x, dy = b.y - pointer.y, d = Math.hypot(dx, dy) || 1, reach = S * 0.22 + b.r; if (d < reach) { const f = (1 - d / reach) ** 2 * S * 3 * dt * awSky.glow; b.px += (dx / d) * f; b.py += (dy / d) * f; } } // drifting gently away from the mouse
+      b.px *= fade; b.py *= fade;
+      b.x += b.px * dt; b.y += b.py * dt;
+      if (b.y < -b.r * 1.4 || b.x < -b.r * 3 || b.x > w + b.r * 3) L.splice(i, 1);
+    }
+    L.sort((p, q) => p.r - q.r); // the small ones are further off, so they go behind
+    const base = awBubbleArt(), sheens = [0, 1, 2].map((i) => awSheenArt(tv[i], tv[(i + 1) % 3])), orbs = [0, 1, 2].map((i) => awOrbArt(AW_GLASS[i], tv[(i + 2) % 3])), pulse = 1 + 0.08 * kick;
+    for (const b of L) {
+      const orb = awOrbness(b), r = b.r * (1 - 0.4 * orb) * pulse, wob = 0.035 * Math.sin(t * 2.2 + b.ph), rx = r * (1 + wob), ry = r * (1 - wob);
+      if (orb < 0.99) { g.globalAlpha = (1 - orb) * 0.95; g.drawImage(base, b.x - rx, b.y - ry, rx * 2, ry * 2); g.globalAlpha = (1 - orb) * 0.5; g.drawImage(sheens[b.slot], b.x - rx, b.y - ry, rx * 2, ry * 2); }
+      if (orb > 0.01) { g.globalAlpha = orb * 0.92; g.drawImage(orbs[b.slot], b.x - rx, b.y - ry, rx * 2, ry * 2); }
+    }
+    g.globalCompositeOperation = "lighter"; // each catches the light on the kick, and more near the mouse
+    const spot = awGlowArt([255, 255, 255]);
+    for (const b of L) {
+      if (b.r < S * 0.025) continue;
+      const close = push ? clamp(1 - Math.hypot(b.x - awSky.gx, b.y - awSky.gy) / (S * 0.3)) * awSky.glow : 0, a = 0.8 * kick + 0.35 * close; // (a spot of light on the bigger bubbles at each kick, the beat's main sign here)
+      if (a < 0.02) continue;
+      const r = b.r * (1 - 0.4 * awOrbness(b)) * pulse, s = r * 0.7;
+      g.globalAlpha = a;
+      g.drawImage(spot, b.x - r * 0.42 - s / 2, b.y - r * 0.48 - s / 2, s, s);
+    }
+    if (hatHit && dt && L.length) for (let k = 0; k < 3; k++) { const b = L[Math.floor(Math.random() * L.length)], a = rnd(-2.7, -0.4), r = b.r * (1 - 0.4 * awOrbness(b)); if (r > S * 0.02) twinkle(b.x + Math.cos(a) * r * 0.92, b.y + Math.sin(a) * r * 0.92, r * 1.1); } // glints along the rims on the hi-hats
+    g.globalCompositeOperation = "source-over";
+    for (let i = awSky.drops.length - 1; i >= 0; i--) { // the splash of a popped bubble, falling as it fades
+      const d = awSky.drops[i];
+      d.left -= dt / d.life;
+      if (d.left <= 0) { awSky.drops.splice(i, 1); continue; }
+      d.vy += S * 1.4 * dt; d.x += d.vx * dt; d.y += d.vy * dt;
+      g.globalAlpha = 0.9 * d.left;
+      g.drawImage(base, d.x - d.r, d.y - d.r, d.r * 2, d.r * 2);
+    }
+    g.strokeStyle = "#fff";
+    for (let i = awSky.rings.length - 1; i >= 0; i--) { // and the little ring it leaves
+      const ring = awSky.rings[i];
+      ring.age += dt;
+      const p = ring.age / 0.55;
+      if (p >= 1) { awSky.rings.splice(i, 1); continue; }
+      g.globalAlpha = 0.8 * (1 - p) ** 2;
+      g.lineWidth = Math.max(1, S * 0.006 * (1 - p));
+      g.beginPath(); g.arc(ring.x, ring.y, ring.r * (0.6 + 1.2 * eased(p)), 0, TAU); g.stroke();
+    }
+    g.globalCompositeOperation = "lighter";
+    const fx = w * 0.5 - sx, fy = h * 0.5 - sy, flareA = (0.1 + 0.08 * bassS + 0.1 * lift) * (1 - 0.6 * calm); // the lens's rings, on a line from the sun through the middle
+    [[0.45, 0.05, 0], [0.7, 0.028, 1], [1.05, 0.085, 2], [1.35, 0.04, 0], [1.7, 0.12, 1]].forEach(([at, size, k]) => { const r = S * size * (1 + 0.15 * bassS); g.globalAlpha = flareA; g.drawImage(awDiscArt(mix(tv[k], [255, 240, 210], 0.4)), sx + fx * at - r, sy + fy * at - r, r * 2, r * 2); });
+    if (awSky.flare < 1) { // on the drop the sun's flare sweeps across the picture
+      awSky.flare = Math.min(1, awSky.flare + dt / 1.8);
+      const p = eased(awSky.flare), x = sx + (w - 2 * sx) * p, y = sy + (h * 0.45 - sy) * p, a = Math.sin(Math.PI * awSky.flare);
+      g.globalAlpha = 0.4 * a; g.drawImage(sun, x - w * 0.6, y - S * 0.03, w * 1.2, S * 0.06);
+      g.globalAlpha = 0.22 * a; g.drawImage(sun, x - S * 0.3, y - S * 0.3, S * 0.6, S * 0.6);
+    }
+    if (awSky.glow > 0.01) { const r = S * 0.26; g.globalAlpha = 0.3 * awSky.glow; g.drawImage(awGlowArt(mix(tv[0], [210, 240, 255], 0.55)), awSky.gx - r, awSky.gy - r, r * 2, r * 2); }
+    g.globalAlpha = 1;
+    g.lineWidth = 1;
+    g.globalCompositeOperation = "source-over";
+    g.setTransform(1, 0, 0, 1, 0, 0);
+  }
+
+  /* Aqua: inside a bright aquarium. The rippling light is one small tile of it, worked out once, laid twice over the picture at two sizes going two ways, so where they cross it shimmers.
+     The school follows a leader round the tank and turns with it on a kick; over a long song the leader keeps finding new places to go, a far school or a big slow fish passes now and then, and the rays drift across. */
+  const awTank = { fish: [], caps: [], bubs: [], flakes: [], rings: [], weeds: [], vents: [], guest: null, at: -1, tap: null, W: 0, H: 0, lead: { x: 0, y: 0, a: 0 }, aim: { x: 0, y: 0 }, aimAt: 0, turnAt: 0, spread: 1, scatterAt: -9, away: 0, bassS: 0, day: 0, guestAt: 30, floor: null, pat: null, patFor: null, web1: [0, 0], web2: [0, 0], webIn: 0, rays: 0 };
+  const awCapsule = (k, y) => ({ k, x: rnd(0.08, 0.92) * w, y, len: rnd(0.07, 0.11), a: rnd(0, TAU), spin: rnd(-0.35, 0.35), va: 0, vx: 0, vy: 0, rise: rnd(0.018, 0.032), slot: k % 3, ph: rnd(0, TAU) });
+  function awTankStart() { // a tank of its own when it starts or the picture changes size
+    const S = Math.min(w, h), lead = { x: w * 0.5, y: h * 0.42, a: Math.random() < 0.5 ? 0 : Math.PI };
+    Object.assign(awTank, { W: w, H: h, lead, spread: 1, away: 0, floor: null, guest: null, tap: pointer.tapped, aim: { x: w * rnd(0.2, 0.8), y: h * rnd(0.25, 0.6) }, aimAt: sound.t + rnd(6, 10), guestAt: sound.t + rnd(25, 40) });
+    awTank.fish = Array.from({ length: 24 }, (_, k) => ({ k, x: lead.x + rnd(-0.2, 0.2) * S, y: lead.y + rnd(-0.1, 0.1) * S, vx: 0, vy: 0, ox: rnd(-0.32, 0.08), oy: rnd(-0.14, 0.14), len: rnd(0.8, 1.2), slot: k % 3, ph: rnd(0, TAU), face: Math.cos(lead.a) })).sort((p, q) => p.len - q.len); // (k says which come and go first as the school grows and shrinks; the bigger ones are drawn last)
+    awTank.caps = Array.from({ length: 9 }, (_, k) => awCapsule(k, rnd(0.1, 1.05) * h));
+    const order = Array.from({ length: 20 }, (_, k) => k).sort(() => Math.random() - 0.5);
+    awTank.weeds = Array.from({ length: 20 }, (_, k) => ({ rank: order[k], x: ((k + rnd(0.15, 0.85)) / 20) * w, tall: rnd(0.16, 0.42), wide: rnd(0.7, 1.3), ph: rnd(0, TAU), front: order[k] % 6 === 2, tone: Math.random(), grow: 0 }));
+    awTank.vents = [rnd(0.12, 0.3), rnd(0.42, 0.6), rnd(0.72, 0.9)].map((u) => u * w);
+    awTank.bubs.length = awTank.flakes.length = awTank.rings.length = 0;
+  }
+  function awBubbleUp(x, y, r, rise, vx = 0) { // a bubble from the floor
+    if (awTank.bubs.length < 150) awTank.bubs.push({ x, y, r, rise, vx, ph: rnd(0, TAU) });
+  }
+  let awWeb = null;
+  function awWebArt() { // the net of light that rippling water throws, worked out once for a tile that repeats without a seam: a few rows a frame, so starting costs no long frame. Nothing until it is done
+    const S = 256;
+    if (!awWeb) { const [c, x] = paper(S); awWeb = { c, x, img: x.createImageData(S, S), row: 0 }; }
+    if (awWeb.row >= S) return awWeb.c;
+    const d = awWeb.img.data, from = awWeb.row;
+    awWeb.row = Math.min(S, from + 32);
+    for (let j = from; j < awWeb.row; j++) for (let i = 0; i < S; i++) {
+      const u = i / S, v = j / S, a = TAU * (2 * u + 0.3 * Math.sin(TAU * (v + 0.15))), b = TAU * (2 * v + 0.3 * Math.sin(TAU * (u + 0.6))), e = TAU * (u + v + 0.25 * Math.sin(TAU * (2 * u - v)));
+      const on = Math.exp(-Math.abs(Math.sin(a) + Math.sin(b) + 0.8 * Math.sin(e)) * 4.5), p = (j * S + i) * 4;
+      d[p] = 235; d[p + 1] = 252; d[p + 2] = 255; d[p + 3] = Math.round(255 * on);
+    }
+    if (awWeb.row < S) return null;
+    awWeb.x.putImageData(awWeb.img, 0, 0);
+    awWeb.img = null;
+    return awWeb.c;
+  }
+  let awRay = null;
+  function awRayArt() { // one ray of sunlight coming down through the water, soft at its edges and fading as it goes down
+    if (awRay) return awRay;
+    const [c, x] = paper(64, 512), across = x.createLinearGradient(0, 0, 64, 0);
+    across.addColorStop(0, "rgba(255,255,255,0)"); across.addColorStop(0.5, "rgba(255,255,255,1)"); across.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = across; x.fillRect(0, 0, 64, 512);
+    x.globalCompositeOperation = "destination-in";
+    const down = x.createLinearGradient(0, 0, 0, 512);
+    down.addColorStop(0, "rgba(0,0,0,1)"); down.addColorStop(0.6, "rgba(0,0,0,0.35)"); down.addColorStop(1, "rgba(0,0,0,0)");
+    x.fillStyle = down; x.fillRect(0, 0, 64, 512);
+    return (awRay = c);
+  }
+  function awFloorArt(top) { // the floor of the tank: pale sand and glossy pebbles, made once for the size of the picture
+    const S = Math.min(w, h), tall = Math.ceil(h - top + 2), [c, x] = paper(w, tall), sand = x.createLinearGradient(0, 0, 0, tall);
+    sand.addColorStop(0, "rgb(208,200,170)"); sand.addColorStop(0.5, "rgb(178,182,160)"); sand.addColorStop(1, "rgb(120,150,150)");
+    x.fillStyle = sand;
+    x.beginPath(); x.moveTo(0, tall);
+    for (let i = 0; i <= 40; i++) x.lineTo((i / 40) * w, S * 0.018 * (1 + Math.sin(i * 0.7) * 0.6 + Math.sin(i * 1.9 + 1) * 0.4));
+    x.lineTo(w, tall); x.closePath(); x.fill();
+    const STONES = [[236, 236, 230], [182, 192, 198], [120, 200, 204], [232, 212, 182], [150, 170, 160]];
+    for (let i = 0, n = Math.round(46 * awArea()); i < n; i++) {
+      const px = awHash(i * 2.3) * w, py = S * 0.04 + awHash(i * 5.1) * (tall - S * 0.05), r = S * (0.008 + 0.022 * awHash(i * 7.7)) * (0.6 + (0.6 * py) / tall), tone = STONES[i % STONES.length];
+      x.fillStyle = "rgba(40,70,80,0.25)"; x.beginPath(); x.ellipse(px + r * 0.15, py + r * 0.45, r * 1.05, r * 0.55, 0, 0, TAU); x.fill(); // its shadow
+      const stone = x.createRadialGradient(px - r * 0.35, py - r * 0.35, r * 0.1, px, py, r * 1.1);
+      stone.addColorStop(0, rgba(mix(tone, [255, 255, 255], 0.6), 1)); stone.addColorStop(0.5, rgba(tone, 1)); stone.addColorStop(1, rgba(mix(tone, [30, 50, 60], 0.45), 1));
+      x.fillStyle = stone; x.beginPath(); x.ellipse(px, py, r, r * 0.68, 0, 0, TAU); x.fill();
+      x.fillStyle = "rgba(255,255,255,0.7)"; x.beginPath(); x.ellipse(px - r * 0.35, py - r * 0.3, r * 0.28, r * 0.13, -0.3, 0, TAU); x.fill();
+    }
+    return c;
+  }
+  const awCapArt = (a, b) => awArt("cap", a, 128, 56, (x, A, B) => { // a glossy gel capsule: one half colored, the other clear, a bright streak along its top
+    const pill = new Path2D();
+    pill.moveTo(30, 2); pill.lineTo(98, 2); pill.arc(98, 28, 26, -Math.PI / 2, Math.PI / 2); pill.lineTo(30, 54); pill.arc(30, 28, 26, Math.PI / 2, Math.PI * 1.5); pill.closePath();
+    x.save(); x.clip(pill);
+    const shade = x.createLinearGradient(0, 2, 0, 54);
+    shade.addColorStop(0, rgba(mix(A, [255, 255, 255], 0.45), 0.95)); shade.addColorStop(0.55, rgba(A, 0.9)); shade.addColorStop(1, rgba(mix(A, [0, 20, 40], 0.4), 0.92));
+    x.fillStyle = shade; x.fillRect(0, 0, 64, 56);
+    const clear = x.createLinearGradient(0, 2, 0, 54);
+    clear.addColorStop(0, rgba(mix(B, [255, 255, 255], 0.75), 0.75)); clear.addColorStop(1, rgba(mix(B, [255, 255, 255], 0.4), 0.55));
+    x.fillStyle = clear; x.fillRect(64, 0, 64, 56);
+    const gloss = x.createLinearGradient(0, 6, 0, 22);
+    gloss.addColorStop(0, "rgba(255,255,255,0.85)"); gloss.addColorStop(1, "rgba(255,255,255,0)");
+    x.fillStyle = gloss; x.beginPath(); x.ellipse(64, 14, 52, 8, 0, 0, TAU); x.fill();
+    x.fillStyle = rgba(mix(A, [255, 255, 255], 0.6), 0.5); x.beginPath(); x.ellipse(64, 47, 46, 4, 0, 0, TAU); x.fill();
+    x.restore();
+    x.strokeStyle = "rgba(255,255,255,0.4)"; x.lineWidth = 1.2; x.beginPath(); x.moveTo(64, 3); x.lineTo(64, 53); x.stroke();
+    x.strokeStyle = "rgba(255,255,255,0.6)"; x.lineWidth = 1.5; x.stroke(pill);
+  }, b);
+  const awPts = new Float32Array(44); // the outline of one strand of seaweed, reused for each
+  function awWeed(wd, S, rootY, t, current, tall) { // a blade of seaweed swaying from its root, narrowing as it goes up
+    const n = 10, seg = tall / n, sway = 0.24 * Math.sin(t * 0.7 + wd.ph) + 0.1 * Math.sin(t * 1.7 + wd.ph * 1.7) + current * 0.45 + 0.14 * awTank.bassS * Math.sin(wd.ph * 3);
+    let x = wd.x, y = rootY;
+    for (let i = 0; i <= n; i++) {
+      const q = i / n, turn = sway * q ** 1.2 * 1.5, half = S * 0.02 * wd.wide * (1 - 0.8 * q) * (0.85 + 0.15 * Math.sin(q * 9 + wd.ph)), nx = Math.cos(turn), ny = Math.sin(turn);
+      awPts[i * 4] = x - nx * half; awPts[i * 4 + 1] = y - ny * half; awPts[i * 4 + 2] = x + nx * half; awPts[i * 4 + 3] = y + ny * half;
+      x += Math.sin(turn) * seg; y -= Math.cos(turn) * seg;
+    }
+    g.beginPath();
+    g.moveTo(awPts[0], awPts[1]);
+    for (let i = 1; i <= n; i++) g.lineTo(awPts[i * 4], awPts[i * 4 + 1]);
+    for (let i = n; i >= 0; i--) g.lineTo(awPts[i * 4 + 2], awPts[i * 4 + 3]);
+    g.fill();
+    g.beginPath(); // the shine down its middle
+    g.moveTo((awPts[0] + awPts[2]) / 2, (awPts[1] + awPts[3]) / 2);
+    for (let i = 1; i <= n - 2; i++) g.lineTo((awPts[i * 4] + awPts[i * 4 + 2]) / 2 - S * 0.003, (awPts[i * 4 + 1] + awPts[i * 4 + 3]) / 2);
+    g.stroke();
+  }
+  function awWebLayer(scale, turn, at, alpha) { // the net of light laid over the whole picture, at a size, a turn and a place
+    const c = Math.cos(turn) * scale, s = Math.sin(turn) * scale;
+    awTank.pat.setTransform(new DOMMatrix([c, s, -s, c, at[0], at[1]]));
+    g.globalAlpha = alpha;
+    g.fillStyle = awTank.pat;
+    g.fillRect(0, 0, w, h);
+  }
+  function awTankTap(tap, S) { // a click: a capsule under it spins away; anywhere else a few flakes of food drift down and the fish come for them. It says whether anything happened
+    let hit = null;
+    for (const c of awTank.caps) {
+      if (clamp((V.caps ?? 1) * 4.5 * awArea() - c.k) < 0.3) continue;
+      const L = S * c.len, dx = tap.x - c.x, dy = tap.y - c.y, along = dx * Math.cos(c.a) + dy * Math.sin(c.a), across = -dx * Math.sin(c.a) + dy * Math.cos(c.a);
+      if (Math.abs(along) < L * 0.55 + S * 0.01 && Math.abs(across) < L * 0.25 + S * 0.01) hit = c;
+    }
+    if (hit) {
+      const dx = hit.x - tap.x, dy = hit.y - tap.y, d = Math.hypot(dx, dy) || 1;
+      hit.va += (Math.random() < 0.5 ? -1 : 1) * rnd(7, 10); hit.vx += (dx / d) * S * 0.6; hit.vy += (dy / d) * S * 0.6;
+      if (awTank.rings.length < 8) awTank.rings.push({ x: tap.x, y: tap.y, r: S * 0.03, age: 0 });
+      return true;
+    }
+    if (awTank.flakes.length >= 24) return false; // (the tank already holds as much food as it takes)
+    for (let i = 0; i < 6 && awTank.flakes.length < 24; i++) awTank.flakes.push({ x: tap.x + rnd(-1, 1) * S * 0.035, y: tap.y + rnd(-1, 1) * S * 0.02, ph: rnd(0, TAU), bites: 0, age: 0, s: S * rnd(0.009, 0.014), tone: ["#ff9a3c", "#ffd24a", "#e8604a"][i % 3] });
+    return true;
+  }
+  function awAquaFx() {
+    if (awTank.W !== w || awTank.H !== h) awTankStart();
+    const { t, kick, hatHit } = sound, dt = awStep(awTank), S = Math.min(w, h), area = awArea(), tones = moodColors(3), tv = tones.map(awVivid), floorY = h * 0.885;
+    const calm = flow.calm, lift = clamp((flow.build - 0.3) / 0.5), intense = flow.intensity, drop = flow.drop, current = V.current ?? 0, murk = V.murk ?? 0;
+    awTank.bassS += (sound.bass - awTank.bassS) * Math.min(1, dt * 5); // the bass, eased: it brightens the light in the water
+    awTank.day = (awTank.day + (dt * TAU) / 280) % TAU; // and the water itself turns a little greener and back over a few minutes
+    const day = 0.5 + 0.5 * Math.sin(awTank.day), shine = (V.shine ?? 1) * (0.75 + 0.5 * awTank.bassS + 0.2 * lift + 0.15 * drop) * (1 - 0.3 * calm), fishes = awFishSet(tv);
+    const tap = pointer.tapped;
+    if (tap && tap !== awTank.tap) { awTank.tap = tap; if (awTankTap(tap, S)) pointer.taken = true; } // (with the tank full of food, the usual ring answers instead)
+    awTank.away += ((pointer.on && realNow - pointer.at < 1500 ? 1 : 0) - awTank.away) * Math.min(1, dt * (pointer.on && realNow - pointer.at < 1500 ? 6 : 1)); // the fish keep away from a moving mouse, and come back once it rests
+
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = "source-over";
+    const water = g.createLinearGradient(0, 0, 0, h);
+    water.addColorStop(0, rgba(mix(mix(mix([96, 204, 228], [110, 214, 200], 0.25 * day), [56, 160, 200], murk), tones[0], 0.1), 1));
+    water.addColorStop(0.5, rgba(mix(mix([36, 152, 198], [20, 112, 162], murk), tones[1], 0.1), 1));
+    water.addColorStop(1, rgba(mix(mix([14, 92, 146], [6, 54, 100], murk), tones[2], 0.08), 1));
+    g.fillStyle = water;
+    g.fillRect(0, 0, w, h);
+    if (dt && !awTank.guest && t > awTank.guestAt) { awTank.guest = { far: Math.random() < 0.6, dir: Math.random() < 0.5 ? 1 : -1, p: 0, y: rnd(0.22, 0.55), slot: Math.floor(rnd(0, 3)) }; awTank.guestAt = t + rnd(40, 75); } // now and then a far school, or one big slow fish, goes by behind
+    if (awTank.guest) {
+      const o = awTank.guest;
+      o.p += dt / (o.far ? 26 : 20);
+      if (o.p >= 1) awTank.guest = null;
+      else if (o.far) {
+        const far = awFishSet([[150, 214, 232], [150, 214, 232], [150, 214, 232]])[0];
+        for (let i = 0; i < 18; i++) { const x = (o.dir > 0 ? -0.25 + 1.5 * o.p : 1.25 - 1.5 * o.p) * w + (awHash(i) - 0.5) * S * 0.5, y = h * o.y + (awHash(i + 0.4) - 0.5) * S * 0.2 + Math.sin(t * 0.9 + i) * S * 0.01; awDrawFish(x, y, S * 0.03, 0.28, far, Math.sin(t * 9 + i) * 0.3, o.dir, 0); }
+      } else awDrawFish((o.dir > 0 ? -0.15 + 1.3 * o.p : 1.15 - 1.3 * o.p) * w, h * o.y + Math.sin(t * 0.6) * S * 0.02, S * 0.2, 0.8, fishes[o.slot], Math.sin(t * 3) * 0.25, o.dir, 0.04 * Math.sin(t * 0.6));
+    }
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    const web = awWebArt();
+    if (web && (!awTank.pat || awTank.patFor !== g)) { awTank.pat = g.createPattern(web, "repeat"); awTank.patFor = g; }
+    if (awTank.pat) awTank.webIn = Math.min(1, awTank.webIn + dt * 1.5); // (it fades in the first time)
+    const net = awTank.webIn * shine;
+    const go = dt * S * (0.6 + 0.5 * intense + 0.6 * lift), s1 = (S / 256) * 0.72, s2 = s1 * 1.4; // the light's net drifts, quicker as the song lifts
+    awTank.web1[0] = (awTank.web1[0] + go * 0.03) % (256 * s1); awTank.web1[1] = (awTank.web1[1] + go * 0.018) % (256 * s1);
+    awTank.web2[0] = (awTank.web2[0] - go * 0.022) % (256 * s2); awTank.web2[1] = (awTank.web2[1] + go * 0.026) % (256 * s2);
+    g.globalCompositeOperation = "lighter";
+    if (net > 0.005) { awWebLayer(s1, 0, awTank.web1, 0.2 * net); awWebLayer(s2, 0.5, awTank.web2, 0.17 * net); }
+    g.globalCompositeOperation = "source-over"; // deeper water is darker, the light's net with it
+    const deep = g.createLinearGradient(0, h * 0.25, 0, h);
+    deep.addColorStop(0, "rgba(8,50,90,0)"); deep.addColorStop(1, rgba(mix([8, 46, 86], tones[2], 0.1), 0.5 + 0.2 * murk));
+    g.globalAlpha = 1; g.fillStyle = deep; g.fillRect(0, h * 0.25, w, h * 0.75);
+    g.globalCompositeOperation = "lighter";
+    const ray = awRayArt();
+    awTank.rays = (awTank.rays + dt * 0.006) % 1; // the rays from the sun above, swaying, and slowly drifting along
+    for (let k = 0; k < 5; k++) {
+      const x = ((((k / 5 + awTank.rays + 0.04 * Math.sin(t * 0.05 + k)) % 1) + 1) % 1) * w * 1.3 - w * 0.15, wide = S * (0.12 + 0.1 * awHash(k + 9)) * (1 + 0.2 * Math.sin(t * 0.3 + k)), lean = 0.3 + 0.05 * Math.sin(t * 0.13 + k);
+      g.globalAlpha = (0.13 + 0.06 * Math.sin(t * 0.4 + k * 1.3)) * shine;
+      g.setTransform(Math.cos(lean), Math.sin(lean), -Math.sin(lean), Math.cos(lean), x, -h * 0.04);
+      g.drawImage(ray, -wide / 2, 0, wide, h * 1.25);
+    }
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = "source-over";
+    g.globalAlpha = 1;
+    const kelp = V.kelp ?? 1, weedsN = kelp * 13 * area, greens = [mix([36, 158, 92], tones[1], 0.15), mix([92, 192, 78], tones[0], 0.12)], deepGreen = mix(greens[0], [16, 84, 96], 0.5); // the seaweed: a few in front of the fish, the rest behind
+    for (const wd of awTank.weeds) wd.grow += (clamp(weedsN - wd.rank) - wd.grow) * Math.min(1, dt * 0.5); // a strand grows in or sinks back as the dial moves
+    g.lineWidth = Math.max(1, S * 0.003);
+    g.strokeStyle = "rgba(190,250,190,0.35)";
+    for (const wd of awTank.weeds) if (!wd.front && wd.grow > 0.02) { g.fillStyle = rgba(mix(deepGreen, greens[wd.tone < 0.5 ? 0 : 1], 0.5), 1); awWeed(wd, S, floorY + S * 0.03, t, current, wd.tall * h * wd.grow * (0.75 + 0.25 * kelp)); }
+    if (!awTank.floor || awTank.floor.width !== w) awTank.floor = awFloorArt(floorY);
+    g.drawImage(awTank.floor, 0, floorY);
+    // the gel capsules rising, turning slowly; a click sends one spinning off
+    const capsN = (V.caps ?? 1) * 4.5 * area, capArts = [0, 1, 2].map((i) => awCapArt(mix([70, 214, 236], tv[i], 0.5), tv[(i + 1) % 3])), cfade = Math.exp(-dt * 1.2);
+    for (const c of awTank.caps) {
+      c.va *= Math.exp(-dt * 0.9); c.vx *= cfade; c.vy *= cfade;
+      c.a = (c.a + (c.spin + c.va) * dt) % TAU;
+      c.x += (c.vx + current * S * 0.04 + Math.sin(t * 0.5 + c.ph) * S * 0.012) * dt;
+      c.y += (c.vy - c.rise * h * (0.8 + 0.4 * intense + 0.8 * lift)) * dt;
+      const L = S * c.len;
+      if (c.y < -L || c.x < -L * 2 || c.x > w + L * 2) { Object.assign(c, awCapsule(c.k, h + L)); continue; }
+      const a = clamp(capsN - c.k);
+      if (a < 0.01) continue;
+      const k = L / 128, co = Math.cos(c.a) * k, si = Math.sin(c.a) * k;
+      g.globalAlpha = a * 0.95;
+      g.setTransform(co, si, -si, co, c.x, c.y);
+      g.drawImage(capArts[c.slot], -64, -28);
+    }
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    // the school: it follows a leader round the tank, turns together with it on a kick, scatters on the drop, and comes for food
+    const F = awTank.fish, lead = awTank.lead, N = Math.min(24, (V.school ?? 1) * 13 * area), speed = S * (0.075 + 0.05 * intense + 0.09 * lift + 0.05 * drop) * (1 - 0.3 * calm), flakes = awTank.flakes, food = flakes.length > 0;
+    if (food) { awTank.aim.x = flakes[0].x; awTank.aim.y = flakes[0].y; }
+    else if (t > awTank.aimAt || Math.hypot(awTank.aim.x - lead.x, awTank.aim.y - lead.y) < S * 0.05) { awTank.aim.x = w * rnd(0.15, 0.85); awTank.aim.y = h * rnd(0.2, 0.66); awTank.aimAt = t + rnd(6, 11); }
+    const turn = ((Math.atan2(awTank.aim.y - lead.y, awTank.aim.x - lead.x) - lead.a + Math.PI * 3) % TAU) - Math.PI;
+    lead.a += turn * Math.min(1, dt * 0.9);
+    if (dt && sound.kickHit && t > awTank.turnAt && !food) { awTank.turnAt = t + rnd(1.6, 2.8); lead.a += (turn >= 0 ? 1 : -1) * rnd(0.6, 1.2); } // on a kick now and then, the whole school swings round together
+    lead.a = Math.atan2(Math.sin(lead.a), Math.cos(lead.a));
+    const ca = Math.cos(lead.a), sa = Math.sin(lead.a), lvx = ca * speed, lvy = sa * speed * 0.7;
+    lead.x = Math.max(w * 0.08, Math.min(w * 0.92, lead.x + lvx * dt)); lead.y = Math.max(h * 0.15, Math.min(h * 0.72, lead.y + lvy * dt));
+    awTank.spread += (1 - awTank.spread) * Math.min(1, dt * 0.35);
+    if (flow.dropHit && t - awTank.scatterAt > 2) { // the drop scatters them outward and sends a ring of big bubbles up
+      awTank.scatterAt = t; awTank.spread = 2.4;
+      let cx = 0, cy = 0;
+      for (const f of F) { cx += f.x / F.length; cy += f.y / F.length; }
+      for (const f of F) { const dx = f.x - cx, dy = f.y - cy, d = Math.hypot(dx, dy) || 1; f.vx += (dx / d) * S * 1.3 + rnd(-0.2, 0.2) * S; f.vy += (dy / d) * S * 1.3 + rnd(-0.2, 0.2) * S; }
+      const rx = w * rnd(0.3, 0.7);
+      for (let i = 0; i < 12; i++) { const a = (i / 12) * TAU; awBubbleUp(rx + Math.cos(a) * S * 0.12, floorY - S * 0.04 + Math.sin(a) * S * 0.04, S * rnd(0.028, 0.045), 0.16, Math.cos(a) * S * 0.05); }
+    }
+    const fear = pointer.on && awTank.away > 0.01, top = speed * 3 + S * (food ? 0.6 : 0.4), steer = Math.min(1, dt * 2.2), room = S * 0.04;
+    const shown = Math.ceil(N); // (the fish not shown just follow along: they neither eat nor jostle the others)
+    for (let i = 0; i < F.length; i++) for (let j = i + 1; j < F.length; j++) { // each keeps a little room round itself
+      const p = F[i], q = F[j], dx = q.x - p.x, dy = q.y - p.y, d = Math.abs(dx) + Math.abs(dy);
+      if (d > room || d < 1e-3 || p.k >= shown || q.k >= shown) continue;
+      const k = ((room - d) / room) * S * 1.5 * dt; p.vx -= (dx / d) * k; p.vy -= (dy / d) * k; q.vx += (dx / d) * k; q.vy += (dy / d) * k;
+    }
+    for (const f of F) {
+      let tx, ty;
+      if (food) {
+        let best = flakes[0], bd = 1e12;
+        for (const fl of flakes) { const d = (fl.x - f.x) ** 2 + (fl.y - f.y) ** 2; if (d < bd) { bd = d; best = fl; } }
+        const round = f.k * 2.4 + t * 0.6; // they gather round it, each from its own side
+        tx = best.x + Math.cos(round) * S * 0.05; ty = best.y + Math.sin(round) * S * 0.035;
+        if (bd < (S * 0.07) ** 2 && f.k < N) best.bites += dt * 0.3; // a nibble: a few fish round a flake take it in a second or two
+      } else { const ox = f.ox * S * awTank.spread, oy = f.oy * S * awTank.spread; tx = lead.x + ca * ox - sa * oy; ty = lead.y + sa * ox + ca * oy; }
+      f.vx += ((tx - f.x) * (food ? 2.6 : 1.6) + (food ? 0 : lvx) - f.vx) * steer; f.vy += ((ty - f.y) * (food ? 2.6 : 1.6) + (food ? 0 : lvy) - f.vy) * steer;
+      if (fear) { const dx = f.x - pointer.x, dy = f.y - pointer.y, d = Math.hypot(dx, dy) || 1, reach = S * 0.26; if (d < reach) { const k = (1 - d / reach) * S * 7 * dt * awTank.away; f.vx += (dx / d) * k; f.vy += (dy / d) * k; } }
+      const v = Math.hypot(f.vx, f.vy);
+      if (v > top) { f.vx *= top / v; f.vy *= top / v; }
+      f.x = Math.max(-w * 0.1, Math.min(w * 1.1, f.x + f.vx * dt)); f.y = Math.max(h * 0.06, Math.min(floorY - S * 0.03, f.y + f.vy * dt));
+      if (Math.abs(f.vx) > S * 0.01) f.face += (Math.sign(f.vx) - f.face) * Math.min(1, dt * 4); // turning round, it is seen nose on for a moment
+      f.ph = (f.ph + dt * (5 + (10 * v) / S)) % TAU;
+      const a = clamp(N - f.k);
+      if (a < 0.01) continue;
+      const face = Math.abs(f.face) < 0.08 ? (f.face < 0 ? -0.08 : 0.08) : f.face, tilt = Math.max(-0.5, Math.min(0.5, Math.atan2(f.vy, Math.abs(f.vx) + S * 0.01))) * (face < 0 ? -1 : 1);
+      awDrawFish(f.x, f.y, S * 0.085 * f.len, a, fishes[f.slot], Math.sin(f.ph) * 0.4, face, tilt);
+    }
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = 1;
+    for (const wd of awTank.weeds) if (wd.front && wd.grow > 0.02) { g.fillStyle = rgba(greens[wd.tone < 0.5 ? 0 : 1], 1); awWeed(wd, S, h + S * 0.02, t, current, wd.tall * h * 1.1 * wd.grow * (0.75 + 0.25 * kelp)); }
+    // the bubbles: a trickle from the vents in the floor, a stream from them on every hi-hat, more through a build
+    if (dt) for (const vx of awTank.vents) {
+      for (let n = (0.6 + 2.5 * lift) * dt; n > Math.random(); n--) awBubbleUp(vx + rnd(-1, 1) * S * 0.01, floorY + S * 0.01, S * rnd(0.004, 0.01), rnd(0.12, 0.2));
+      if (hatHit) awBubbleUp(vx + rnd(-1, 1) * S * 0.006, floorY + S * 0.01, S * rnd(0.004, 0.009) * (0.8 + 0.4 * hatHit), rnd(0.16, 0.24));
+    }
+    const B = awTank.bubs, bub = awBubbleArt(), sheen = awSheenArt(tv[0], tv[1]);
+    for (let i = B.length - 1; i >= 0; i--) {
+      const b = B[i];
+      b.y -= b.rise * h * dt * (1 + 0.4 * kick); b.vx *= Math.exp(-dt * 0.5);
+      b.x += (b.vx + Math.sin(t * 3 + b.ph) * S * 0.03 + current * S * 0.03) * dt;
+      if (b.y < S * 0.02 - b.r) { B.splice(i, 1); continue; } // they burst at the top
+      g.globalAlpha = 0.9;
+      g.drawImage(bub, b.x - b.r, b.y - b.r, b.r * 2, b.r * 2);
+      if (b.r > S * 0.015) { g.globalAlpha = 0.5; g.drawImage(sheen, b.x - b.r, b.y - b.r, b.r * 2, b.r * 2); }
+    }
+    for (let i = flakes.length - 1; i >= 0; i--) { // the food, sinking and swaying; a fish that reaches it takes it in a few nibbles
+      const fl = flakes[i];
+      fl.age += dt; fl.y += S * 0.05 * dt; fl.x += Math.sin(t * 1.3 + fl.ph) * S * 0.02 * dt;
+      if (fl.bites >= 1 || fl.y > floorY || fl.age > 14) { if (fl.bites >= 1) awBubbleUp(fl.x, fl.y, S * 0.005, 0.2); flakes.splice(i, 1); continue; }
+      const a = fl.ph + fl.age * 1.5, c = Math.cos(a), s = Math.sin(a);
+      g.globalAlpha = Math.min(1, (14 - fl.age) / 2);
+      g.setTransform(c, s, -s, c, fl.x, fl.y);
+      g.fillStyle = fl.tone;
+      g.fillRect(-fl.s / 2, -fl.s / 3, fl.s, fl.s * 0.66);
+    }
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = "lighter"; // the surface seen from below, rippling, and the net of light faintly over everything
+    g.globalAlpha = 0.16;
+    g.fillStyle = "#fff";
+    const surface = new Path2D();
+    surface.moveTo(0, 0);
+    for (let i = 0; i <= 32; i++) surface.lineTo((i / 32) * w, h * 0.035 + Math.sin(i * 0.9 + t * 1.2) * h * 0.006 + Math.sin(i * 2.3 - t * 1.9) * h * 0.003);
+    surface.lineTo(w, 0); surface.closePath();
+    g.fill(surface);
+    if (net > 0.005) awWebLayer(s1 * 0.8, -0.3, awTank.web2, 0.1 * net);
+    g.strokeStyle = "#fff";
+    for (let i = awTank.rings.length - 1; i >= 0; i--) { // the swirl a spun capsule leaves
+      const ring = awTank.rings[i];
+      ring.age += dt;
+      const p = ring.age / 0.6;
+      if (p >= 1) { awTank.rings.splice(i, 1); continue; }
+      g.globalAlpha = 0.5 * (1 - p) ** 2;
+      g.lineWidth = Math.max(1, S * 0.004 * (1 - p));
+      g.beginPath(); g.arc(ring.x, ring.y, ring.r * (1 + 2 * eased(p)), 0, TAU); g.stroke();
+    }
+    g.globalAlpha = 1;
+    g.lineWidth = 1;
+    g.globalCompositeOperation = "source-over";
+    g.setTransform(1, 0, 0, 1, 0, 0);
+  }
+  function awReset(next) { if (next === "aero") awSky.W = 0; if (next === "aqua") awTank.W = 0; } // a fresh sky, or a fresh tank, for the one that is starting: the one going away is left as it was, so it can go on moving while the change fades
+  /* ==== aerowater: end ==== */
+  const DRAW = { aqua: awAquaFx, aero: awAeroFx, beings: beingsFx, life: livingGrid, places: placesFx, arcade: arcadeFx, runner: runnerFx, forms: formsFx, faces, ribbon, silk, helix, strings, bars, mirror, leds, terrain, scope, trails, tunnel, vortex, prism, ripple, comets, stars: starfield, whirl, dust, links, fireworks, halo, sun, rings, mandala, rays, space, warp: space, drift: space, orbit: space, visitors: space, well,
     kaleido, plasma, fractal, julia, mandel, newton, ocean, neonroad, aurora, tube: tubeFx, heads: headsFx, sphere: sphereFx, solids: solidsFx, city: cityFx };
 
   /* From one effect to another. The change waits for the next frame, which draws the old picture once more with nobody visiting and keeps it.
@@ -9512,6 +10200,7 @@ window.Effects = (() => {
     runner.fresh = true;
     placeSt.world = ""; placeSt.over = 1; placeSt.gT = Math.max(placeSt.gT, 12); // Places opens straight in the place for the music playing now: no wipe from where it was last time, and no grand thing left half done
     lifeNow.grid = null; // the living grid plants a new garden each time it is shown
+    awReset(next); // Frutiger Aero starts with a fresh sky, and Aqua with a fresh tank
     afterImages.ghosts.length = 0; // the last effect's after-images go with it, and a fold starts open
     afterImages.rate = afterImages.span = 0;
     trippy.fold = 0;
@@ -9730,7 +10419,7 @@ window.Effects = (() => {
   }
   addEventListener("resize", () => { if (name) fit(); });
   return {
-    names: [["ribbon", "Ribbon"], ["bars", "Bars"], ["trails", "Trails"], ["stars", "Stars"], ["halo", "Halo"], ["space", "Space"], ["trip", "Psychedelic"], ["journey", "Journeys"], ["worlds", "3D"], ["visions", "Visions"], ["pixel", "Pixel"], ["recipes", "Recipes"]],
+    names: [["ribbon", "Ribbon"], ["bars", "Bars"], ["trails", "Trails"], ["stars", "Stars"], ["halo", "Halo"], ["space", "Space"], ["trip", "Psychedelic"], ["journey", "Journeys"], ["worlds", "3D"], ["visions", "Visions"], ["pixel", "Pixel"], ["aero", "Aero"], ["recipes", "Recipes"]],
     styles: STYLES,
     show(next) {
       if (!canvas.hidden && name) { pending = next === name ? "" : next; return; } // already showing one: it changes on the next frame, from how it looks then
