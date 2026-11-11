@@ -125,7 +125,7 @@ window.Effects = (() => {
 
   /* How the song is going, from the sound: in its groove, calm (no kick for a while), building (holding back while the highs climb) or dropping (the kick back after a break),
      and how intense this moment is next to the rest of the song. Every effect follows it: calm slows things down, a build sends sparks up faster and faster, and a drop lands with a flash and a wave. */
-  const flow = { part: "groove", intensity: 0.5, build: 0, calm: 0, drop: 0, dropHit: 0, since: 9, fast: 0, slow: 0, hiFast: 0, hiSlow: 0, pace: 1, bpm: 0, gaps: [], clock: 0, kickAt: 0, steady: 0, lead: 0, leadHit: 0, leadArmed: true, tune: 0, tuneHit: 0, tuneArmed: true, tone: 0, flux: 0, floor: 0.19, bare: 0.13,
+  const flow = { grooved: false, part: "groove", intensity: 0.5, build: 0, calm: 0, drop: 0, dropHit: 0, since: 9, fast: 0, slow: 0, hiFast: 0, hiSlow: 0, pace: 1, bpm: 0, gaps: [], clock: 0, kickAt: 0, steady: 0, lead: 0, leadHit: 0, leadArmed: true, tune: 0, tuneHit: 0, tuneArmed: true, tone: 0, flux: 0, floor: 0.19, bare: 0.13,
     thump: 0, gone: 9, asked: 9, watch: 0, peak: 0, counted: false, due: 0, run: 0, spare: 0, beat: 0, under: 0 }; // this line is kickBack's
   sound.flow = flow;
   /* The kick coming back after a break, which is what a drop is. A break is seldom empty: toms, a bass note or a soft kick thump along in it, and the first of them used to be taken for the kick, so the drop came early.
@@ -145,11 +145,12 @@ window.Effects = (() => {
       flow.counted = true;
       flow.run = flow.gone < 1.25 ? flow.run + 1 : 1;
       if (flow.run >= 3) flow.spare = 0; // the kick is running: the break is over
-      flow.due = flow.gone > 2.6 ? 2 : flow.spare > 0 && flow.gone > 1.1 ? 1 : 0;
+      const earned = flow.grooved || flow.build > 0.35; // a drop is earned within the song: once it has been in its groove, or through a build. The gap between two songs, or a song that starts on its kick, is not a break
+      flow.due = earned && flow.gone > 2.6 ? 2 : flow.spare > 0 && flow.gone > 1.1 ? 1 : 0;
       flow.gone = 0;
     }
     if (flow.due && !(low > 0 && flow.beat >= 4 && flow.peak < 1.3 * flow.under)) { back = true; flow.spare = flow.due > 1 ? (low > 0 ? 2 : 0) : flow.spare - 1; flow.due = 0; } // not at the end of a steady run of smaller hits that this one is no bigger than: then it's what's usual that drifted, and nothing dropped
-    if (flow.counted && jump && flow.asked > 2.6) back = true;
+    if (flow.counted && jump && flow.asked > 2.6 && (flow.grooved || flow.build > 0.35)) back = true;
     flow.watch -= dt;
     if (flow.watch <= 0 && flow.peak > 0) { // the moment is over, and what's usual takes it in: quickly from a bigger kick, slowly from a smaller one, and hardly at all from a hit that didn't count
       if (flow.counted) { flow.thump += (flow.peak - flow.thump) * (!flow.thump ? 1 : flow.peak > flow.thump ? 0.3 : 0.05); flow.beat = 0; }
@@ -185,7 +186,8 @@ window.Effects = (() => {
     flow.hiFast = ease(high, flow.hiFast, 0.8);
     flow.hiSlow = flow.hiSlow ? ease(high, flow.hiSlow, Math.min(6, heardFor)) : high;
     const kicking = flow.since < 1.4, rising = flow.hiFast - flow.hiSlow;
-    flow.steady = flow.gone < 1.4 ? flow.steady + dt : 0; // how long the song's own kick has been running. Past eight seconds it's in its groove, and highs that climb there (a hat coming in, a filter opening) aren't a build: nothing is being held back
+    flow.steady = flow.gone < 1.4 ? flow.steady + dt : 0;
+    if (flow.steady > 8) flow.grooved = true; // this song has been in its groove: from now on the kick coming back after a break is a drop // how long the song's own kick has been running. Past eight seconds it's in its groove, and highs that climb there (a hat coming in, a filter opening) aren't a build: nothing is being held back
     if (back) { flow.drop = 1; flow.dropHit = 1; flow.build = 0; }
     flow.drop = Math.max(0, flow.drop - dt / (flow.gone > 1.4 ? 2 : 12)); // a drop is felt for about twelve seconds, or two once the kick has stopped again: a lone boom isn't one
     flow.build = kicking && flow.drop > 0.2 ? Math.max(0, flow.build - dt) : clamp(flow.build + dt * (rising > 0.015 && flow.steady < 8 ? 0.14 + rising * 4 : flow.since > 2 ? (flow.build < 0.25 ? 0.01 : -0.03) : -0.2)); // with no kick it creeps up, but only to just under where a "build" starts: music without a kick isn't one long build. And a build that has stopped climbing ebbs away slowly, so a held top before the drop still counts
@@ -9587,14 +9589,18 @@ window.Effects = (() => {
     pixelDone(inPixels);
   }
 
-  /* Morph: the effect changes into another by itself now and then. It waits for a kick, and best of all for the beat coming back after a break. */
+  /* Morph: the effect changes into another by itself now and then. Never just after a drop, which is the song's big moment and stays with the effect it landed on; best of all in a breakdown,
+     or on a kick as a build begins, so that the drop lands on the new one; otherwise on a kick, every minute or so. */
   let wanders = null;
-  const roam = { on: 0, due: 60 };
+  const roam = { on: 0, due: 60, sinceDrop: 99 };
   function wander(real) {
-    const kick = sound.kickHit, back = flow.dropHit;
+    const kick = sound.kickHit;
+    roam.sinceDrop = flow.dropHit ? 0 : Math.min(99, roam.sinceDrop + real);
     if (!wanders || pending || morph || !hearing) return; // only while the music plays
     roam.on += real;
-    if ((back && roam.on > 25) || (kick && roam.on > roam.due) || roam.on > roam.due + 20) { roam.on = 0; roam.due = rnd(40, 80); wanders(); }
+    if (roam.sinceDrop < 20) return;
+    const waiting = flow.part === "calm" || (flow.part === "build" && flow.build < 0.55 && kick); // a breakdown, or a build just begun
+    if ((waiting && roam.on > 25) || (kick && roam.on > roam.due) || roam.on > roam.due + 20) { roam.on = 0; roam.due = rnd(40, 80); wanders(); }
   }
 
   /* Visitors on the app itself, now and then: a saucer borrows a cover and gives it back, a face peeks over the play bar, a cow gets taken from it,
@@ -9752,7 +9758,7 @@ window.Effects = (() => {
       if (how === "down") pointer.tap = { x: pointer.x, y: pointer.y, at: realNow };
     },
     mood(next) { mood = next || ""; }, // what's playing decides who comes by
-    song(text, kind) { if ((text || "") !== nowSong) { flow.floor = 0.19; flow.bare = 0.13; flow.since = Math.max(flow.since, 1.4); flow.thump = 0; flow.spare = 0; bandNewSong(); acidNewSong(); } nowSong = text || ""; genre = typeof kind === "string" ? kind : ""; }, // kind: the song's genres in words ("Acid, Techno"), for the effects that go by the kind of music. The name is for the cockpit's news, and a new song's usual is learned afresh: the last song's kick isn't this one's
+    song(text, kind) { if ((text || "") !== nowSong) { flow.floor = 0.19; flow.bare = 0.13; flow.since = Math.max(flow.since, 1.4); flow.thump = 0; flow.spare = 0; flow.grooved = false; bandNewSong(); acidNewSong(); } nowSong = text || ""; genre = typeof kind === "string" ? kind : ""; }, // kind: the song's genres in words ("Acid, Techno"), for the effects that go by the kind of music. The name is for the cockpit's news, and a new song's usual is learned afresh: the last song's kick isn't this one's
     words: ["warp", "stop", "moo", "aliens"],
     word(what) { // typed on the keyboard, while a picture is showing
       if (!name) return;
