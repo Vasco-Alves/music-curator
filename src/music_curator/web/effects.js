@@ -160,9 +160,9 @@ window.Effects = (() => {
     return back;
   }
   let acidGenre = null, acidKind = false;
-  function acidMusic() { // whether the song is one a 303 is listened for in: acid of every kind (acid house, acid techno, acid trance...) and hard trance, by its genres, or anything set to the acid mood. Elsewhere the ear can mistake another sound for a 303
-    if (genre !== acidGenre) { acidGenre = genre; const words = " " + genre.toLowerCase().replace(/[^a-z0-9]+/g, " ") + " "; acidKind = words.includes(" acid") || words.includes(" hard trance "); }
-    return acidKind || mood === "acid";
+  function acidMusic() { // whether the song is one a 303 is listened for in: acid of every kind (acid house, acid techno, acid trance...), hard trance, goa and psytrance, by its genres, or anything set to the acid or psy mood. Elsewhere the ear can mistake another sound for a 303
+    if (genre !== acidGenre) { acidGenre = genre; const words = " " + genre.toLowerCase().replace(/[^a-z0-9]+/g, " ") + " "; acidKind = [" acid", " hard trance ", " goa ", " psy trance ", " psytrance ", " psychedelic trance ", " full on "].some((w) => words.includes(w)); }
+    return acidKind || mood === "acid" || mood === "psy";
   }
   function follow(heard, hit, dt, low) {
     flow.dropHit = 0;
@@ -170,7 +170,7 @@ window.Effects = (() => {
     flow.leadHit = flow.tuneHit = flow.acidHit = 0;
     if (!heard) return; // paused: it stays as it was
     acidHear(dt); // whether a 303 line is squelching just now: flow.acid, acidAt and acidHit
-    if (!acidMusic()) flow.acid = flow.acidHit = 0; // only in acid and hard trance: the singer, and everything else that answers the 303, keep away from other music
+    if (!acidMusic()) flow.acid = flow.acidHit = 0; // only in acid, hard trance, goa and psytrance: the singer, and everything else that answers the 303, keep away from other music
     bandHear(dt, hit); // the ears for claps and rolls and for risers: flow.clap, clapOn, clapEvery, roll, rollRate, rollHit, riser, riserAt, riserGone and riserFor
     let all = 0, high = 0;
     for (let b = 0; b < BANDS; b++) all += raw[b];
