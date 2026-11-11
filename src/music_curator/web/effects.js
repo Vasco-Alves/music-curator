@@ -10665,7 +10665,7 @@ window.Effects = (() => {
   /* ==== nightcore: end ==== */
   /* ==== aerosun: begin ==== */
   /* Aero, its sunny side. DORFic: daylight futurism, as on posters and record sleeves of the early two-thousands: a warm white page with a sun disc and rings round it, thick orange and yellow swooshes,
-     thin grey lines with dots along them, a panel of fine dots and a few sharp shards, all flat and clean. Frutiger Eco: a sunny green world: glossy leaves, dewdrops, light through the trees,
+     thin grey lines with dots along them, a panel of fine dots and a few sharp shards, all flat and clean (and in the app's dark theme the same at night, on black). Frutiger Eco: a sunny green world: glossy leaves, dewdrops, light through the trees,
      a clear stream, white turbines on a far hill and dandelion seeds on the wind.
      Both keep their own colors first and let the record's or the mood's in as accents. Both answer the mouse: over them things lean or blow away, and a click grows something where it lands. */
   const asClock = { dorfic: -1, eco: -1 }; // when each was last drawn (the clock, in ms): a picture can be drawn twice in one frame, and the second time nothing moves on
@@ -10686,14 +10686,17 @@ window.Effects = (() => {
   const asLift = () => (flow.part === "build" ? Math.max(0.4, flow.build) : clamp((flow.build - 0.35) / 0.4)); // how much of a build is on (with no kick at all the build creeps up to a quarter and sits there, which is no build)
   FOLK_OF.dorfic = ["shapes", "astronaut", "shapes", "saucer"]; // glass shapes and a spaceman suit a sunny future; nothing from the deep sea
   FOLK_OF.eco = ["petals", "shapes", "petals", "saucer"]; // petals on the wind, now and then a glass shape, and once in a while a saucer over the fields
-  const asPale = new Set(["dorfic", "eco"]); // the pale pictures: on these drawFlow leaves out a build's rising sparks of light, which look like rain on a bright sky, and keeps the drop's white flash faint, as it would otherwise turn the whole picture white
+  const asPale = { has: (key) => key === "eco" || (key === "dorfic" && asDorf.night < 0.5) }; // the pale pictures: on these drawFlow leaves out a build's rising sparks of light, which look like rain on a bright sky, and keeps the drop's white flash faint, as it would otherwise turn the whole picture white. DORFic is pale only by day: in the app's dark theme it is drawn at night, on black
 
   /* DORFic. The sun disc sits where the version puts it and wanders slowly over a song; rings turn round it, swooshes sweep round it on tilted ovals, each coming and going in its own time,
-     and grey lines are drawn and taken away again across the page. Later in the day (a dial, and a slow swing over a few minutes) the oranges deepen. */
+     and grey lines are drawn and taken away again across the page. Later in the day (a dial, and a slow swing over a few minutes) the oranges deepen.
+     In the app's light theme it is day, on a warm white page; in its dark theme it is night: the page is black, the sun lights the dark round it, the swooshes glow,
+     the lines and the ink turn to light and far-off lights come and go, much as Dark Aero is Aero's night. */
   const AS_ORANGE = [255, 116, 22], AS_YELLOW = [255, 192, 30], AS_AMBER = [255, 150, 44], AS_GREY = [148, 146, 142], AS_INK = [38, 36, 42], AS_PAPER = [252, 250, 246], AS_NO_DASH = [];
+  const AS_NIGHT_GREY = [116, 110, 104], AS_NIGHT_INK = [236, 230, 222]; // at night the grey lines and the ink are light on the black, about as far from it as they are from the white by day
   const AS_SHADES = [-0.26, -0.13, 0, 0.13, 0.26]; // how much darker or lighter a shard's face is than its color
-  const asDorf = { w: 0, h: 0, arcs: [], swooshes: [], rails: [], shards: [], ripples: [], pulses: [], blooms: [], bits: [], burst: 9, burstTurn: 0, spinKick: 0, lift: 0, swell: 0, panel: { x: 0, y: 0, tx: 0, ty: 0, due: 0 }, grid: null, gridFor: 0, dash: [8, 5], faces: [], mouse: { x: 0, y: 0, vx: 0, vy: 0, near: 0, tapAt: -1 }, tap: null };
-  const asAt = [0, 0, 0, 0], asEdge = new Float32Array(41 * 4); // a place along a line (x, y and which way it goes), and a swoosh's two edges, worked out into these each time
+  const asDorf = { w: 0, h: 0, arcs: [], swooshes: [], rails: [], shards: [], ripples: [], pulses: [], blooms: [], bits: [], burst: 9, burstTurn: 0, spinKick: 0, lift: 0, swell: 0, panel: { x: 0, y: 0, tx: 0, ty: 0, due: 0 }, grid: null, gridFor: 0, gridNight: false, dash: [8, 5], faces: [], stars: [], night: -1, mouse: { x: 0, y: 0, vx: 0, vy: 0, near: 0, tapAt: -1 }, tap: null }; // (night: 0 by day, 1 at night, between while the theme changes, and below 0 until the first frame after a fresh page)
+  const asAt = [0, 0, 0, 0], asEdge = new Float32Array(41 * 4), asMid = new Float32Array(41 * 5); // a place along a line (x, y and which way it goes), a swoosh's two edges, and its middle line with which way is across it and how thick it is there (for its glow at night), worked out into these each time
   function asSwoosh(i, done = 0) { // one of the big curved strokes: part of a tilted oval near the sun, thick at its head and thin at its tail, swept in and later swept away again
     const life = rnd(14, 30), sweep = i === 0, dir = Math.random() < 0.5 ? 1 : -1, span = sweep ? rnd(1.2, 2) : rnd(1.2, 2.5), below = Math.random() < 0.7 ? 1 : -1; // the first is the big one: a wide band over the top (or under the bottom) of an oval centred well below (or above) the sun
     return { i, a: sweep ? rnd(1.3, 1.8) : rnd(0.55, 1.2), b: sweep ? rnd(0.5, 0.8) : rnd(0.14, 0.5), tilt: sweep ? rnd(-0.25, 0.25) : rnd(-0.5, 0.5), dx: rnd(-0.3, 0.3), dy: sweep ? below * rnd(0.45, 0.7) : rnd(-0.16, 0.16), start: sweep ? -below * Math.PI / 2 - (dir * span) / 2 + rnd(-0.3, 0.3) : rnd(0, TAU), span, thick: [0.1, 0.085, 0.07, 0.06, 0.08, 0.02, 0.045][i % 7] * rnd(0.85, 1.15), tone: [0, 1, 5, 3, 0, 4, 1][i % 7], dir, rate: sweep ? rnd(0.02, 0.05) : rnd(0.04, 0.11), life, age: life * done, flex: 0, flexV: 0 };
@@ -10732,21 +10735,22 @@ window.Effects = (() => {
     D.swooshes = Array.from({ length: 7 }, (_, i) => asSwoosh(i, rnd(0.15, 0.85)));
     D.rails = Array.from({ length: 7 }, () => asRail(rnd(0.1, 0.6)));
     D.shards = Array.from({ length: 16 }, (_, i) => asShard(i));
-    D.ripples.length = D.pulses.length = D.blooms.length = D.bits.length = 0;
+    D.ripples.length = D.pulses.length = D.blooms.length = D.bits.length = D.stars.length = 0; // (the far-off lights are only made when night first comes)
     D.burst = 9; D.spinKick = 0;
+    D.night = -1; // a fresh page starts straight away as the theme is, with no fade from day to night
     D.dash = [m * 0.022, m * 0.013];
     D.panel.due = 0;
   }
-  function asDorfTones(tones, dusk) { // the day's colors: orange, yellow, grey, the accent, ink, amber and paper white, leaning to the mood (redder for hardcore, greener for acid, softer for trance) and later in the day to a deeper orange
+  function asDorfTones(tones, dusk, night) { // the day's colors: orange, yellow, grey, the accent, ink, amber and paper white, leaning to the mood (redder for hardcore, greener for acid, softer for trance) and later in the day to a deeper orange; at night the grey and the ink turn light
     let o = AS_ORANGE, y = AS_YELLOW, a = AS_AMBER;
     if (mood === "hard") { o = mix(o, [228, 40, 32], 0.55); y = mix(y, [255, 116, 46], 0.5); a = mix(a, [214, 58, 44], 0.45); }
     else if (mood === "acid") { y = mix(y, [222, 236, 36], 0.5); a = mix(a, [176, 214, 40], 0.35); }
     else if (mood === "euphoric") { o = mix(o, [255, 150, 140], 0.3); y = mix(y, [255, 224, 150], 0.35); a = mix(a, [246, 164, 206], 0.4); }
     o = mix(o, [222, 70, 34], 0.3 * dusk);
     y = mix(y, [255, 156, 40], 0.3 * dusk);
-    return [o, y, AS_GREY, mood === "psy" ? tones[0] : mix(tones[0], o, mood ? 0.15 : 0.25), AS_INK, a, AS_PAPER];
+    return [o, y, mix(AS_GREY, AS_NIGHT_GREY, night), mood === "psy" ? tones[0] : mix(tones[0], o, mood ? 0.15 : 0.25), mix(AS_INK, AS_NIGHT_INK, night), a, AS_PAPER];
   }
-  function asSwooshDraw(S, sx, sy, m, tall, shown, P, M) { // one swoosh: its middle line round its oval, bent toward the mouse, and the two edges either side of it as thick as it is there
+  function asSwooshDraw(S, sx, sy, m, tall, shown, P, M, night) { // one swoosh: its middle line round its oval, bent toward the mouse, and the two edges either side of it as thick as it is there (and at night a glow round it)
     const A = S.a * (tall ? w * 0.75 : Math.max(w, h) * 0.5), B = S.b * (tall ? h * 0.4 : m * 0.5) * (1 + 0.14 * S.flex), tilt = S.tilt, ct = Math.cos(tilt), st = Math.sin(tilt), cx = sx + S.dx * w, cy = sy + S.dy * h * (tall ? 1.6 : 1); // on a tall picture, as on a phone, they still sweep across it, and spread further down
     const head = eased(clamp(S.age / 1.8)), tail = eased(clamp((S.age - S.life + 2) / 2)), wide = (head - tail) || 1e-3, thick = S.thick * m * (V.swish ?? 1) ** 0.5 * (1 + 0.1 * S.flex) * (1 - 0.3 * flow.calm), sigma = 2 * (0.26 * m) ** 2, N = 40;
     if (head - tail < 0.01) return;
@@ -10756,6 +10760,21 @@ window.Effects = (() => {
       const gx = tx * ct - ty * st, gy = tx * st + ty * ct, gl = Math.hypot(gx, gy) || 1, nx = -gy / gl, ny = gx / gl, q = k / N, half = 0.5 * thick * Math.sin(Math.PI * q) ** 0.8 * (0.3 + 0.7 * q);
       if (M.near > 0.01) { const dx = M.x - x, dy = M.y - y, pull = 0.55 * M.near * Math.exp(-(dx * dx + dy * dy) / sigma); x += dx * pull; y += dy * pull; } // the mouse draws it toward itself
       asEdge[k * 4] = x + nx * half; asEdge[k * 4 + 1] = y + ny * half; asEdge[k * 4 + 2] = x - nx * half; asEdge[k * 4 + 3] = y - ny * half;
+      asMid[k * 5] = x; asMid[k * 5 + 1] = y; asMid[k * 5 + 2] = nx; asMid[k * 5 + 3] = ny; asMid[k * 5 + 4] = half;
+    }
+    g.fillStyle = rgba(P[S.tone], 1);
+    if (night > 0.01 && S.tone !== 4) { // at night a glow round it first, as round a lit tube: the same stroke twice more, wider and faint, adding its light to whatever is under it
+      g.globalCompositeOperation = "lighter";
+      for (let layer = 0; layer < 2; layer++) {
+        const grow = m * (layer ? 0.009 : 0.024);
+        g.beginPath();
+        for (let k = 0; k <= N; k++) { const i = k * 5, r = asMid[i + 4] + grow * Math.sin((Math.PI * k) / N) ** 0.35; g.lineTo(asMid[i] + asMid[i + 2] * r, asMid[i + 1] + asMid[i + 3] * r); }
+        for (let k = N; k >= 0; k--) { const i = k * 5, r = asMid[i + 4] + grow * Math.sin((Math.PI * k) / N) ** 0.35; g.lineTo(asMid[i] - asMid[i + 2] * r, asMid[i + 1] - asMid[i + 3] * r); }
+        g.closePath();
+        g.globalAlpha = (layer ? 0.1 : 0.05) * shown * night;
+        g.fill();
+      }
+      g.globalCompositeOperation = "source-over";
     }
     g.beginPath();
     g.moveTo(asEdge[0], asEdge[1]);
@@ -10763,7 +10782,6 @@ window.Effects = (() => {
     for (let k = N; k >= 0; k--) g.lineTo(asEdge[k * 4 + 2], asEdge[k * 4 + 3]);
     g.closePath();
     g.globalAlpha = 0.93 * shown;
-    g.fillStyle = rgba(P[S.tone], 1);
     g.fill();
     if (S.tone === 4 || thick < m * 0.02) return;
     g.globalAlpha = 0.4 * shown; // a clean shine along its outer side
@@ -10786,10 +10804,14 @@ window.Effects = (() => {
   function asDorficFx() { // DORFic: the kick ripples the rings and flexes the swooshes, hi-hats run dots along the lines, the bass swells the sun, a build turns the swooshes faster and adds rings, and the drop throws out a sunburst and sets the shards spinning
     const D = asDorf, dt = asStep("dorfic"), { t, kickHit, hatHit } = sound, m = Math.min(w, h), tall = h > w * 1.15, M = D.mouse;
     if (D.w !== w || D.h !== h) asDorfSet();
+    const want = document.documentElement.dataset.theme === "light" ? 0 : 1; // day in the app's light theme, night in its dark one, where a white page would show through grey behind the light words
+    if (D.night < 0) D.night = want;
+    else if (D.night !== want) D.night = want > D.night ? Math.min(want, D.night + dt / 1.2) : Math.max(want, D.night - dt / 1.2); // the theme changed while it is on: the page darkens or lightens over a second and a bit, never at once
+    const night = eased(D.night), day = 1 - night; // (eased, so the change starts and ends softly)
     asMouse(M, dt);
     D.lift += (asLift() - D.lift) * (1 - Math.exp(-dt * 1.2)); // eased, so the drop doesn't stop the build dead
     D.swell += (sound.bass - D.swell) * (1 - Math.exp(-dt * 9));
-    const dusk = clamp((V.dusk ?? 0) + 0.22 * Math.sin(t * 0.021)), tones = moodColors(3), P = asDorfTones(tones, dusk), lift = D.lift;
+    const dusk = clamp((V.dusk ?? 0) + 0.22 * Math.sin(t * 0.021)), tones = moodColors(3), P = asDorfTones(tones, dusk, night), lift = D.lift;
     const way = V.sunway ?? 0.64, roam = 0.1 * Math.sin(t * 0.019) + 0.05 * Math.sin(t * 0.047 + 2), sx = tall ? w * (0.5 + (way - 0.5) * 0.8 + 1.2 * roam) : w * (way + roam), sy = h * (tall ? 0.3 + 0.06 * Math.sin(t * 0.023 + 1) : 0.44 + 0.1 * Math.sin(t * 0.023 + 1.3)), R = m * 0.15 * (1 + 0.08 * D.swell); // the sun: where the version puts it, wandering a good way from there over a few minutes, and a little bigger with the bass
     const tap = pointer.tapped; // a click: a small sun of its own, and no ring
     if (tap && tap !== D.tap) { D.tap = tap; asBloom(tap.x, tap.y, m); }
@@ -10800,21 +10822,45 @@ window.Effects = (() => {
     D.burstTurn = asWrap(D.burstTurn + dt * 0.12);
     D.spinKick *= Math.exp(-dt / 2.4);
 
-    g.setTransform(1, 0, 0, 1, 0, 0); // the page: a warm white, paler round the sun, never a white that would wash out the words over it
+    g.setTransform(1, 0, 0, 1, 0, 0); // the page: by day a warm white, paler round the sun, never a white that would wash out the words over it; at night a warm black
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = 1;
-    g.fillStyle = rgba(mix(mix(alone ? [247, 245, 240] : [214, 211, 204], alone ? [250, 234, 214] : [218, 203, 186], 0.55 * dusk), tones[1], 0.035), 1); // behind the words of Now Playing about 84 in a hundred of full white; in full view brighter
+    const dayPage = mix(alone ? [247, 245, 240] : [214, 211, 204], alone ? [250, 234, 214] : [218, 203, 186], 0.55 * dusk), nightPage = mix(alone ? [15, 11, 13] : [9, 7, 9], alone ? [24, 12, 9] : [14, 8, 7], 0.55 * dusk); // behind the words of Now Playing about 84 in a hundred of full white by day, and darker still at night; in full view brighter
+    g.fillStyle = rgba(mix(mix(dayPage, nightPage, night), tones[1], 0.035), 1);
     g.fillRect(0, 0, w, h);
-    const warm = g.createRadialGradient(sx, sy, R * 0.5, sx, sy, Math.max(w, h) * 0.85);
-    warm.addColorStop(0, rgba(mix(P[1], [255, 255, 255], 0.65), alone ? 0.38 : 0.18));
-    warm.addColorStop(1, rgba(P[1], 0));
-    g.fillStyle = warm;
-    g.fillRect(0, 0, w, h);
+    if (day > 0) {
+      const warm = g.createRadialGradient(sx, sy, R * 0.5, sx, sy, Math.max(w, h) * 0.85);
+      warm.addColorStop(0, rgba(mix(P[1], [255, 255, 255], 0.65), (alone ? 0.38 : 0.18) * day));
+      warm.addColorStop(1, rgba(P[1], 0));
+      g.fillStyle = warm;
+      g.fillRect(0, 0, w, h);
+    }
+    if (night > 0) { // at night the sun lights the dark round it, as a low sun does the sky
+      const glow = g.createRadialGradient(sx, sy, R * 0.6, sx, sy, Math.max(w, h) * 0.8);
+      glow.addColorStop(0, rgba(mix(P[0], P[1], 0.5), (alone ? 0.42 : 0.3) * night));
+      glow.addColorStop(0.22, rgba(P[0], (alone ? 0.15 : 0.1) * night));
+      glow.addColorStop(1, rgba(P[0], 0));
+      g.fillStyle = glow;
+      g.fillRect(0, 0, w, h);
+      if (!D.stars.length) D.stars = Array.from({ length: 64 }, () => ({ x: rnd(0, 1), y: rnd(0, 1), r: rnd(0.6, 1.6), ph: rnd(0, TAU), rate: rnd(0.3, 1.2), tw: 0 })); // far-off lights in the dark: where each is in parts of the picture, its size, and how it slowly comes and goes
+      if (dt && hatHit) for (let k = 0; k < 3; k++) { const s = D.stars[Math.floor(rnd(0, D.stars.length))]; s.tw = Math.max(s.tw, hatHit); } // a hi-hat lights a few of them
+      g.fillStyle = rgba(mix(P[4], P[1], 0.25), 1);
+      for (const s of D.stars) {
+        s.tw *= Math.exp(-dt / 0.3);
+        const a = night * Math.min(1, 0.2 + 0.16 * Math.sin(t * s.rate + s.ph) + 0.7 * s.tw);
+        if (a < 0.02) continue;
+        g.globalAlpha = a;
+        g.beginPath();
+        g.arc(s.x * w, s.y * h, Math.max(0.6, m * 0.0016 * s.r), 0, TAU);
+        g.fill();
+      }
+      g.globalAlpha = 1;
+    }
 
     const Pn = D.panel, gap = Math.max(6, Math.round(m * 0.022)); // a panel of fine dots, away from the sun, that moves somewhere else now and then
     if (t > Pn.due || Pn.due - t > 80) { Pn.tx = sx > w / 2 ? rnd(0.03, 0.3) : rnd(0.42, 0.68); Pn.ty = tall ? rnd(0.55, 0.78) : rnd(0.08, 0.6); if (!Pn.due) { Pn.x = Pn.tx; Pn.y = Pn.ty; } Pn.due = t + rnd(30, 55); }
     Pn.x += (Pn.tx - Pn.x) * (1 - Math.exp(-dt * 0.15)); Pn.y += (Pn.ty - Pn.y) * (1 - Math.exp(-dt * 0.15));
-    if (!D.grid || D.gridFor !== gap) { const [c, x] = paper(gap); x.fillStyle = rgba(AS_INK, 0.55); x.beginPath(); x.arc(gap / 2, gap / 2, Math.max(0.8, gap * 0.1), 0, TAU); x.fill(); D.grid = g.createPattern(c, "repeat"); D.gridFor = gap; }
+    if (!D.grid || D.gridFor !== gap || D.gridNight !== (night > 0.5)) { const [c, x] = paper(gap); x.fillStyle = rgba(night > 0.5 ? AS_NIGHT_INK : AS_INK, 0.55); x.beginPath(); x.arc(gap / 2, gap / 2, Math.max(0.8, gap * 0.1), 0, TAU); x.fill(); D.grid = g.createPattern(c, "repeat"); D.gridFor = gap; D.gridNight = night > 0.5; } // (made again only for a new size, or when day turns to night)
     const px = Pn.x * w, py = Pn.y * h, pw = w * (tall ? 0.6 : 0.27), ph = h * (tall ? 0.16 : 0.32), off = asWrap(t * m * 0.004, gap), cl = m * 0.03;
     g.globalAlpha = 0.5;
     g.fillStyle = D.grid;
@@ -10822,7 +10868,7 @@ window.Effects = (() => {
     g.fillRect(px - off, py, pw, ph);
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.globalAlpha = 0.7; // its corners
-    g.strokeStyle = rgba(AS_GREY, 1);
+    g.strokeStyle = rgba(P[2], 1);
     g.lineWidth = Math.max(1, m * 0.0018);
     g.beginPath();
     for (const [cx, cy, ux, uy] of [[px, py, 1, 1], [px + pw, py, -1, 1], [px, py + ph, 1, -1], [px + pw, py + ph, -1, -1]]) { g.moveTo(cx + ux * cl, cy); g.lineTo(cx, cy); g.lineTo(cx, cy + uy * cl); }
@@ -10911,9 +10957,9 @@ window.Effects = (() => {
       g.stroke();
       if (A.kind === "dash") g.setLineDash(AS_NO_DASH);
     }
-    const moonAt = t * 0.15, moonR = (R / (1 + 0.08 * D.swell)) * D.arcs[2].r; // a small black disc going round on one of the rings
+    const moonAt = t * 0.15, moonR = (R / (1 + 0.08 * D.swell)) * D.arcs[2].r; // a small disc going round on one of the rings: black by day, light at night
     g.globalAlpha = 0.9;
-    g.fillStyle = rgba(AS_INK, 1);
+    g.fillStyle = rgba(P[4], 1);
     g.beginPath();
     g.arc(sx + Math.cos(moonAt) * moonR, sy + Math.sin(moonAt) * moonR, m * 0.011, 0, TAU);
     g.fill();
@@ -10925,7 +10971,7 @@ window.Effects = (() => {
       S.start = asWrap(S.start + S.dir * S.rate * (1 + 2.6 * lift + 0.6 * flow.drop) * dt);
       if (dt) spring(S, "flex", "flexV", 90, 8, dt);
     }
-    for (let i = 0; i < D.swooshes.length; i += 2) if (many - i > 0) asSwooshDraw(D.swooshes[i], sx, sy, m, tall, clamp(many - i), P, M);
+    for (let i = 0; i < D.swooshes.length; i += 2) if (many - i > 0) asSwooshDraw(D.swooshes[i], sx, sy, m, tall, clamp(many - i), P, M, night);
     if (flow.calm > 0.02) softBlob(g, sx, sy, R * 2.3, mix(P[1], [255, 255, 255], 0.3), 0.35 * flow.calm); // in a calm part a soft haze of light round it
     const sun = g.createLinearGradient(sx, sy - R, sx, sy + R); // the sun disc itself: flat, yellow at the top and orange below
     sun.addColorStop(0, rgba(mix(P[1], [255, 255, 255], 0.15), 1));
@@ -10941,12 +10987,12 @@ window.Effects = (() => {
     g.arc(sx - R * 0.12, sy - R * 0.12, R * 0.62, 0, TAU);
     g.fill();
     g.globalAlpha = 0.8;
-    g.strokeStyle = rgba(AS_INK, 1);
+    g.strokeStyle = rgba(P[4], 1);
     g.lineWidth = thin;
     g.beginPath();
     g.arc(sx, sy, R * 1.07, -2.6 + t * 0.05, 0.4 + t * 0.05);
     g.stroke();
-    for (let i = 1; i < D.swooshes.length; i += 2) if (many - i > 0) asSwooshDraw(D.swooshes[i], sx, sy, m, tall, clamp(many - i), P, M);
+    for (let i = 1; i < D.swooshes.length; i += 2) if (many - i > 0) asSwooshDraw(D.swooshes[i], sx, sy, m, tall, clamp(many - i), P, M, night);
 
     const faces = D.faces; // the shards' faces, in every color and lighting, worked out once a frame and shared by all of them
     for (let c = 0; c < 7; c++) { faces[c] = faces[c] || []; for (let s = 0; s < AS_SHADES.length; s++) { const k = AS_SHADES[s]; faces[c][s] = rgba(mix(P[c], k > 0 ? [255, 255, 255] : AS_INK, Math.abs(k)), 1); } }
