@@ -6,10 +6,11 @@ window.Effects = (() => {
   const canvas = Object.assign(document.createElement("canvas"), { id: "fx", hidden: true });
   canvas.setAttribute("aria-hidden", "true");
   document.body.prepend(canvas);
-  const stage = canvas.getContext("2d", { alpha: false }), spare = document.createElement("canvas"), back = spare.getContext("2d", { alpha: false });
+  const stage = canvas.getContext("2d", { alpha: false });
+  let spare = document.createElement("canvas"), back = spare.getContext("2d", { alpha: false }); // the trails' last frame: each effect has its own while one changes into another (see the live change)
   let g = stage; // what's being drawn on: the picture, or for a moment the visitors' own layer over the app
   let pageSoft = 0; // how soft the picture is made behind the page, in dots, as the page asks (0, sharp, in Full view and on a slow machine)
-  const paintFilter = () => { canvas.style.filter = [T.light === 1 ? "" : `brightness(${T.light})`, pageSoft ? `blur(${pageSoft}px)` : ""].filter(Boolean).join(" "); }; // the picture's Brightness and its softness behind the page, both on the picture itself (a blur laid over the window from outside would cost far more)
+  const paintFilter = () => { canvas.style.filter = [aside.lit === 1 ? "" : `brightness(${aside.lit})`, pageSoft ? `blur(${pageSoft}px)` : ""].filter(Boolean).join(" "); }; // the picture's Brightness and its softness behind the page, both on the picture itself (a blur laid over the window from outside would cost far more)
   const sound = { bands: new Float32Array(BANDS), wave: new Float32Array(POINTS), bass: 0, mid: 0, treble: 0, level: 0, kick: 0, hat: 0, kickHit: 0, hatHit: 0, t: 0, dt: 0.016 };
   const pointer = { on: false, x: 0, y: 0, at: -1e9, tap: null, tapped: null, taken: false, rings: [] }; // the mouse over the picture, in the picture's own dots: on while it is over the picture itself (not the page's buttons or words), at when it last moved (the clock, in ms), and tapped, a click, there for the one frame after it lands, as kickHit is for a kick. An effect that answers a click in its own way sets taken in that frame, and then no ring goes out. rings: the soft rings that clicks send out
   const T = { light: 1, react: 1, speed: 1, drag: 1, spark: 1, nod: 1, turns: 1, moves: 1, shots: 1, folk: 1, acid: 1, band: 1, pit: 1, tilt: 1, vary: 1, dream: 1, falls: 1, color: 1, echo: 1, breathe: 1, sounds: 1, tricks: 1, punch: 1 }; // what's been adjusted for the effect showing: 1 is how it was designed
@@ -32,7 +33,8 @@ window.Effects = (() => {
   const FAMILY = Object.fromEntries(Object.entries(STYLES).flatMap(([family, list]) => list.map(([style]) => [style, family])));
   const KNOBS = { light: ["Brightness", 0.3, 1.7], react: ["Reacts to the music", 0.2, 1.8], speed: ["Speed", 0.3, 2], spark: ["Glints on the hi-hats", 0, 2], drag: ["Length of the trails", 0.4, 2.5], nod: ["Nodding to the beat", 0, 2], turns: ["Changes of course", 0, 3], moves: ["Jumps and stops", 0, 3], band: ["Crowd and dancers", 0, 2], pit: ["Cockpit", 0, 1], shots: ["Shooting stars", 0, 3], folk: ["Visitors", 0, 3], acid: ["Singing to the 303", 0, 2], tilt: ["Turning now and then", 0, 3], vary: ["Changes by itself", 0, 3], dream: ["Dreamy lights", 0, 2], falls: ["Falling into planets", 0, 3], color: ["Colors that travel", 0, 1.5], echo: ["After-images", 0, 2], breathe: ["Breathing", 0, 2], sounds: ["Answers to sounds", 0, 2], tricks: ["Color tricks", 0, 2], punch: ["Hard kicks", 0, 2] };
   const LEAVES_TRAILS = new Set(["trails", "tunnel", "vortex", "prism", "ripple", "comets", "stars", "whirl", "fireworks", "scope"]);
-  const raw = new Float32Array(BANDS), leadHold = new Float32Array(BANDS), leadMid = new Float32Array(512), leadSum = new Float32Array(513), peaks = new Float32Array(160), stars = new Float32Array(STARS * 3), HEADS = 9, past = new Float32Array(HEADS * 2).fill(NaN), orbits = new Float32Array(HEADS);
+  const raw = new Float32Array(BANDS), leadHold = new Float32Array(BANDS), leadMid = new Float32Array(512), leadSum = new Float32Array(513), HEADS = 9;
+  let peaks = new Float32Array(160), stars = new Float32Array(STARS * 3), past = new Float32Array(HEADS * 2).fill(NaN), orbits = new Float32Array(HEADS); // (let: while one effect changes into another, each can have its own)
   let nowSong = "", genre = "", mood = "", name = "", alone = false, w = 0, h = 0, quality = 1, colors = PLAIN, picture = null, last = 0, slowTime = 0, slowFrames = 0, top = 0.3, waveTop = 0.1, freq = null, time = null, binHz = 23.4;
   let pending = "", morph = null, slowNext = false, quiet = false, dirty = false, clean = null, realNow = 0, hearing = false; // changing from one effect to another: see blend()
   let base = PLAIN, V = {}; // the record's own colors (colors is them as this version of the effect has them), and the version's dials: see VERSIONS
@@ -639,7 +641,7 @@ window.Effects = (() => {
     if (flow.tuneHit && T.dream) flight(10); // and a smaller flight for any tune
   }
   function dreamBehind() { // for a picture with something in front of it (the cockpit): the lights go in now, out beyond the glass, and not again over everything
-    if (dream.done || morph || !dreaming()) return;
+    if (dream.done || quiet || (morph && !morph.live) || !dreaming()) return; // (not for a Space style going away, nor while a version fades: see the live change)
     g.save();
     g.globalCompositeOperation = "lighter";
     drawDream(dream.dt, Math.max(w, h));
@@ -807,7 +809,7 @@ window.Effects = (() => {
     g.drawImage(glintArt, x - size / 2, y - size / 2, size, size);
     g.globalAlpha = 1;
   }
-  const twinkles = [];
+  let twinkles = [];
   const twinkle = (x, y, size, life = 0.26) => { if (twinkles.length < 48 && Math.random() < T.spark) twinkles.push({ x, y, size: size * 0.66 * Math.max(1, 0.5 + T.spark / 2), left: life, life }); };
   function drawTwinkles() { // on top of whatever was drawn, and gone in a moment
     if (!twinkles.length) return;
@@ -1123,7 +1125,7 @@ window.Effects = (() => {
   function remember() { // this frame is what the next one comes back from
     back.globalCompositeOperation = "source-over";
     back.globalAlpha = 1;
-    back.drawImage(canvas, 0, 0);
+    back.drawImage(g.canvas, 0, 0); // (the picture being drawn on: the real one, or the going effect's own while one changes into another)
   }
   function neon(path, paint, width, strength, soft = 1) { // a bright line inside two fainter, wider ones, so it glows instead of looking outlined
     g.strokeStyle = paint;
@@ -1194,15 +1196,16 @@ window.Effects = (() => {
     spray(4, (u) => [cx + Math.cos(u * TAU) * r * 1.1, cy + Math.sin(u * TAU) * r * 1.1], h * 0.05);
     g.globalCompositeOperation = "source-over";
     g.setTransform(-1, 0, 0, 1, w, 0);
-    g.drawImage(canvas, 0, 0, w / 2, h, 0, 0, w / 2, h);
+    g.drawImage(g.canvas, 0, 0, w / 2, h, 0, 0, w / 2, h);
     g.setTransform(1, 0, 0, -1, 0, h);
-    g.drawImage(canvas, 0, 0, w, h / 2, 0, 0, w, h / 2);
+    g.drawImage(g.canvas, 0, 0, w, h / 2, 0, 0, w, h / 2);
     g.setTransform(1, 0, 0, 1, 0, 0);
     remember();
   }
 
   /* Ripple turns now and then, slowly, and settles at a new angle. It's drawn level on a square big enough to be turned any way without the corners showing, and shown turned. */
-  const turning = { angle: 0, from: 0, to: 0, start: 0, long: 1, at: 0 }, pools = [];
+  const turning = { angle: 0, from: 0, to: 0, start: 0, long: 1, at: 0 };
+  let pools = [];
   function ripple() { // the waveform across the middle, its echoes rolling away up and down like water
     const { t, wave, bass, kick, kickHit, dt } = sound, pace = dt * 60, B = Math.ceil(Math.hypot(w, h)) + 2, W = w, H = h, mid = B / 2;
     if (!turning.at) turning.at = t + rnd(14, 30);
@@ -1531,7 +1534,7 @@ window.Effects = (() => {
   /* The visitors aren't only for Space: one comes by now and then in any effect, and stays when it changes into another. In Space they're part of the scene, behind the cockpit; anywhere else, and while one effect changes into the next, they go on top. */
   const crowd = { folk: [], at: Infinity, step: 0, oddAt: Infinity, oddStep: 0 };
   const ROAM = { folk: [40, 90], first: [15, 35], crowd: 1, odd: ["astronaut", "cow"] }; // the effects outside Space: how often, who's first, and once in a while something odder
-  const folkInScene = () => !!TRIPS[name] && !morph && !quiet;
+  const folkInScene = () => !!TRIPS[name] && !quiet && !(morph && (!morph.live || morph.folkOver)); // (while a version fades, over everything as before; a Space style coming in has them behind its cockpit from its first frame, unless they were about already when the change began; one going away is drawn quietly, without them)
   const paper = (across, down = across) => { const c = Object.assign(document.createElement("canvas"), { width: across, height: down }); return [c, c.getContext("2d")]; };
   function softBlob(x, px, py, r, tone, strength) {
     const blob = x.createRadialGradient(px, py, 0, px, py, r);
@@ -4266,7 +4269,7 @@ window.Effects = (() => {
     const hand = card.off || card.lost || card.made.mandel === null, light = Math.min(0.9, 0.6 + 0.2 * sound.kick * trippy.kickLight + 0.2 * flow.drop); // the edge fills far more of this picture than of the Julia set's, so the kick lights it less, and never to where the arms burn out white
     if (!mandelTrip) mandelTrip = mandelWays.makeTrip(Math.floor(rnd(0, DIVES.length)));
     const draws = mandelTrip.step(sound, flow, w / h, turned("mandel", 0.04), hand), old = draws.find((d) => d.old);
-    if (old && old.fresh) mandelWas = copyOf(mandelWas); // the picture as it stands, taken before the new one is drawn over it
+    if (old && old.fresh) mandelWas = copyOf(mandelWas, g.canvas); // the picture as it stands, taken before the new one is drawn over it
     for (const d of draws) {
       if (d.old) { g.globalAlpha = d.alpha; g.drawImage(mandelWas, 0, 0, w, h); g.globalAlpha = 1; }
       else if (!onCard("mandel", MANDEL_SUM, mandelWays.told(d, light), d.alpha)) byHand(mandelWays.sumOf(d), light, undefined, d.alpha);
@@ -4697,7 +4700,7 @@ window.Effects = (() => {
     g.save();
     g.globalAlpha = 0.5;
     g.setTransform(1, 0, 0, -1, 0, shore * 2);
-    g.drawImage(canvas, 0, shore * 2 - h, w, h - shore, 0, shore * 2 - h, w, h - shore);
+    g.drawImage(g.canvas, 0, shore * 2 - h, w, h - shore, 0, shore * 2 - h, w, h - shore);
     g.restore();
     const water = g.createLinearGradient(0, shore, 0, h);
     water.addColorStop(0, "rgba(1,4,12,.25)");
@@ -5521,8 +5524,8 @@ window.Effects = (() => {
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = amount;
-    if (kind === "mirror" || kind === "quad") { g.setTransform(-1, 0, 0, 1, w, 0); g.drawImage(canvas, 0, 0, w / 2, h, 0, 0, w / 2, h); }
-    if (kind === "flip" || kind === "quad") { g.setTransform(1, 0, 0, -1, 0, h); g.drawImage(canvas, 0, 0, w, h / 2, 0, 0, w, h / 2); }
+    if (kind === "mirror" || kind === "quad") { g.setTransform(-1, 0, 0, 1, w, 0); g.drawImage(g.canvas, 0, 0, w / 2, h, 0, 0, w / 2, h); }
+    if (kind === "flip" || kind === "quad") { g.setTransform(1, 0, 0, -1, 0, h); g.drawImage(g.canvas, 0, 0, w, h / 2, 0, 0, w, h / 2); }
     if (kind === "kal6" || kind === "kal8") {
       const N = kind === "kal6" ? 6 : 8, from = turned("fold", 0.04, amount), reach = Math.hypot(w, h); // (two folds showing at once turn it as far as one would)
       for (let i = 1; i < N; i++) { // the wedge round the turning angle is copied into each of the others, every other one a mirror image, so the edges meet
@@ -5536,7 +5539,7 @@ window.Effects = (() => {
         g.arc(0, 0, reach, from - Math.PI / N, from + Math.PI / N);
         g.closePath();
         g.clip();
-        g.drawImage(canvas, -w / 2, -h / 2);
+        g.drawImage(g.canvas, -w / 2, -h / 2);
         g.restore();
       }
     }
@@ -5554,8 +5557,7 @@ window.Effects = (() => {
     return sc;
   }
   const PIXEL_DIGITS = { 0: "111101101101111", 1: "010110010010111", 2: "111001111100111", 3: "111001111001111", 4: "101101111001001", 5: "111100111001111", 6: "111100111101111", 7: "111001001001001", 8: "111101111101111", 9: "111101111001111" }; // each figure in 3 by 5 dots, for a score
-  const pixelScreens = new Map();
-  let pixelLast = null; // the small screen the pixel effect showing asked for last: its visitors are drawn in its dots
+  let pixelScreens = new Map(), pixelLast = null; // the small screen the pixel effect showing asked for last: its visitors are drawn in its dots
   function pixelScreen(across = 320) { // the small screen for the picture's shape as it is now: so many dots across, and as many down as keeps the dots square. Made once for each size and kept, so what is drawn on it stays from frame to frame; ask for it again every frame (the window can change shape)
     across = Math.max(32, Math.min(Math.round(across), Math.floor(w / 2))); // (a dot is never smaller than two of the picture's own)
     const down = Math.max(2, Math.round((across * h) / w / 2) * 2), key = across + "x" + down;
@@ -13552,11 +13554,11 @@ window.Effects = (() => {
   function punchFrame() { // from drawFrame(), over the picture and under the visitors
     const a = punch.age;
     if (a >= 0.12 || !w) return; // most of the time there is nothing to do
-    if (dirty && morph) return; // an effect that fades in place, while another one goes away over it: its clean copy has none of the old picture in it, so the punch waits for the change to end
+    if (dirty && morph && !aside.on) return; // an effect that fades in place, while another one goes away over it: its clean copy has none of the old picture in it, so the punch waits for the change to end
     const P = Math.min(2, T.punch), s = punch.size * P, near = (1 - a / 0.12) ** 2, flash = punch.lit && a < 0.09 ? (1 - a / 0.09) ** 1.5 : 0, tear = a < 0.1 ? 1 - a / 0.1 : 0;
     punchPapers();
     if (!dirty) { clean = copyOf(clean); dirty = true; } // taken off again before the next frame: the effect's next frame starts from the picture as it was
-    const from = clean, [art, ax] = punch.art, [sc, sx] = punch.soft, [gc, gx] = punch.glow, gw = gc.width, gh = gc.height;
+    const from = aside.on ? (aside.mix = copyOf(aside.mix)) : clean, [art, ax] = punch.art, [sc, sx] = punch.soft, [gc, gx] = punch.glow, gw = gc.width, gh = gc.height;
     if (punch.toneAt !== punch.hitAt) { // the edges' glow in a pale tone of the mood's color, looked at once a kick: warm in hard music but never a saturated red, and only along the edges, never over the middle
       punch.toneAt = punch.hitAt;
       const [ec, ecx] = punch.edge, tone = rgba(mix(moodColors(1)[0], [255, 255, 255], 0.6), 1);
@@ -13892,9 +13894,9 @@ window.Effects = (() => {
   /* From one effect to another. The change waits for the next frame, which draws the old picture once more with nobody visiting and keeps it.
      Then the new effect starts underneath and the old picture goes away over it, in one of several ways: quickly when you pick one, slowly when it changes by itself. */
   const FADES_IN_PLACE = new Set(["scope", "stars", "whirl", "fireworks"]); // these fade their own last frame, so whatever went over it would leave a trail
-  const fadesInPlace = () => FADES_IN_PLACE.has(name) || (recipeBook.has(name) && !recipeBook.get(name).echo); // and so does a recipe that neither zooms nor turns
+  const fadesInPlace = () => FADES_IN_PLACE.has(name) || (recipeBook.has(name) && !recipeBook.get(name).echo) || aside.on; // and so does a recipe that neither zooms nor turns. While an old effect goes away over the new one, every effect is kept clean, so none that keeps part of its last frame takes in any of the old one
   const eased = (p) => p * p * (3 - 2 * p);
-  const copyOf = (was) => { const c = was && was.width === w && was.height === h ? was : paper(w, h)[0]; c.getContext("2d").drawImage(canvas, 0, 0); return c; }; // the picture as it is now
+  const copyOf = (was, from = canvas) => { const c = was && was.width === w && was.height === h ? was : paper(w, h)[0]; c.getContext("2d").drawImage(from, 0, 0); return c; }; // the picture as it is now (or the one being drawn on, given)
   let snap = null, tiny = null, wayWas = "";
   const WAYS = {
     fade(p) { // it fades as it comes a little closer
@@ -13977,10 +13979,11 @@ window.Effects = (() => {
       g.drawImage(tiny, 0, 0, across, down, 0, 0, across * size, down * size);
     },
   };
-  function pickWay() { const ways = Object.keys(WAYS).filter((k) => k !== wayWas); wayWas = ways[Math.floor(Math.random() * ways.length)]; return wayWas; }
-  function blend() { // the old picture over the new one, on its way out
-    const p = (realNow - morph.from) / morph.long;
-    if (p >= 1) { morph = snap = tiny = null; return; }
+  function blend() { // the old picture over the new one, on its way out: the old effect itself, still moving, while one effect changes into another (see the live change); a still of it while a version changes
+    const live = morph.live;
+    if (live && aside.on && !morph.done) drawAside(); // (once nothing of it is left to show, it is no longer drawn)
+    const p = live ? morph.p : (realNow - morph.from) / morph.long;
+    if (p >= 1) { if (!live) morph = snap = tiny = null; return; } // (a change of effect ends in changeStep, before a frame is drawn)
     g.save();
     g.setTransform(1, 0, 0, 1, 0, 0);
     g.globalCompositeOperation = "source-over";
@@ -13989,20 +13992,19 @@ window.Effects = (() => {
     g.restore();
     g.globalAlpha = 1;
   }
-  function beginEffect(next) { // an effect from its first frame, in a version of its own
+  function beginEffect(next, going = "") { // an effect from its first frame, in a version of its own. going: the one it changes from, which goes on beside it for a moment and keeps what is its own
     name = next;
-    formsKept.started = false;
-    runner.fresh = true;
-    placeSt.world = ""; placeSt.over = 1; placeSt.gT = Math.max(placeSt.gT, 12); // Places opens straight in the place for the music playing now: no wipe from where it was last time, and no grand thing left half done
-    lifeNow.grid = null; // the living grid plants a new garden each time it is shown
+    if (next === "forms") formsKept.started = false; // (each of these starts afresh only when it is the one coming in)
+    if (next === "runner") runner.fresh = true;
+    if (next === "places") { placeSt.world = ""; placeSt.over = 1; placeSt.gT = Math.max(placeSt.gT, 12); } // Places opens straight in the place for the music playing now: no wipe from where it was last time, and no grand thing left half done
+    if (next === "life") lifeNow.grid = null; // the living grid plants a new garden each time it is shown
     awReset(next); // Frutiger Aero starts with a fresh sky, and Aqua with a fresh tank
     if (next === "dorfic") asDorf.w = 0; if (next === "eco") asEco.w = 0; // DORFic and Frutiger Eco lay out a fresh page and a fresh world each time they are shown (each only its own, so one still showing on its way out is left as it is)
     if (next === "darkaero") agDark.W = 0; if (next === "zen") agZen.W = 0; // Dark Aero and Technozen set out afresh each time they are shown (each only its own, so one still showing on its way out is left as it is)
     punch.age = 9; // a kick's punch ends with the effect it landed on
     afterImages.ghosts.length = 0; // the last effect's after-images go with it, and a fold starts open
     afterImages.rate = afterImages.span = 0;
-    trippy.fold = 0;
-    trippy.stepped = -1;
+    if (!FRACTALS.has(going)) { trippy.fold = 0; trippy.stepped = -1; } // (from one fractal into another the fold is the song's, and goes on)
     if (TRIPS[name]) sky.far = null; // a new journey each time
     fit();
     wipe();
@@ -14015,10 +14017,10 @@ window.Effects = (() => {
   }
   function drawScene() { // the effect itself
     if (dirty) { // one that fades its own last frame gets it back as it was, without what went over it
-      stage.setTransform(1, 0, 0, 1, 0, 0);
-      stage.globalCompositeOperation = "source-over";
-      stage.globalAlpha = 1;
-      stage.drawImage(clean, 0, 0);
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.globalCompositeOperation = "source-over";
+      g.globalAlpha = 1;
+      g.drawImage(clean, 0, 0);
       dirty = false;
     }
     (DRAW[name] || recipeFx)(); // anything not built in is a recipe
@@ -14028,18 +14030,296 @@ window.Effects = (() => {
     if (p < 1 && vary.was.fold) fold(vary.was.fold, 1 - p);
     if (V.fold) fold(V.fold, p);
   }
-  function changeOver() {
-    quiet = true;
-    drawScene();
-    if (morph) blend(); // a change in the middle of another one goes on from what was showing
-    quiet = false;
-    snap = copyOf(snap);
-    const slow = slowNext;
-    slowNext = false;
-    beginEffect(pending);
-    pending = "";
-    morph = { from: realNow, long: slow ? 2600 : 1100, way: pickWay(), seeds: Array.from({ length: 64 }, Math.random), x: rnd(0.3, 0.7), y: rnd(0.3, 0.7) };
+  /* ==== live change: begin ==== */
+  /* While one effect changes into another, the one going keeps going. It is drawn every frame on a picture of its own (aside.c), hearing the same music, in its own version, at its own Speed
+     and with its own colors, and that live picture is laid over the new one in one of the ways above until it has gone. Nothing freezes: what used to be a still picture is the old effect, moving.
+     Each effect keeps things of its own from frame to frame: its trails, its stars, its sparks, its journey. While both are drawn each has its own, and trade() hands the going one its own things
+     just before it is drawn and gives the new one its own back just after: twice a frame, by swapping, so nothing is copied and nothing is made.
+     A change keeps time with the music. One that Morph asks for lasts eight beats: the beat's length is taken when it starts and kept, a kick that lands near where a beat is due lines it up
+     again, and it never runs shorter than seven beats or longer than nine. With no steady beat to keep (no tempo yet, or kicks that come unevenly) it takes two and a half seconds by the clock.
+     One picked by hand is quick: two beats, or about a second. A drop never starts one; a drop that lands while one is on hurries it to its end within a quarter of a second, so that the drop
+     lands on the new effect. A machine too slow to draw both draws the old one every other frame, and if that is still too much, shows the old one's last picture kept moving (swelling with
+     the kick, turning slowly) instead of drawing it. The visitors, the 303's singer, the band, the punch, the click rings and the little windows are drawn once, over both, as always. */
+  const aside = { on: false, c: null, x: null, spare: null, back: null, name: "", V: {}, vary: { aim: {}, on: 0, due: 40, turned: {}, was: {}, over: {}, trip: null }, T: { ...T }, colors: PLAIN,
+    clean: null, dirty: false, clearing: 0, dt: 0, tapped: null, mine: [], own: [], spareOwn: [], inPlace: [], seeds: new Float32Array(64), cover: new Float32Array(576), still: false, keep: null, keepX: null, mix: null,
+    half: false, skip: false, owed: 0, frames: 0, goods: 0, load: 0, cost: 0, spent: 0, alone: 0, began: 0, real: 0, drawnAt: -1, light: 1, lit: 1, litWas: 1, tuned: false, toggle: false, warned: new Set() };
+  // aside: the going effect's picture (c, x) and trails (spare, back), and everything else of its own while it is traded out; own: its arrays while the new one has others (mine: which ones);
+  // still, keep: its last picture kept moving, when it cannot be drawn (keep holds a good picture of it from the last half second, goods counts its frames); half, skip, owed: drawn every other frame, and the time it is owed; load, cost: what drawing a whole frame has cost lately (ms); spent, alone: what drawing the old one by itself cost last time, and lately;
+  // light: the Brightness it was shown with, lit: the one on the picture now; tuned: the app gave new sliders since the last frame; toggle: "Changes by itself" was switched and waits
+  const shownT = { ...T }; // the sliders as the picture was last drawn with them: the app hands over the next effect's sliders a moment before it asks for it, and the going one keeps its own
+  const swapIn = (a, b) => { for (const k in b) { const v = a[k]; a[k] = b[k]; b[k] = v; } for (const k in a) if (!(k in b)) { b[k] = a[k]; delete a[k]; } }; // two objects of one kind trade what is in them
+  const STAR_USERS = new Set(["stars", "whirl", "dust", "links", "space", "warp", "drift", "orbit", "visitors", "well"]), PEAK_USERS = new Set(["bars", "mirror", "leds"]); // the styles that move the one set of stars (Space's five through flightStars), and the ones with the bars' falling caps
+  const bothOf = (set) => (going, coming) => set.has(going) && set.has(coming), bothPixel = (going, coming) => FAMILY[going] === "pixel" && FAMILY[coming] === "pixel";
+  const OWN = [ // [what it is now, put another in its place, whether the two need one each (or can share it), one for the one coming in, made from the spare kept from the last change]
+    [() => twinkles, (v) => (twinkles = v), () => true, (old) => { const list = old || []; list.length = 0; return list; }], // (beginEffect() empties these for the one coming in, so the going one always keeps its own)
+    [() => shells, (v) => (shells = v), () => true, (old) => { const list = old || []; list.length = 0; return list; }],
+    [() => lastShell, (v) => (lastShell = v), () => true, () => null],
+    [() => pools, (v) => (pools = v), () => true, (old) => old || []],
+    [() => past, (v) => (past = v), () => true, (old) => (old || new Float32Array(HEADS * 2)).fill(NaN)],
+    [() => stars, (v) => (stars = v), bothOf(STAR_USERS), (old) => { const copy = old || new Float32Array(STARS * 3); copy.set(stars); return copy; }], // the new one starts from the same stars, and they part from there
+    [() => peaks, (v) => (peaks = v), bothOf(PEAK_USERS), (old) => { const copy = old || new Float32Array(160); copy.set(peaks); return copy; }],
+    [() => pixelScreens, (v) => (pixelScreens = v), bothPixel, (old) => { const list = old || new Map(); list.clear(); return list; }], // (two pixel worlds of one size would draw on one small screen)
+    [() => pixelLast, (v) => (pixelLast = v), bothPixel, () => null],
+  ];
+  const OWN_IN_PLACE = [ // the same for what is kept inside one object read by its name: what is in it is traded, not the object
+    [sky, (going) => !!TRIPS[going], () => { const mine = { ...sky }; sky.things = []; sky.far = null; return mine; }], // a Space style going keeps its journey, and one coming in starts its own
+    [afterImages, (going) => FRACTALS.has(going), () => { const mine = { ...afterImages }; afterImages.ghosts = []; afterImages.mid = null; return mine; }], // a fractal going keeps its after-images
+  ];
+  // Shared on purpose: the fractals' trip (trippy, stepped once a frame, so a change from one fractal into another goes on in the same colors), the drawing card and its programs (each card
+  // picture is copied out at once), the pictures kept to be drawn again (glints, bubbles, clouds, sprites), and the sound, the song and the visitors. Each style's own things (the tube, the heads,
+  // the places, the Aero skies and tanks, DORFic's and the others' pages) belong to that style only, and two different styles are all that a change ever draws.
+  function trade() { // the going effect and the one coming in swap everything that is theirs alone: once just before the going one is drawn, and once just after
+    const A = aside;
+    let v = g; g = A.x; A.x = v;
+    v = spare; spare = A.spare; A.spare = v;
+    v = back; back = A.back; A.back = v;
+    v = name; name = A.name; A.name = v;
+    v = V; V = A.V; A.V = v;
+    v = colors; colors = A.colors; A.colors = v;
+    v = clean; clean = A.clean; A.clean = v;
+    v = dirty; dirty = A.dirty; A.dirty = v;
+    v = clearing; clearing = A.clearing; A.clearing = v;
+    v = sound.dt; sound.dt = A.dt; A.dt = v; // each moves at its own Speed (the song's clock, sound.t, is the same for both)
+    v = pointer.tapped; pointer.tapped = A.tapped; A.tapped = v; // a click is for the one coming in
+    swapIn(vary, A.vary);
+    swapIn(T, A.T);
+    for (let i = 0; i < OWN.length; i++) if (A.mine[i]) { v = OWN[i][0](); OWN[i][1](A.own[i]); A.own[i] = v; }
+    for (let i = 0; i < OWN_IN_PLACE.length; i++) if (A.inPlace[i]) swapIn(OWN_IN_PLACE[i][0], A.inPlace[i]);
   }
+  const sized = (c) => !!c && c.width === w && c.height === h; // a picture of the aside already at the picture's size
+  function paperFor(c, x) { // a picture at the size the picture is now, made once and kept; when the size changes, what was on it is stretched onto the new size
+    if (c && c.width === w && c.height === h) return [c, x];
+    const nc = Object.assign(document.createElement("canvas"), { width: w, height: h }), nx = nc.getContext("2d", { alpha: false }); // (with nothing see-through: quicker to lay over another picture)
+    nx.fillStyle = "#05060a";
+    nx.fillRect(0, 0, w, h);
+    if (c) nx.drawImage(c, 0, 0, w, h);
+    return [nc, nx];
+  }
+  function changeLight(v) { // the Brightness on the picture: it is a filter over the whole canvas, so it is set only when it moves by a hundredth or arrives
+    const to = Math.round(v * 1000) / 1000;
+    if (to === aside.lit || (Math.abs(to - aside.lit) < 0.01 && to !== Math.round(T.light * 1000) / 1000)) return;
+    aside.lit = to;
+    canvas.style.filter = [to === 1 ? "" : `brightness(${to})`, pageSoft ? `blur(${pageSoft}px)` : ""].filter(Boolean).join(" "); // with the softness behind the page, if it is asked for (see paintFilter)
+  }
+  function changeKnobs() { // from tuning(), before the sliders change: the ones the picture was drawn with are kept, once until the next frame, for an effect that goes on beside the next one
+    if (aside.tuned) return;
+    Object.assign(shownT, T);
+    aside.litWas = aside.lit;
+    aside.tuned = true;
+  }
+  function letGo() { // the going one has gone: what was its own is kept only to be used again by the next change
+    const A = aside;
+    A.on = false;
+    for (let i = 0; i < OWN.length; i++) { if (A.mine[i]) A.spareOwn[i] = A.own[i]; A.mine[i] = false; A.own[i] = null; }
+    A.inPlace.fill(null); // (a journey goes with its pictures)
+    A.name = "";
+    A.V = {};
+    A.still = false;
+    snap = tiny = null;
+    slowTime = slowFrames = 0; // keepUp starts afresh: the frames of a change, with two effects drawn, are no measure of the machine
+    changeLight(T.light);
+  }
+  function changeStop() { // hide(): no change goes on, and none waits
+    if (aside.on) letGo();
+    aside.toggle = aside.tuned = false;
+  }
+  function steadyBeat() { // the beat's length in seconds when the kicks keep time, or 0: no tempo yet, or kicks too uneven to keep time by. A missed kick is fine (a gap of two or three beats),
+    const n = flow.gaps.length, beat = flow.bpm ? 60 / flow.bpm : 0; // but at least three gaps in four must be close to a whole number of beats
+    if (!beat || n < 6) return 0;
+    let fit = 0;
+    for (let i = 0; i < n; i++) { const b = flow.gaps[i] / beat, k = Math.round(b); if (k >= 1 && k <= 4 && Math.abs(b - k) <= 0.1 + 0.05 * k) fit++; }
+    return fit >= n * 0.75 ? beat : 0;
+  }
+  function wayFor(going, coming, slow, beat) { // how it goes over, by the moment: quickly and calmly when picked by hand, in big square dots into or out of a pixel world, gently in a breakdown, on the beat in the groove
+    const list = !slow ? ["fade", "zoom"] : FAMILY[going] === "pixel" || FAMILY[coming] === "pixel" ? ["pixels", "tv"] : flow.part === "calm" ? ["fade", "melt", "record"] : beat ? ["kicks", "iris", "tiles", "record", "melt", "kicks"] : ["iris", "tiles", "record", "melt", "fade"];
+    const ways = list.filter((k) => k !== wayWas);
+    wayWas = ways[Math.floor(Math.random() * ways.length)];
+    return wayWas;
+  }
+  function changeOver() { // a change starts: the effect showing moves onto a picture of its own, with everything that is its own, and the new one starts on the real picture from its first frame
+    const A = aside, going = name, coming = pending, slow = slowNext, beat = steadyBeat();
+    slowNext = false;
+    pending = "";
+    A.toggle = false; // (the new one's version already follows "Changes by itself" as it is set now)
+    if (A.on) letGo();
+    [A.c, A.x] = paperFor(A.c, A.x);
+    [A.spare, A.back] = paperFor(A.spare, A.back);
+    A.x.setTransform(1, 0, 0, 1, 0, 0);
+    A.x.globalCompositeOperation = "source-over";
+    A.x.globalAlpha = 1;
+    A.x.drawImage(dirty && clean ? clean : canvas, 0, 0); // it goes on from its own last frame, without the visitors, the singer or the punch that were over it
+    keepGood();
+    let v = spare; spare = A.spare; A.spare = v; // its trails go with it, and the new one gets the other pair (wiped as it begins)
+    v = back; back = A.back; A.back = v;
+    A.name = going;
+    A.V = V;
+    V = {};
+    swapIn(A.vary, vary);
+    Object.assign(vary, { aim: {}, was: {}, over: {}, trip: null, turned: { ...A.vary.turned } }); // what has turned so far goes on turning from where it was, in both
+    Object.assign(A.T, A.tuned ? shownT : T); // its own sliders, as it was last drawn
+    A.light = A.lit;
+    A.colors = colors;
+    A.clearing = clearing;
+    A.clean = null;
+    A.dirty = false;
+    A.tapped = null;
+    dirty = false;
+    clearing = 0;
+    const kept = clean; // (the clean copy's canvas, to be used again by the new one: beginEffect() lets go of it)
+    for (let i = 0; i < OWN.length; i++) {
+      const [get, set, apart, fresh] = OWN[i];
+      A.mine[i] = apart(going, coming);
+      if (!A.mine[i]) continue; // nothing of this that the two would fight over
+      A.own[i] = get();
+      set(fresh(A.spareOwn[i]));
+      A.spareOwn[i] = null;
+    }
+    for (let i = 0; i < OWN_IN_PLACE.length; i++) A.inPlace[i] = OWN_IN_PLACE[i][1](going) ? OWN_IN_PLACE[i][2]() : null;
+    Object.assign(A, { on: true, still: false, half: false, skip: false, owed: 0, frames: 0, goods: 0, load: 0, cost: 0, spent: 0, alone: 0, drawnAt: -1 });
+    slowTime = slowFrames = 0;
+    beginEffect(coming, going);
+    clean = kept;
+    snap = A.c;
+    for (let i = 0; i < 64; i++) A.seeds[i] = Math.random();
+    const lag = slow && beat && flow.since < 4 * beat ? flow.since / beat : 0; // how long ago the last kick was, in beats: the change's beats fall where the kicks do from its very start
+    morph = { live: true, p: 0, way: wayFor(going, coming, slow, beat), seeds: A.seeds, x: rnd(0.3, 0.7), y: rnd(0.3, 0.7), beat: slow ? beat : 0, beats: slow && beat ? 8 : 0,
+      long: slow ? 2.6 : beat ? Math.min(1.3, Math.max(0.8, 2 * beat)) : 1.1, at: 0, b: 0, shift: lag - Math.round(lag), kicks: 0, rush: 0, rushFrom: 0, rushFor: 0, done: false, folkOver: crowd.folk.length > 0 };
+    // beat: its length, kept from the start (0: by the clock), beats: how many, long: or how long by the clock (s); at: seconds since it began, b: beats so far, lined up with the kicks,
+    // shift: how far the kicks have moved it from the clock (in beats); rush: hurried to its end in rushFor seconds, from where it was (rushFrom); done: nothing of the old one is left to show;
+    // folkOver: visitors were about when it started, so they stay on top of both pictures to its end, rather than vanish under the old one into the scene of a Space style coming in (see folkInScene)
+    if (morph.way === "kicks") coverFor(morph);
+    if (flow.dropHit) changeRush(0.25); // (a drop on its very first frame: it is over while the drop is still landing)
+  }
+  function changeRush(seconds) { // the change hurries to its end: from where it is to the end in this many seconds, or sooner if it was already hurrying
+    const m = morph;
+    if (m.rushFor && m.rushFor - m.rush <= seconds) return;
+    m.rushFrom = m.p;
+    m.rush = 0;
+    m.rushFor = seconds;
+  }
+  function moveOn(real) { // how far the change has got: by the clock; or in beats of the length it started with, lined up with the kicks; or hurried
+    const m = morph;
+    m.at += real;
+    if (m.rushFor) { m.rush = Math.min(m.rushFor, m.rush + real); m.p = Math.max(m.p, m.rushFrom + ((1 - m.rushFrom) * m.rush) / m.rushFor); return; }
+    if (!m.beats) { m.p = Math.min(1, m.at / m.long); return; }
+    const clock = m.at / m.beat;
+    if (sound.kickHit) {
+      const due = clock + m.shift, near = Math.round(due);
+      if (near >= 1 && Math.abs(due - near) <= 0.25) { m.shift -= due - near; m.kicks = Math.max(m.kicks + 1, near); } // a kick close to where a beat is due: that is the beat
+      if (due >= m.beats - 0.5 && clock >= m.beats - 1) { changeRush(0.1); return; } // the last beat lands on a kick when one comes within half a beat of it (and never before the seventh beat): what is left goes over a tenth of a second, not in one frame
+    }
+    const keep = Math.min((clock * m.beats) / (m.beats - 1), Math.max((clock * m.beats) / (m.beats + 1), clock + m.shift)); // never quicker than seven beats or slower than nine
+    m.b = Math.max(m.b, keep); // (and never back: a late kick only holds it a moment)
+    m.p = Math.min(1, m.b / m.beats);
+  }
+  function changeStep(real) { // from frame(), before anything is drawn: a change starts, moves on, or ends; the light glides; and the slow machine's rules
+    const A = aside;
+    A.real = real;
+    A.began = performance.now();
+    if (A.on) { slowTime = slowFrames = 0; slowCheck(); } // (keepUp waits: see letGo)
+    if (pending && !morph) changeOver();
+    else if (pending && morph.live) changeRush(0.3); // another asked for while one is on: this one hurries to its end first, so only two are ever drawn
+    else if (pending) { const p = (realNow - morph.from) / morph.long, long = 300 / Math.max(0.01, 1 - p); if (p < 1 && long < morph.long) { morph.long = long; morph.from = realNow - p * long; } } // a version going over hurries too
+    else if (A.toggle && !morph) { // "Changes by itself" was switched: turned off it goes back to how it was designed, turned on it's away again
+      A.toggle = false;
+      const dials = dialsOf(name);
+      if (dials) setVersion(Object.fromEntries(Object.entries(dials).map(([key, list]) => [key, T.vary ? anyOf(list) : list[0]])), "fade");
+    }
+    if (morph && morph.live) {
+      if (flow.dropHit) changeRush(0.25); // the drop lands on the new one
+      moveOn(real);
+      if (morph.p >= 1 || (morph.done && (!morph.beats || morph.at >= morph.beat * (morph.beats - 1)))) { morph = null; letGo(); } // (nothing left of the old one to show ends it, but never before its seventh beat)
+    }
+    changeLight(morph && morph.live ? A.light + (T.light - A.light) * morph.p : T.light); // from the going one's Brightness to the new one's, evenly over the change (the way it goes over has its own easing)
+    A.tuned = false;
+  }
+  function slowCheck() { // a machine too slow to draw both: the old one every other frame, and if that is still too much, its last picture kept moving. By what drawing has cost, not by the time between frames,
+    // and only when leaving the old one out really helps: when it is the new one that is heavy, a cheap old one goes on moving, since stopping it would save next to nothing
+    const A = aside, cost = A.cost;
+    A.cost = 0;
+    if (A.still || !cost || ++A.frames <= 3) return; // (the first frames of a change can hold work done once, like building a fractal's drawing program)
+    A.load = A.load ? A.load + (Math.min(cost, A.load * 3) - A.load) * 0.2 : cost;
+    if (A.frames <= 9) return; // (judged on six frames or more)
+    const budget = quality <= 0.4 ? 30 : 36, saved = A.half ? A.alone / 2 : A.alone; // the most a frame should cost (less on a machine already at its lowest quality), and what leaving the old one out would save now
+    const helps = (less, most) => A.load > most && less >= A.load / 4 && (A.load - less <= most || less >= A.load / 3); // over that, and leaving it out saves a quarter of the frame or more and brings it back under, or saves a third or more
+    if (!A.half && helps(A.alone / 2, 30)) { A.half = true; A.frames = 3; A.load = 0; } // every other frame, and it is measured again
+    else if (helps(saved, budget)) { keepGood(); A.still = true; } // from now to the end of this change, its last picture kept moving
+  }
+  function keepGood() { // a good picture of the going one, kept for the living still: when the change starts, then every half second or so, and when a slow machine gives up drawing it
+    const A = aside;
+    if (!sized(A.keep)) [A.keep, A.keepX] = paperFor(A.keep, A.keepX);
+    A.keepX.drawImage(A.c, 0, 0);
+  }
+  function stillFrame() { // the last picture swelling with the kick, coming a little closer and turning slowly, drawn big enough that a turned picture still covers every corner, on a phone too
+    const A = aside, x = A.x, p = morph.p, turn = 0.012 * Math.sin(sound.t * 0.5) + 0.01 * p, s = 1 + 2.1 * Math.abs(turn) + 0.035 * sound.kick + 0.06 * p, c = s * Math.cos(turn), n = s * Math.sin(turn);
+    x.setTransform(1, 0, 0, 1, 0, 0);
+    x.globalAlpha = 1;
+    x.globalCompositeOperation = "source-over";
+    x.fillStyle = "#05060a";
+    x.fillRect(0, 0, w, h);
+    x.setTransform(c, n, -n, c, w / 2, h / 2);
+    x.drawImage(A.keep, -w / 2, -h / 2, w, h);
+    x.setTransform(1, 0, 0, 1, 0, 0);
+  }
+  function drawAside() { // from blend(): the going one's frame, on its own picture
+    const A = aside;
+    if (A.drawnAt === realNow) return; // (once a frame)
+    A.drawnAt = realNow;
+    if (!sized(A.c)) [A.c, A.x] = paperFor(A.c, A.x);
+    snap = A.c;
+    if (A.still) { stillFrame(); return; }
+    A.owed = Math.min(0.1, A.owed + A.real);
+    if (A.half && (A.skip = !A.skip)) return; // a slow machine draws it every other frame: what it drew last time stays on its picture, and it is owed the time
+    if (!sized(A.spare)) [A.spare, A.back] = paperFor(A.spare, A.back);
+    const began = performance.now(), real = A.owed;
+    let broke = null;
+    A.owed = 0;
+    A.dt = real * A.T.speed * flow.pace;
+    trade();
+    try {
+      evolve(real); // its own dials on their way go on (and nothing new starts while a change is on)
+      tint();
+      quiet = true; // (nobody visits it, and it takes no new version)
+      drawScene();
+      drawTwinkles();
+    } catch (e) { broke = e; } finally { quiet = false; trade(); }
+    if (!broke && ++A.goods % 30 === 0) keepGood();
+    if (broke) { // it could not be drawn: from here its last good picture (from the last half second), kept moving, and the change goes on
+      for (let i = 0; i < 16; i++) A.x.restore();
+      A.x = A.c.getContext("2d");
+      A.x.setTransform(1, 0, 0, 1, 0, 0);
+      A.x.globalAlpha = 1;
+      A.x.globalCompositeOperation = "source-over";
+      if (!A.warned.has(A.name)) { A.warned.add(A.name); console.warn("Effects: " + A.name + " could not go on drawing while it changed into the next effect, so its last picture is shown instead.", broke); }
+      A.still = true;
+      stillFrame();
+    }
+    A.spent = performance.now() - began;
+    if (!broke && A.goods > 3) A.alone = A.alone ? A.alone + (Math.min(A.spent, A.alone * 3) - A.alone) * 0.2 : A.spent; // (not from its first frames, which can hold work done once)
+  }
+  WAYS.kicks = (p, m) => { // the new one shows through a ring of light that every kick pushes further out, from near the middle; the last kick of the change takes the old one away.
+    // Each push uncovers as much of the picture as the one before (see aside.cover), so a dark effect going over a bright one, or the other way, brightens or darkens in even steps
+    const n = m.beats || 8, b = m.beats ? m.b : p * n, step = Math.floor(b), push = (step + 1 - (1 - clamp(b - step)) ** 2) / n, q = Math.min(1, Math.max(push, p)); // (each push quick on its kick and easing off through its beat)
+    if (q >= 1) { m.done = true; return; } // nothing of the old one is left to show (only at the very end: the far corners go last)
+    const cx = w * m.x, cy = h * m.y, far = Math.hypot(Math.max(cx, w - cx), Math.max(cy, h - cy)), at = q * 575, k = Math.floor(at), A = aside.cover;
+    const r = far * (A[k] + (A[Math.min(575, k + 1)] - A[k]) * (at - k)) * Math.min(1, q * 576), hole = new Path2D(), ring = new Path2D();
+    hole.rect(0, 0, w, h);
+    hole.arc(cx, cy, r, 0, TAU);
+    g.save();
+    g.clip(hole, "evenodd");
+    g.drawImage(snap, 0, 0, w, h);
+    g.restore();
+    if (r < 2) return;
+    ring.arc(cx, cy, r, 0, TAU);
+    g.globalCompositeOperation = "lighter";
+    neon(ring, rgba(around(p * 0.6), 1), Math.max(1.5, h / 300), 0.9 - 0.5 * p);
+  };
+  function coverFor(m) { // for the kicks: how far out from the ring's middle the ring must be to uncover each 576th of the picture, nearest first (a grid of 32 by 18 points, as shares of the farthest corner)
+    const A = aside.cover, cx = m.x * w, cy = m.y * h, far = Math.hypot(Math.max(cx, w - cx), Math.max(cy, h - cy));
+    for (let j = 0; j < 18; j++) for (let i = 0; i < 32; i++) A[j * 32 + i] = Math.hypot(((i + 0.5) / 32) * w - cx, ((j + 0.5) / 18) * h - cy) / far;
+    A.sort();
+  }
+  /* ==== live change: end ==== */
   function pointerRings() { // a click on the picture sends a soft ring out from where it landed, in the record's colors, and the kick pushes it on
     const L = pointer.rings;
     if (pointer.tapped && !pointer.taken) { if (L.length >= 6) L.shift(); L.push({ x: pointer.tapped.x, y: pointer.tapped.y, age: 0, tone: around(Math.random()) }); }
@@ -14077,6 +14357,7 @@ window.Effects = (() => {
     if (acidShows() || bandShows() || (fadesInPlace() && (morph || (!inScene && crowd.folk.length) || dreaming() || pointer.rings.length))) { clean = copyOf(clean); dirty = true; }
     if (morph) blend();
     punchFrame(); // in hard music, the punch on each kick, over the picture and under the visitors
+    if (aside.on) aside.cost = performance.now() - aside.began; // what drawing this frame has cost so far: both effects and the punch over them (see slowCheck)
     const inPixels = pixelOver(); // over a pixel world, the visitors and the singer are drawn in its own big square dots
     pointerRings();
     if (!inScene) drawFolk();
@@ -14224,7 +14505,7 @@ window.Effects = (() => {
     names: [["ribbon", "Ribbon"], ["bars", "Bars"], ["trails", "Trails"], ["stars", "Stars"], ["halo", "Halo"], ["space", "Space"], ["trip", "Psychedelic"], ["journey", "Journeys"], ["worlds", "3D"], ["visions", "Visions"], ["pixel", "Pixel"], ["aero", "Aero"], ["recipes", "Recipes"]],
     styles: STYLES,
     show(next) {
-      if (!canvas.hidden && name) { pending = next === name ? "" : next; return; } // already showing one: it changes on the next frame, from how it looks then
+      if (!canvas.hidden && name) { pending = next === name ? "" : next; if (pending && aside.tuned) changeLight(aside.litWas); return; } // already showing one: it changes on the next frame, from how it looks then
       canvas.hidden = false;
       slowNext = false; // from nothing there's nothing to change from
       beginEffect(next);
@@ -14234,6 +14515,7 @@ window.Effects = (() => {
       name = pending = "";
       slowNext = false;
       morph = null;
+      changeStop();
       crowd.folk = [];
       pointer.rings.length = 0;
       pointer.on = false;
@@ -14289,13 +14571,11 @@ window.Effects = (() => {
     knobs: (style) => { const trip = TRIPS[style]; return ["light", "react", "punch", "speed", "spark", ...(LEAVES_TRAILS.has(style) ? ["drag"] : []), ...(style === "ripple" ? ["tilt"] : []), ...(trip ? ["nod", ...(trip.steer ? ["turns"] : []), ...(trip.moves ? ["moves"] : []), "shots"] : []), ...(VERSIONS[style] ? ["vary"] : []), ...(FRACTALS.has(style) ? ["color", "echo", "breathe"] : []), ...(style === "dorfic" || style === "eco" ? [] : ["sounds"]), "tricks", "dream", "folk", "acid", "band", ...(trip && trip.falls ? ["falls"] : []), ...(trip && trip.cockpit ? ["pit"] : [])].map((key) => [key, ...KNOBS[key]]); },
     tuning(values) { // adjustments for the effect showing. Anything left out is back to how it was designed
       const was = T.vary;
+      changeKnobs(); // the sliders the picture was drawn with, kept for an effect that goes on beside the next one (see the live change)
       for (const key of Object.keys(T)) { const [, low, high] = KNOBS[key], v = Number(values[key]); T[key] = Number.isFinite(v) ? Math.min(high, Math.max(low, v)) : 1; }
-      paintFilter();
+      if (!aside.on) changeLight(T.light); // (while one effect changes into another, the light glides from the old one's to the new one's: see changeStep)
       if (!T.turns && sky.far) sky.aimX = sky.aimY = 0;
-      if (name && dialsOf(name) && !was !== !T.vary) { // turned off it goes back to how it was designed; turned on, it's away again
-        const dials = dialsOf(name);
-        setVersion(Object.fromEntries(Object.entries(dials).map(([key, list]) => [key, T.vary ? anyOf(list) : list[0]])), canvas.hidden ? undefined : "fade");
-      }
+      if (name && dialsOf(name) && !was !== !T.vary) aside.toggle = !aside.toggle; // turned off it goes back to how it was designed, turned on it's away again: on the next frame, unless the next effect comes in on it (see changeStep)
     },
     versions: (style) => !!VERSIONS[style], // whether it has versions to change between
     recipes: { // effects written as data: see readRecipe. Their names start "recipe-"; the app keeps your own and brings them back when it starts
@@ -14323,9 +14603,9 @@ window.Effects = (() => {
       vary.on = 0;
       return true;
     },
-    light: () => T.light,
+    light: () => aside.lit, // the Brightness on the picture now: while one effect changes into another it glides from the old one's to the new one's (the app's flash on the kick starts from it)
     soft(px) { pageSoft = Math.max(0, Math.min(40, +px || 0)); paintFilter(); }, // how soft the picture is behind the page, in dots (0 is sharp)
-    filterAt: (k) => `brightness(${k * T.light})${pageSoft ? ` blur(${pageSoft}px)` : ""}`, // the picture's filter with its Brightness times k, for the page's flash on the kick, which must keep the softness
+    filterAt: (k) => `brightness(${k * aside.lit})${pageSoft ? ` blur(${pageSoft}px)` : ""}`, // the picture's filter with its Brightness times k, for the page's flash on the kick, which must keep the softness
     cover(img) { // the colors come from the record
       picture = img;
       base = PLAIN;
@@ -14348,7 +14628,7 @@ window.Effects = (() => {
       if (!(showing && TRIPS[name])) nodAlong(); // the visitors nod to the kick anywhere. In Space the ship's own nod does it
       if (showing) {
         keepUp(real);
-        if (pending) changeOver();
+        changeStep(real); // a change from one effect to another starts, moves on with the music, or ends (see the live change)
         evolve(real);
         bandNow(real); // the band's numbers for this frame, before anything is drawn
         dreamNow(real);
