@@ -8,6 +8,8 @@ window.Effects = (() => {
   document.body.prepend(canvas);
   const stage = canvas.getContext("2d", { alpha: false }), spare = document.createElement("canvas"), back = spare.getContext("2d", { alpha: false });
   let g = stage; // what's being drawn on: the picture, or for a moment the visitors' own layer over the app
+  let pageSoft = 0; // how soft the picture is made behind the page, in dots, as the page asks (0, sharp, in Full view and on a slow machine)
+  const paintFilter = () => { canvas.style.filter = [T.light === 1 ? "" : `brightness(${T.light})`, pageSoft ? `blur(${pageSoft}px)` : ""].filter(Boolean).join(" "); }; // the picture's Brightness and its softness behind the page, both on the picture itself (a blur laid over the window from outside would cost far more)
   const sound = { bands: new Float32Array(BANDS), wave: new Float32Array(POINTS), bass: 0, mid: 0, treble: 0, level: 0, kick: 0, hat: 0, kickHit: 0, hatHit: 0, t: 0, dt: 0.016 };
   const pointer = { on: false, x: 0, y: 0, at: -1e9, tap: null, tapped: null, taken: false, rings: [] }; // the mouse over the picture, in the picture's own dots: on while it is over the picture itself (not the page's buttons or words), at when it last moved (the clock, in ms), and tapped, a click, there for the one frame after it lands, as kickHit is for a kick. An effect that answers a click in its own way sets taken in that frame, and then no ring goes out. rings: the soft rings that clicks send out
   const T = { light: 1, react: 1, speed: 1, drag: 1, spark: 1, nod: 1, turns: 1, moves: 1, shots: 1, folk: 1, acid: 1, band: 1, pit: 1, tilt: 1, vary: 1, dream: 1, falls: 1, color: 1, echo: 1, breathe: 1, sounds: 1, tricks: 1, punch: 1 }; // what's been adjusted for the effect showing: 1 is how it was designed
@@ -14288,7 +14290,7 @@ window.Effects = (() => {
     tuning(values) { // adjustments for the effect showing. Anything left out is back to how it was designed
       const was = T.vary;
       for (const key of Object.keys(T)) { const [, low, high] = KNOBS[key], v = Number(values[key]); T[key] = Number.isFinite(v) ? Math.min(high, Math.max(low, v)) : 1; }
-      canvas.style.filter = T.light === 1 ? "" : `brightness(${T.light})`;
+      paintFilter();
       if (!T.turns && sky.far) sky.aimX = sky.aimY = 0;
       if (name && dialsOf(name) && !was !== !T.vary) { // turned off it goes back to how it was designed; turned on, it's away again
         const dials = dialsOf(name);
@@ -14322,6 +14324,8 @@ window.Effects = (() => {
       return true;
     },
     light: () => T.light,
+    soft(px) { pageSoft = Math.max(0, Math.min(40, +px || 0)); paintFilter(); }, // how soft the picture is behind the page, in dots (0 is sharp)
+    filterAt: (k) => `brightness(${k * T.light})${pageSoft ? ` blur(${pageSoft}px)` : ""}`, // the picture's filter with its Brightness times k, for the page's flash on the kick, which must keep the softness
     cover(img) { // the colors come from the record
       picture = img;
       base = PLAIN;

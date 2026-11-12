@@ -1980,6 +1980,11 @@ function playingSetting() { // how songs are played, kept on this device
     el("p", { class: "note" }, "A song that opens or closes with a second or more of near silence starts where its sound does, and the next one comes once it's over, with the crossfade or without. Each song is measured the first time it plays, and the file isn't changed. To check always plays the whole file."),
     el("label", { class: "filter-check vibe-note" }, el("input", { type: "checkbox", checked: skipQuiet, onchange: (e) => { skipQuiet = e.target.checked; store("curator-quiet", skipQuiet ? "on" : "off"); armedId = null; if (skipQuiet) { learnEdges(current()); learnEdges(S.byId.get(P.queue[upNext()])); } } }), "Skip a long quiet start or end")); // at once: the next song is readied again, and with it on, this one and the next are measured
 }
+function behindSetting() { // how an effect shows behind the page, kept on this device
+  return el("div", { class: "card accent-setting" }, el("h2", {}, "The picture behind the page"),
+    el("p", { class: "note" }, "When an effect is on, how much of it shows behind Now Playing (and, with All pages on, a little less behind the other pages, as there is more to read) and how soft it is there. Full view always shows it whole and sharp, and so does a machine too slow for the blur. The same two are under Adjust on Now Playing."),
+    ...behindKnobs("fx-knob vibe-note"));
+}
 function curatorOff() { // an old link to To check or Progress, with the Curator off
   view.replaceChildren(el("div", {}, el("div", { class: "page-head" }, el("h1", {}, "The Curator is off")),
     el("p", { class: "empty" }, "To check and Progress belong to the Curator. Turn it on in Settings, under Extras, to see them again."),
@@ -2012,6 +2017,7 @@ async function pageSettings() {
     playingSetting(),
     accentSetting(),
     vibeSetting(),
+    FX && !calm.matches ? behindSetting() : null,
     surprisesSetting(),
     packsSetting(),
     folderForm(st, { showReview: extra("curator"), requireChange: true, button: "Save folders", downloads: extra("curator") ? "shown" : "hidden", saved: async () => {
@@ -2307,6 +2313,23 @@ if (FX) for (const [key, raw] of Object.entries(myRecipes)) if (FX.recipes.keep(
 const saveRecipes = () => store("curator-recipes", JSON.stringify(myRecipes));
 let fxName = familyOf(store("curator-fx")) ? store("curator-fx") : "", fxEverywhere = store("curator-fx-all") === "1", fxFull = false, fxIdle = 0, fxMorph = store("curator-fx-morph") === "1", fxSeen = [];
 let fxKeep = store("curator-full-keep") === "1"; // in full view the controls stay on screen when the mouse rests
+const shareKept = (key, fallback) => { const v = parseFloat(store(key)); return Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : fallback; }; // a share from 0 to 1 kept on this device, or what it is when nothing was kept
+let fxShow = shareKept("curator-fx-show", 0.5), fxBlur = shareKept("curator-fx-blur", 0); // the picture behind the page, for every effect: how much of it shows on Now Playing (behind the other pages three fifths of that) and how soft it is there. Full view always shows it whole and sharp
+const FX_BLUR_MOST = 20; // the softest it gets, in dots of the screen
+function paintBehind() { // puts both on the picture: its strength through style.css, its softness through the picture's own filter (with its Brightness). Full view shows it sharp, and so does a slow machine, where a blur over the whole window would cost too much
+  document.documentElement.style.setProperty("--fx-show", fxShow.toFixed(2));
+  if (FX) FX.soft(fxFull || document.body.classList.contains("gentle") ? 0 : Math.round(fxBlur * FX_BLUR_MOST * 10) / 10);
+}
+function behindKnobs(cls) { // its two sliders, the same in Adjust and in Settings
+  const knob = (label, value, words, set) => {
+    const shown = el("span", { class: "fx-value" }, words(value));
+    return el("label", { class: cls }, el("span", {}, label), el("input", { type: "range", min: 0, max: 1, step: 0.05, value, oninput: (e) => { const v = +e.target.value; set(v); shown.textContent = words(v); paintBehind(); } }), shown);
+  };
+  return [
+    knob("How much it shows", fxShow, (v) => `${Math.round(v * 100)}%`, (v) => { fxShow = v; store("curator-fx-show", String(v)); }),
+    knob("Blur", fxBlur, (v) => (v < 0.001 ? "None" : `${Math.round(v * 100)}%`), (v) => { fxBlur = v; store("curator-fx-blur", String(v)); }),
+  ];
+}
 const fxShowing = () => !!FX && !!fxName && !calm.matches && (fxEverywhere || onNowPage());
 /* Sliders for the effect showing. 100% is how it was designed, each style remembers its own, and only what's been moved is saved. */
 let fxTuning = {}, fxAdjusting = false;
@@ -2327,7 +2350,7 @@ function fxAdjust() {
       saveTuning();
       reset.disabled = !fxTuning[fxName];
     } }), shown);
-  }), reset);
+  }), reset, el("div", { class: "fx-behind" }, "Behind the page, for every effect"), ...behindKnobs("fx-knob")); // (not for this effect alone, and not put back by "Back to default")
 }
 const fxBar = () => (FX && !calm.matches ? el("div", { class: "fx-bar" },
   el("div", { class: "fx-picks", role: "group", "aria-label": "Effects" }, el("span", { class: "fx-label" }, "Effect"), [["", "None"], ...FX.names].map(([k, t]) => {
@@ -2523,6 +2546,7 @@ function fullFx(on) {
   fxFull = on;
   FX.full(on);
   document.body.classList.toggle("fx-full", on);
+  paintBehind(); // sharp in Full view, and as soft as asked behind the page again
   document.body.classList.remove("idle");
   clearTimeout(fxIdle);
   wakeFx();
@@ -2990,6 +3014,7 @@ setInterval(() => { // once a minute: how long you've been listening (a pause of
   paintTime();
 }, 60000);
 if ($("#fx")) $("#fx").after(el("div", { class: "era fx-era", "aria-hidden": "true" })); // the era's look over the pictures too, which cover the background in Full view
+paintBehind(); // the picture's strength and blur behind the page, as they were kept
 (() => { // a little film grain for the seventies, drawn once
   const c = el("canvas", { width: 128, height: 128 }), g = c.getContext("2d"), img = g.createImageData(128, 128);
   for (let i = 0; i < img.data.length; i += 4) { const v = Math.random() * 255; img.data[i] = img.data[i + 1] = img.data[i + 2] = v; img.data[i + 3] = 60; }
@@ -3135,7 +3160,7 @@ function flashBackground(strength) { // its own switch, because the whole window
   const time = { duration: FEEL[vibe].flash || 300, easing: document.body.classList.contains("gentle") ? "steps(4, end)" : "ease-out" }, scrim = $(".ambient.lit .ambient-scrim"); // a slow machine can only redraw the whole window a few times, so there it fades in steps
   if (scrim) scrim.animate({ opacity: [0.86 - 0.1 * strength, 1] }, time); // the cover's colors come through a little more
   else $(".ambient-flash").animate({ opacity: [0.5 + 0.5 * strength, 0] }, time); // a song with no cover has no colors to bring out
-  if (fxShowing()) $("#fx").animate({ filter: [`brightness(${(1.12 + 0.22 * strength) * FX.light()})`, `brightness(${FX.light()})`] }, time); // an effect covers the background, so it takes the flash too
+  if (fxShowing()) $("#fx").animate({ filter: [FX.filterAt(1.12 + 0.22 * strength), FX.filterAt(1)] }, time); // an effect covers the background, so it takes the flash too
 }
 /* The dance: every so often, for a few seconds, the app loses itself in the music. It comes by itself now and then, and typing "dance" starts it whenever you like. */
 const DANCERS = [ // who joins in, how far each moves, how long each waits for the one before it, and how many may join
@@ -3510,7 +3535,7 @@ function checkSmoothness() { // moving a whole window's background is easy with 
       first = first || t;
       frames++;
       if (t - first < 1500) return requestAnimationFrame(count);
-      if (frames / ((t - first) / 1000) < 45) { document.body.classList.add("gentle"); gentleMotion(); }
+      if (frames / ((t - first) / 1000) < 45) { document.body.classList.add("gentle"); gentleMotion(); paintBehind(); }
     };
     requestAnimationFrame(count);
   }, 2500); // after the colors have finished fading in

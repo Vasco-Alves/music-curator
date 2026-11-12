@@ -369,9 +369,9 @@ body.fx-on .now-about-song { padding: 2px 12px 12px; border-radius: 12px; backgr
 .pick { display: flex; align-items: center; gap: 7px; padding: 3px 6px; border-radius: 6px; font-size: 13px; cursor: pointer; min-width: 0; overflow-wrap: anywhere; }
 .pick:hover { background: var(--surface-2); }
 .pick em { flex: none; font-style: normal; font-size: 12px; color: var(--ink-3); } /* right after the name: pushed to the far side it sat beside the next playlist's box and read as that one's */
-#fx { position: fixed; inset: 0; z-index: -1; display: block; width: 100%; height: 100%; opacity: .5; transition: opacity .4s ease; } /* behind the page it stays out of the way: Full view is where it's the main thing */
+#fx { position: fixed; inset: 0; z-index: -1; display: block; width: 100%; height: 100%; opacity: var(--fx-show, .5); transition: opacity .4s ease, filter .4s ease; } /* behind the page it stays out of the way: Full view is where it's the main thing */
 body.fx-full #fx { opacity: 1; }
-body.fx-around #fx { opacity: .3; }
+body.fx-around #fx { opacity: calc(var(--fx-show, .5) * .6); } /* (--fx-show: how much it shows behind the page, from Settings or Adjust; .5 unless moved) */
 #guests { position: fixed; inset: 0; z-index: 38; display: block; width: 100%; height: 100%; pointer-events: none; } /* visitors on the app itself: over the page and the play bar, under tips, notes and menus, and clicks go through */
 body.fx-full #guests { visibility: hidden; }
 @media (max-width: 1400px), (max-height: 1060px) { /* not enough room for the buttons beside the record and its tonearm, so they get a row of their own */
@@ -413,6 +413,8 @@ body.fx-full #guests { visibility: hidden; }
 .fx-bar .btn.on { border-color: var(--accent); color: var(--accent); }
 .fx-adjust { position: absolute; top: calc(100% + 8px); right: 0; z-index: 5; display: grid; gap: 9px; width: 320px; padding: 12px 14px; text-align: left; }
 .fx-adjust .btn { justify-self: end; }
+.fx-behind { margin-top: 2px; padding-top: 9px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--ink-3); } /* in Adjust: the two sliders that are for every effect */
+body.fx-full .fx-behind, body.fx-full .fx-behind ~ .fx-knob { display: none; } /* they are for behind the page: in Full view they would do nothing */
 .fx-knob { display: grid; grid-template-columns: minmax(0, 1fr) 110px 42px; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
 .fx-knob input { width: 100%; }
 .fx-bar .btn.rec.on { border-color: #ff4d4d; color: #ff6b6b; font-variant-numeric: tabular-nums; } /* recording */
