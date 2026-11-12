@@ -66,9 +66,9 @@ Or by hand, with no programming needed: three commands, about ten minutes.
    uv tool install pressling
    ```
 
-   If uv says it can't find it, it isn't on PyPI yet, so get it straight from GitHub instead:
-   `uv tool install "pressling @ https://github.com/Vasco-Alves/pressling/archive/refs/heads/main.zip"`.
-   To update a copy installed that way, run the same line with `--reinstall` added after `install`.
+   For the newest code before it is released, use
+   `uv tool install "pressling @ https://github.com/Vasco-Alves/pressling/archive/refs/heads/main.zip"` instead
+   (add `--reinstall` after `install` to update a copy installed that way).
 
 3. **Start it:**
 
