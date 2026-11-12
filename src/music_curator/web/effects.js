@@ -132,6 +132,7 @@ window.Effects = (() => {
      and how intense this moment is next to the rest of the song. Every effect follows it: calm slows things down, a build sends sparks up faster and faster, and a drop lands with a flash and a wave. */
   const flow = { grooved: false, part: "groove", intensity: 0.5, build: 0, calm: 0, drop: 0, dropHit: 0, since: 9, fast: 0, slow: 0, hiFast: 0, hiSlow: 0, pace: 1, bpm: 0, gaps: [], clock: 0, kickAt: 0, steady: 0, lead: 0, leadHit: 0, leadArmed: true, tune: 0, tuneHit: 0, tuneArmed: true, tone: 0, flux: 0, floor: 0.19, bare: 0.13,
     thump: 0, gone: 9, asked: 9, watch: 0, peak: 0, counted: false, due: 0, run: 0, spare: 0, beat: 0, under: 0 }; // this line is kickBack's
+  // (and flow.acidOn, acidFilter, acidSoft, acidKnob, acidNote and acidBand: how much of a 303 line is playing and how open its filter is, for every picture; described in the acidall block, which works them out)
   sound.flow = flow;
   /* The kick coming back after a break, which is what a drop is. A break is seldom empty: toms, a bass note or a soft kick thump along in it, and the first of them used to be taken for the kick, so the drop came early.
      So a hit only counts as the kick once it gets as big as this song's kick: six tenths of what's usual (thump), which is learned from the hits that count. How big a hit gets is watched for a moment after it starts.
@@ -443,9 +444,10 @@ window.Effects = (() => {
   };
   function ribbon() { // bundles of threads drifting across, like a waving cloth
     const { t, bass, mid, kick, hatHit } = sound, LINES = 14, step = Math.max(6, w / 150), N = V.bundles, k = V.waves;
-    const yAt = (u, r, spread) => h * (0.5 + (r - (N - 1) / 2) * (0.32 / Math.max(1, N - 1))) + Math.sin(u * 3.4 * k + t * 0.55 + r * 2.1 + spread * 1.6) * h * (0.07 + 0.1 * bass)
+    const yAt = (u, r, spread) => h * (0.5 + (r - (N - 1) / 2) * (0.32 / Math.max(1, N - 1))) + Math.sin(u * 3.4 * k + t * 0.55 + r * 2.1 + spread * 1.6) * h * (0.07 + 0.1 * bass + 0.08 * acidLook.open)
       + Math.sin(u * 8.2 * k - t * 0.9 + r * 2.1 + spread * 4) * h * (0.012 + 0.03 * mid)
-      + spread * h * (0.09 + 0.16 * smooth(u * BANDS * 0.7 + r * 6)) * Math.sin(u * 2.6 * k + t * 0.4 + r);
+      + spread * h * (0.09 + 0.16 * smooth(u * BANDS * 0.7 + r * 6)) * Math.sin(u * 2.6 * k + t * 0.4 + r)
+      + (acidLook.on ? h * (0.09 * acidLook.open + 0.05 * acidLook.note) * Math.sin(u * 15 * k - t * 2.6 + r * 1.7 + spread * 2) : 0); // a 303: a quicker, sharper wave runs along the threads as the filter opens, and kinks on each note
     backdrop();
     g.globalCompositeOperation = "lighter";
     g.lineWidth = Math.max(1, h / 540);
@@ -457,7 +459,7 @@ window.Effects = (() => {
           const y = yAt(x / w, r, spread);
           if (x) g.lineTo(x, y); else g.moveTo(x, y);
         }
-        g.strokeStyle = rgba(colors[r % 3], (0.16 + 0.22 * kick) * (1 - Math.abs(spread) * 1.1));
+        g.strokeStyle = rgba(colors[r % 3], (0.16 + 0.22 * kick + 0.2 * acidLook.knob) * (1 - Math.abs(spread) * 1.1));
         g.stroke();
       }
     }
@@ -477,7 +479,7 @@ window.Effects = (() => {
       for (let f = 0; f < SHEETS; f++) {
         const fold = f / (SHEETS - 1) - 0.5, sheet = new Path2D(), edge = new Path2D(), under = [];
         for (let x = 0; x <= w + step; x += step) {
-          const u = x / w, y = base + fold * h * 0.05 + Math.sin(u * 2.4 * k + t * 0.32 + phase + fold) * h * (0.1 + 0.07 * bass) + Math.sin(u * 5.7 * k - t * 0.46 + phase * 2) * h * 0.024, thick = h * (0.016 + 0.1 * smooth(u * BANDS * 0.7 + r * 7) + 0.035 * bass) * (1.15 + Math.sin(u * 3.3 + t * 0.26 + r + fold * 3));
+          const u = x / w, y = base + fold * h * 0.05 + Math.sin(u * 2.4 * k + t * 0.32 + phase + fold) * h * (0.1 + 0.07 * bass) + Math.sin(u * 5.7 * k - t * 0.46 + phase * 2) * h * (0.024 + 0.07 * acidLook.soft), thick = h * (0.016 + 0.1 * smooth(u * BANDS * 0.7 + r * 7) + 0.035 * bass + 0.05 * acidLook.soft) * (1.15 + Math.sin(u * 3.3 + t * 0.26 + r + fold * 3));
           if (x) { sheet.lineTo(x, y - thick); edge.lineTo(x, y - thick); } else { sheet.moveTo(x, y - thick); edge.moveTo(x, y - thick); }
           under.push(x, y + thick * 0.4);
           if (hatHit && f === SHEETS >> 1 && Math.random() < 0.008) twinkle(x, y - thick, h * 0.06);
@@ -489,7 +491,7 @@ window.Effects = (() => {
         g.fill(sheet);
         g.strokeStyle = paint;
         g.lineWidth = Math.max(1, h / 620);
-        g.globalAlpha = 0.34 + 0.4 * kick;
+        g.globalAlpha = 0.34 + 0.4 * kick + 0.25 * acidLook.knob;
         g.stroke(edge);
       }
     }
@@ -497,16 +499,16 @@ window.Effects = (() => {
   }
 
   function helix() { // strands wound round each other, with the sound strung between them
-    const { t, bass, kick, hatHit } = sound, n = 90, N = V.strands, amp = h * (0.17 + 0.08 * bass), lines = Array.from({ length: N }, () => new Path2D()), width = Math.max(1.6, h / 340) * (1 + kick);
+    const { t, bass, kick, hatHit } = sound, n = 90, N = V.strands, amp = h * (0.17 + 0.08 * bass + 0.1 * acidLook.open), lines = Array.from({ length: N }, () => new Path2D()), width = Math.max(1.6, h / 340) * (1 + kick);
     backdrop();
     g.globalCompositeOperation = "lighter";
     g.lineCap = "round";
     for (let i = 0; i <= n; i++) {
-      const u = i / n, x = u * w, phase = u * TAU * V.twists + t * 0.8, y = h / 2 + Math.sin(u * 2.1 + t * 0.2) * h * 0.06, at = (k) => y + Math.sin(phase + (k * TAU) / N) * amp;
+      const u = i / n, x = u * w, phase = u * TAU * (V.twists + 1.6 * acidLook.soft) + t * 0.8, y = h / 2 + Math.sin(u * 2.1 + t * 0.2) * h * 0.06, at = (k) => y + Math.sin(phase + (k * TAU) / N) * amp;
       for (let k = 0; k < N; k++) { if (i) lines[k].lineTo(x, at(k)); else lines[k].moveTo(x, at(k)); }
       if (i % 2) continue;
       const v = smooth(u * BANDS * 0.85), pair = (i / 2) % N, a = at(pair), b = at((pair + 1) % N); // with more than two strands the rungs go between each pair in turn
-      g.strokeStyle = rgba(around(u * 0.9 + t * 0.03), 0.18 + 0.75 * v);
+      g.strokeStyle = rgba(around(u * 0.9 + t * 0.03), 0.18 + 0.75 * v + 0.2 * acidLook.knob);
       g.lineWidth = Math.max(1, h / 450) * (1 + 2.4 * v);
       g.beginPath();
       g.moveTo(x, a);
@@ -523,15 +525,15 @@ window.Effects = (() => {
     g.globalCompositeOperation = "lighter";
     g.lineCap = "round";
     for (let s = 0; s < N; s++) {
-      const v = smooth(((N - 1 - s) / N) * BANDS * 0.9 + 1), y0 = pad + s * gapY, shake = Math.sin(t * (13 + s * 1.9)) * gapY * 3.4 * v * (24 / N) ** 0.5, loops = (1 + (s % 3)) * V.loops, path = new Path2D();
+      const v = smooth(((N - 1 - s) / N) * BANDS * 0.9 + 1), y0 = pad + s * gapY, shake = Math.sin(t * (13 + s * 1.9)) * gapY * 3.4 * (v + (0.9 * acidLook.open + 0.4 * acidLook.note) * (1 - s / N)) * (24 / N) ** 0.5, loops = (1 + (s % 3)) * V.loops, path = new Path2D();
       for (let x = 0; x <= w + step; x += step) { const y = y0 + Math.sin((x / w) * Math.PI * loops) * shake; if (x) path.lineTo(x, y); else path.moveTo(x, y); }
-      neon(path, rgba(around(s / N + t * 0.02), 1), width * (1 + 1.6 * v), 0.3 + 0.7 * v + 0.2 * kick, 0.6);
+      neon(path, rgba(around(s / N + t * 0.02), 1), width * (1 + 1.6 * v), 0.3 + 0.7 * v + 0.2 * kick + 0.25 * acidLook.knob * (1 - s / N), 0.6);
     }
     if (hatHit) for (let i = 0; i < 3; i++) twinkle(rnd(0, w), pad + Math.floor(rnd(0, N * 0.4)) * gapY, h * 0.05);
   }
 
   function bars() { // the spectrum, with little caps that fall back slowly: standing on the floor, out both ways from the middle, up from the floor and down from the ceiling, or round in a ring
-    const n = V.count, layout = V.layout, level = (i) => sound.bands[Math.floor((i / n) * BANDS * 0.92)];
+    const n = V.count, layout = V.layout, level = (i) => acidAdd(sound.bands[Math.floor((i / n) * BANDS * 0.92)], (i / n) * 0.92);
     backdrop();
     for (let i = 0; i < n; i++) peaks[i] = Math.max(level(i), peaks[i] - sound.dt * 0.5);
     if (layout === "circle") {
@@ -540,7 +542,7 @@ window.Effects = (() => {
       g.lineWidth = Math.max(1.5, ((TAU * r) / (n * 2)) * 0.62);
       for (let i = 0; i < n * 2; i++) { // both halves, the left the mirror image of the right
         const b = i < n ? i : n * 2 - 1 - i, a = (i / (n * 2)) * TAU - Math.PI / 2, [x0, y0, x1, y1] = ray(a, r, r + Math.max(2, level(b) * tall)), [c0, d0, c1, d1] = ray(a, r + peaks[b] * tall + 4, r + peaks[b] * tall + 6.5);
-        g.strokeStyle = rgba(around((b / n) * 0.9), 0.85);
+        g.strokeStyle = rgba(acidTinge(around((b / n) * 0.9), (b / n) * 0.92), 0.85);
         g.beginPath();
         g.moveTo(x0, y0);
         g.lineTo(x1, y1);
@@ -556,7 +558,7 @@ window.Effects = (() => {
     const side = w * 0.05, gap = w * (n > 90 ? 0.0018 : 0.0035), wide = (w - side * 2 - gap * (n - 1)) / n, split = layout === "split", middle = layout === "middle";
     const floor = middle ? h * 0.5 : split ? h * 0.93 : h * 0.8, tall = middle ? h * 0.62 : split ? h * 0.4 : h * 0.6, ceiling = h * 0.07, capAt = [];
     for (let i = 0; i < n; i++) {
-      const x = side + i * (wide + gap), high = Math.max(2, level(i) * tall), c = around((i / n) * 0.9), top = mix(c, [255, 255, 255], 0.55);
+      const x = side + i * (wide + gap), high = Math.max(2, level(i) * tall), c = acidTinge(around((i / n) * 0.9), (i / n) * 0.92), top = mix(c, [255, 255, 255], 0.55);
       g.fillStyle = rgba(c, 0.82);
       if (middle) { // out both ways from a line across the middle, with a cap at each end
         g.fillRect(x, floor - high / 2, wide, high);
@@ -588,7 +590,7 @@ window.Effects = (() => {
     const { t, dt, hatHit } = sound, n = V.count, side = w * 0.03, gap = w * 0.003, wide = (w / 2 - side - gap * n) / n, floor = h * V.floor, tall = h * Math.min(0.52, V.floor * 0.78);
     backdrop();
     for (let i = 0; i < n; i++) {
-      const v = sound.bands[Math.floor((i / n) * BANDS * 0.92)], high = Math.max(2, v * tall), c = around((i / n) * 0.9 + t * 0.02), out = i * (wide + gap) + gap / 2, cap = floor - peaks[i] * tall - 5;
+      const v = acidAdd(sound.bands[Math.floor((i / n) * BANDS * 0.92)], (i / n) * 0.92), high = Math.max(2, v * tall), c = acidTinge(around((i / n) * 0.9 + t * 0.02), (i / n) * 0.92), out = i * (wide + gap) + gap / 2, cap = floor - peaks[i] * tall - 5;
       peaks[i] = Math.max(v, peaks[i] - dt * 0.5);
       for (const x of [w / 2 + out, w / 2 - out - wide]) {
         g.fillStyle = rgba(c, 0.86);
@@ -613,7 +615,7 @@ window.Effects = (() => {
     const round = Math.min(lamp, stepY) * 0.4, put = V.lamp === "round" ? (p, x, y) => { p.moveTo(x + lamp / 2 + round, y + thin / 2); p.arc(x + lamp / 2, y + thin / 2, round, 0, TAU); } : V.lamp === "thin" ? (p, x, y) => p.rect(x, y + thin * 0.36, lamp, thin * 0.28) : (p, x, y) => p.rect(x, y, lamp, thin); // little square lamps, round ones, or thin bars of light
     backdrop();
     for (let c = 0; c < COLS; c++) {
-      const v = sound.bands[Math.floor((c / COLS) * BANDS * 0.92)], level = Math.round(v * ROWS), x = side + c * stepX;
+      const v = acidAdd(sound.bands[Math.floor((c / COLS) * BANDS * 0.92)], (c / COLS) * 0.92), level = Math.round(v * ROWS), x = side + c * stepX;
       peaks[c] = Math.max(v, peaks[c] - dt * 0.35);
       const cap = Math.min(ROWS - 1, Math.round(peaks[c] * ROWS));
       for (let r = 0; r < ROWS; r++) put(r < level ? lit[r < ROWS * 0.62 ? 0 : r < ROWS * 0.85 ? 1 : 2] : r === cap ? caps : off, x, floor - (r + 1) * stepY);
@@ -634,7 +636,7 @@ window.Effects = (() => {
     if (landClock >= WAIT) {
       landClock %= WAIT;
       landAt = (landAt + RIDGES - 1) % RIDGES;
-      for (let a = 0; a < ACROSS; a++) land[landAt * ACROSS + a] = smooth((1 - Math.abs(a / (ACROSS - 1) - 0.5) * 2) * BANDS * 0.7 + 0.5); // the bass up both sides, so it's a valley
+      for (let a = 0; a < ACROSS; a++) land[landAt * ACROSS + a] = smooth((1 - Math.abs(a / (ACROSS - 1) - 0.5) * 2) * BANDS * 0.7 + 0.5) + 1.5 * acidSpectrum((1 - Math.abs(a / (ACROSS - 1) - 0.5) * 2) * 0.7); // the bass up both sides, so it's a valley
     }
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = 1;
@@ -645,7 +647,7 @@ window.Effects = (() => {
     dawn.addColorStop(1, rgba(colors[0], 0));
     g.fillStyle = dawn;
     g.fillRect(0, 0, w, h);
-    const R = h * (0.21 + 0.014 * kick) * V.glow, heat = g.createLinearGradient(0, horizon - R, 0, horizon);
+    const R = h * (0.21 + 0.014 * kick + 0.03 * acidLook.knob) * V.glow, heat = g.createLinearGradient(0, horizon - R, 0, horizon);
     heat.addColorStop(0, rgba(mix(colors[0], [255, 255, 255], 0.4), 1));
     heat.addColorStop(1, rgba(colors[1], 1));
     if (R > 1) {
@@ -695,13 +697,13 @@ window.Effects = (() => {
     for (let i = 0; i <= 10; i++) { const x = left + (wide * i) / 10; g.moveTo(x, h * 0.16); g.lineTo(x, h * 0.84); }
     for (let i = 0; i <= 8; i++) { const y = h * 0.16 + (h * 0.68 * i) / 8; g.moveTo(left, y); g.lineTo(left + wide, y); }
     g.stroke();
-    const traceAt = V.trace === "xy" ? (p) => [w / 2 + wave[p % POINTS] * h * 0.3, mid + wave[(p + 23) % POINTS] * h * 0.3] // the sound against itself a moment later, which draws loops and figures
-      : V.trace === "ring" ? (p) => { const a = (p / POINTS) * TAU - Math.PI / 2, r = h * (0.22 + 0.11 * wave[p % POINTS]); return [w / 2 + Math.cos(a) * r, mid + Math.sin(a) * r]; } // wrapped round into a circle
-      : (p) => [left + (wide * p) / (POINTS - 1), mid + wave[p] * h * 0.3];
+    const traceAt = V.trace === "xy" ? (p) => [w / 2 + (wave[p % POINTS] + acidRing(p)) * h * 0.3, mid + wave[(p + 23) % POINTS] * h * 0.3] // the sound against itself a moment later, which draws loops and figures
+      : V.trace === "ring" ? (p) => { const a = (p / POINTS) * TAU - Math.PI / 2, r = h * (0.22 + 0.11 * (wave[p % POINTS] + acidRing(p))); return [w / 2 + Math.cos(a) * r, mid + Math.sin(a) * r]; } // wrapped round into a circle
+      : (p) => [left + (wide * p) / (POINTS - 1), mid + (wave[p] + acidRing(p)) * h * 0.3];
     for (let p = 0, end = V.trace === "line" ? POINTS - 1 : POINTS; p <= end; p++) { const [x, y] = traceAt(p); if (p) trace.lineTo(x, y); else trace.moveTo(x, y); }
     g.globalCompositeOperation = "lighter";
     g.lineJoin = "round";
-    neon(trace, rgba(tone, 1), Math.max(1.4, h / 460), 0.8 + 0.2 * kick);
+    neon(trace, rgba(tone, 1), Math.max(1.4, h / 460) * (1 + 0.6 * acidLook.soft), 0.8 + 0.2 * kick + 0.2 * acidLook.knob);
     if (hatHit) twinkle(...traceAt(Math.floor(rnd(0, POINTS))), h * 0.07);
   }
 
@@ -769,27 +771,27 @@ window.Effects = (() => {
 
   function trails() { // the sound as a ring in the middle, streaming outward
     const { t, bass, kick, dt } = sound, pace = dt * 60, spin = turned("trails", 0.15), cx = w / 2, cy = h / 2, r = Math.min(w, h) * (0.13 + 0.08 * bass);
-    echo(1 + (0.012 + 0.02 * bass + 0.012 * kick) * pace, (0.0025 + 0.0045 * Math.sin(t * 0.23)) * pace * V.spin, 0.955 ** pace, Math.sin(t * 0.31) * w * 0.0012 * pace, Math.cos(t * 0.27) * h * 0.0016 * pace, undefined, 0.5);
-    neon(soundLoop(cx, cy, r, r, spin, 0.42), sweep(cx, cy, spin * 1.4), Math.max(1.5, h / 360) * (1 + kick), 0.65 + 0.35 * kick, 0.55);
+    echo(1 + (0.012 + 0.02 * bass + 0.012 * kick) * pace, (0.0025 + 0.0045 * Math.sin(t * 0.23) + 0.02 * acidLook.soft) * pace * V.spin, 0.955 ** pace, Math.sin(t * 0.31) * w * 0.0012 * pace, Math.cos(t * 0.27) * h * 0.0016 * pace, undefined, 0.5);
+    neon(soundLoop(cx, cy, r, r, spin, 0.42 + 0.9 * acidLook.open), sweep(cx, cy, spin * 1.4), Math.max(1.5, h / 360) * (1 + kick), 0.65 + 0.35 * kick, 0.55);
     spray(5, (u) => [cx + Math.cos(u * TAU) * r * 1.1, cy + Math.sin(u * TAU) * r * 1.1], h * 0.05);
     remember();
   }
 
   function tunnel() { // the other way: rings born at the edge sink away into the middle
     const { t, bass, kick, dt } = sound, pace = dt * 60, spin = -turned("tunnel", 0.2), cx = w / 2, cy = h / 2, swell = 0.46 * (1 + 0.05 * bass);
-    echo(1 - (0.014 + 0.028 * bass + 0.014 * kick) * pace, (0.004 + 0.007 * Math.sin(t * 0.19)) * pace * V.spin, 0.972 ** pace);
-    neon(soundLoop(cx, cy, w * swell, h * swell, spin, 0.07, 2), sweep(cx, cy, spin), Math.max(2, h / 280) * (1 + 0.6 * kick), 0.6 + 0.4 * kick);
+    echo(1 - (0.014 + 0.028 * bass + 0.014 * kick) * pace, (0.004 + 0.007 * Math.sin(t * 0.19) + 0.014 * acidLook.soft) * pace * V.spin, 0.972 ** pace);
+    neon(soundLoop(cx, cy, w * swell, h * swell, spin, 0.07 + 0.2 * acidLook.open, 2), sweep(cx, cy, spin), Math.max(2, h / 280) * (1 + 0.6 * kick), 0.6 + 0.4 * kick);
     spray(5, (u) => [cx + Math.cos(u * TAU) * w * swell, cy + Math.sin(u * TAU) * h * swell], h * 0.06);
     remember();
   }
 
   function vortex() { // arms of sound wound into a spiral
     const { t, wave, bass, kick, dt } = sound, pace = dt * 60, reach = Math.hypot(w, h) * 0.5, ARMS = V.arms, spin = turned("vortex", 0.3);
-    echo(1 + (0.007 + 0.012 * bass) * pace, (0.03 + 0.03 * bass) * pace * V.spin, 0.955 ** pace);
+    echo(1 + (0.007 + 0.012 * bass) * pace, (0.03 + 0.03 * bass + 0.05 * acidLook.soft) * pace * V.spin, 0.955 ** pace);
     for (let arm = 0; arm < ARMS; arm++) {
       const a = (arm / ARMS) * TAU + spin, path = new Path2D(), nx = -Math.sin(a), ny = Math.cos(a);
       for (let p = 0; p < POINTS; p += 2) {
-        const part = p / POINTS, along = reach * (0.04 + 0.62 * part), off = wave[p] * reach * 0.06 * Math.sin(part * Math.PI), x = w / 2 + Math.cos(a) * along + nx * off, y = h / 2 + Math.sin(a) * along + ny * off;
+        const part = p / POINTS, along = reach * (0.04 + 0.62 * part), off = wave[p] * reach * (0.06 + 0.14 * acidLook.open) * Math.sin(part * Math.PI), x = w / 2 + Math.cos(a) * along + nx * off, y = h / 2 + Math.sin(a) * along + ny * off;
         if (p) path.lineTo(x, y); else path.moveTo(x, y);
       }
       neon(path, rgba(around(arm / ARMS + t * 0.05), 1), Math.max(1.5, h / 400) * (1 + kick), 0.5 + 0.4 * kick, 0.5);
@@ -800,8 +802,8 @@ window.Effects = (() => {
 
   function prism() { // a ring wandering about, folded into four like a kaleidoscope
     const { t, bass, kick, dt } = sound, pace = dt * 60, spin = turned("prism", 0.25), cx = w * (0.39 + 0.08 * Math.cos(t * 0.37)), cy = h * (0.37 + 0.1 * Math.sin(t * 0.29)), r = Math.min(w, h) * (0.13 + 0.07 * bass);
-    echo(1 + (0.01 + 0.016 * bass + 0.01 * kick) * pace, (0.006 + 0.006 * Math.sin(t * 0.17)) * pace * V.spin, 0.955 ** pace);
-    neon(soundLoop(cx, cy, r, r, spin, 0.5), sweep(cx, cy, spin), Math.max(1.5, h / 380) * (1 + kick), 0.65 + 0.35 * kick, 0.55);
+    echo(1 + (0.01 + 0.016 * bass + 0.01 * kick) * pace, (0.006 + 0.006 * Math.sin(t * 0.17) + 0.02 * acidLook.soft) * pace * V.spin, 0.955 ** pace);
+    neon(soundLoop(cx, cy, r, r, spin, 0.5 + 0.6 * acidLook.open), sweep(cx, cy, spin), Math.max(1.5, h / 380) * (1 + kick), 0.65 + 0.35 * kick, 0.55);
     spray(4, (u) => [cx + Math.cos(u * TAU) * r * 1.1, cy + Math.sin(u * TAU) * r * 1.1], h * 0.05);
     g.globalCompositeOperation = "source-over";
     g.setTransform(-1, 0, 0, 1, w, 0);
@@ -821,10 +823,10 @@ window.Effects = (() => {
     const angle = turning.from + (turning.to - turning.from) * eased(clamp((t - turning.start) / turning.long)), reach = (W / 2) * Math.abs(Math.cos(angle)) + (H / 2) * Math.abs(Math.sin(angle)); // as far as the line has to go for the window to be covered, at this angle
     turning.angle = angle;
     if (!pools.length || pools[0].width !== B) pools.splice(0, 2, paper(B)[0], paper(B)[0]);
-    const [now, was] = pools, along = (p) => mid + (p / (POINTS - 1) - 0.5) * 2 * reach, swell = (p, k = 0) => mid + (k - (V.lines - 1) / 2) * H * 0.15 + wave[(p + k * 41) % POINTS] * H * 0.11 * Math.sin((p / (POINTS - 1)) * Math.PI) ** 0.6, keep = [g, w, h];
+    const [now, was] = pools, along = (p) => mid + (p / (POINTS - 1) - 0.5) * 2 * reach, swell = (p, k = 0) => mid + (k - (V.lines - 1) / 2) * H * 0.15 + wave[(p + k * 41) % POINTS] * H * (0.11 + 0.2 * acidLook.open) * Math.sin((p / (POINTS - 1)) * Math.PI) ** 0.6, keep = [g, w, h];
     [g, w, h] = [now.getContext("2d"), B, B];
     try {
-      echo(1 + 0.002 * pace, 0, 0.972 ** pace, 0, 0, 1 + (0.012 + 0.04 * bass + 0.025 * kick) * pace, 0.5, was);
+      echo(1 + 0.002 * pace, 0, 0.972 ** pace, 0, 0, 1 + (0.012 + 0.04 * bass + 0.025 * kick + 0.03 * acidLook.open) * pace, 0.5, was);
       const paint = g.createLinearGradient(mid - reach, 0, mid + reach, 0);
       for (let i = 0; i <= 6; i++) paint.addColorStop(i / 6, rgba(around(i / 6 + t * 0.06), 1));
       for (let k = 0; k < V.lines; k++) { // one line of the waveform, or a few side by side, each a little later in the sound
@@ -848,14 +850,14 @@ window.Effects = (() => {
     g.lineCap = "butt"; // round ends would overlap from one frame to the next and show up as beads
     for (let i = 0, n = V.heads; i < n; i++) {
       const share = i / n, v = smooth((share + 0.05) * BANDS * 0.85);
-      orbits[i] += dt * (0.3 + 1.6 * v + 1.2 * kick);
+      orbits[i] += dt * (0.3 + 1.6 * v + 1.2 * kick + 1.4 * acidLook.open * share);
       const turn = orbits[i] + share * TAU, x = w / 2 + Math.cos(turn * (1 + share)) * w * (0.16 + 0.26 * share), y = h / 2 + Math.sin(turn * (1.6 - share * 0.4) * V.loop) * h * (0.16 + 0.24 * share);
       if (!Number.isNaN(past[i * 2])) {
         const path = new Path2D();
         path.moveTo(past[i * 2], past[i * 2 + 1]);
         path.lineTo(x, y);
         neon(path, rgba(around(share + t * 0.04), 1), size * (0.004 + 0.012 * v), 0.7 + 0.3 * v);
-        const r = size * (0.018 + 0.03 * v + 0.012 * kick), head = g.createRadialGradient(x, y, 0, x, y, r);
+        const r = size * (0.018 + 0.03 * v + 0.012 * kick + 0.02 * acidLook.open), head = g.createRadialGradient(x, y, 0, x, y, r);
         head.addColorStop(0, rgba(mix(around(share + t * 0.04), [255, 255, 255], 0.6), 0.5));
         head.addColorStop(1, rgba(around(share + t * 0.04), 0));
         g.fillStyle = head;
@@ -869,7 +871,7 @@ window.Effects = (() => {
   }
 
   function starfield() { // flying through stars, faster when the music is busier
-    const { t, dt, level, kick } = sound, cx = w / 2 + Math.sin(t * 0.13) * w * 0.16 * V.drift, cy = h / 2 + Math.sin(t * 0.09 + 1) * h * 0.13 * V.drift, speed = (0.1 + 0.8 * level + 0.7 * kick) * dt, GROUPS = colors.length * 3, paths = Array.from({ length: GROUPS }, () => new Path2D());
+    const { t, dt, level, kick } = sound, cx = w / 2 + Math.sin(t * 0.13) * w * 0.16 * V.drift, cy = h / 2 + Math.sin(t * 0.09 + 1) * h * 0.13 * V.drift, speed = (0.1 + 0.8 * level + 0.7 * kick + 0.8 * acidLook.open) * dt, GROUPS = colors.length * 3, paths = Array.from({ length: GROUPS }, () => new Path2D());
     const roll = turned("stars", 1, V.roll), c = Math.cos(roll), s = Math.sin(roll), sx = w * 0.275, sy = h * 0.275, at = (x, y) => [cx + (x * c - y * s) * sx, cy + (x * s + y * c) * sy]; // the way we're going wanders, and the stars can roll round it
     g.globalCompositeOperation = "source-over";
     g.fillStyle = `rgba(5,6,10,${(0.32 / T.drag).toFixed(3)})`;
@@ -899,7 +901,7 @@ window.Effects = (() => {
     g.fillStyle = `rgba(5,6,10,${(0.26 / T.drag).toFixed(3)})`;
     g.fillRect(0, 0, w, h);
     for (let i = 0; i < STARS; i++) {
-      const out = (stars[i * 3 + 1] + 1) / 2, was = stars[i * 3] * Math.PI, now = was + ((0.2 + 1.5 * level + 1.6 * kick) * dt * V.spin) / (0.12 + out), r = reach * (0.04 + 0.96 * out ** 0.7) * (1 + 0.07 * kick * out), near = Math.min(2, Math.floor(stars[i * 3 + 2] * 3)), path = paths[(i % colors.length) * 3 + near], x = cx + Math.cos(now) * r, y = cy + Math.sin(now) * r * flat;
+      const out = (stars[i * 3 + 1] + 1) / 2, was = stars[i * 3] * Math.PI, now = was + ((0.2 + 1.5 * level + 1.6 * kick + 3 * acidLook.open) * dt * V.spin) / (0.12 + out), r = reach * (0.04 + 0.96 * out ** 0.7) * (1 + (0.07 * kick + 0.15 * acidLook.open) * out), near = Math.min(2, Math.floor(stars[i * 3 + 2] * 3)), path = paths[(i % colors.length) * 3 + near], x = cx + Math.cos(now) * r, y = cy + Math.sin(now) * r * flat;
       stars[i * 3] = ((now / Math.PI + 1) % 2) - 1;
       path.moveTo(cx + Math.cos(was) * r, cy + Math.sin(was) * r * flat);
       path.lineTo(x, y);
@@ -916,11 +918,11 @@ window.Effects = (() => {
   }
 
   function dust() { // specks floating up through the light
-    const { t, dt, level, kick, hat, hatHit } = sound, cx = w / 2, cy = h / 2, rise = (0.03 + 0.2 * level + 0.25 * kick) * dt, groups = colors.map(() => [new Path2D(), new Path2D(), new Path2D()]);
+    const { t, dt, level, kick, hat, hatHit } = sound, cx = w / 2, cy = h / 2, rise = (0.03 + 0.2 * level + 0.25 * kick + 0.5 * acidLook.open) * dt, groups = colors.map(() => [new Path2D(), new Path2D(), new Path2D()]);
     backdrop();
     g.globalCompositeOperation = "lighter";
     for (let i = 0; i < STARS; i++) {
-      const z = stars[i * 3 + 2], layer = Math.min(2, Math.floor(z * 3)), grow = 1 + 0.06 * kick * (layer + 1), by = rise * (0.4 + z);
+      const z = stars[i * 3 + 2], layer = Math.min(2, Math.floor(z * 3)), grow = 1 + (0.06 * kick + 0.15 * acidLook.open) * (layer + 1), by = rise * (0.4 + z);
       let x = stars[i * 3], y = stars[i * 3 + 1];
       if (V.way === "down") y += by; // falling like snow
       else if (V.way === "wind") { x += by * 1.6; y += Math.sin(t * 0.6 + i) * by * 0.4; } // blown along
@@ -930,17 +932,18 @@ window.Effects = (() => {
       y = y > 1 ? y - 2 : y < -1 ? y + 2 : y;
       stars[i * 3] = x;
       stars[i * 3 + 1] = y;
-      const px = cx + (x + Math.sin(t * 0.21 + i) * 0.03) * cx * 1.05 * grow, py = cy + y * cy * 1.05 * grow, r = (0.7 + layer * 0.9) * Math.max(1, h / 720) * V.size * (V.way === "out" ? 0.6 + Math.hypot(x, y) : 1), path = groups[i % colors.length][layer];
+      const px = cx + (x + Math.sin(t * 0.21 + i) * 0.03) * cx * 1.05 * grow, py = cy + y * cy * 1.05 * grow, r = (0.7 + layer * 0.9) * Math.max(1, h / 720) * V.size * (V.way === "out" ? 0.6 + Math.hypot(x, y) : 1) * (1 + 1.4 * acidLook.open * z), path = groups[i % colors.length][layer];
       path.moveTo(px + r, py);
       path.arc(px, py, r, 0, TAU);
       if (hatHit && i % 60 === 0) twinkle(px, py, h * (0.03 + 0.05 * z));
+      if (acidLook.hit && i % 90 === 7) twinkle(px, py, h * (0.02 + 0.05 * z) * (0.6 + flow.acidFilter)); // and a few on each note of a 303, bigger the more open its filter
     }
-    colors.forEach((tone, c) => groups[c].forEach((path, layer) => { g.fillStyle = rgba(tone, 0.22 + layer * 0.2 + 0.3 * hat); g.fill(path); }));
+    colors.forEach((tone, c) => groups[c].forEach((path, layer) => { g.fillStyle = rgba(tone, 0.22 + layer * 0.2 + 0.3 * hat + 0.2 * acidLook.knob); g.fill(path); }));
   }
 
   const LINKS = 84, linkX = new Float32Array(LINKS), linkY = new Float32Array(LINKS);
   function links() { // points of light drifting about, joined up whenever they come close
-    const { t, dt, level, kick, hatHit } = sound, close = Math.min(w, h) * 0.25 * V.reach, faint = new Path2D(), bright = new Path2D(), wrap = (v) => (v > 1 ? v - 2 : v < -1 ? v + 2 : v), LINKS = V.count;
+    const { t, dt, level, kick, hatHit } = sound, close = Math.min(w, h) * 0.25 * V.reach * (1 + 0.45 * acidLook.open), faint = new Path2D(), bright = new Path2D(), wrap = (v) => (v > 1 ? v - 2 : v < -1 ? v + 2 : v), LINKS = V.count;
     backdrop();
     for (let i = 0; i < LINKS; i++) {
       const way = stars[i * 3 + 2] * TAU + t * 0.04 * (i % 2 ? 1 : -1), pace = (0.012 + 0.09 * level) * dt, grow = 1 + 0.22 * smooth((i / LINKS) * BANDS * 0.9) + 0.05 * kick;
@@ -961,7 +964,7 @@ window.Effects = (() => {
     g.strokeStyle = rgba(colors[1], 0.14 + 0.3 * kick);
     g.stroke(faint);
     g.lineWidth = Math.max(1, h / 620);
-    g.strokeStyle = rgba(colors[0], 0.36 + 0.5 * kick);
+    g.strokeStyle = rgba(colors[0], 0.36 + 0.5 * kick + 0.3 * acidLook.knob);
     g.stroke(bright);
     for (let i = 0; i < LINKS; i++) glint(linkX[i], linkY[i], h * (0.018 + 0.018 * kick), 0.9);
     if (hatHit) for (let k = 0; k < 4; k++) { const i = Math.floor(rnd(0, LINKS)); twinkle(linkX[i], linkY[i], h * 0.07); }
@@ -985,6 +988,7 @@ window.Effects = (() => {
       twinkle(...lastShell, size * 0.16, 0.2);
     }
     if (hatHit && lastShell) shell(lastShell[0] + rnd(-0.14, 0.14) * size, lastShell[1] + rnd(-0.14, 0.14) * size, 6, [255, 240, 210], size * 0.14, 0.45);
+    if (acidLook.hit && lastShell) { const f = flow.acidFilter / Math.max(0.01, flow.acidOn); shell(lastShell[0] + (f - 0.5) * size * 0.5, lastShell[1] - f * size * 0.25, 12, acidHot(f), size * (0.12 + 0.2 * f) * Math.min(1.5, acidLook.hit), 0.4, "ring"); } // a 303 note: a small ring of sparks, higher and wider the more open the filter
     if (shells.length > 22) shells.shift();
     g.globalCompositeOperation = "lighter";
     g.lineCap = "round";
@@ -1023,7 +1027,7 @@ window.Effects = (() => {
     g.lineCap = "round";
     g.lineWidth = Math.max(2, ((TAU * r) / (n * 2)) * 0.55);
     for (let i = 0; i < n * 2; i++) {
-      const b = i < n ? i : n * 2 - 1 - i, v = sound.bands[Math.floor((b / n) * BANDS * 0.82)], a = (i / (n * 2)) * TAU - Math.PI / 2 + spin, from = r * 1.05, to = from + size * (0.012 + 0.24 * v) * V.reach;
+      const b = i < n ? i : n * 2 - 1 - i, v = sound.bands[Math.floor((b / n) * BANDS * 0.82)] + acidSpectrum((b / n) * 0.82), a = (i / (n * 2)) * TAU - Math.PI / 2 + spin, from = r * 1.05, to = from + size * (0.012 + 0.24 * v) * V.reach + (acidLook.on ? size * 0.035 * acidLook.open * (1 + Math.sin(a * 10 - sound.t * 7)) : 0);
       g.strokeStyle = rgba(around((b / n) * 0.9 + sound.t * 0.02), 0.55 + 0.4 * v);
       g.beginPath();
       g.moveTo(cx + Math.cos(a) * from, cy + Math.sin(a) * from);
@@ -1039,8 +1043,8 @@ window.Effects = (() => {
     backdrop();
     g.globalCompositeOperation = "lighter";
     for (let layer = 1; layer >= 0; layer--) {
-      const lift = size * (0.06 + 0.05 * layer) * (1 + 0.6 * kick), swing = size * (0.17 + 0.1 * layer), turn = t * (0.07 + 0.05 * layer) * (layer ? -1 : 1), out = new Float32Array(n + 1);
-      for (let i = 0; i <= n; i++) out[i] = lift + swing * smooth(Math.abs((i / n) * 2 - 1) * BANDS * 0.62 + 1) + size * 0.012 * Math.sin((i / n) * TAU * V.petals + t * 1.3 + layer);
+      const lift = size * (0.06 + 0.05 * layer) * (1 + 0.6 * kick + 0.9 * acidLook.soft), swing = size * (0.17 + 0.1 * layer), turn = t * (0.07 + 0.05 * layer) * (layer ? -1 : 1), out = new Float32Array(n + 1);
+      for (let i = 0; i <= n; i++) out[i] = lift + swing * smooth(Math.abs((i / n) * 2 - 1) * BANDS * 0.62 + 1) + size * (0.012 + 0.08 * acidLook.open) * Math.sin((i / n) * TAU * V.petals + t * 1.3 + layer);
       g.fillStyle = rgba(around(layer * 0.4 + t * 0.02), 0.05);
       for (let c = CONTOURS; c >= 1; c--) {
         const part = (c / CONTOURS) ** 1.4, edge = new Path2D();
@@ -1060,7 +1064,7 @@ window.Effects = (() => {
     g.lineCap = "round";
     g.lineWidth = gap * 0.46;
     for (let i = 0; i < N; i++) {
-      const v = smooth(((i + 0.5) / N) * BANDS * 0.9), at = r + gap * (i + 1), spin = t * (0.25 + i * 0.06) * (i % 2 ? -1 : 1), long = 0.08 + 1.9 * v;
+      const v = smooth(((i + 0.5) / N) * BANDS * 0.9), at = r + gap * (i + 1), spin = (t * (0.25 + i * 0.06) + 1.6 * acidLook.soft) * (i % 2 ? -1 : 1), long = 0.08 + 1.9 * v + 0.8 * acidLook.open + 1.5 * acidSpectrum(((i + 0.5) / N) * 0.9);
       g.strokeStyle = rgba(colors[i % 3], 0.07);
       g.beginPath();
       g.arc(cx, cy, at, 0, TAU);
@@ -1083,8 +1087,8 @@ window.Effects = (() => {
     g.globalCompositeOperation = "lighter";
     g.lineJoin = "round";
     for (let layer = 0; layer < 3; layer++) {
-      const line = new Path2D(), lift = size * (0.05 + layer * 0.07), swing = size * (0.24 - layer * 0.02), tone = around(layer * 0.33 + t * 0.03), spin = t * (0.07 + layer * 0.03) * (layer % 2 ? -1 : 1);
-      for (let i = 0; i <= STEPS; i++) { const u = i / STEPS, a = u * span, far = r + lift + swing * soft(u * BANDS * 0.7 + layer * 8 + 3), x = Math.cos(a) * far, y = Math.sin(a) * far; if (i) line.lineTo(x, y); else line.moveTo(x, y); }
+      const line = new Path2D(), lift = size * (0.05 + layer * 0.07), swing = size * (0.24 - layer * 0.02 + 0.15 * acidLook.soft), tone = around(layer * 0.33 + t * 0.03), spin = (t * (0.07 + layer * 0.03) + 0.35 * acidLook.soft) * (layer % 2 ? -1 : 1);
+      for (let i = 0; i <= STEPS; i++) { const u = i / STEPS, a = u * span, far = r + lift + swing * soft(u * BANDS * 0.7 + layer * 8 + 3) + acidPetal(u, layer, size), x = Math.cos(a) * far, y = Math.sin(a) * far; if (i) line.lineTo(x, y); else line.moveTo(x, y); }
       const pane = new Path2D(line);
       pane.lineTo(Math.cos(span) * r, Math.sin(span) * r);
       pane.lineTo(r, 0);
@@ -1103,11 +1107,11 @@ window.Effects = (() => {
   }
 
   function rays() { // light coming from behind the record, each ray one part of the sound and fading out by itself
-    const { t, kick, hatHit } = sound, cx = w / 2, cy = h / 2, size = Math.min(w, h), reach = Math.hypot(w, h) * 0.56, r = size * (0.2 + 0.014 * kick), n = V.count, spin = turned("rays", 0.05);
+    const { t, kick, hatHit } = sound, cx = w / 2, cy = h / 2, size = Math.min(w, h), reach = Math.hypot(w, h) * 0.56, r = size * (0.2 + 0.014 * kick), n = V.count, spin = turned("rays", 0.05) + 0.8 * acidLook.soft;
     backdrop();
     g.globalCompositeOperation = "lighter";
     for (let i = 0; i < n * 2; i++) {
-      const b = i < n ? i : n * 2 - 1 - i, v = sound.bands[Math.floor((b / n) * BANDS * 0.82)], a = (i / (n * 2)) * TAU + spin, wide = (TAU / (n * 2)) * (0.14 + 0.3 * v), end = r + (reach - r) * (0.14 + 0.86 * v), tone = around((b / n) * 0.9 + t * 0.02), fade = g.createRadialGradient(cx, cy, r, cx, cy, end);
+      const b = i < n ? i : n * 2 - 1 - i, v = sound.bands[Math.floor((b / n) * BANDS * 0.82)] + acidSpectrum((b / n) * 0.82, true), a = (i / (n * 2)) * TAU + spin, wide = (TAU / (n * 2)) * (0.14 + 0.3 * v + 0.25 * acidBump((b / n) * 0.82, acidLook.glide)), end = r + (reach - r) * (0.14 + 0.86 * v), tone = acidTinge(around((b / n) * 0.9 + t * 0.02), (b / n) * 0.82, true), fade = g.createRadialGradient(cx, cy, r, cx, cy, end);
       fade.addColorStop(0, rgba(mix(tone, [255, 255, 255], 0.25), 0.8 + 0.2 * kick));
       fade.addColorStop(0.5, rgba(tone, 0.28));
       fade.addColorStop(1, rgba(tone, 0));
@@ -1426,11 +1430,12 @@ window.Effects = (() => {
       g.drawImage(o.art, -size / 2, (-size * o.tall) / 2, size, size * o.tall);
     } else {
       g.globalCompositeOperation = "lighter";
-      g.globalAlpha = seen * o.light * clamp(0.72 + 0.45 * bass + 0.3 * kick);
+      g.globalAlpha = seen * o.light * clamp(0.72 + 0.45 * bass + 0.3 * kick) * (o.kind === "nebula" ? 1 - 0.5 * Math.min(1, acidLook.on) : 1);
       if (o.kind === "galaxy") { g.rotate(o.lean + sky.bob * o.nod * 0.21); g.scale(1, o.squash); }
       g.rotate(o.turn + t * o.spin + sky.bob * o.nod * 0.1);
       if (o.stretch) g.scale(1, o.stretch);
       g.drawImage(o.art, -size / 2, -size / 2, size, size);
+      if (o.kind === "nebula" && acidLook.on > 0.01) acidNebula(o, size, seen * clamp(0.72 + 0.45 * bass + 0.3 * kick)); // a 303 line: orange to lime with the filter's knob
     }
     g.restore();
   }
@@ -1889,6 +1894,7 @@ window.Effects = (() => {
   function drawJelly(o, part) { // every kick is a stroke of the bell
     const { t, dt, kickHit } = sound;
     if (kickHit) o.pulse = Math.max(o.pulse, kickHit);
+    if (acidLook.hit) o.pulse = Math.max(o.pulse, 0.6 * Math.min(1.5, acidLook.hit)); // and a smaller one on each note of a 303
     o.pulse *= Math.exp(-dt / 0.24);
     o.y -= o.rise * dt * (1 + 5 * o.pulse);
     o.x += o.drift * dt;
@@ -2958,7 +2964,7 @@ window.Effects = (() => {
     if (f && f.air > 0) worldSky(f, roll, reach); // inside a planet, its sky is the sky
     g.setTransform(1, 0, 0, 1, w / 2, h / 2 + sky.bob * h * 0.03);
     g.rotate(roll + t * 0.004);
-    flightStars((speed * dt) / 26, focal, (trip.streak || 1) * sky.streakNow, roll + t * 0.004);
+    flightStars((speed * dt) / 26, focal, (trip.streak || 1) * sky.streakNow * (1 + 1.8 * acidLook.soft), roll + t * 0.004);
     if (trip.rings) warpRings(speed, focal);
     shootingStars(trip);
     if (f && f.out < 0 && f.air < 1) worldFar(f, roll);
@@ -2993,7 +2999,7 @@ window.Effects = (() => {
     const tone = colors[0];
     if (!sky.pit || Math.abs(sky.pit.tone[0] - tone[0]) + Math.abs(sky.pit.tone[1] - tone[1]) + Math.abs(sky.pit.tone[2] - tone[2]) > 60) sky.pit = { tone: [...tone], art: paintHole(tone), disc: paintDisc(tone) }; // painted again when the colour has really changed (the next record, another version), not for the slow drift: it used to keep the first record's colour for as long as the trip went on
     const pit = sky.pit, lean = -0.2 + Math.sin(t * 0.06) * 0.06 + sky.bob * 0.1;
-    sky.whirl += dt * (0.5 + 3 * level + 3 * kick + 6 * sky.surge);
+    sky.whirl += dt * (0.5 + 3 * level + 3 * kick + 6 * sky.surge + 6 * acidLook.soft);
     g.setTransform(1, 0, 0, 1, w / 2, h / 2 + sky.bob * S * 0.015);
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = 1;
@@ -3004,7 +3010,7 @@ window.Effects = (() => {
       let out = (stars[i * 3 + 1] + 1) / 2 - (0.02 + 0.1 * level + 0.25 * sky.surge) * dt * (1.15 - ((stars[i * 3 + 1] + 1) / 2));
       if (out <= 0.02) { stars[i * 3] = Math.random() * 2 - 1; stars[i * 3 + 1] = 1; continue; }
       stars[i * 3 + 1] = out * 2 - 1;
-      const was = stars[i * 3] * Math.PI, now = was + ((0.5 + 2.4 * level + 2 * kick) * dt) / (0.12 + out ** 1.4), r = size * (0.15 + 0.47 * out), path = Math.sin(now) < 0 ? behind : before;
+      const was = stars[i * 3] * Math.PI, now = was + ((0.5 + 2.4 * level + 2 * kick + 2 * acidLook.open) * dt) / (0.12 + out ** 1.4), r = size * (0.15 + 0.47 * out), path = Math.sin(now) < 0 ? behind : before;
       stars[i * 3] = ((now / Math.PI + 1) % 2) - 1;
       path.moveTo(Math.cos(was) * r, Math.sin(was) * r * 0.27);
       path.lineTo(Math.cos(now) * r, Math.sin(now) * r * 0.27);
@@ -3017,12 +3023,14 @@ window.Effects = (() => {
       g.scale(1, 0.27);
       g.rotate(sky.whirl);
       g.globalCompositeOperation = "lighter";
-      g.globalAlpha = clamp(0.75 + 0.3 * bass + 0.3 * kick);
-      g.drawImage(pit.disc, -size / 2, -size / 2, size, size);
+      g.globalAlpha = clamp(0.75 + 0.3 * bass + 0.3 * kick + 0.4 * acidLook.knob);
+      const disc = size * (1 + 0.16 * acidLook.soft); // (a 303: the disc swells as its filter opens)
+      g.drawImage(pit.disc, -disc / 2, -disc / 2, disc, disc);
       g.restore();
       g.globalCompositeOperation = "lighter";
       g.lineCap = "round";
       g.lineWidth = Math.max(1, h / 520);
+      g.lineWidth *= 1 + 1.5 * acidLook.soft; // (and, with a 303, its dust thickens as the filter opens)
       g.strokeStyle = rgba(mix(colors[0], [255, 240, 215], 0.5), 0.5);
       g.stroke(dust);
     };
@@ -3051,6 +3059,7 @@ window.Effects = (() => {
     g.globalAlpha = 1;
     if (folkInScene()) { invite(trip); drawFolk(); }
     if (hatHit) for (let i = 0; i < 3; i++) { const a = rnd(0, TAU), r = size * rnd(0.16, 0.5); twinkle(w / 2 + Math.cos(a) * r, h / 2 + Math.sin(a) * r * 0.27, h * 0.06); }
+    if (acidLook.hit) for (let k = 0; k < 2; k++) { const a = rnd(0, TAU), r = size * (0.16 + 0.32 * flow.acidFilter / Math.max(0.01, flow.acidOn)); twinkle(w / 2 + Math.cos(a) * r, h / 2 + Math.sin(a) * r * 0.27, h * (0.06 + 0.08 * flow.acidFilter)); } // a 303: each note two sparks on the disc, further out the more open its filter
   }
 
   /* ---------- Psychedelic: a kaleidoscope, a plasma, an endless zoom, and three fractals proper (Julia, Mandelbrot, Newton). Journeys: under the sea, a neon road, the northern lights.
@@ -3079,11 +3088,11 @@ window.Effects = (() => {
     x.fillStyle = "rgba(0,0,0,0.32)";
     x.fillRect(0, 0, S, S);
     x.globalCompositeOperation = "lighter";
-    for (let i = 0; i < V.blobs; i++) { const a = t * (0.2 + i * 0.07) + i * 1.7, r = S * (0.18 + 0.16 * Math.sin(t * 0.3 + i)); softBlob(x, S * 0.45 + Math.cos(a) * r, S * 0.5 + Math.sin(a) * r * 0.8, S * (0.07 + 0.07 * bass) * (5 / V.blobs) ** 0.4, tones[i % 3], 0.22 + 0.15 * kick); }
+    for (let i = 0; i < V.blobs; i++) { const a = t * (0.2 + i * 0.07) + i * 1.7, r = S * (0.18 + 0.16 * Math.sin(t * 0.3 + i)); softBlob(x, S * 0.45 + Math.cos(a) * r, S * 0.5 + Math.sin(a) * r * 0.8, S * (0.07 + 0.07 * bass + 0.07 * acidLook.soft) * (5 / V.blobs) ** 0.4, tones[i % 3], 0.22 + 0.15 * kick); }
     if (V.line !== "none") { // the waveform across the wedge, or wound into a ring in it
       x.beginPath();
       for (let p = 0; p <= POINTS; p += 4) {
-        const ring = V.line === "ring", a = (p / POINTS) * TAU, r = S * (0.16 + 0.07 * wave[p % POINTS]), px = ring ? S * 0.55 + Math.cos(a) * r : (p / POINTS) * S, py = ring ? S * 0.5 + Math.sin(a) * r : S * 0.5 + wave[p % POINTS] * S * 0.3;
+        const ring = V.line === "ring", a = (p / POINTS) * TAU, r = S * (0.16 + 0.07 * wave[p % POINTS] + 0.15 * acidLook.soft), px = ring ? S * 0.55 + Math.cos(a) * r : (p / POINTS) * S, py = ring ? S * 0.5 + Math.sin(a) * r : S * 0.5 + wave[p % POINTS] * S * 0.3;
         if (p) x.lineTo(px, py); else x.moveTo(px, py);
       }
       x.strokeStyle = rgba(mix(tones[1], [255, 255, 255], 0.2), 0.6);
@@ -3093,7 +3102,7 @@ window.Effects = (() => {
     g.globalCompositeOperation = "source-over";
     g.fillStyle = "rgba(3,3,8,0.35)";
     g.fillRect(0, 0, w, h);
-    kal.turn += dt * (0.12 + 0.3 * flow.intensity) * V.spin;
+    kal.turn += dt * (0.12 + 0.3 * flow.intensity + 1.5 * acidLook.soft) * V.spin;
     const N = kal.parts, zoom = 1 + 0.12 * kick + 0.15 * flow.build, reach = Math.hypot(w, h) * 0.6;
     g.save();
     g.translate(w / 2, h / 2);
@@ -3117,7 +3126,7 @@ window.Effects = (() => {
   function plasma() { // old-school plasma: colors flowing into each other, warped by the bass and lit by the kick
     const { t, bass, kick } = sound, W = 112, H = Math.max(28, Math.round((112 * h) / w));
     if (!plasmaArt || plasmaArt.W !== W || plasmaArt.H !== H) { const [c, x] = paper(W, H); plasmaArt = { W, H, c, x, img: x.createImageData(W, H) }; }
-    const tones = moodColors(3), d = plasmaArt.img.data, warp = (1 + 0.9 * bass) * V.scale, tt = t * 0.55, light = 0.6 + 0.5 * kick + 0.2 * flow.drop, sw = V.swirl, mid = 3 * warp, bands = V.stripes * Math.PI;
+    const tones = moodColors(3), d = plasmaArt.img.data, warp = (1 + 0.9 * bass + 0.7 * acidLook.soft) * V.scale, tt = t * 0.55, light = 0.6 + 0.5 * kick + 0.2 * flow.drop + 0.12 * acidLook.knob, sw = V.swirl, mid = 3 * warp, bands = V.stripes * Math.PI;
     for (let j = 0; j < H; j++) for (let i = 0; i < W; i++) {
       const u = (i / W) * 6 * warp, v = (j / H) * 6 * warp, round = sw > 0.01 ? sw * Math.sin(Math.atan2(v - mid, u - mid) * 3 + Math.hypot(u - mid, v - mid) * 0.8 - tt * 1.5) : 0; // the swirl winds it round the middle
       const k = (Math.sin(u + tt) + Math.sin((v + tt) * 0.7) + Math.sin((u + v + tt * 1.3) * 0.5) + Math.sin(Math.hypot(u - 3 - Math.sin(tt * 0.4) * 2, v - 3) + tt) + round + 4 + sw) / (8 + 2 * sw);
@@ -3144,10 +3153,10 @@ window.Effects = (() => {
     g.lineJoin = "round";
     const shape = (cx, cy, r, turn) => { g.beginPath(); for (let i = 0; i <= sides; i++) { const a = turn + (i / sides) * TAU; if (i) g.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); else g.moveTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r); } };
     for (let k = 0; k < 16; k++) {
-      const depth = (k + deeper) / 16, r = R * depth ** 2.3 * (1 + 0.06 * kick), turn = spin + depth * 4.2 + Math.sin(t * 0.3) * 0.5, tone = tones[k % 3], alpha = 0.2 + 0.55 * depth;
+      const depth = (k + deeper) / 16, r = R * depth ** 2.3 * (1 + 0.06 * kick + 0.08 * acidLook.soft * depth), turn = spin + depth * (4.2 + 2.5 * acidLook.soft) + Math.sin(t * 0.3) * 0.5, tone = tones[k % 3], alpha = 0.2 + 0.55 * depth;
       shape(w / 2, h / 2, r, turn);
       g.strokeStyle = rgba(tone, alpha);
-      g.lineWidth = Math.max(1, r * 0.01 * (1 + bass));
+      g.lineWidth = Math.max(1, r * 0.01 * (1 + bass + 1.2 * acidLook.soft));
       g.stroke();
       if (r > R * 0.05) for (let i = 0; i < sides; i++) { // the same shape again on each corner, smaller
         const a = turn + (i / sides) * TAU;
@@ -3235,9 +3244,9 @@ window.Effects = (() => {
     if (flow.dropHit) trippy.owed += R.jump; // a drop throws the colors along, over a second or so and not at once
     const pay = trippy.owed * (1 - Math.exp(-dt / 1.3));
     trippy.owed -= pay;
-    trippy.at = (trippy.at + (dt * pace) / R.round + pay) % 1;
+    trippy.at = (trippy.at + (dt * pace) / R.round + pay + dt * 0.2 * acidLook.soft) % 1;
     trippy.far = (trippy.far + (dt * pace) / 47) % 1; // the far colors come and go on a round of their own, so the two never line up the same way twice running
-    trippy.grown += (R.most * clamp(0.5 - 0.5 * Math.cos(TAU * trippy.far) + 0.6 * flow.drop + 0.5 * trippy.acid * T.sounds) - trippy.grown) * (1 - Math.exp(-dt / 0.7)); // (a 303 line brings the far colors in along their veins too)
+    trippy.grown += (R.most * clamp(0.5 - 0.5 * Math.cos(TAU * trippy.far) + 0.6 * flow.drop + 0.5 * trippy.acid * T.sounds + 0.45 * acidLook.on) - trippy.grown) * (1 - Math.exp(-dt / 0.7)); // (a 303 line brings the far colors in along their veins too)
     trippy.breath += (sound.bass - trippy.breath) * (1 - Math.exp(-dt / 0.4)); // the bass, followed slowly, and a slow breath of its own so a break is not still
     trippy.wave = (trippy.wave + dt * (0.2 + 0.5 * flow.intensity)) % TAU;
     const real = Math.min(0.1, Math.max(0, (realNow - (trippy.seen || realNow)) / 1000)); // the clock on the wall, which is what the song keeps time by (sound.dt runs slower in a calm part)
@@ -3258,7 +3267,7 @@ window.Effects = (() => {
     const left1 = Math.max(0, 1 - rings[0] / 0.9), left2 = Math.max(0, 1 - rings[2] / 0.9); // a ring is gone in nine tenths of a second, by when it has passed the corners
     trippy.seen = realNow;
     trippy.own = (trippy.own + real * (flow.bpm ? (TAU * flow.bpm) / 480 : 0.8)) % TAU; // a breath of its own, one every two bars of the song: a steady bass gives the breath above nothing to follow
-    const lens = Math.max(-0.3, Math.min(0.45, B * (0.55 * (trippy.breath - 0.4) + 0.13 * Math.sin(trippy.own)) + S * (0.3 * trippy.acid * (trippy.sq - trippy.sqMid) + 0.3 * trippy.rise))); // (the squelch opens and shuts the middle with the filter, a riser swells it; never so far that the middle turns inside out)
+    const lens = Math.max(-0.3, Math.min(0.45, B * (0.55 * (trippy.breath - 0.4) + 0.13 * Math.sin(trippy.own)) + S * (0.3 * trippy.acid * (trippy.sq - trippy.sqMid) + 0.3 * trippy.rise) + 0.3 * (acidLook.open - 0.5 * acidLook.on))); // (the squelch opens and shuts the middle with the filter, a riser swells it; never so far that the middle turns inside out)
     if (trippy.fold === 0) trippy.kind = V.fold || ""; // the version's fold, taken only while none is showing
     const kind = trippy.kind, held = kind && (flow.part === "calm" || flow.part === "build");
     trippy.shutFor = held ? trippy.shutFor + dt : 0;
@@ -3271,7 +3280,7 @@ window.Effects = (() => {
       roam: [4, [trippy.at, R.reach * K, R.deep, Math.min(0.75, trippy.grown * K)]], roam2: [4, [R.far, 0.1 * K, 0.35 * K, 0.7]], // (far colors never past 0.75, where they would cover a picture with no stripes)
       breath: [4, [lens, 0.03 * B, trippy.wave, trippy.wave * 0.73 + 1.3]],
       folds: [4, [mirror, Math.PI * Math.pow(fanTo, -fan), turn, Math.abs(Math.cos(turn)) + (w / h) * Math.abs(Math.sin(turn))]],
-      snap: [4, [trippy.snap, 0.012 * S * trippy.shiver, trippy.shake, 0]],
+      snap: [4, [trippy.snap + 0.24 * (acidLook.soft - 0.5 * acidLook.on), 0.012 * S * trippy.shiver, trippy.shake, 0]],
       thump: [4, [rings[0] * 2.4, 0.1 * rings[1] * left1 * left1 * Math.min(1, rings[0] / 0.06), rings[2] * 2.4, 0.1 * rings[3] * left2 * left2 * Math.min(1, rings[2] / 0.06)]], // (a ring swells up over its first moments: at full strength from nothing it is a bubble popping up in the middle)
     };
   }
@@ -4127,7 +4136,7 @@ window.Effects = (() => {
   function ocean() { // swimming along under the sea: light coming down from the surface, the seabed going by, bubbles rising faster as the song lifts
     const { t, dt, kick, bass, hatHit } = sound, tones = moodColors(3), night = V.night, deep = mood === "hard" ? [18, 4, 8] : mix(night ? [1, 3, 10] : [2, 18, 38], tones[0], night ? 0.04 : 0.12), shallow = mood === "hard" ? [70, 16, 24] : mix(night ? [3, 14, 34] : [20, 96, 140], tones[0], night ? 0.08 : 0.25);
     const water = g.createLinearGradient(0, 0, 0, h);
-    water.addColorStop(0, rgba(shallow, 1));
+    water.addColorStop(0, rgba(acidLook.on ? mix(shallow, [40, 150, 70], 0.35 * Math.min(1, acidLook.knob + 0.3 * acidLook.on)) : shallow, 1));
     water.addColorStop(1, rgba(deep, 1));
     g.globalCompositeOperation = "source-over";
     g.fillStyle = water;
@@ -4140,7 +4149,7 @@ window.Effects = (() => {
       g.fillRect(x - r / 2, y - r / 2, r, r);
     }
     for (let i = 0; i < (night ? 0 : 7); i++) {
-      const x0 = ((i / 7 + Math.sin(t * 0.07 + i) * 0.05) * 1.4 - 0.2) * w, spread = w * (0.06 + 0.03 * Math.sin(t * 0.5 + i)), ray = g.createLinearGradient(0, 0, 0, h * 0.9);
+      const x0 = ((i / 7 + Math.sin(t * 0.07 + i) * 0.05 + 0.06 * acidLook.soft * Math.sin(acidFeel.t * 1.6 + i * 2.1)) * 1.4 - 0.2) * w, spread = w * (0.06 + 0.03 * Math.sin(t * 0.5 + i) + 0.04 * acidLook.soft), ray = g.createLinearGradient(0, 0, 0, h * 0.9);
       ray.addColorStop(0, `rgba(180,230,255,${(0.12 + 0.1 * bass).toFixed(3)})`);
       ray.addColorStop(1, "rgba(180,230,255,0)");
       g.fillStyle = ray;
@@ -4160,21 +4169,23 @@ window.Effects = (() => {
       g.lineTo(w, h);
       g.fill();
     }
+    if (acidLook.hit && bubbles.length < 70) { const f = flow.acidFilter / Math.max(0.01, flow.acidOn), x = w * (0.08 + 0.84 * f); for (let k = 0; k < 2; k++) bubbles.push({ x: x + rnd(-0.02, 0.02) * w, y: h * 0.86, r: rnd(0.006, 0.014) * Math.min(w, h) * (0.8 + 0.8 * f), v: rnd(0.16, 0.3) * h, phase: rnd(0, TAU) }); } // a 303: each note puffs bubbles from the seabed, further along the more open its filter
     if (bubbles.length < 90) for (let n = (0.5 + 2 * flow.intensity) * dt * 30 + (flow.dropHit ? 45 : 0); n > Math.random(); n--) bubbles.push({ x: rnd(0, w), y: h + 10, r: rnd(0.003, 0.012) * Math.min(w, h), v: rnd(0.08, 0.2) * h, phase: rnd(0, TAU) });
     g.globalCompositeOperation = "lighter";
     for (let i = bubbles.length - 1; i >= 0; i--) {
       const b = bubbles[i];
-      b.y -= b.v * dt * (1 + kick * 0.5);
+      b.y -= b.v * dt * (1 + kick * 0.5 + acidLook.open);
       b.x += Math.sin(t * 2 + b.phase) * w * 0.0008;
       if (b.y < -20) { bubbles.splice(i, 1); continue; }
       g.strokeStyle = "rgba(200,240,255,.5)";
-      g.lineWidth = Math.max(1, b.r * 0.18);
+      const br = b.r * (1 + 0.9 * acidLook.open); // (a 303: the bubbles swell as its filter opens)
+      g.lineWidth = Math.max(1, br * 0.18);
       g.beginPath();
-      g.arc(b.x, b.y, b.r, 0, TAU);
+      g.arc(b.x, b.y, br, 0, TAU);
       g.stroke();
     }
     if (hatHit) for (let i = 0; i < 3; i++) glint(rnd(0, w), rnd(0.2, 0.8) * h, Math.min(w, h) * 0.02, 0.7); // plankton catching the light
-    softBlob(g, w * 0.5, 0, w * 0.45, tones[1], (0.06 + 0.1 * kick) * (night ? 0.35 : 1));
+    softBlob(g, w * 0.5, 0, w * 0.45, tones[1], (0.06 + 0.1 * kick + 0.1 * acidLook.knob) * (night ? 0.35 : 1));
   }
   let roadAt = 0;
   function neonroad() { // driving into a striped sun along a glowing grid, quicker the more the song is going. Some versions have a moon or a ringed planet instead, a city on the skyline or nothing at all, and a road that bends
@@ -4195,7 +4206,7 @@ window.Effects = (() => {
     g.rect(0, 0, w, horizon);
     g.clip();
     g.globalCompositeOperation = "lighter";
-    softBlob(g, cx, cy, R * 1.9, moon ? [160, 180, 255] : sunTone, (moon ? 0.12 : 0.22) + 0.2 * kick);
+    softBlob(g, cx, cy, R * 1.9, moon ? [160, 180, 255] : sunTone, (moon ? 0.12 : 0.22) + 0.2 * kick + 0.12 * acidLook.knob);
     g.globalCompositeOperation = "source-over";
     if (V.sun === "planet") ring(Math.PI, TAU);
     g.fillStyle = sun;
@@ -4210,7 +4221,7 @@ window.Effects = (() => {
       for (const [dx, dy, r] of [[-0.32, -0.18, 0.2], [0.26, 0.12, 0.13], [-0.04, 0.38, 0.11], [0.42, -0.36, 0.08], [-0.5, 0.3, 0.07]]) { g.beginPath(); g.arc(cx + dx * R, cy + dy * R, r * R, 0, TAU); g.fill(); }
     } else {
       g.fillStyle = dusk; // the stripes across it, the colour of the sky behind
-      for (let i = 0; i < 6; i++) g.fillRect(cx - R, cy - R * 0.62 + i * R * 0.12, R * 2, R * (0.018 + i * 0.013)); // across the half above the hills: thin at the top, thicker towards them
+      for (let i = 0; i < 6; i++) g.fillRect(cx - R, cy - R * 0.62 + i * R * 0.12, R * 2, R * Math.min(0.1, (0.018 + i * 0.013) * (1 + 1.8 * acidLook.soft))); // (a 303: the stripes widen as its filter opens, never quite meeting) // across the half above the hills: thin at the top, thicker towards them
     }
     g.restore();
     if (V.sun === "planet") { g.save(); g.beginPath(); g.rect(0, 0, w, horizon); g.clip(); ring(0, Math.PI); g.restore(); }
@@ -4253,8 +4264,8 @@ window.Effects = (() => {
     g.fillRect(0, horizon, w, h - horizon);
     roadAt = (roadAt + dt * (0.7 + 0.9 * flow.intensity)) % 1;
     g.globalCompositeOperation = "lighter";
-    const grid = mix(tones[2], [255, 60, 200], 0.4), lit = 0.4 + 0.6 * kick, bend = V.curve * w * 0.16 * Math.sin(turned("road", 0.12, 1)); // where the road goes off to, far ahead
-    for (let k = 0; k < 16; k++) { const z = (k + roadAt) / 16, y = horizon + (h - horizon) * z ** 2.5; g.strokeStyle = rgba(grid, lit * z); g.lineWidth = Math.max(1, 3 * z); g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
+    const grid = mix(tones[2], [255, 60, 200], 0.4), lit = 0.4 + 0.6 * kick + 0.3 * acidLook.soft, bend = V.curve * w * 0.16 * Math.sin(turned("road", 0.12, 1)); // where the road goes off to, far ahead
+    for (let k = 0; k < 16; k++) { const z = (k + roadAt) / 16, y = horizon + (h - horizon) * z ** 2.5; g.strokeStyle = rgba(grid, lit * z); g.lineWidth = Math.max(1, 3 * z); g.beginPath(); g.moveTo(0, y + acidWave(0, z, k)); if (acidLook.on > 0.01) for (let x = w / 32; x < w + 1; x += w / 32) g.lineTo(x, y + acidWave(x, z, k)); else g.lineTo(w, y); g.stroke(); } // (a 303: the grid's lines roll in waves, tighter as its filter opens: see acidWave)
     g.lineWidth = Math.max(1, h / 700);
     for (let i = -12; i <= 12; i++) { const far = w / 2 + i * w * 0.02 + bend, near = w / 2 + i * w * 0.25; g.strokeStyle = rgba(grid, lit * 0.7); g.beginPath(); g.moveTo(near, h); g.quadraticCurveTo((near + far) / 2 + bend * 0.1, (h + horizon) / 2, far, horizon); g.stroke(); }
   }
@@ -4269,11 +4280,11 @@ window.Effects = (() => {
     skyStars(120, h * 0.75, 5);
     g.globalCompositeOperation = "lighter";
     for (let band = 0, N = V.curtains; band < N; band++) {
-      const tone = tones[band % 3], base = h * (0.34 + band * (0.24 / N) - (V.lake ? 0.05 : 0)), top = (u) => base + Math.sin(u * 4 + t * (0.3 + band * 0.1)) * h * 0.06 + Math.sin(u * 11 - t * 0.5 + band) * h * 0.02 - h * (0.12 + 0.12 * bass + 0.05 * Math.sin(u * 7 + t));
+      const tone = tones[band % 3], base = h * (0.34 + band * (0.24 / N) - (V.lake ? 0.05 : 0)), top = (u) => base + Math.sin(u * 4 + t * (0.3 + band * 0.1)) * h * 0.06 + Math.sin(u * 11 - t * 0.5 + band) * h * 0.02 - h * (0.12 + 0.12 * bass + 0.05 * Math.sin(u * 7 + t) + 0.13 * acidLook.open * (0.6 + 0.4 * Math.sin(u * 9 - t * 2)));
       const red = clamp((tone[0] / (tone[0] + tone[1] + tone[2] + 1) - 0.5) / 0.3); // how much this curtain is a saturated red (the hard mood's): such a curtain hardly brightens on the kick, as a big red area flashing on every kick is a red flash, the kind that can hurt
       const curtain = g.createLinearGradient(0, base - h * 0.3, 0, base + h * 0.2);
       curtain.addColorStop(0, rgba(tone, 0));
-      curtain.addColorStop(0.5, rgba(tone, 0.26 + 0.2 * kick * (1 - 0.75 * red)));
+      curtain.addColorStop(0.5, rgba(tone, 0.26 + 0.1 * acidLook.knob + 0.2 * kick * (1 - 0.75 * red)));
       curtain.addColorStop(1, rgba(tone, 0));
       g.fillStyle = curtain;
       g.beginPath();
@@ -4283,7 +4294,7 @@ window.Effects = (() => {
       g.closePath();
       g.fill();
       g.lineWidth = Math.max(1, w / 600);
-      for (let x = 0; x <= w; x += 7) { const u = x / w, y0 = top(u), level = bands[Math.floor(u * 48)] || 0, sway = Math.sin(x * 0.37 + t * 0.8 + band) * 3; g.strokeStyle = rgba(mix(tone, [255, 255, 255], 0.25), (0.02 + 0.14 * level) * (0.6 + 0.4 * Math.sin(x * 1.7 + band))); g.beginPath(); g.moveTo(x + sway, y0); g.lineTo(x, y0 + h * (0.06 + 0.16 * level)); g.stroke(); } // the rays in the curtain, brighter where its band is loud
+      for (let x = 0; x <= w; x += 7) { const u = x / w, y0 = top(u), level = bands[Math.floor(u * 48)] || 0, sway = Math.sin(x * 0.37 + t * 0.8 + band) * 3; g.strokeStyle = rgba(mix(tone, [255, 255, 255], 0.25), (0.02 + 0.14 * level + 0.2 * acidLook.open) * (0.6 + 0.4 * Math.sin(x * 1.7 + band))); g.beginPath(); g.moveTo(x + sway, y0); g.lineTo(x, y0 + h * (0.06 + 0.16 * level + 0.08 * acidLook.open)); g.stroke(); } // the rays in the curtain, brighter where its band is loud
     }
     g.globalCompositeOperation = "source-over";
     g.fillStyle = "#01030a";
@@ -4355,9 +4366,9 @@ window.Effects = (() => {
       into[o + 1] = cy - ((y * cr - x * sr) / z) * f;
       into[o + 2] = z;
     };
-    const first = Math.ceil(tube.s / TUBE_GAP), ringAt = (s, swell, j, of, into, o) => { const a = (j / of) * TAU + (s - tube.s) * V.twist, ca = Math.cos(a) * swell, sa = Math.sin(a) * swell, r = tubeRing; view(r.C[0] + ca * r.R[0] + sa * r.U[0], r.C[1] + ca * r.R[1] + sa * r.U[1], r.C[2] + ca * r.R[2] + sa * r.U[2], into, o); };
+    const first = Math.ceil(tube.s / TUBE_GAP), ringAt = (s, swell, j, of, into, o) => { const a = (j / of) * TAU + (s - tube.s) * (V.twist + 0.35 * acidLook.soft), ca = Math.cos(a) * swell, sa = Math.sin(a) * swell, r = tubeRing; view(r.C[0] + ca * r.R[0] + sa * r.U[0], r.C[1] + ca * r.R[1] + sa * r.U[1], r.C[2] + ca * r.R[2] + sa * r.U[2], into, o); };
     for (let k = 0; k < N; k++) {
-      const s = (first + k) * TUBE_GAP, swell = 1 + V.swell * 0.3 * smooth(((s - tube.s) / (N * TUBE_GAP)) * BANDS * 0.85) + 0.05 * kick;
+      const s = (first + k) * TUBE_GAP, swell = 1 + V.swell * 0.3 * smooth(((s - tube.s) / (N * TUBE_GAP)) * BANDS * 0.85) + 0.05 * kick + 0.08 * acidLook.open;
       tubeAt(s, tubeRing);
       for (let j = 0; j <= M; j++) ringAt(s, swell, j, M, tubePts, (k * (M + 1) + j) * 3);
     }
@@ -4533,7 +4544,7 @@ window.Effects = (() => {
   function headsFx() { // big heads drawn in neon: slices of light from the neck up, lit from the bass at the bottom to the highs at the top. They nod to the kick and harder in a drop, look about, sing along, their eyes light up on the beat, and some versions wear glasses
     const { t, dt, kick, mid, hatHit } = sound, tones = moodColors(3), model = HEAD.model || (HEAD.model = makeHead()), f = h * 0.95, cx = w / 2, cy = h / 2, S = HEAD.slices, A = HEAD.around;
     HEAD.mid = HEAD.mid === undefined ? mid : HEAD.mid + (mid - HEAD.mid) * Math.min(1, dt / 1.2);
-    HEAD.open += (clamp((mid - HEAD.mid) * 6 + 0.25 * kick) - HEAD.open) * Math.min(1, dt * 14); // the mouth goes with the rises and falls of the voice, not how loud it is all along
+    HEAD.open += (clamp((mid - HEAD.mid) * 6 + 0.25 * kick + 1.2 * acidLook.open) - HEAD.open) * Math.min(1, dt * 14); // the mouth goes with the rises and falls of the voice, not how loud it is all along
     HEAD.turn += V.move === "spin" ? dt * 0.45 : (Math.round(HEAD.turn / TAU) * TAU - HEAD.turn) * Math.min(1, dt * 1.3); // turning round and round; once that's over it comes back to face us, the short way
     HEAD.ring += dt * 0.22;
     headStage(tones);
@@ -4551,7 +4562,7 @@ window.Effects = (() => {
         const x = p.at[0], y = p.at[1] - drop, z = p.at[2], X = m[0] * x + m[1] * y + m[2] * z + one.x, Y = m[3] * x + m[4] * y + m[5] * z + one.y, Z = m[6] * x + m[7] * y + m[8] * z + one.z;
         return [cx + (X / Z) * f, cy - (Y / Z) * f, Z, (m[0] * p.out[0] + m[2] * p.out[1]) * X + (m[3] * p.out[0] + m[5] * p.out[1]) * Y + (m[6] * p.out[0] + m[8] * p.out[1]) * Z < 0];
       };
-      const { at, out, jaw } = model, open = HEAD.open * 0.11;
+      const { at, out, jaw } = model, open = HEAD.open * 0.11 + 0.2 * acidLook.soft + 0.1 * acidLook.note; // (a 303: the jaw drops as its filter opens, and snaps a little wider on each note)
       for (let p = 0; p < S * A; p++) {
         const o = p * 3, x = at[o], y = at[o + 1] - jaw[p] * open, z = at[o + 2], X = m[0] * x + m[1] * y + m[2] * z + one.x, Y = m[3] * x + m[4] * y + m[5] * z + one.y, Z = m[6] * x + m[7] * y + m[8] * z + one.z, nx = out[p * 2], nz = out[p * 2 + 1];
         headFront[p] = (m[0] * nx + m[2] * nz) * X + (m[3] * nx + m[5] * nz) * Y + (m[6] * nx + m[8] * nz) * Z < 0 ? 1 : 0;
@@ -4597,7 +4608,7 @@ window.Effects = (() => {
         const [x, y, Z, front] = look(eye, 0);
         if (!front) continue;
         const r = (0.12 * f) / Z;
-        softBlob(g, x, y, r * (1.3 + kick), mix(tone(0), [255, 255, 255], 0.5), (0.22 + 0.5 * kick + 0.4 * flow.drop) * shade);
+        softBlob(g, x, y, r * (1.3 + kick), mix(tone(0), [255, 255, 255], 0.5), (0.22 + 0.5 * kick + 0.4 * flow.drop + 0.25 * acidLook.knob) * shade);
         glint(x, y, r * (1 + 2.5 * flow.drop), (0.35 + 0.65 * kick) * shade);
         tips.push([x, y]);
       }
@@ -4622,7 +4633,7 @@ window.Effects = (() => {
       const phi = -Math.PI / 2 + ((i + 0.5) / LAT) * Math.PI, cp = Math.cos(phi), sp = Math.sin(phi);
       for (let j = 0; j < LON; j++) {
         const lam = (j / LON) * TAU, ux = cp * Math.cos(lam), uy = sp, uz = cp * Math.sin(lam), v = smooth(Math.abs(sp) * BANDS * 0.8 + (j % 5) * 0.7);
-        const wob = V.wobble * 0.24 * Math.sin(3 * ux + t * 1.1) * Math.sin(3 * uy - t * 0.9) * Math.sin(3 * uz + t * 0.7), r = (1 + V.depth * 0.5 * v + wob) * grow, o = (i * LON + j) * 6;
+        const wob = (V.wobble * 0.24 + 0.25 * acidLook.open) * Math.sin(3 * ux + t * 1.1) * Math.sin(3 * uy - t * 0.9) * Math.sin(3 * uz + t * 0.7), r = (1 + V.depth * 0.5 * v + wob + 0.7 * acidLook.open * sp * sp) * grow, o = (i * LON + j) * 6;
         const X = m[0] * ux + m[1] * uy + m[2] * uz, Y = m[3] * ux + m[4] * uy + m[5] * uz, D = m[6] * ux + m[7] * uy + m[8] * uz; // turned, on the bare ball
         P[o] = cx + ((X * r) / (D * r + Z)) * f;
         P[o + 1] = cy - ((Y * r) / (D * r + Z)) * f;
@@ -4676,7 +4687,7 @@ window.Effects = (() => {
       for (const [a, b] of form.edges) if (seen[a] && seen[b]) { path.moveTo(...seen[a]); path.lineTo(...seen[b]); }
     };
     if (V.mode === "nested") ["dodeca", "icosa", "cube", "octa", "tetra"].forEach((kind, k) => { // each inside the last, turning its own way, the outside with the highs and the middle with the bass
-      const v = smooth((1 - k / 4) * BANDS * 0.75 + 1), size = (1.75 - k * 0.32) * (1 + 0.18 * v + 0.1 * kick), turn = turned(`nest${k}`, (0.25 + k * 0.12) * (k % 2 ? -1 : 1));
+      const v = smooth((1 - k / 4) * BANDS * 0.75 + 1), size = (1.75 - k * 0.32) * (1 + 0.18 * v + 0.1 * kick + 0.12 * acidLook.open), turn = turned(`nest${k}`, (0.25 + k * 0.12) * (k % 2 ? -1 : 1));
       put(all[kind], size, turn * 0.7 + k, turn + k * 0.5, 0, 0, 4.6, paths[(k % 3) * 3 + (k < 2 ? 1 : 0)]);
     });
     else if (V.mode === "orbit") {
@@ -4684,7 +4695,7 @@ window.Effects = (() => {
       for (let ring = 0, along = 0; ring < 3; ring++) for (let k = 0; k < 4; k++) { // three tilted rings of four, going round at their own speeds
         if (!k) along = turned(`orbit${ring}`, 0.35 + ring * 0.12) + ring;
         const a = along + (k * TAU) / 4, tilt = 0.5 + ring * 0.9, r = 1.7 + ring * 0.55, x = Math.cos(a) * r, y = Math.sin(a) * r * Math.sin(tilt), z = Math.sin(a) * r * Math.cos(tilt), b = ring * 1.1, X = x * Math.cos(b) + z * Math.sin(b), Zr = -x * Math.sin(b) + z * Math.cos(b), n = ring * 4 + k, v = sound.bands[Math.floor((n / 12) * BANDS * 0.85)];
-        put(all[kinds[n % kinds.length]], 0.32 * (1 + 0.6 * v + 0.2 * kick), spin + n, spin * 0.8 + n * 0.7, X, y, 5.5 + Zr, paths[ring * 3 + (Zr < 0 ? 0 : 1)]);
+        put(all[kinds[n % kinds.length]], 0.32 * (1 + 0.6 * v + 0.2 * kick + 0.4 * acidLook.open), spin + n, spin * 0.8 + n * 0.7, X, y, 5.5 + Zr, paths[ring * 3 + (Zr < 0 ? 0 : 1)]);
         if (Zr < 0) near.push([cx + (X / (5.5 + Zr)) * f, cy - (y / (5.5 + Zr)) * f]);
       }
     } else {
@@ -4693,10 +4704,10 @@ window.Effects = (() => {
       for (const o of field) {
         o.z -= dt * speed;
         if (o.z < 0.6) Object.assign(o, newSolid(rnd(36, 42), kinds));
-        o.ax += dt * o.sx * V.spin * (1 + kick);
-        o.ay += dt * o.sy * V.spin * (1 + kick);
+        o.ax += dt * o.sx * V.spin * (1 + kick + 2 * acidLook.open);
+        o.ay += dt * o.sy * V.spin * (1 + kick + 2 * acidLook.open);
         if (o.z > 41) continue;
-        put(all[o.kind] || all.cube, o.size * (1 + 0.5 * sound.bands[o.band] + 0.15 * kick), o.ax, o.ay, o.x, o.y, o.z, paths[o.tone * 3 + (o.z < 8 ? 0 : o.z < 20 ? 1 : 2)]);
+        put(all[o.kind] || all.cube, o.size * (1 + 0.5 * (sound.bands[o.band] + acidSpectrum(o.band / BANDS)) + 0.15 * kick + 0.6 * acidLook.open), o.ax, o.ay, o.x, o.y, o.z, paths[o.tone * 3 + (o.z < 8 ? 0 : o.z < 20 ? 1 : 2)]);
         if (o.z < 10) near.push([cx + (o.x / o.z) * f, cy - (o.y / o.z) * f]);
       }
     }
@@ -4723,7 +4734,7 @@ window.Effects = (() => {
     skyStars(80, cy * 0.8, 9);
     const [mx, my] = see(0, 9, 70), moon = h * 0.07;
     g.globalCompositeOperation = "lighter";
-    softBlob(g, mx, my, h * 0.36, tones[1], 0.18 + 0.18 * bass);
+    softBlob(g, mx, my, h * 0.36, tones[1], 0.18 + 0.18 * bass + 0.15 * acidLook.knob);
     softBlob(g, mx, my, moon * 1.6, mix(tones[1], [255, 255, 255], 0.5), 0.5);
     g.fillStyle = rgba(mix(tones[1], [255, 255, 255], 0.7), 0.9);
     g.beginPath();
@@ -4745,10 +4756,10 @@ window.Effects = (() => {
     for (const x of [-1.5, 1.5]) { road.moveTo(...see(x, 0, 0.6)); road.lineTo(...see(x, 0, far)); }
     for (let k = 0; k <= CITY_ROWS * 2; k++) { const z = ((k + 1) * CITY_GAP) / 2 - (CITY.z * 2 % CITY_GAP) / 2; if (z < 0.6) continue; road.moveTo(...see(0, 0, z)); road.lineTo(...see(0, 0, z + 0.5)); } // the lights down the middle of the road
     g.lineWidth = Math.max(1, h / 700);
-    g.strokeStyle = rgba(tones[2], 0.25 + 0.25 * kick);
+    g.strokeStyle = rgba(tones[2], 0.25 + 0.25 * kick + 0.35 * acidLook.soft);
     g.stroke(grid);
     g.lineWidth = Math.max(1, h / 360);
-    g.strokeStyle = rgba(mix(tones[2], [255, 255, 255], 0.3), 0.6 + 0.3 * kick);
+    g.strokeStyle = rgba(mix(tones[2], [255, 255, 255], 0.3), 0.6 + 0.3 * kick + 0.4 * acidLook.open);
     g.stroke(road);
     const tower = (xa, xb, H, za, zb, tone, light, fog) => { // its sides we can see, then its roof, then its front, each dark inside and outlined in light
       const faces = [];
@@ -4790,7 +4801,7 @@ window.Effects = (() => {
       const za = (k + 1) * CITY_GAP - frac, id = first + k + 1, fog = clamp((far - za) / 10);
       if (za < 0.7) continue;
       for (const side of [-1, 1]) for (let c = 2; c >= 0; c--) {
-        const hash = Math.sin(id * 12.9898 + c * 78.233 + side * 37.719) * 43758.5453, rr = hash - Math.floor(hash), band = Math.min(BANDS - 1, Math.floor(c * 18 + rr * 14)), H = (0.3 + c * 0.5 + (1 + c) * rr + (2.4 + c * 0.6) * sound.bands[band] * V.heights);
+        const hash = Math.sin(id * 12.9898 + c * 78.233 + side * 37.719) * 43758.5453, rr = hash - Math.floor(hash), band = Math.min(BANDS - 1, Math.floor(c * 18 + rr * 14)), H = (0.3 + c * 0.5 + (1 + c) * rr + (2.4 + c * 0.6) * (sound.bands[band] + acidSpectrum(band / BANDS)) * V.heights + 1.5 * c * acidLook.open);
         const [out, wide] = COLS[c], xa = side > 0 ? out : -out - wide;
         tower(xa, xa + wide, H, za, za + 1.1, tones[c], sound.bands[band], fog);
       }
@@ -5332,7 +5343,7 @@ window.Effects = (() => {
     const c = F.clarity;
     // travel inwards: a face's worth every fourteen seconds or so in the groove, slower in a break, quicker through a build, a plunge after the drop; it lingers when a face is at its best size
     F.z = (F.z + dt * ((0.035 + 0.11 * flow.intensity) * (1 + 0.8 * flow.build) * (1 - 0.75 * Math.cos(TAU * (F.z - 0.6))) + 1.8 * plunge)) % FACES_COUNT;
-    F.flowAt = (F.flowAt + dt * (0.12 + 0.2 * flow.intensity + 0.25 * sound.bass)) % (100 * Math.PI); // every speed in the flow is a whole number of fiftieths, so it comes round whole at 100 pi and the number stays small enough for the card
+    F.flowAt = (F.flowAt + dt * (0.12 + 0.2 * flow.intensity + 0.25 * sound.bass + 0.3 * acidLook.soft)) % (100 * Math.PI); // every speed in the flow is a whole number of fiftieths, so it comes round whole at 100 pi and the number stays small enough for the card
     F.crawl = (F.crawl + dt * (0.1 + 0.35 * flow.intensity)) % 1; // the lines crawl outwards
     F.swell += (sound.kick - F.swell) * towards(14); // the kick, softened: the iris swells with it
     F.lit += (drop - F.lit) * towards(drop > F.lit ? 8 : 30); // the drop, coming up over a quarter of a second: its light, the softening of the lines and the wide pupils are an event, not a flash
@@ -5363,8 +5374,8 @@ window.Effects = (() => {
       b.browLid += (brow - b.browLid) * towards(brow > b.browLid ? 5 : 10);
       b.wingLid += (wing - b.wingLid) * towards(wing > b.wingLid ? 4 : 10);
       A[o] = -below * S; A[o + 1] = S; A[o + 2] = there; A[o + 3] = b.apart;
-      B[o] = b.eye * (1 + 0.04 * F.swell * narrow); B[o + 1] = b.lid; B[o + 2] = b.tilt * shut - 0.16 * (1 - shut); B[o + 3] = b.eyesUp; // a half-shut eye's outer corner droops: sleepy, never a glare
-      C[o] = b.long; C[o + 1] = b.mouth; C[o + 2] = b.ears; C[o + 3] = b.hue;
+      B[o] = b.eye * (1 + 0.04 * F.swell * narrow + 0.12 * acidLook.open); B[o + 1] = b.lid; B[o + 2] = b.tilt * shut - 0.16 * (1 - shut); B[o + 3] = b.eyesUp; // a half-shut eye's outer corner droops: sleepy, never a glare
+      C[o] = b.long; C[o + 1] = b.mouth + acidLook.open * (b.mouth ? 1.5 : 0.9); C[o + 2] = b.ears; C[o + 3] = b.hue;
       D[o] = b.round; D[o + 1] = b.browLid; D[o + 2] = b.wingLid; D[o + 3] = (0.5 * b.tilt + 0.2) * Math.min(1, b.browLid) - 0.16 * (1 - Math.min(1, b.browLid)); // (the brow pair's own tilt: it droops as it shuts, like the first pair)
     }
     for (let l = 0; l < 2; l++) { const f = (F.z + l * 0.5) % 1; told.flowIs[1][l * 2] = 0.55 * Math.exp(FACES_LEVEL * (f - 0.5)); told.flowIs[1][l * 2 + 1] = Math.sin(Math.PI * f) ** 2; } // two layers of the stuff, one fading in small as the other fades out big, so the travel has no seam
@@ -5610,8 +5621,8 @@ window.Effects = (() => {
     S.fine4[0] = Math.hypot(S.rings[0], S.arms[0]); S.fine4[1] = Math.hypot(S.rings[1], S.arms[1]); S.fine4[2] = Math.hypot(S.rings[0] + S.rings[1], S.arms[0] + S.arms[1]); S.fine4[3] = Math.hypot(S.rings[0] - S.rings[1], S.arms[0] - S.arms[1]); // how fine each of the four waves is away from any front, for the sum by hand
     N.turn[0] = Math.cos(S.spin); N.turn[1] = Math.sin(S.spin); N.arms[0] = S.arms[0]; N.arms[1] = S.arms[1];
     for (let i = 0; i < 4; i++) N.lit4[i] = S.lit[i];
-    N.look[0] = S.level - 0.15 * S.swell + 0.08 * breathe; N.look[1] = 0.5 * Math.sin(sound.t * 0.23); N.look[2] = (S.line / Math.max(S.fine, 2)) * (1 + 0.5 * flow.calm + 0.25 * breathe); N.look[3] = S.cell; // on a kick the level drops, so the cells swell; in a calm part the lines are half as wide again
-    N.grow[0] = 0.2 * S.bend * (1 + 0.3 * flow.calm) * cells; N.grow[1] = S.clockA; N.grow[2] = S.clockB; N.grow[3] = 0.035 * S.swell * cells;
+    N.look[0] = S.level - 0.15 * S.swell + 0.08 * breathe - 0.25 * acidLook.open; N.look[1] = 0.5 * Math.sin(sound.t * 0.23); N.look[2] = (S.line / Math.max(S.fine, 2)) * (1 + 0.5 * flow.calm + 0.25 * breathe); N.look[3] = S.cell; // on a kick the level drops, so the cells swell; in a calm part the lines are half as wide again
+    N.grow[0] = 0.2 * S.bend * (1 + 0.3 * flow.calm + 3 * acidLook.soft) * cells; N.grow[1] = S.clockA; N.grow[2] = S.clockB; N.grow[3] = 0.035 * S.swell * cells;
     N.hue[0] = S.hue; N.veil[0] = S.veil; N.veil[3] = -2 * S.spin + 0.3;
     N.light[0] = 0.64 + 0.1 * S.swell + 0.12 * S.lift - 0.08 * flow.calm; // the pattern fills the picture, so the kick lights it far less than it does the Julia set, and by the softened kick
   }
@@ -6068,7 +6079,7 @@ window.Effects = (() => {
     if (wasAir && !st.inAir && st.gone < 0.3) { st.land = Math.max(st.land, 0.1); for (let i = 0; i < 4; i++) runnerSpark(HX - 5 + i * 3, GY - st.lift - now.y - 1, (i - 1.5) * 26, -14 - 8 * (i % 2), 0.22, "h"); } // dust where it lands: on the kick
     st.glint = Math.max(-1, st.glint - dt); if (sound.hatHit && T.spark > 0 && st.glint < -0.16) st.glint = 0.09; // a glint on the pickups for a hi-hat, four times a second at most
     st.blink = (st.blink + dt) % 3.7;
-    for (let i = 0; i < 16; i++) st.bands[i] += ((sound.bands[i * 4] + sound.bands[i * 4 + 1] + sound.bands[i * 4 + 2] + sound.bands[i * 4 + 3]) / 4 - st.bands[i]) * Math.min(1, dt / 0.3); // the spectrum in sixteen parts, followed slowly: what the lights and gauges show, so none of them blinks
+    for (let i = 0; i < 16; i++) st.bands[i] += ((sound.bands[i * 4] + sound.bands[i * 4 + 1] + sound.bands[i * 4 + 2] + sound.bands[i * 4 + 3]) / 4 + acidSpectrum(i / 16) - st.bands[i]) * Math.min(1, dt / 0.3); // the spectrum in sixteen parts, followed slowly: what the lights and gauges show, so none of them blinks
     for (let i = runnerBits.length - 1; i >= 0; i--) { const b = runnerBits[i]; b.life -= dt; if (b.life <= 0) { runnerBits.splice(i, 1); continue; } b.vy += b.fall * dt; b.x += b.vx * dt - went * 0.6; b.y += b.vy * dt; }
     if (st.beat > 4096 && !st.gone && !st.leap && !st.gate && !st.iris) { st.beat -= 4096; st.laid -= 4096; st.noThings -= 4096; for (const it of runnerCourse) it.n -= 4096; } // the count of beats starts again now and then, where nothing shows it
   }
@@ -6174,7 +6185,7 @@ window.Effects = (() => {
       else if (W.float === "balloons") { for (let j = 0; j < 3; j++) { const cx = HX - 7 + j * 7 + rd(Math.sin(t * 1.3 + j) * 1.2), cy = by - 15 - (j === 1 ? 4 : 0); for (let d = 1; d < 14 + (j === 1 ? 4 : 0); d += 2) R("h", runnerMix(cx, HX, d / 16), cy + 5 + d, 1, 1); R("abc"[j], cx - 2, cy - 3, 5, 7); R("abc"[j], cx - 3, cy - 2, 7, 5); R("l", cx - 1, cy - 2, 1, 2); } }
       else { const top = by - 15; for (let j = 0; j < 6; j++) { const half = rd(11 * Math.sqrt(1 - ((5 - j) / 6.5) ** 2)); for (let xx = -half; xx < half; xx++) R("alcla"[Math.floor(((xx + 11) / 22) * 5)], HX + xx, top + j, 1, 1); } R("k", HX - 11, top + 6, 22, 1); for (let j = 0; j < 8; j++) { R("h", HX - 10 + j, top + 7 + j, 1, 1); R("h", HX + 9 - j, top + 7 + j, 1, 1); } }
     }
-    for (let i = 1; i <= 5; i++) R(i > 3 ? "T" : "S", bx - i * 2 + 1, by + 8 + rd(Math.sin(t * 9 - i * 0.9) * (0.4 + i * 0.25) + st.scarf * i * 0.9), 2, 2); // the scarf: five bits that trail and lag
+    for (let i = 1, n = 5 + Math.round(13 * Math.min(1, acidLook.on)); i <= n; i++) R(i > 3 ? "T" : "S", bx - i * 2 + 1, by + 8 + rd((acidLook.on ? acidScarf(i, t) : Math.sin(t * 9 - i * 0.9) * (0.4 + i * 0.25)) + st.scarf * i * 0.9), 2, 2); // the scarf: five bits that trail and lag (eighteen while a 303 plays, waving with its filter: see acidScarf)
     if (turn) { const [c, s] = [[1, 0], [0, 1], [-1, 0], [0, -1]][turn]; X.setTransform(c, s, -s, c, HX, by + 7); X.drawImage(body, -8, -7); X.setTransform(1, 0, 0, 1, 0, 0); }
     else { S.put(body, bx, by); if (st.blink < 0.12) { R("C", bx + 9, by + 5, 6, 2); R("O", bx + 9, by + 7, 2, 1); R("O", bx + 12, by + 7, 2, 1); } } // (it blinks now and then)
     if (!tuck) for (const [f, tone] of [[f2, "D"], [f1, "B"]]) { R("O", HX + f[0] - 1, fy - 3 + f[1], 5, 3); R(tone, HX + f[0], fy - 3 + f[1], 3, 2); }
@@ -6576,7 +6587,7 @@ window.Effects = (() => {
       if (G.score >= 1e6) { G.score -= 1e6; G.shown = Math.max(0, G.shown - 1e6); } // the counter goes round, as counters did
       G.shown += (G.score - G.shown) * ease(7);
       // the two rails of lamps: the low bands fill the left one and the high bands the right. Each holds its top for a second and then sinks slowly, so nothing there blinks with the beat
-      [clamp(sound.bass * 1.1), clamp(sound.treble * 1.4 * (0.5 + 0.5 * T.spark))].forEach((level, i) => { const r = G.rails[i]; r.now += (level - r.now) * ease(level > r.now ? 30 : 6); if (level >= r.held) { r.held = level; r.until = t + rate; } else if (t > r.until) r.held = Math.max(level, r.held - dt * 0.4); });
+      [clamp(sound.bass * 1.1), Math.max(clamp(sound.treble * 1.4 * (0.5 + 0.5 * T.spark)), clamp(acidLook.open))].forEach((level, i) => { const r = G.rails[i]; r.now += (level - r.now) * ease(level > r.now ? 30 : 6); if (level >= r.held) { r.held = level; r.until = t + rate; } else if (t > r.until) r.held = Math.max(level, r.held - dt * 0.4); });
     }
 
     function num(S, n, px, py, col, big = 1, pad = 0, shade = null) { // a number in the pixel screen's own figures, any size, with a dark copy behind it if asked
@@ -6615,7 +6626,7 @@ window.Effects = (() => {
       // the ship: its shadow self twice on the loop, a flame that lengthens with the bass, a cap of light when a shot glances off, a spark at the nose when it fires
       const leans = Math.abs(G.lean) > 0.35, pic = leans ? made.lean : made.ship, ship = (x, y, alpha) => S.put(pic, x - pic.width / 2, y - SH / 2, { flip: leans && G.lean > 0, alpha });
       if (since < 4 * B) for (const [behind, alpha] of [[0.09, 0.22], [0.045, 0.4]]) { const a = eased(Math.max(0, since / (4 * B) - behind / (4 * B))) * TAU; ship(CX + Math.sin(a) * AX * (tall ? 0.28 : 0.16), BASE - (1 - Math.cos(a)) * DN * LOOP, alpha); }
-      const flame = 2 + Math.round(G.bass * 4 + (Math.floor(t * 15) % 2)); S.rect(Wd.ship[2], G.x - 2, G.y + SH / 2 - 2, 4, flame); S.rect(Wd.burst[1], G.x - 1, G.y + SH / 2 - 2, 2, flame - 2);
+      const flame = 2 + Math.round(G.bass * 4 + 14 * acidLook.open + (Math.floor(t * 15) % 2)); S.rect(Wd.ship[2], G.x - 2, G.y + SH / 2 - 2, 4, flame); S.rect(Wd.burst[1], G.x - 1, G.y + SH / 2 - 2, 2, flame - 2);
       ship(G.x, G.y, 1);
       if (t - G.shield < 0.15 && t >= G.shield) { S.rect(Wd.ship[3], G.x - 7, G.y - SH / 2 - 3, 14, 1); S.rect(Wd.ship[3], G.x - 9, G.y - SH / 2 - 2, 2, 1); S.rect(Wd.ship[3], G.x + 7, G.y - SH / 2 - 2, 2, 1); }
       if (t - G.fired < 0.05 && t >= G.fired) { S.rect(Wd.shot, G.x - 2, G.y - SH / 2 - 2, 4, 3); S.rect(WHITE, G.x - 1, G.y - SH / 2 - 3, 2, 3); }
@@ -6693,7 +6704,7 @@ window.Effects = (() => {
     else if (st.gT > (st.world === "sea" ? 90 : 180) && (st.calmFor > 40 || (sound.kickHit > 0 && flow.part === "groove"))) { st.gT = 0; st.soft = 1; } // no drop for a long while: it comes by itself, and more gently. Only in a long quiet (music with no drums never has a drop) or on a kick of a running groove: never in an ordinary break, where the drop itself is on its way
     else st.gT += dt;
     if (st.soft && (flow.dropHit || st.soft < 1)) st.soft = Math.max(0, Math.min(st.soft, 0.999) - dt / 0.4); // a real drop while one that came by itself is on takes it over: it is not started again, its gentleness goes in a moment (soft is 1 while gentle, and on its way to 0 from then on)
-    for (let i = 0; i < 16; i++) { const v = (sound.bands[i * 4] + sound.bands[i * 4 + 1] + sound.bands[i * 4 + 2] + sound.bands[i * 4 + 3]) / 4; st.eq[i] += (v - st.eq[i]) * (v > st.eq[i] ? ease(30) : ease(4)); } // sixteen levels of the spectrum, quick up and slow down
+    for (let i = 0; i < 16; i++) { const v = (sound.bands[i * 4] + sound.bands[i * 4 + 1] + sound.bands[i * 4 + 2] + sound.bands[i * 4 + 3]) / 4 + acidSpectrum(i / 16); st.eq[i] += (v - st.eq[i]) * (v > st.eq[i] ? ease(30) : ease(4)); } // sixteen levels of the spectrum, quick up and slow down
     st.rain += ((kind === "jungle" ? 1 : 0.55) - st.rain) * ease(0.5);
     if (st.over < 1) st.over = Math.min(1, st.over + dt / 2.2); // going over to another place takes two seconds or so
     else if (next !== st.world) { st.over = st.world ? 0 : 1; st.world = next; } // another kind of music: another place (the clocks carry on)
@@ -6974,16 +6985,16 @@ window.Effects = (() => {
         const t = st.t, sc = SC, wk = mixc(dk, air[2], 0.3), wkLit = mixc(dk, air[3], 0.6);
         stars(Math.round(W * 0.25), (ni - 0.4) * 1.2, mixc(air[1], lime, 0.35), cream, HZ * 0.7);
         // the moon drips: a drop swells for six beats, falls for two, and rings the water where it lands
-        const mx = Math.round(W * moonAt), my = Math.round(HZ * 0.24), mr = Math.round(14 * sc), moonC = mixc(yel, lime, 0.35), dn = ((st.beat % 8) + Math.min(1, st.sk / st.bl)) / 8;
+        const mx = Math.round(W * moonAt), my = Math.round(HZ * 0.24), mr = Math.round(14 * sc * (1 + 0.45 * acidLook.soft)), moonC = mixc(yel, lime, 0.35), dn = ((st.beat % 8) + Math.min(1, st.sk / st.bl)) / 8;
         moon(mx, my, mr, moonC, mixc(moonC, g3, 0.45), mixc(air[1], lime, 0.4), 0);
         disc(mx - mr * 0.3, my - mr * 0.3, mr * 0.45, mixc(moonC, cream, 0.5), 0.5);
-        if (dn < 0.75) box(mx - 1, my + mr - 1, 2, 2 + dn * 9, moonC); else box(mx - 1, my + mr + 8 + ((dn - 0.75) / 0.25) ** 2 * (HZ - my - mr - 8), 2, 3, moonC);
+        if (dn < 0.75) box(mx - 1, my + mr - 1, 2, 2 + dn * 9 * (1 + 1.5 * acidLook.soft), moonC); else box(mx - 1, my + mr + 8 + ((dn - 0.75) / 0.25) ** 2 * (HZ - my - mr - 8), 2, 3, moonC);
         each(0.05, 110, 20, (x, k, r) => cloud(x, HZ * (0.2 + 0.4 * hash(k, 3)), 7 + r * 9, k, mixc(air[2], lime, 0.25), mixc(air[1], air[2], 0.6), mixc(air[1], air[0], 0.5)), 60, t * 0.9);
         flock(BIRD_A, BIRD_B, { b: dk }, { n: 3, y: 0.45, every: 23, spread: 13 });
         // the works on the far shore: tanks, a flare stack that licks up on the hi-hats, lamps
         each(0.1, 150, 30, (x, k, r) => {
           disc(x + 12, HZ - 18, 11, wk); for (let j = -11; j <= 11; j++) { const half = Math.floor(Math.sqrt(121 - j * j)); box(x + 12 - half, HZ - 18 + j, Math.max(1, half * 0.35), 1, wkLit); } box(x + 4, HZ - 9, 2, 10, wk); box(x + 18, HZ - 9, 2, 10, wk); box(x + 1, HZ - 18, 22, 1, wk); // a ball tank on legs
-          const th = Math.round((40 + r * 22) * TALL); box(x + 34, HZ - th, 6, th + 1, wk); box(x + 34, HZ - th, 2, th + 1, wkLit); for (let j = 6; j < th; j += 8) box(x + 32, HZ - j, 10, 1, wk); box(x + 42, HZ - th + 6, 1, th - 6, wk); flame(x + 37, HZ - th - 1, 4 + 5 * st.he + 10 * grand, [g3, lime, cream]); // a column with a flare that licks up on the hi-hats
+          const th = Math.round((40 + r * 22) * TALL); box(x + 34, HZ - th, 6, th + 1, wk); box(x + 34, HZ - th, 2, th + 1, wkLit); for (let j = 6; j < th; j += 8) box(x + 32, HZ - j, 10, 1, wk); box(x + 42, HZ - th + 6, 1, th - 6, wk); flame(x + 37, HZ - th - 1, 4 + 5 * st.he + 10 * grand + 12 * acidLook.open, [g3, lime, cream]); // a column with a flare that licks up on the hi-hats
           for (let i = 0; i < 2; i++) { const tx = x + 52 + i * 21; box(tx, HZ - 20, 17, 21, wk); dome(tx + 8, HZ - 20, 8, 4, wk); box(tx, HZ - 20, 3, 21, wkLit); box(tx, HZ - 12, 17, 1, mixc(wk, dk, 0.5)); }
           for (let j = 0; j < 30 * TALL; j++) { const u = j / (30 * TALL), half = Math.round(10 - 4 * Math.sin(u * Math.PI * 0.8)); box(x + 108 - half, HZ - j, half * 2, 1, wk); box(x + 108 - half, HZ - j, 3, 1, wkLit); } // a cooling tower that breathes out a puff on each kick
           for (let i = 0; i < 3; i++) { const a = (st.sk / st.bl + i) / 3; if (a < 1) disc(x + 108 + a * 8, HZ - 30 * TALL - 3 - a * 16, 2 + 5 * a, mixc(air[2], cream, 0.3), 0.6 * (1 - a)); }
@@ -7002,10 +7013,11 @@ window.Effects = (() => {
           for (let j = 0; j < 14; j++) { const q = (t * 0.9 + hash(j, i + 7)) % 1; dot(gx + (hash(j, i + 8) - 0.5) * 34 * q, HZ - hg - 5 * Math.sin(q * Math.PI) + hg * 0.5 * q * q, j % 3 ? lime : cream); }
         }
         if (dn < 0.2) ring(mx, HZ + 2, 3 + 60 * dn, moonC, 0.8 - dn * 3, 0.3);
+        if (acidLook.on > 0.05) { const q = (acidFeel.t - acidFeel.noteAt) / 0.5, f = flow.acidFilter / Math.max(0.01, flow.acidOn); if (q < 1) ring(Math.round(W * (0.12 + 0.76 * f)), HZ + 3, 2 + 40 * q, mixc(lime, cream, f), (0.9 - 0.9 * q) * Math.min(1, acidLook.on), 0.3); } // a 303: each note rings the water, further along the more open the filter
         water(HZ + 1, waterC, mixc(g2, lime, 0.45), { deep: 0.25, few: 0.965 });
         if (st.wide > 0.05) for (let y = HZ - 10; y < HZ + 8; y++) for (let x = 0; x < W; x++) if (dit(x, y, st.wide * 0.75 * (1 - Math.abs(y - HZ + 1) / 9) * (0.3 + noise((x + t * 3) * 0.03 + y * 0.11, 12)))) B[y * W + x] = mixc(B[y * W + x], mixc(air[3], cream, 0.3), 0.7); // in a break, mist lies on the water in drifts
         // bubbles drift up out of the marsh, more of them through a build
-        for (let i = 0, n = Math.round(5 + 4 * st.inten + 12 * st.build); i < n; i++) {
+        for (let i = 0, n = Math.round(5 + 4 * st.inten + 12 * st.build + 10 * Math.min(1.5, acidLook.on)); i < n; i++) {
           const f = hash(i, 71), y = H - ((t * (5 + 9 * f) + hash(i, 72) * 900) % (H + 30)) + 10, x = (((hash(i, 73) * W * 1.4 - st.cam * 0.6) % W) + W) % W + 5 * Math.sin(t * 0.7 + i), r = 2 + Math.floor(f * 3.5) + ((i + st.hat) % 4 === 0 && st.he > 0.5 ? 1 : 0);
           ring(x, y, r, y < HZ ? mixc(lime, air[2], 0.3) : lime);
           dot(x - r * 0.4, y - r * 0.4, cream);
@@ -7680,6 +7692,8 @@ window.Effects = (() => {
           else if (kind === "bloom") { const [x, y] = spot(); if (coral) seedBloom(x, bar ? y : R.both && K.kicks % 2 ? 1 : rows - 2, 1, bar ? 12 : 30 + int(40)); else seedBloom(x, y, 1, bar ? 8 + Math.round(4 * strong) : 3 + Math.round(3 * strong)); } // coral: from the floor, and at the start of a bar a small one adrift
           else if (sands) kickSand(bar);
         }
+        if (acidLook.hit && !hushed && roll() < 0.6 * Math.min(1, acidLook.hit)) { const ay = 1 + Math.round((1 - flow.acidFilter / Math.max(0.01, flow.acidOn)) * (rows - 3)); // a 303 note sprinkles too, high up when the filter is open
+          if (kind === "cells") hatCells(); else if (kind === "bloom") seedBloom(1 + int(cols - 2), ay, 2, 3); else if (kind === "ants") images(int(cols), ay, (X, Y) => { const i = Y * cols + X; if (!st[i]) { st[i] = 1; ink[i] = 2; age[i] = 0; tgt[i] = 0.75; lum[i] = 1; } }); else if (sands) { const i = cols + 1 + int(cols - 2); if (!st[i]) { st[i] = 1; ink[i] = inkCount - 1; age[i] = 0; tgt[i] = 1; } } }
         if (sound.hatHit && !hushed) for (let n = T.spark; n > 0; n--) if (roll() < n * share) { // a hi-hat sprinkles (more or fewer with the knob for glints on the hi-hats)
           if (kind === "cells") hatCells();
           else if (kind === "bloom") seedBloom(1 + int(cols - 2), 1 + int(rows * 0.85), 2, coral ? 2 + int(5) : 3);
@@ -7868,12 +7882,12 @@ window.Effects = (() => {
       S.rest = Math.min(1, S.rest + dt / 2.5); // after a fall the new being hangs still for a moment, then floats again
       S.flare += (flow.drop - S.flare) * toward(flow.drop > S.flare ? 7 : 3, dt);
       S.lock += ((S.here > 0.93 ? 1 : 0) - S.lock) * toward(2.5, dt); // its look wanders while it gathers, and settles on you once it's here
-      S.warm += (0.6 * clamp(B.reach) + 0.4 * S.flare - S.warm) * toward(1.3, dt); // the glow behind it swells with the kick and the drop, but slowly: it lies over most of the picture, and that much must never jump
+      S.warm += (0.6 * clamp(B.reach) + 0.4 * S.flare + 0.3 * acidLook.knob - S.warm) * toward(1.3, dt); // the glow behind it swells with the kick and the drop, but slowly: it lies over most of the picture, and that much must never jump
       // the tunnel of flowers flows outwards, and inwards through a build, into the being that is gathering there. A ring that leaves is born again at the other end with as many petals as the being has limbs
       const inward = flow.part === "drop" ? 0 : step(0.28, 0.45, flow.build), out = 0.15 + 0.45 * flow.intensity + 0.5 * flow.drop;
       S.speed += (out + (-(0.3 + 0.7 * flow.build) - out) * inward - S.speed) * toward(1.6, dt); // rings a second
       S.phase += dt * S.speed;
-      for (const r of S.rings) r.twist = (r.twist + dt * 0.05 * r.way) % TAU; // each ring turns slowly, the other way from its neighbours
+      for (const r of S.rings) r.twist = (r.twist + dt * (0.05 + 0.8 * acidLook.soft) * r.way) % TAU; // each ring turns slowly, the other way from its neighbours
       while (S.phase >= 1) { S.phase -= 1; for (const r of S.rings) r.k++; S.rings.pop(); const first = S.rings[0]; S.rings.unshift({ k: 0, lobes: lobes(), tone: (first.tone + 2) % 3, twist: (first.twist - 0.31) % TAU, way: -first.way, id: (S.made = (S.made + 1) % 97) }); }
       while (S.phase < 0) { S.phase += 1; for (const r of S.rings) r.k--; S.rings.shift(); const last = S.rings[S.rings.length - 1]; S.rings.push({ k: last.k + 1, lobes: lobes(), tone: (last.tone + 1) % 3, twist: (last.twist + 0.31) % TAU, way: -last.way, id: (S.made = (S.made + 1) % 97) }); }
       // every being in the line lives: it turns, blinks, looks about
@@ -7889,7 +7903,7 @@ window.Effects = (() => {
           const d = Math.min(left, 1 / 120);
           b.lidV += ((aim - b.lid) * stiff - b.lidV * damp) * d;
           b.lid = Math.max(0, Math.min(1.25, b.lid + b.lidV * d));
-          b.reachV += ((kick * 0.5 + bass * 0.5 + 0.55 * S.flare * stir(n) - b.reach) * 60 - b.reachV * 9) * d; // the limbs fling out on the kick and on the drop
+          b.reachV += ((kick * 0.5 + bass * 0.5 + 0.55 * S.flare * stir(n) + 1.1 * acidLook.open - b.reach) * 60 - b.reachV * 9) * d; // the limbs fling out on the kick and on the drop
           b.reach += b.reachV * d;
         }
         if (!Number.isFinite(b.lid + b.lidV + b.reach + b.reachV)) b.lid = b.lidV = b.reach = b.reachV = 0;
@@ -8025,7 +8039,7 @@ window.Effects = (() => {
         const hand = 1 + (side - 1) * G.sym, pts = [[], []];
         let tip = null;
         for (let i = 0; i <= K; i++) {
-          const u = i / K, rr = r0 + len * u, a = side * (th0 + G.hang * G.sym * Math.sin(th0) * u ** 1.3) + hand * (G.curl * u ** 1.5 * (1 - 0.25 * b.reach) + G.sway * (0.4 + bass) * Math.sin(t * 1.4 - u * 2.6 + phase) * u), half = (wd * ((1 - u) ** 0.8 * (1 - G.waist) + Math.sin(Math.PI * u ** 0.62) * (1 - 0.35 * u) * G.waist)) / Math.max(0.25, rr);
+          const u = i / K, rr = r0 + len * u, a = side * (th0 + G.hang * G.sym * Math.sin(th0) * u ** 1.3) + hand * (G.curl * u ** 1.5 * (1 - 0.25 * b.reach) + G.sway * (0.4 + bass + 1.4 * acidLook.open) * Math.sin(t * 1.4 - u * 2.6 + phase) * u), half = (wd * ((1 - u) ** 0.8 * (1 - G.waist) + Math.sin(Math.PI * u ** 0.62) * (1 - 0.35 * u) * G.waist)) / Math.max(0.25, rr);
           for (const e of [0, 1]) pts[e].push([cx + Math.sin(a + (e ? half : -half)) * rr * U, cy - Math.cos(a + (e ? half : -half)) * rr * U]);
           if (i === Math.round(K * 0.7)) tip = [cx + Math.sin(a) * rr * U, cy - Math.cos(a) * rr * U, a];
         }
@@ -8272,12 +8286,12 @@ window.Effects = (() => {
     flow.acidAt = said.where;
     flow.acidHit = said.hit ? 1 : 0;
   }
-  function acidNewSong() { acidHeardAt = realNow - 60000; acidSinger.tired = false; } // as if a minute had gone by: nothing of the last song's line is left when this one starts, and the last song's rest is not this one's: a new song may be sung at once
+  function acidNewSong() { acidHeardAt = realNow - 60000; acidSinger.tired = false; acidVisitNew(); } // as if a minute had gone by: nothing of the last song's line is left when this one starts, and the last song's rest is not this one's: a new song may be sung at once
 
   /* The singer. Whether it is there goes by a switch with a gap in it: it comes when the ear is more than half sure and goes when that falls under a quarter, so an ear that hovers at "fairly sure",
      as it does for seconds on end in real tracks, shows all of it, steadily, or nothing: never a face that trembles. It comes and goes eased, over about a second.
-     And it is a visit, not a fixture: it stays for 24 seconds of a line that goes on, then keeps away for 40 before it may come back. A line that stops by itself needs no such rest.
-     The "Singing to the 303" slider stretches the stay and shortens the rest by as much (at 2 it stays 48 seconds and rests 20), and at 0 it never comes.
+     And it is a visit, not a fixture, which only some lines get (see acidVisit in the acidall block): it stays for 24 seconds of a line that goes on, then keeps away for 75 seconds however it left.
+     The "Singing to the 303" slider stretches the stay and shortens the rest by as much (at 2 it stays 48 seconds and rests 37), and at 0 it never comes.
      What it sings with is worked out here once a frame, from the ear's three answers; the drawing reads these and nothing else:
        show    0 to 1, how much of it is there: it rises, fades and leaves with this
        sq      where the squelch is, its leap softened to 30 ms so nothing jumps in one frame. The ear's place is believed only while the ear is sure: all of it from half sure, none of it under 0.4 or once the switch is off.
@@ -8288,7 +8302,7 @@ window.Effects = (() => {
        tongue  out for a fifth of a second when a note leaps clearly higher than the last few did (an accent), and then not again for a bar
        punch   up on a note and gone in a tenth of a second: it only ever moves and swells the face a little, it never lights anything
        nod     it rocks left and right, changing side on every note */
-  const ACID_ON = 0.5, ACID_OFF = 0.25, ACID_COME = 0.9, ACID_GO = 1.2, ACID_STAY = 24, ACID_REST = 40; // the switch, the seconds it takes to come and to go, and the visit
+  const ACID_ON = 0.5, ACID_OFF = 0.25, ACID_COME = 0.9, ACID_GO = 1.2, ACID_STAY = 24, ACID_REST = 75; // the switch, the seconds it takes to come and to go, and the visit
   const ACID_KEEP = 256, ACID_TICK = 1 / 60, ACID_LINE = 109, ACID_DROPS = 4, ACID_INK = "#16140a", ACID_YELLOW = [246, 230, 50]; // the ribbon: how much is remembered, how often, and how much of it is drawn (a bar of music, 1.8 s)
   const acidSinger = { sure: 0, on: false, tired: false, cameAt: 0, leftAt: 0, ramp: 0, show: 0, sq: 0, knob: 0, lo: 0, hi: 0, peak: 0, peaks: 0, since: 9, wah: 0, v: 0, tongue: 0, lickAt: -9, punch: 0, hitAt: -9, side: 1, nod: 0, t: 0, owed: 0, at: 0, drop: 0, dropAt: -9, rainbow: false, rain: 0, hue: 0 }; // rainbow: this visit goes round the colors; rain, how far it has got into them; hue, where it is on the wheel
   const acidKept = { v: new Float32Array(ACID_KEEP), show: new Float32Array(ACID_KEEP) }; // the height and how much was there, sixty times a second, the newest at acidSinger.at
@@ -8302,8 +8316,8 @@ window.Effects = (() => {
     const S = acidSinger, sure = hearing && T.acid ? flow.acid : 0;
     S.t += dt;
     S.sure = T.acid ? S.sure + (sure - S.sure) * acidPart(dt, 0.2) : 0; // the ear's answer, steadied. With the slider at 0 it is nothing, and whoever is there leaves
-    if (!S.on && S.sure > ACID_ON && !(S.tired && S.t - S.leftAt < ACID_REST / T.acid)) {
-      if (S.ramp <= 0) { acidKept.show.fill(0); S.sq = S.knob = S.lo = S.hi = S.peak = S.peaks = flow.acidAt; S.wah = S.tongue = S.punch = S.nod = 0; S.cameAt = S.t; S.rainbow = Math.random() < (mood === "psy" ? 0.7 : 0.3); } // from nothing: no ribbon from the last visit, it starts where the line is, and its visit is counted from now
+    if (!S.on && S.sure > ACID_ON && acidMayCome(S)) { // (only a line that was given a visit, and not in the rest after one: see acidVisit)
+      if (S.ramp <= 0) { acidKept.show.fill(0); S.sq = S.knob = S.lo = S.hi = S.peak = S.peaks = flow.acidAt; S.wah = S.tongue = S.punch = S.nod = 0; S.cameAt = S.t; acidPick(S); } // from nothing: no ribbon from the last visit, it starts where the line is, and its visit is counted from now
       S.on = true; // (back before it had quite gone, it is the same visit and its clock runs on: a line that dips now and then does not keep it on screen for ever)
       S.tired = false;
     } else if (S.on && (S.sure < ACID_OFF || S.t - S.cameAt > ACID_STAY * T.acid)) {
@@ -8381,16 +8395,17 @@ window.Effects = (() => {
   /* The ribbon: the last bar of the squelch, written out from the mouth like a seismograph. Thick where the filter was open and thin where it was shut, thinning to nothing at its far end; under an accent a drop forms, hangs and falls.
      On a wide picture it runs to the left and waves up and down; on a tall one it hangs down from the mouth and swings left and right, and has no drops.
      It is drawn in a frame of its own, laid from "shut" (0) to "open" (1) across it and in the picture's own steps along it, which is what lets one paint made once color it wherever it is. */
-  function acidRibbon(mouthX, mouthY, tall, m) {
-    const S = acidSinger, show = S.show, reach = (tall ? w * 0.5 : h * 0.46) * 0.8 * show; // how far an open filter is from a shut one on the picture
+  function acidRibbon(mouthX, mouthY, tall, m, way = -1, reachBy = 1, voice = 0, long = 1) { // way: a wide ribbon runs to the left (-1) or the right (1); reachBy: how far it swings, as a share of its usual; voice and long: in a duet, which half of the line it sings and how far across it runs
+    const S = acidSinger, show = S.show, reach = (tall ? w * 0.5 : h * 0.46) * 0.8 * show * reachBy; // how far an open filter is from a shut one on the picture
     if (reach < 1) return;
-    const { across, along, thick, taper, bend } = acidLine, pen = tall ? mouthY : mouthX, run = ((tall ? h - pen : pen) + m * 0.05) / (ACID_LINE - 1), rest = tall ? 0.55 : 0.45, shut = tall ? mouthX - reach * rest : mouthY + reach * rest, part = Math.min(1, S.owed / ACID_TICK);
+    const { across, along, thick, taper, bend } = acidLine, pen = tall ? mouthY : mouthX, run = (((tall ? h - pen : way < 0 ? pen : w - pen) + m * 0.05) * long) / (ACID_LINE - 1), rest = tall ? 0.55 : 0.45, shut = tall ? mouthX - reach * rest : mouthY + reach * rest, part = Math.min(1, S.owed / ACID_TICK);
     for (let i = 0; i < ACID_LINE; i++) { // 0 is now, at the mouth; the last is the oldest
       const k = S.at - i + ACID_KEEP, v = i ? 0.25 * acidKept.v[(k + 1) % ACID_KEEP] + 0.5 * acidKept.v[k % ACID_KEEP] + 0.25 * acidKept.v[(k - 1) % ACID_KEEP] : S.v, life = i ? acidKept.show[k % ACID_KEEP] : show, far = (i ? i - 1 + part : 0) * run; // it moves with the frame, not in steps of its memory
       across[i] = rest + (v - 0.45) * bend[i];
-      along[i] = tall ? pen + far : pen - far;
-      thick[i] = (m * (0.006 + 0.026 * v) * taper[i] * (0.3 + 0.7 * life) * clamp(life * 5)) / reach; // nothing is written for the time before the line was there
+      along[i] = tall ? pen + far : pen + way * far;
+      thick[i] = (m * (0.006 + 0.026 * v) * taper[i] * (0.3 + 0.7 * life) * clamp(life * 5) * acidVoice(voice, v)) / reach; // nothing is written for the time before the line was there
     }
+    if (acidStrand(shut, reach, tall, m)) return; // dots, a zigzag, a fan or notes (see acidStrand)
     g.save();
     if (tall) g.transform(reach, 0, 0, 1, shut, 0); else g.transform(0, -reach, 1, 0, 0, shut);
     g.globalCompositeOperation = "source-over"; // a shadow first, so it reads over a bright picture; over black this does nothing
@@ -8438,7 +8453,7 @@ window.Effects = (() => {
   }
   /* The face: the page's own smiley (the same yellow, the same dark line, the same eyes and smile as smileyFace), drawn afresh on every frame because its mouth moves.
      open, from 0 to 1, is the mouth: the smile at 0, a wide-open shout at 1. tongue pushes the tongue out over the lip, and squint narrows the eyes as it shouts. It is drawn one unit across and stretched to r. */
-  function acidFace(cx, cy, r, open, tongue, squint, tilt, alpha) {
+  function acidFace(cx, cy, r, open, tongue, squint, tilt, alpha, look = "") { // look: "" is the classic smile; wink, shades, melt and roll are drawn by acidEyes and acidMelt
     const cornerX = 0.48 + 0.03 * open, cornerY = 0.4 - 0.2 * open, lipTop = 0.88 - 0.7 * open, lipLow = lipTop + 1.12 * open, chin = 0.5 * cornerY + 0.5 * lipLow, eyeY = -0.2 - 0.06 * open;
     g.save();
     g.translate(cx, cy);
@@ -8450,6 +8465,7 @@ window.Effects = (() => {
     g.fillStyle = acidRainbow("halo");
     g.fillRect(-1.7, -1.7, 3.4, 3.4);
     g.globalCompositeOperation = "source-over";
+    if (look === "melt") acidMelt();
     g.fillStyle = acidRainbow("skin");
     g.beginPath();
     g.arc(0, 0, 1, 0, TAU);
@@ -8459,7 +8475,7 @@ window.Effects = (() => {
     g.stroke();
     g.fillStyle = ACID_INK;
     g.beginPath();
-    for (let side = -1; side <= 1; side += 2) { g.moveTo(side * 0.34 + 0.13, eyeY); g.ellipse(side * 0.34, eyeY, 0.13, 0.27 * (1 - 0.72 * squint), 0, 0, TAU); }
+    if (!acidEyes(look, eyeY, squint)) for (let side = -1; side <= 1; side += 2) { g.moveTo(side * 0.34 + 0.13, eyeY); g.ellipse(side * 0.34, eyeY, 0.13, 0.27 * (1 - 0.72 * squint), 0, 0, TAU); }
     g.fill();
     if (open < 0.06) { // shut: the smile, one line
       g.lineWidth = 0.12;
@@ -8515,11 +8531,12 @@ window.Effects = (() => {
     const S = acidSinger;
     if (S.show <= 0) return;
     if (!acidArt) acidArt = acidPaints();
-    const tall = h > w, m = Math.min(w, h), up = 1 - (1 - clamp(S.ramp / 0.8)) ** 3, r = m * (tall ? 0.14 : 0.13); // wide: at the right, up from below, singing to the left. Tall, as on a phone: at the top right, down from above, singing downwards and keeping to its side
+    if (acidStage()) return; // at the left, from the bottom, from the top, or two of them (see acidStage)
+    const tall = h > w, m = Math.min(w, h), up = 1 - (1 - clamp(S.ramp / 0.8)) ** 3, r = m * (tall ? 0.14 : 0.13) * acidVisit.size; // wide: at the right, up from below, singing to the left. Tall, as on a phone: at the top right, down from above, singing downwards and keeping to its side
     const x = tall ? w * 0.74 : w * 0.87, y = tall ? h * 0.12 - (1 - up) * (h * 0.12 + r * 1.2) : h * 0.58 + (1 - up) * (h * 0.42 + r * 1.2);
     g.setTransform(1, 0, 0, 1, 0, 0);
     if (tall) acidRibbon(x, y + r * 0.55, true, m); else acidRibbon(x - r * 0.1, y + r * 0.5, false, m);
-    acidFace(x, y - r * 0.05 * S.punch, r * (1 + 0.04 * S.punch), clamp(0.2 + 0.25 * S.v + 0.6 * S.wah) * S.show, S.tongue * S.show, clamp(1.3 * S.wah - 0.35) * S.show, S.nod, clamp(S.ramp * 4));
+    acidFace(x, y - r * 0.05 * S.punch, r * (1 + 0.04 * S.punch), clamp(0.2 + 0.25 * S.v + 0.6 * S.wah) * S.show, S.tongue * S.show, clamp(1.3 * S.wah - 0.35) * S.show, S.nod, clamp(S.ramp * 4), acidLookOf(acidVisit.face));
   }
   /* ==== acid: end ==== */
   /* ==== band: begin ==== */
@@ -9882,7 +9899,7 @@ window.Effects = (() => {
     // the water: its edge rocks a little, more with the bass
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = 1;
-    const sea = g.createLinearGradient(0, hy - h * 0.01, 0, h), amp = h * (0.0025 + 0.006 * bassS), edge = new Path2D();
+    const sea = g.createLinearGradient(0, hy - h * 0.01, 0, h), amp = h * (0.0025 + 0.006 * bassS + 0.012 * acidLook.open), edge = new Path2D();
     sea.addColorStop(0, rgba(near, 1)); sea.addColorStop(0.3, rgba(mid, 1)); sea.addColorStop(1, rgba(deep, 1));
     for (let i = 0; i <= 48; i++) { const u = i / 48, y = hy + Math.sin(u * 19 + t * 0.9) * amp + Math.sin(u * 43 - t * 1.7) * amp * 0.5; if (i) edge.lineTo(u * w, y); else edge.moveTo(0, y); }
     const body = new Path2D(edge);
@@ -9911,7 +9928,7 @@ window.Effects = (() => {
     g.globalCompositeOperation = "lighter";
     g.fillStyle = "#fff";
     for (let k = 0; k < 18; k++) { // the sun's road across the water
-      const q = k / 18, y = hy + deepH * (0.01 + 0.9 * q ** 1.5), len = w * (0.012 + 0.06 * q) * (0.45 + 0.55 * Math.sin(t * 2.3 + k * 1.9) ** 2), x = sx + Math.sin(t * 1.1 + k * 2.7) * w * 0.012 * (1 + 3 * q);
+      const q = k / 18, y = hy + deepH * (0.01 + 0.9 * q ** 1.5), len = w * (0.012 + 0.06 * q) * (1 + 1.6 * acidLook.open) * (0.45 + 0.55 * Math.sin(t * 2.3 + k * 1.9) ** 2), x = sx + Math.sin(t * 1.1 + k * 2.7) * w * 0.012 * (1 + 3 * q);
       g.globalAlpha = shine * 0.5 * (1 - q * 0.8);
       g.fillRect(x - len / 2, y, len, Math.max(1, h * 0.002 * (1 + 2 * q)));
     }
@@ -9959,7 +9976,7 @@ window.Effects = (() => {
     L.sort((p, q) => p.r - q.r); // the small ones are further off, so they go behind
     const base = awBubbleArt(), sheens = [0, 1, 2].map((i) => awSheenArt(tv[i], tv[(i + 1) % 3])), orbs = [0, 1, 2].map((i) => awOrbArt(AW_GLASS[i], tv[(i + 2) % 3])), pulse = 1 + 0.08 * kick;
     for (const b of L) {
-      const orb = awOrbness(b), r = b.r * (1 - 0.4 * orb) * pulse, wob = 0.035 * Math.sin(t * 2.2 + b.ph), rx = r * (1 + wob), ry = r * (1 - wob);
+      const orb = awOrbness(b), r = b.r * (1 - 0.4 * orb) * pulse, wob = 0.035 * Math.sin(t * 2.2 + b.ph) + 0.07 * acidLook.open * Math.sin(t * 9 + b.ph * 3), rx = r * (1 + wob), ry = r * (1 - wob);
       if (orb < 0.99) { g.globalAlpha = (1 - orb) * 0.95; g.drawImage(base, b.x - rx, b.y - ry, rx * 2, ry * 2); g.globalAlpha = (1 - orb) * 0.5; g.drawImage(sheens[b.slot], b.x - rx, b.y - ry, rx * 2, ry * 2); }
       if (orb > 0.01) { g.globalAlpha = orb * 0.92; g.drawImage(orbs[b.slot], b.x - rx, b.y - ry, rx * 2, ry * 2); }
     }
@@ -9973,6 +9990,7 @@ window.Effects = (() => {
       g.globalAlpha = a;
       g.drawImage(spot, b.x - r * 0.42 - s / 2, b.y - r * 0.48 - s / 2, s, s);
     }
+    if (acidLook.hit && dt && L.length) for (let k = 0; k < 2; k++) { const b = L[Math.floor(Math.random() * L.length)], a = rnd(-2.7, -0.4), r = b.r * (1 - 0.4 * awOrbness(b)); if (r > S * 0.02) twinkle(b.x + Math.cos(a) * r * 0.92, b.y + Math.sin(a) * r * 0.92, r * (0.8 + 0.8 * flow.acidFilter)); } // and on each note of a 303, bigger the more open its filter
     if (hatHit && dt && L.length) for (let k = 0; k < 3; k++) { const b = L[Math.floor(Math.random() * L.length)], a = rnd(-2.7, -0.4), r = b.r * (1 - 0.4 * awOrbness(b)); if (r > S * 0.02) twinkle(b.x + Math.cos(a) * r * 0.92, b.y + Math.sin(a) * r * 0.92, r * 1.1); } // glints along the rims on the hi-hats
     g.globalCompositeOperation = "source-over";
     for (let i = awSky.drops.length - 1; i >= 0; i--) { // the splash of a popped bubble, falling as it fades
@@ -10093,7 +10111,7 @@ window.Effects = (() => {
   }, b);
   const awPts = new Float32Array(44); // the outline of one strand of seaweed, reused for each
   function awWeed(wd, S, rootY, t, current, tall) { // a blade of seaweed swaying from its root, narrowing as it goes up
-    const n = 10, seg = tall / n, sway = 0.24 * Math.sin(t * 0.7 + wd.ph) + 0.1 * Math.sin(t * 1.7 + wd.ph * 1.7) + current * 0.45 + 0.14 * awTank.bassS * Math.sin(wd.ph * 3);
+    const n = 10, seg = tall / n, sway = 0.24 * Math.sin(t * 0.7 + wd.ph) + 0.22 * acidLook.open * Math.sin(t * 6 + wd.ph * 2) + 0.1 * Math.sin(t * 1.7 + wd.ph * 1.7) + current * 0.45 + 0.14 * awTank.bassS * Math.sin(wd.ph * 3);
     let x = wd.x, y = rootY;
     for (let i = 0; i <= n; i++) {
       const q = i / n, turn = sway * q ** 1.2 * 1.5, half = S * 0.02 * wd.wide * (1 - 0.8 * q) * (0.85 + 0.15 * Math.sin(q * 9 + wd.ph)), nx = Math.cos(turn), ny = Math.sin(turn);
@@ -10168,7 +10186,7 @@ window.Effects = (() => {
     const web = awWebArt();
     if (web && (!awTank.pat || awTank.patFor !== g)) { awTank.pat = g.createPattern(web, "repeat"); awTank.patFor = g; }
     if (awTank.pat) awTank.webIn = Math.min(1, awTank.webIn + dt * 1.5); // (it fades in the first time)
-    const net = awTank.webIn * shine;
+    const net = awTank.webIn * shine * (1 + 0.7 * acidLook.knob);
     const go = dt * S * (0.6 + 0.5 * intense + 0.6 * lift), s1 = (S / 256) * 0.72, s2 = s1 * 1.4; // the light's net drifts, quicker as the song lifts
     awTank.web1[0] = (awTank.web1[0] + go * 0.03) % (256 * s1); awTank.web1[1] = (awTank.web1[1] + go * 0.018) % (256 * s1);
     awTank.web2[0] = (awTank.web2[0] - go * 0.022) % (256 * s2); awTank.web2[1] = (awTank.web2[1] + go * 0.026) % (256 * s2);
@@ -10267,6 +10285,7 @@ window.Effects = (() => {
     // the bubbles: a trickle from the vents in the floor, a stream from them on every hi-hat, more through a build
     if (dt) for (const vx of awTank.vents) {
       for (let n = (0.6 + 2.5 * lift) * dt; n > Math.random(); n--) awBubbleUp(vx + rnd(-1, 1) * S * 0.01, floorY + S * 0.01, S * rnd(0.004, 0.01), rnd(0.12, 0.2));
+      if (acidLook.hit) awBubbleUp(vx + rnd(-1, 1) * S * 0.006, floorY + S * 0.01, S * rnd(0.006, 0.012) * (0.7 + 0.8 * flow.acidFilter), rnd(0.2, 0.3)); // and on each note of a 303, bigger the more open its filter
       if (hatHit) awBubbleUp(vx + rnd(-1, 1) * S * 0.006, floorY + S * 0.01, S * rnd(0.004, 0.009) * (0.8 + 0.4 * hatHit), rnd(0.16, 0.24));
     }
     const B = awTank.bubs, bub = awBubbleArt(), sheen = awSheenArt(tv[0], tv[1]);
@@ -10295,7 +10314,7 @@ window.Effects = (() => {
     g.fillStyle = "#fff";
     const surface = new Path2D();
     surface.moveTo(0, 0);
-    for (let i = 0; i <= 32; i++) surface.lineTo((i / 32) * w, h * 0.035 + Math.sin(i * 0.9 + t * 1.2) * h * 0.006 + Math.sin(i * 2.3 - t * 1.9) * h * 0.003);
+    for (let i = 0; i <= 32; i++) surface.lineTo((i / 32) * w, h * 0.035 + Math.sin(i * 0.9 + t * 1.2) * h * (0.006 + 0.016 * acidLook.open) + Math.sin(i * 2.3 - t * 1.9) * h * 0.003);
     surface.lineTo(w, 0); surface.closePath();
     g.fill(surface);
     if (net > 0.005) awWebLayer(s1 * 0.8, -0.3, awTank.web2, 0.1 * net);
@@ -11892,7 +11911,7 @@ window.Effects = (() => {
     out[at + 1] = y;
   }
   function agDrawStreak(st, s, t, Y, pal, light, M) {
-    const n = 40, tone = pal[s.tone], p = s.pts, q = st.pts, lw = Math.max(1, M * 0.0036) * s.size;
+    const n = 40, tone = pal[s.tone], p = s.pts, q = st.pts, lw = Math.max(1, M * 0.0036) * s.size * (1 + 0.8 * acidLook.open);
     if (light < 0.01) return;
     for (let i = 0; i <= n; i++) { const u = -0.08 + (1.16 * i) / n; agBend(st, u * w, agStreakY(s, u, t) * Y, p, i * 2, M); }
     g.beginPath();
@@ -11949,6 +11968,7 @@ window.Effects = (() => {
       agPulse(st.orbs, kickHit, real, dt, 0.15);
       agPulse(st.panes, kickHit, real, dt, 0.22);
       for (const o of st.orbs) o.ring = Math.min(9, o.ring + real);
+      if (acidLook.hit) for (let i = 0; i < 3; i++) { const b = st.bokeh[Math.floor(Math.random() * st.bokeh.length)]; b.tw = Math.max(b.tw, 0.5 + 0.5 * flow.acidFilter); } // and each note of a 303, brighter the more open its filter
       if (hatHit) for (let i = 0; i < 4; i++) { const b = st.bokeh[Math.floor(Math.random() * st.bokeh.length)]; b.tw = Math.max(b.tw, hatHit); } // the hi-hats light a few far-off lights
       for (const b of st.bokeh) { b.tw *= Math.exp(-real / 0.16); b.x -= dt * 0.005 * (0.4 + b.d); if (b.x < -0.05) { b.x += 1.1; b.y = rnd(0, 1); } }
       const want = Math.min(12, Math.round(4.5 * (V.streaks ?? 1) * (1 - 0.35 * calm) + 4 * building + 2 * flow.drop)); // more streaks through a build, and fewer when it is calm
@@ -11963,7 +11983,7 @@ window.Effects = (() => {
         if (s.age > s.life) s.out = 1; // each streak lasts a while and gives way to another, so the picture never settles
         s.fade = s.out ? s.fade - real / 1.6 : Math.min(1, s.fade + real / 1.6);
         if (s.out && s.fade <= 0) { st.streaks.splice(i, 1); continue; }
-        s.head += s.v * dt * (1 + 2.2 * building + 0.8 * flow.drop);
+        s.head += s.v * dt * (1 + 2.2 * building + 0.8 * flow.drop + 1.6 * acidLook.soft);
         if (s.head > 1.25) s.head -= 1.5; else if (s.head < -0.25) s.head += 1.5;
       }
       for (let i = st.ripples.length - 1; i >= 0; i--) if ((st.ripples[i].age += real) > 2.6) st.ripples.splice(i, 1);
@@ -12072,7 +12092,7 @@ window.Effects = (() => {
     st.floorFill = agFill(st.floorFill, top + Y + "," + h, () => { const f = g.createLinearGradient(0, Y, 0, h); f.addColorStop(0, top); f.addColorStop(1, "rgb(1,2,4)"); return f; });
     g.fillStyle = st.floorFill.fill;
     g.fillRect(0, Y, w, F);
-    const sH = Math.max(2, Math.round(h / 220)), amp = M * (0.0006 + 0.011 * st.low * st.low), up = Math.min(F, Y);
+    const sH = Math.max(2, Math.round(h / 220)), amp = M * (0.0006 + 0.011 * st.low * st.low + 0.01 * acidLook.soft), up = Math.min(F, Y);
     if (!st.mirror || st.mirror[0].width !== w || st.mirror[0].height < up) st.mirror = paper(w, Math.max(up, Math.ceil(h * 0.5))); // what is above the floor, copied once a frame so the floor can be made from it in thin strips
     const [mc, mx] = st.mirror;
     mx.globalCompositeOperation = "copy";
@@ -12233,6 +12253,7 @@ window.Effects = (() => {
         for (const p of st.petals) if (!p.on && Math.random() < 0.3) { p.sheen = Math.max(p.sheen, hatHit); p.whirl = Math.min(8, p.whirl + 2.5); }
         if (building > 0.2) agRipple(st, rnd(0.1, 0.9) * w, rnd(0.1, 0.9), 0.05, 1.3, 0.5, 1); // and through a build the ripples come faster
       }
+      if (acidLook.hit && st.ripples.length < 24) agRipple(st, cx + rnd(-1, 1) * R, rnd(0.04, 0.3), 0.03 + 0.06 * flow.acidFilter, 1.6, 0.55 * Math.min(1, acidLook.hit), 2); // a 303: each note a small ring on the water under the ring of light, wider the more open its filter
       st.dew -= real;
       if (st.dew < 0) { st.dew = rnd(2.5, 5); if (flow.since > 1.5) agRipple(st, rnd(0.1, 0.9) * w, rnd(0.1, 0.9), 0.07, 3.2, 0.5, 2); } // now and then a drop of dew falls, so the water is never quite still
       for (let i = st.pebbles.length - 1; i >= 0; i--) {
@@ -12357,6 +12378,7 @@ window.Effects = (() => {
     g.lineWidth = Math.max(1, R * 0.008);
     g.beginPath(); g.arc(cx, cy, R * 0.92, 0, TAU); g.stroke();
     ring(1, cy, 1, false);
+    if (acidLook.on > 0.01) acidArc(cx, cy, R, Math.max(1.5, R * 0.028)); // a 303: an arc of its color going round the ring as its filter opens, and back as it shuts (see acidArc)
     const line = agSprite("line", ringTone, agLineArt), side = (0.35 + 0.3 * (1 - breath)) * glow; // two short lines of quiet light either side of it, breathing the other way
     for (const sgn of [-1, 1]) { g.globalAlpha = side; g.drawImage(line, cx + sgn * R * 1.9 - R * 0.5, cy - Math.max(1.5, R * 0.014), R, Math.max(3, R * 0.028)); }
     g.globalAlpha = 0.45 * glow; // and a thin line of it where the water meets the space, with a light going slowly along it
@@ -13242,6 +13264,238 @@ window.Effects = (() => {
     g.globalCompositeOperation = "source-over";
   }
   /* ==== punch: end ==== */
+  /* ==== acidall: begin ==== */
+  /* Every picture sings the 303 in its own way, as a part of itself, while the ear believes a line is playing: the filter opening and shutting swells, stretches, brightens or twists
+     something the picture already has, and each note kinks or plucks it. The smiley that sings the line is now a guest that only comes now and then (see acidVisit below).
+     What the pictures read is worked out here once a frame, from the ear's three answers (flow.acid, flow.acidAt and flow.acidHit), which are left exactly as the ear gives them.
+     These go on flow beside the rest, for anything else that wants to hear the 303:
+       flow.acidOn      0 to 1, how much of a 303 line is playing. It comes when the ear is more than half sure and goes when that falls under a quarter (the same switch as the singer's),
+                        easing in over 0.6 s and out over 1.2 s. For music with no 303 it stays 0, so a picture that reads only these numbers is the same there as it always was.
+       flow.acidFilter  0 to 1, how open the filter is just now, eased over about 35 ms: 0.4 of where the knob has been for the last second and a half, and 0.6 of where this note's squelch is
+                        between the line's own lowest and highest of the last moments, so a dark line opens as wide as a screaming one. Times acidOn, so it is 0 again without a line.
+                        It moves with every note, several times a second: it is for shapes, sizes and small lights, never for the brightness of a large part of the picture.
+       flow.acidSoft    acidFilter followed over a quarter of a second, for what moves the whole picture (a plasma's ripples, a tunnel's twist).
+       flow.acidKnob    0 to 1, where the hand on the filter's knob is, over a second and a half (times acidOn): for colors and the light of large things, which may only change slowly.
+       flow.acidNote    1 on the frame a note of the line lands, gone in about a tenth of a second, times acidOn.
+       flow.acidBand    where the squelch is along the spectrum, as a share of its 64 bands (about 0.26 for 150 Hz to 0.84 for 6 kHz), its movement made larger so it can be seen.
+     The pictures read them through acidLook: the same numbers times the "Answers to sounds" slider (0 none, 1 as designed, 2 more); glide, which is acidBand followed over a quarter of a second,
+     for a lit place that should slide rather than jump with each note; and hit, which is that slider on the frame a note lands. hit is 0 on any other frame, even for a picture drawn early
+     in the next frame (a snapshot while the effect changes), so a note never acts twice.
+     The sparks some pictures give each note go through twinkle(), like the hi-hats' glints: they share its limit of 48 and the "Glints on the hi-hats" slider, so at 0 there are none of either.
+     DORFic and Frutiger Eco do not sing the 303 yet, so knobs() leaves their "Answers to sounds" slider out until they do. */
+  Object.assign(flow, { acidOn: 0, acidFilter: 0, acidSoft: 0, acidKnob: 0, acidNote: 0, acidBand: 0.5 });
+  const acidFeel = { is: false, ramp: 0, sq: 0.5, lo: 0.5, hi: 0.5, knob: 0.5, open: 0, soft: 0, noteAt: -9, t: 0, glide: 0.5, hit: 0, hitAt: -1 };
+  const acidLook = { on: 0, open: 0, soft: 0, knob: 0, note: 0, at: 0.5, glide: 0.5 };
+  Object.defineProperty(acidLook, "hit", { get: () => (acidFeel.hitAt === realNow ? acidFeel.hit : 0) }); // a note's hit lasts only for the frame it landed in
+  const ACID_KNOB = [0.35, 0.85]; // where the ear's "where" usually sits for a real line's knob, from shut to wide open: stretched to 0..1 for acidKnob
+  function acidAll(real) { // from frame(), once, after the ear and the singer and before anything is drawn
+    const F = acidFeel, sure = hearing ? flow.acid : 0, dt = real > 0 ? real : 0;
+    F.t += dt;
+    if (!F.is && sure > ACID_ON) { F.is = true; if (F.ramp <= 0) F.sq = F.lo = F.hi = F.knob = flow.acidAt; } // a line from nothing starts where the line is
+    else if (F.is && sure < ACID_OFF) F.is = false;
+    F.ramp = clamp(F.ramp + (F.is ? dt / 0.6 : -dt / 1.2));
+    const on = eased(F.ramp), trust = F.is ? clamp((sure - 0.4) / 0.1) : 0; // the ear's place means something only while it is sure
+    F.sq += (flow.acidAt - F.sq) * trust * acidPart(dt, 0.02);
+    F.lo = F.sq < F.lo ? F.sq : F.lo + (F.sq - F.lo) * acidPart(dt, 0.8);
+    F.hi = F.sq > F.hi ? F.sq : F.hi + (F.sq - F.hi) * acidPart(dt, 0.8);
+    F.knob += (F.sq - F.knob) * acidPart(dt, 1.5);
+    F.open += (clamp(0.4 * F.knob + 0.6 * clamp((F.sq - F.lo) / Math.max(0.1, F.hi - F.lo))) - F.open) * acidPart(dt, 0.035);
+    F.soft += (F.open - F.soft) * acidPart(dt, 0.25);
+    if (flow.acidHit && trust > 0) F.noteAt = F.t;
+    const knob = clamp((F.knob - ACID_KNOB[0]) / (ACID_KNOB[1] - ACID_KNOB[0])), note = Math.exp(-(F.t - F.noteAt) / 0.07);
+    flow.acidOn = on; flow.acidFilter = on * F.open; flow.acidSoft = on * F.soft; flow.acidKnob = on * knob; flow.acidNote = on * note;
+    flow.acidBand = 0.256 + 0.5875 * clamp(F.knob + 1.8 * (F.sq - F.knob)); // 150 Hz to 6 kHz, by octaves, on bands that run from 30 Hz to 16 kHz
+    F.glide += (flow.acidBand - F.glide) * acidPart(dt, 0.25);
+    const S = T.sounds;
+    acidLook.on = S * on; acidLook.open = S * flow.acidFilter; acidLook.soft = S * flow.acidSoft; acidLook.knob = S * flow.acidKnob; acidLook.note = S * flow.acidNote; acidLook.at = flow.acidBand; acidLook.glide = F.glide;
+    F.hit = flow.acidHit && trust > 0 && on > 0.3 && dt > 0 ? S : 0; F.hitAt = realNow;
+    acidVisits(dt);
+  }
+  /* Helpers the pictures share. Each gives back exactly 0 (or the color it was given) while no line is playing, so a picture that uses them is untouched by other music. */
+  const ACID_HOT = [[255, 120, 30], [246, 230, 50], [190, 255, 120]]; // the squelch's colors: orange where the filter is shut, yellow, a pale lime where it screams (the singer's ribbon has the same)
+  const acidHot = (f) => (f < 0.5 ? mix(ACID_HOT[0], ACID_HOT[1], clamp(f * 2)) : mix(ACID_HOT[1], ACID_HOT[2], clamp(f * 2 - 1)));
+  const acidBump = (u, at = acidLook.at) => { if (!acidLook.on) return 0; const d = (u - at) / 0.075; return acidLook.on * Math.exp(-d * d); }; // how much the squelch stands at a place along the spectrum (u: 0 the lowest band, 1 the highest)
+  // In these two, "slow" means the gliding place and the softened filter: for something big and lit (the rays), which must slide with the squelch and not jump with every note
+  const acidSpectrum = (u, slow) => (acidLook.on ? acidBump(u, slow ? acidLook.glide : acidLook.at) * (0.3 + 0.5 * (slow ? flow.acidSoft : flow.acidFilter)) + 0.22 * (slow ? acidLook.soft : acidLook.open) * clamp((u - 0.35) / 0.4) : 0); // what a picture of the spectrum adds there: the squelch as a peak that slides along it, and the upper bands lifted as the filter opens
+  const acidTinge = (tone, u, slow) => { const b = acidBump(u, slow ? acidLook.glide : acidLook.at); return b > 0.01 ? mix(tone, acidHot((slow ? flow.acidSoft : flow.acidFilter) / Math.max(0.01, flow.acidOn)), Math.min(0.75, 0.6 * b)) : tone; }; // a color warmed by the squelch where it stands
+  const acidAdd = (v, u) => (acidLook.on ? Math.max(v, Math.min(1, v + acidSpectrum(u))) : v); // a band with the squelch added, never past the top of the picture (bars, mirror, lights)
+  function acidArc(cx, cy, R, lw) { // in Technozen: a short arc of the squelch's own color going round the ring of light from the top as the filter opens and back as it shuts, with a dark edge so it shows on the pale ring
+    const f = flow.acidSoft / Math.max(0.01, flow.acidOn), a = -Math.PI / 2 + TAU * 0.85 * f, half = 0.18 + 0.22 * Math.min(1.5, acidLook.soft), show = Math.min(1, acidLook.on);
+    g.save();
+    g.lineCap = "round";
+    g.globalCompositeOperation = "source-over";
+    g.globalAlpha = 0.35 * show; g.strokeStyle = "#1b2326"; g.lineWidth = lw * 2.6; g.beginPath(); g.arc(cx, cy, R, a - half, a + half); g.stroke();
+    g.globalAlpha = 0.95 * show; g.strokeStyle = rgba(acidHot(f), 1); g.lineWidth = lw * (1.4 + 0.8 * Math.min(1, acidLook.note)); g.stroke();
+    g.fillStyle = "#fff"; g.globalAlpha = 0.8 * show; g.beginPath(); g.arc(cx + Math.cos(a + half) * R, cy + Math.sin(a + half) * R, lw * 1.1, 0, TAU); g.fill(); // its leading end lit, like a diode
+    g.restore();
+  }
+  const acidWave = (x, z, k) => h * 0.035 * acidLook.soft * z * Math.sin((x / w) * TAU * (1.2 + 2.4 * flow.acidSoft) - acidFeel.t * 5 + k * 0.9); // in the neon road: how far a line of the grid is bent at x (z: how near it is), a wave rolling along it that tightens as the filter opens
+  const acidPetal = (u, layer, size) => (acidLook.on ? size * (0.07 * acidLook.soft + 0.01 * acidLook.note) * Math.sin(u * Math.PI * (2 + 3 * flow.acidSoft) + layer * 1.3) : 0); // in the mandala: a petal's edge rippled by the squelch, in more waves the more open the filter
+  const acidRing = (p) => { if (!acidLook.on) return 0; const q = ((p + acidFeel.t * 90) % 48) / 48, f = flow.acidSoft; return acidLook.on * (0.25 + 0.35 * f) * Math.sin(q * TAU * (1.5 + 5 * f)) * Math.exp(-q * 2.2); }; // a trace's ringing: after each edge of the 303's saw the filter rings, quicker and longer the more open it is (followed over a quarter second, so the whole trace does not jump with each note)
+  const acidScarf = (i, t) => Math.sin(t * 9 - i * 0.45) * (0.4 + Math.min(i, 8) * 0.2) * (1 + 1.4 * Math.min(1.5, acidLook.open)); // in Runner: how far a bit of the long scarf a 303 gives it is lifted, in dots; its wave runs slower along it than the short scarf's, so its bits stay joined however high it waves
+  const acidClouds = new WeakMap(); // a nebula's puff in the 303's two colors, made once for each puff the first time a line plays over it (and let go with the puff)
+  function acidNebula(o, size, seen) { // in Space: the nebulas take the 303's colors, orange with the knob down and lime with it up, over their own ("seen" carries the kick and the bass, as the nebula's own light does)
+    let pair = acidClouds.get(o.art);
+    if (!pair) {
+      pair = [ACID_HOT[0], ACID_HOT[2]].map((tone) => { const [c, x] = paper(o.art.width, o.art.height); x.drawImage(o.art, 0, 0); x.globalCompositeOperation = "source-atop"; x.fillStyle = rgba(tone, 1); x.fillRect(0, 0, c.width, c.height); return c; });
+      acidClouds.set(o.art, pair);
+    }
+    const strength = seen * o.light * Math.min(1, acidLook.on) * 0.6, k = clamp(0.7 * flow.acidKnob / Math.max(0.01, flow.acidOn) + 0.3 * flow.acidSoft / Math.max(0.01, flow.acidOn));
+    g.globalCompositeOperation = "lighter";
+    g.globalAlpha = strength * (1 - k); g.drawImage(pair[0], -size / 2, -size / 2, size, size);
+    g.globalAlpha = strength * k; g.drawImage(pair[1], -size / 2, -size / 2, size, size);
+  }
+
+  /* The singer's visits. Only some lines bring it: when the ear first believes a line, and again after every minute the line goes on without it, there is a one in three chance
+     that it comes. After a visit it keeps away for a minute and a quarter (ACID_REST), however the visit ended. A line counts as over once the ear has been unsure for six seconds.
+     The "Singing to the 303" slider stretches the stay, and shortens the waits and raises the chance by as much (at 2: two in three, every half minute, a rest of 37 seconds); at 0 it never comes.
+     Each visit is of its own kind, picked as it comes: where it comes in, how big it is, its face and its ribbon, and now and then two of them singing together. */
+  const ACID_CHANCE = 0.35, ACID_AGAIN = 60, ACID_LINE_GONE = 6;
+  const ACID_AT = { wide: ["right", "right", "left", "left", "bottom", "top"], tall: ["right", "right", "left", "bottom", "top"] }; // where it comes in: the right as it always did, the left, rising from the bottom, hanging from the top
+  const ACID_FACES = ["", "", "wink", "wink", "shades", "shades", "melt", "melt", "rainbow", "rainbow", "roll", "roll"]; // "" is the classic smile; the rainbow is the classic face going round the colors
+  const ACID_STRANDS = ["glow", "glow", "glow", "dots", "zigzag", "fan", "notes"]; // the glowing ribbon it always had, dots, a zigzag, a fan of thin lines, a ribbon of small notes
+  const acidVisit = { line: false, quiet: 0, asked: -1e9, yes: false, restUntil: -1e9, was: false, at: "right", side: 1, size: 1, face: "", face2: "", strand: "glow", lift: 0 }; // lift: how far the one at the bottom has risen over the band's crowd
+  const acidMayCome = (S) => (S.ramp > 0 ? !S.tired : acidVisit.yes && S.t >= acidVisit.restUntil); // still there, going: back at once unless it left a line that went on; gone: only if this line was given a visit, and the rest is over
+  const acidFrom = (list) => list[Math.floor(Math.random() * list.length)];
+  function acidVisits(dt) { // the bookkeeping, once a frame, on the singer's own clock
+    const A = acidVisit, S = acidSinger, k = T.acid;
+    A.lift += ((company.crowd.ramp > 0 || company.dancer.ramp > 0 ? 1 : 0) - A.lift) * acidPart(dt, 0.5);
+    if (!k) { A.line = A.yes = false; return; }
+    if (S.sure > ACID_ON) { A.quiet = 0; if (!A.line) { A.line = true; A.asked = -1e9; } } // a line has begun
+    else if (A.line && (A.quiet += dt) > ACID_LINE_GONE) A.line = A.yes = false;
+    if (A.line && !A.yes && !S.on && S.ramp <= 0 && S.t >= A.restUntil && S.t - A.asked >= ACID_AGAIN / k) { A.asked = S.t; A.yes = Math.random() < Math.min(1, ACID_CHANCE * k); }
+    if (S.ramp > 0) { A.was = true; A.yes = false; } // (the visit has begun: the next one will need a chance of its own)
+    else if (A.was) { A.was = false; A.restUntil = S.t + ACID_REST / k; A.asked = S.t; }
+  }
+  function acidVisitNew() { const A = acidVisit; A.line = A.yes = false; A.restUntil = -1e9; A.asked = -1e9; } // a new song: none of the last one's line or rest is left
+  function acidPick(S) { // what this visit is like, picked as it comes in from nothing
+    const A = acidVisit, tall = h > w;
+    A.at = !tall && Math.random() < 0.18 ? "duet" : acidFrom(ACID_AT[tall ? "tall" : "wide"]); // two of them now and then, on a wide picture
+    if (A.at === "bottom" && bandShows()) A.at = Math.random() < 0.5 ? "left" : "top"; // not from the bottom while the band's crowd stands there
+    A.side = Math.random() < 0.5 ? -1 : 1;
+    A.size = rnd(0.8, 1.25);
+    A.face = acidFrom(ACID_FACES); A.face2 = acidFrom(ACID_FACES);
+    A.strand = acidFrom(ACID_STRANDS);
+    S.rainbow = A.face === "rainbow" || Math.random() < (mood === "psy" ? 0.6 : 0.05);
+  }
+  const acidLookOf = (face) => (face === "rainbow" ? "" : face); // the rainbow face is the classic one, gone round the colors
+  const acidVoice = (voice, v) => (voice === 1 ? 0.15 + 0.85 * clamp(1.5 - 2 * v) : voice === 2 ? 0.15 + 0.85 * clamp(2 * v - 0.5) : 1); // in a duet the low one sings what lies under the middle of the squelch and the high one what lies over it
+  function acidStage() { // every visit but the one at the right, which acidSing draws as it always has. Says whether it drew it
+    const A = acidVisit, S = acidSinger;
+    if (A.at === "right") return false;
+    const tall = h > w, m = Math.min(w, h), up = 1 - (1 - clamp(S.ramp / 0.8)) ** 3, r = m * (tall ? 0.14 : 0.13) * A.size, rise = (1 - up) * (h * 0.42 + r * 1.2), fall = (y) => y - (1 - up) * (y + r * 1.3);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    if (A.at === "duet") { // the low one at the left and lower down, the high one at the right and higher: each sings its half of the line towards the other
+      if (tall) { acidOne(w * 0.26, h * 0.86 + rise, r, false, 1, 0.5, 1, 0.9, A.face, false, 1); acidOne(w * 0.74, fall(h * 0.12), r * 0.85, true, -1, 0.8, 2, 0.5, A.face2, false, -1); }
+      else { acidOne(w * 0.13, h * 0.64 + rise, r * 1.05, false, 1, 0.85, 1, 0.55, A.face, false, 1); acidOne(w * 0.87, h * 0.36 + rise, r * 0.85, false, -1, 0.85, 2, 0.55, A.face2, false, -1); }
+      return true;
+    }
+    if (A.at === "left") { if (tall) acidOne(w * 0.26, fall(h * 0.12), r, true, 1, 1, 0, 1, A.face, false, 1); else acidOne(w * 0.13, h * 0.58 + rise, r, false, 1, 1, 0, 1, A.face, false, 1); }
+    else if (A.at === "bottom") { // and should the crowd come while it sings, it rises to sing over their heads
+      const low = h * (tall ? 0.86 : 0.8), floor = bandAt.floor > 0 ? bandAt.floor : h, high = Math.min(low, floor - (tall ? w * 0.5 : Math.min(w, floor) * 0.3) - r * 1.1);
+      acidOne(w * (0.5 + A.side * (tall ? 0.22 : 0.27)), low + (high - low) * eased(clamp(A.lift)) + (1 - up) * (h * 0.2 + r * 1.4), r, false, -A.side, tall ? 0.5 : 0.6, 0, 1, A.face, false, 1);
+    }
+    else acidOne(tall ? w * 0.5 : w * (0.5 + A.side * 0.2), fall(h * (tall ? 0.13 : 0.2)), r, true, 1, tall ? 0.8 : 0.45 * Math.max(0.6, h / w), 0, 1, A.face, true, 1); // hanging from the top on a thread, singing downwards
+    return true;
+  }
+  function acidOne(x, y, r, hang, way, reachBy, voice, long, face, thread, nod) { // one singer: its ribbon, then the face (the same as acidSing's), with the thread it hangs from
+    const S = acidSinger, m = Math.min(w, h), share = acidVoice(voice, S.v), alpha = clamp(S.ramp * 4);
+    if (thread) { // a thin line from the top of the picture, with a dark one under it so it shows over a bright one
+      g.save();
+      g.globalCompositeOperation = "source-over"; g.lineCap = "round";
+      g.globalAlpha = 0.5 * alpha; g.strokeStyle = "#000"; g.lineWidth = Math.max(2, m * 0.006); g.beginPath(); g.moveTo(x, 0); g.lineTo(x + S.nod * r * 0.6, y - r * 0.95); g.stroke();
+      g.globalAlpha = 0.8 * alpha; g.strokeStyle = "rgb(246,230,50)"; g.lineWidth = Math.max(1, m * 0.0025); g.stroke();
+      g.restore();
+    }
+    if (hang) acidRibbon(x, y + r * 0.55, true, m, way, reachBy, voice, long); else acidRibbon(x + way * r * 0.1, y + r * 0.5, false, m, way, reachBy, voice, long);
+    acidFace(x, y - r * 0.05 * S.punch, r * (1 + 0.04 * S.punch), clamp(0.2 + 0.25 * S.v + 0.6 * S.wah) * S.show * share, S.tongue * S.show * share, clamp(1.3 * S.wah - 0.35) * S.show * share, S.nod * nod, alpha, acidLookOf(face));
+  }
+  /* The ribbons other than the glowing one, drawn from the same line acidRibbon has just laid out (where it is, and how thick, along its length). Each has a dark edge under it so it reads over a bright picture.
+     Says whether it drew one: for the glowing ribbon acidRibbon goes on as it always has. */
+  function acidStrand(shut, reach, tall, m) {
+    const kind = acidVisit.strand, S = acidSinger, show = S.show, { across, along, thick } = acidLine, N = ACID_LINE;
+    if (kind === "glow" || !kind) return false;
+    const X = (i, off) => (tall ? shut + reach * (across[i] + off) : along[i]), Y = (i, off) => (tall ? along[i] : shut - reach * (across[i] + off)); // a place on the line, "off" across it (in the ribbon's own units)
+    const tone = (i) => (S.rain > 0.01 ? mix(acidHot(across[i]), turnHue(ACID_YELLOW, S.hue - (i / (N - 1)) * 350), S.rain) : acidHot(across[i])); // as the glowing ribbon: orange shut, lime open, or the rainbow streaming out of the mouth
+    const paint = () => { const p = g.createLinearGradient(X(0, 0), Y(0, 0), X(N - 1, 0), Y(N - 1, 0)); for (let k = 0; k <= 4; k++) p.addColorStop(k / 4, rgba(tone(Math.round((k / 4) * (N - 1))), 1)); return p; };
+    g.save();
+    g.lineCap = g.lineJoin = "round";
+    if (kind === "dots") { // a string of beads, big where the filter was open
+      for (let pass = 0; pass < 2; pass++) for (let i = 0; i < N; i += 3) {
+        const r = Math.max(1.2, thick[i] * reach * 1.25);
+        if (r < 1.3 && i) continue;
+        g.globalCompositeOperation = pass ? "lighter" : "source-over";
+        g.globalAlpha = (pass ? 0.95 : 0.45) * show;
+        g.fillStyle = pass ? rgba(tone(i), 1) : "#000";
+        g.beginPath(); g.arc(X(i, 0), Y(i, 0), pass ? r : r * 1.7, 0, TAU); g.fill();
+        if (pass && r > 3) { g.fillStyle = "#fff"; g.globalAlpha = 0.6 * show; g.beginPath(); g.arc(X(i, 0) - r * 0.3, Y(i, 0) - r * 0.3, r * 0.35, 0, TAU); g.fill(); }
+      }
+    } else if (kind === "zigzag" || kind === "fan") { // a sharp zigzag as tall as the filter was open; or a fan of five thin lines that spread as it opens
+      const lines = kind === "fan" ? [-2, -1, 0, 1, 2] : [0], step = kind === "fan" ? 2 : 4, color = paint();
+      for (const k of lines) {
+        const path = new Path2D();
+        for (let i = 0; i < N; i += step) { const off = kind === "fan" ? k * (thick[i] * 1.3 + (m * 0.002) / reach) : (i / step) % 2 ? thick[i] * 2.4 : -thick[i] * 2.4; if (i) path.lineTo(X(i, off), Y(i, off)); else path.moveTo(X(i, off), Y(i, off)); }
+        const wide = Math.max(1, m * (kind === "fan" ? 0.0028 : 0.005));
+        g.globalCompositeOperation = "source-over"; g.strokeStyle = "#000"; g.globalAlpha = 0.45 * show; g.lineWidth = wide * 3.5; g.stroke(path);
+        g.globalCompositeOperation = "lighter"; g.strokeStyle = color;
+        g.globalAlpha = 0.25 * show; g.lineWidth = wide * 3; g.stroke(path);
+        g.globalAlpha = (kind === "fan" ? 0.9 - 0.15 * Math.abs(k) : 1) * show; g.lineWidth = wide; g.stroke(path);
+      }
+    } else { // a ribbon of small notes, each as big as the filter was open when it was sung
+      for (let i = 2; i < N; i += 10) {
+        const s = m * (0.011 + 0.03 * clamp(across[i] - 0.1)) * clamp(thick[i] * reach * 0.4), x = X(i, 0), y = Y(i, 0), tilt = 0.25 * Math.sin(i * 0.7 + S.t * 3);
+        if (s < 1.5) continue;
+        g.setTransform(1, 0, 0, 1, x, y); g.rotate(tilt);
+        for (let pass = 0; pass < 2; pass++) {
+          g.globalCompositeOperation = pass ? "lighter" : "source-over";
+          g.globalAlpha = (pass ? 0.95 : 0.45) * show;
+          g.fillStyle = g.strokeStyle = pass ? rgba(tone(i), 1) : "#000";
+          g.lineWidth = Math.max(1, s * (pass ? 0.22 : 0.55));
+          g.beginPath(); g.ellipse(0, 0, s * (pass ? 0.62 : 0.85), s * (pass ? 0.44 : 0.66), -0.4, 0, TAU); g.fill(); // the head
+          g.beginPath(); g.moveTo(s * 0.55, -s * 0.1); g.lineTo(s * 0.55, -s * 2.3); g.quadraticCurveTo(s * 1.4, -s * 1.9, s * 1.2, -s * 1.1); g.stroke(); // the stem and its flag
+        }
+      }
+    }
+    g.restore();
+    return true;
+  }
+  /* The faces other than the classic smile, drawn in the face's own units (one across, the middle at 0,0), as acidFace draws its eyes. Says whether it drew the eyes itself. */
+  function acidEyes(look, eyeY, squint) {
+    if (!look) return false;
+    const S = acidSinger;
+    g.beginPath();
+    if (look === "wink") { // the left eye as always; the right one shuts in a happy curve every few seconds, and on an accent
+      g.ellipse(-0.34, eyeY, 0.13, 0.27 * (1 - 0.72 * squint), 0, 0, TAU); g.fill();
+      if (S.t % 2.6 < 0.6 || S.tongue > 0.3) { g.beginPath(); g.moveTo(0.18, eyeY + 0.06); g.quadraticCurveTo(0.34, eyeY - 0.16, 0.5, eyeY + 0.06); g.strokeStyle = ACID_INK; g.lineWidth = 0.09; g.stroke(); }
+      else { g.beginPath(); g.ellipse(0.34, eyeY, 0.13, 0.27 * (1 - 0.72 * squint), 0, 0, TAU); g.fill(); }
+    } else if (look === "shades") { // dark glasses of its own, with the squelch showing in them as a bar of light
+      const lens = (side) => { g.moveTo(side * 0.07, eyeY - 0.15); g.lineTo(side * 0.6, eyeY - 0.17); g.quadraticCurveTo(side * 0.62, eyeY + 0.2, side * 0.36, eyeY + 0.19); g.quadraticCurveTo(side * 0.08, eyeY + 0.19, side * 0.07, eyeY - 0.15); g.closePath(); };
+      lens(-1); lens(1); g.fillStyle = "#0b0a08"; g.fill(); g.strokeStyle = ACID_INK; g.lineWidth = 0.05; g.stroke();
+      g.beginPath(); g.moveTo(-0.08, eyeY - 0.12); g.quadraticCurveTo(0, eyeY - 0.18, 0.08, eyeY - 0.12); g.moveTo(-0.6, eyeY - 0.15); g.lineTo(-0.93, eyeY - 0.3); g.moveTo(0.6, eyeY - 0.15); g.lineTo(0.93, eyeY - 0.3); g.lineWidth = 0.06; g.stroke(); // the bridge and the arms
+      g.globalCompositeOperation = "lighter";
+      for (const side of [-1, 1]) { const tall = 0.04 + 0.26 * S.v; g.fillStyle = rgba(acidHot(S.v), 0.85); g.fillRect(side * 0.34 - 0.13, eyeY + 0.15 - tall, 0.26, tall * 0.35); g.fillStyle = "rgba(255,255,255,0.5)"; g.fillRect(side * 0.34 - 0.2, eyeY - 0.12, 0.05, 0.12); }
+      g.globalCompositeOperation = "source-over"; g.fillStyle = ACID_INK;
+    } else if (look === "melt") { for (const side of [-1, 1]) { g.moveTo(side * 0.34 + 0.14, eyeY + 0.07); g.ellipse(side * 0.34, eyeY + 0.07, 0.14, 0.3 * (1 - 0.6 * squint), side * 0.3, 0, TAU); } g.fill(); } // drooping, as it runs
+    else if (look === "roll") { // eyes with whites, rolling up as the filter opens and down as it shuts, and across with each note
+      for (const side of [-1, 1]) { g.moveTo(side * 0.34 + 0.18, eyeY); g.ellipse(side * 0.34, eyeY, 0.18, 0.26 * (1 - 0.5 * squint), 0, 0, TAU); }
+      g.fillStyle = "#fffbe6"; g.fill(); g.strokeStyle = ACID_INK; g.lineWidth = 0.05; g.stroke();
+      g.beginPath(); for (const side of [-1, 1]) { const px = side * 0.34 + S.nod * 0.9, py = eyeY + 0.13 - 0.26 * S.v; g.moveTo(px + 0.09, py); g.arc(px, py, 0.09, 0, TAU); }
+      g.fillStyle = ACID_INK; g.fill();
+    } else return false;
+    g.beginPath(); // (acidFace fills whatever path is open after the eyes: leave it an empty one)
+    return true;
+  }
+  function acidMelt() { // the melting face: drops of its own yellow run down from it, longer as the filter opens. Drawn before the face, so its top covers where they join on
+    const S = acidSinger, skin = acidRainbow("skin");
+    g.beginPath();
+    for (let k = 0; k < 5; k++) {
+      const x = -0.62 + k * 0.31 + 0.04 * Math.sin(k * 2.3), top = Math.sqrt(Math.max(0, 1 - x * x)) - 0.12, long = 0.2 + 0.3 * (0.5 + 0.5 * Math.sin(S.t * 0.9 + k * 1.7)) + 0.35 * S.v * ((k % 2) + 0.5), wide = 0.08 + 0.03 * (k % 3);
+      g.moveTo(x - wide, top); g.lineTo(x - wide, top + long); g.arc(x, top + long, wide, Math.PI, 0, true); g.lineTo(x + wide, top);
+      g.moveTo(x + wide * 1.5, top + long + wide * 1.8); g.arc(x, top + long + wide * 1.8, wide * 0.6, 0, TAU); // and a drop falling off it
+    }
+    g.fillStyle = skin; g.fill(); g.strokeStyle = ACID_INK; g.lineWidth = 0.06; g.stroke();
+  }
+  /* ==== acidall: end ==== */
   const DRAW = { zen: agTechnozen, darkaero: agDarkAero, eco: asEcoFx, dorfic: asDorficFx, aqua: awAquaFx, aero: awAeroFx, beings: beingsFx, life: livingGrid, places: placesFx, arcade: arcadeFx, runner: runnerFx, forms: formsFx, faces, ribbon, silk, helix, strings, bars, mirror, leds, terrain, scope, trails, tunnel, vortex, prism, ripple, comets, stars: starfield, whirl, dust, links, fireworks, halo, sun, rings, mandala, rays, space, warp: space, drift: space, orbit: space, visitors: space, well,
     kaleido, plasma, fractal, julia, mandel, newton, ocean, neonroad, aurora, tube: tubeFx, heads: headsFx, sphere: sphereFx, solids: solidsFx, city: cityFx };
 
@@ -13642,7 +13896,7 @@ window.Effects = (() => {
     },
     place(part) { winPlace(part); }, // how far through the playing song it is, 0 to 1: a little window's loading bar follows it
     visiting: () => guest.list.length > 0,
-    knobs: (style) => { const trip = TRIPS[style]; return ["light", "react", "punch", "speed", "spark", ...(LEAVES_TRAILS.has(style) ? ["drag"] : []), ...(style === "ripple" ? ["tilt"] : []), ...(trip ? ["nod", ...(trip.steer ? ["turns"] : []), ...(trip.moves ? ["moves"] : []), "shots"] : []), ...(VERSIONS[style] ? ["vary"] : []), ...(FRACTALS.has(style) ? ["color", "echo", "breathe", "sounds"] : []), "tricks", "dream", "folk", "acid", "band", ...(trip && trip.falls ? ["falls"] : []), ...(trip && trip.cockpit ? ["pit"] : [])].map((key) => [key, ...KNOBS[key]]); },
+    knobs: (style) => { const trip = TRIPS[style]; return ["light", "react", "punch", "speed", "spark", ...(LEAVES_TRAILS.has(style) ? ["drag"] : []), ...(style === "ripple" ? ["tilt"] : []), ...(trip ? ["nod", ...(trip.steer ? ["turns"] : []), ...(trip.moves ? ["moves"] : []), "shots"] : []), ...(VERSIONS[style] ? ["vary"] : []), ...(FRACTALS.has(style) ? ["color", "echo", "breathe"] : []), ...(style === "dorfic" || style === "eco" ? [] : ["sounds"]), "tricks", "dream", "folk", "acid", "band", ...(trip && trip.falls ? ["falls"] : []), ...(trip && trip.cockpit ? ["pit"] : [])].map((key) => [key, ...KNOBS[key]]); },
     tuning(values) { // adjustments for the effect showing. Anything left out is back to how it was designed
       const was = T.vary;
       for (const key of Object.keys(T)) { const [, low, high] = KNOBS[key], v = Number(values[key]); T[key] = Number.isFinite(v) ? Math.min(high, Math.max(low, v)) : 1; }
@@ -13706,6 +13960,7 @@ window.Effects = (() => {
         bandNow(real); // the band's numbers for this frame, before anything is drawn
         dreamNow(real);
         acidNow(real);
+        acidAll(real); // what every picture hears of the 303 (the acidall block)
         tint();
         drawFrame();
         drawFlow(real);
