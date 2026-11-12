@@ -3104,7 +3104,7 @@ function surprisesSetting() {
       one("dance", "The dance", "The whole app dances for a few seconds.", letsDance),
       one("bob", "Bobbing", "Everything nods to the kick for a few seconds.", letsBob),
       one("logo", "The logo and name", "A spin, a scratch, a wave through the letters, a glint, a neon flicker, a shuffle.", logoTrick),
-      one("visitors", "Visitors", "Somebody drops by the app itself: a saucer borrows a cover and gives it back, a face peeks over the play bar, a cow gets taken from it, a little one hangs on a thread from the top, an astronaut or a jellyfish floats past. On nightcore a lucky cat waves over the play bar, a little window pops up, a paper crane flies by.", tryVisit),
+      one("visitors", "Visitors", "Somebody drops by the app itself: a saucer borrows a cover and gives it back, a face peeks over the play bar, a cow gets taken from it, a little one hangs on a thread from the top, an astronaut or a jellyfish floats past, a little window pops up in a corner for a moment. On nightcore a lucky cat waves over the play bar, a paper crane flies by.", tryVisit),
       tick("clock", "Jokes on the clock: 303 at 3:03 on acid tracks, and 11 at full volume"),
       tick("notes", "Small notes: late at night, or the same song over and over"),
       tick("falling", "Small records falling when To check is cleared"),
@@ -3399,9 +3399,9 @@ function coverToBorrow() { // a cover that can be seen whole and isn't tiny, bes
 function visitApp(kind) { // says whether somebody came
   if (!FX || calm.matches || fxFull || document.hidden || S.setup || $("dialog[open]") || visiting()) return false;
   const deck = $(".player").getBoundingClientRect(), page = view.getBoundingClientRect(), cover = coverToBorrow();
-  const can = { borrow: !!cover, peek: deck.top > 260, abduct: deck.top > 320, dangle: page.width > 260, astronaut: true, jelly: true, smiley: vibe === "acid", eye: vibe === "psy" && deck.top > 260, neko: vibe === "nightcore" && deck.top > 260, popup: vibe === "nightcore" && page.width > 320, crane: vibe === "nightcore" };
-  const order = vibe === "nightcore" ? ["neko", "popup", "crane", "borrow", "neko", "crane", "dangle", "popup", "astronaut"] : vibe === "euphoric" ? ["jelly", "borrow", "dangle", "jelly", "peek", "astronaut", "abduct"] : vibe === "acid" ? ["smiley", "borrow", "peek", "smiley", "dangle", "abduct", "astronaut"]
-    : vibe === "psy" ? ["eye", "jelly", "borrow", "eye", "dangle", "astronaut", "abduct"] : ["borrow", "peek", "dangle", "abduct", "astronaut", "jelly"];
+  const can = { borrow: !!cover, peek: deck.top > 260, abduct: deck.top > 320, dangle: page.width > 260, astronaut: true, jelly: true, smiley: vibe === "acid", eye: vibe === "psy" && deck.top > 260, neko: vibe === "nightcore" && deck.top > 260, popup: page.width > 320, crane: vibe === "nightcore" };
+  const order = vibe === "nightcore" ? ["neko", "popup", "crane", "borrow", "neko", "crane", "dangle", "popup", "astronaut"] : vibe === "euphoric" ? ["jelly", "borrow", "dangle", "jelly", "peek", "popup", "astronaut", "abduct"] : vibe === "acid" ? ["smiley", "borrow", "peek", "smiley", "dangle", "popup", "abduct", "astronaut"]
+    : vibe === "psy" ? ["eye", "jelly", "borrow", "eye", "dangle", "popup", "astronaut", "abduct"] : ["borrow", "peek", "dangle", "popup", "abduct", "astronaut", "jelly"]; // a little window once in a while in every mood (nightcore's come more often)
   let pick = kind && can[kind] ? kind : "";
   for (let i = 0; !pick && i < order.length; i++) { const k = order[(visitTurn + i) % order.length]; if (can[k]) { pick = k; visitTurn += i + 1; } }
   if (!pick) return false;
@@ -3645,7 +3645,10 @@ function fillRange(input) {
 }
 /* The shape of the song. A vector stretched to fit, so it needs no redrawing when the window changes, and the page's colors apply to it. */
 const waveShape = (kind) => svg("svg", { class: `wave ${kind}`, preserveAspectRatio: "none", "aria-hidden": "true" }, svg("path", {}));
-function showPlace(part) { document.querySelectorAll(".wave-box input").forEach((bar) => { bar.value = part * 1000; fillRange(bar); }); }
+function showPlace(part) {
+  if (FX) FX.place(part); // the effects are told too: a little window's loading bar follows the song
+  document.querySelectorAll(".wave-box input").forEach((bar) => { bar.value = part * 1000; fillRange(bar); });
+}
 function wireSeek(bar) {
   bar.addEventListener("input", () => { dragging = true; showPlace(bar.value / 1000); if (audio.duration) showTime($("#cur"), clock((bar.value / 1000) * audio.duration)); });
   bar.addEventListener("change", () => { if (audio.duration) audio.currentTime = (bar.value / 1000) * audio.duration; dragging = false; });

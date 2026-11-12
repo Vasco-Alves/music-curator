@@ -1776,7 +1776,7 @@ window.Effects = (() => {
   const toneOf = (look) => (look === "hard" ? [255, 60, 44] : look === "acid" ? [246, 230, 50] : look === "euphoric" ? mix(around(rnd(0, 1)), [255, 255, 255], 0.35) : look === "psy" ? rainbowTone(rnd(0, 3), 0) : look === "nightcore" ? nightTone() : around(rnd(0, 1))); // a saucer's lights
   function meet(kind) {
     const { t } = sound, side = Math.random() < 0.5 ? -1 : 1, most = Math.max(w, h), look = mood, come = (o) => crowd.folk.push(o);
-    if (nightMeet(kind)) return; // the lucky cat, the cranes, the little windows and the rest: see the nightcore block
+    if (nightMeet(kind) || winMeet(kind)) return; // the lucky cat, the cranes, the little windows and the rest: see the nightcore block
     if (kind === "neon") {
       const shapes = look === "acid" ? ["ring", "bolt", "star"] : look === "hard" ? ["bolt", "triangle", "zigzag"] : look === "euphoric" || look === "nightcore" ? ["heart", "star", "ring"] : ["ring", "triangle", "star", "heart", "bolt", "zigzag"];
       for (let i = 0, n = 1 + Math.floor(rnd(0, 2.5)); i < n; i++) come({ kind, born: t + i * 0.7, life: rnd(10, 16), x: rnd(0.15, 0.85) * w, y: rnd(0.2, 0.7) * h, size: Math.min(w, h) * rnd(0.08, 0.16), shape: shapes[Math.floor(rnd(0, shapes.length))], tone: look === "psy" ? rainbowTone(rnd(0, 3), 0) : mix(toneOf(look), [255, 255, 255], 0.1), seed: rnd(0, TAU) });
@@ -12456,6 +12456,356 @@ window.Effects = (() => {
   FOLK_OF.darkaero = ["shapes", "jelly", "whale", "shapes"]; // glass shapes, and creatures of light, suit the dark
   FOLK_OF.zen = ["astronaut"]; // on the pale water only somebody floating slowly past: the autumn leaves are too busy and too warm here, and the visitors made of light vanish on it
   /* ==== aeroglass: end ==== */
+  /* ==== windows: begin ==== */
+  /* Little windows. Nightcore brought them: little windows of their own look (a frame, a title bar with a small sign at one end and three buttons at the other, and a screen) that pop up
+     with a bounce, do their one thing and fold shut. Now they come by in every mood, and in nightcore two or three still pile up, exactly as they always did.
+     Outside nightcore one comes now and then, as one of the usual visitors (about one visit in ten), so it stays a surprise. Each takes the mood's look: acid yellow, with a smiley on its screen;
+     hard red and black, with square corners; psychedelic dark violet, a rainbow going slowly round its title bar and its screen's colors turning; euphoric soft pastel and white;
+     and with no mood the record's own colors. There are no words on any of them, only shapes.
+     Each window has one screen, chosen as it comes, and most of them answer the music: a starry sky with pixel sparkles and a blinking cursor; a counter whose digits tick on the kick;
+     a page still being built, its stripes sliding and its bar filling a block on each kick; a tiny spectrum dancing to the song; a little oscilloscope; a starfield that streaks on the kick;
+     a loading bar that follows how far through the song it is, with how far written over it in pixel figures and a sparkle at its end that hops on the beat; and a screen being typed on,
+     a block on each kick, its cursor blinking on the beat. On a drop the title bars of the windows that are open light up once, softly. With the mouse: over a window its title bar lights, and a click shuts it early.
+     They come to the app itself too, now and then: small, in the corner of the page where they cover the least, and gone again in about four seconds.
+     Each window is painted once, as it comes, at its own size; only what moves on its screen is drawn on each frame. */
+  const WIN_LOOKS = { // each mood's window: its frame and the ink round it, the light along its top edge, the title bar's colors, the three buttons and the sign at the left, whether its corners are round;
+    // and its screen: the screen itself, its faint lines, what is drawn on it and a second color for that, the boxes and troughs on it, the box to type in and its cursor, the six stripes of its rainbow line and the two of its "still being built" stripes
+    euphoric: { frame: [252, 251, 255], ink: [128, 122, 176], edge: [255, 255, 255], title: [[190, 226, 255], [226, 212, 255], [255, 216, 236]], buttons: [[255, 208, 228], [190, 228, 255], [222, 208, 255]], sign: "star", round: true,
+      screen: [236, 242, 255], dim: [210, 218, 248], lit: [132, 150, 236], glow: [255, 150, 200], box: [216, 224, 252], field: [255, 255, 255], cursor: [128, 122, 176],
+      stripes: [[255, 196, 214], [255, 222, 190], [255, 244, 190], [200, 240, 214], [190, 222, 255], [222, 204, 255]], hazard: [[255, 238, 246], [186, 196, 250]] },
+    acid: { frame: [246, 226, 40], ink: [22, 22, 8], edge: [255, 252, 200], title: [[196, 238, 56], [246, 226, 40], [255, 176, 40]], buttons: [[40, 44, 12], [40, 44, 12], [40, 44, 12]], sign: "smiley", round: true,
+      screen: [16, 18, 6], dim: [56, 66, 16], lit: [212, 255, 64], glow: [255, 226, 40], box: [36, 42, 10], field: [255, 250, 200], cursor: [22, 22, 8],
+      stripes: [[60, 70, 14], [196, 238, 56], [246, 226, 40], [255, 176, 40], [246, 226, 40], [196, 238, 56]], hazard: [[246, 226, 40], [22, 22, 8]], smiley: true },
+    hard: { frame: [26, 24, 26], ink: [0, 0, 0], edge: [255, 76, 56], title: [[140, 10, 6], [232, 38, 22], [140, 10, 6]], buttons: [[16, 16, 16], [16, 16, 16], [255, 70, 50]], sign: "bolt", round: false,
+      screen: [10, 5, 5], dim: [64, 12, 10], lit: [255, 64, 44], glow: [255, 196, 180], box: [40, 8, 6], field: [60, 14, 12], cursor: [255, 64, 44],
+      stripes: [[255, 58, 34], [10, 10, 10], [200, 20, 12], [10, 10, 10], [255, 58, 34], [10, 10, 10]], hazard: [[232, 38, 22], [10, 10, 10]] },
+    psy: { frame: [42, 16, 72], ink: [12, 4, 24], edge: [255, 170, 255], title: "rainbow", buttons: [[255, 90, 220], [90, 220, 255], [255, 240, 90]], sign: "spiral", round: true,
+      screen: [18, 6, 34], dim: [68, 34, 110], lit: [214, 150, 255], glow: [120, 255, 200], box: [44, 18, 74], field: [60, 30, 96], cursor: [214, 150, 255],
+      stripes: [[255, 80, 216], [255, 160, 60], [255, 240, 80], [80, 255, 140], [80, 200, 255], [166, 80, 255]], hazard: [[255, 80, 216], [42, 16, 72]], turns: true },
+  };
+  function winLook(m) { // the look of a window coming now: its mood's, or with no mood one made from the record's own colors as they are at this moment
+    if (WIN_LOOKS[m]) return WIN_LOOKS[m];
+    const n = colors.length, [a, b, c] = [0, 1, 2].map((i) => mix(colors[i % n], [255, 255, 255], 0.15)), deep = [8, 10, 16], screen = mix(c, deep, 0.88);
+    return { frame: mix(a, [255, 255, 255], 0.82), ink: mix(a, [14, 16, 22], 0.85), edge: [255, 255, 255], title: [a, b, c], buttons: [a, b, c], sign: "disc", round: true,
+      screen, dim: mix(c, deep, 0.6), lit: mix(b, [255, 255, 255], 0.35), glow: mix(a, [255, 255, 255], 0.25), box: mix(screen, [255, 255, 255], 0.08), field: mix(a, [255, 255, 255], 0.9), cursor: mix(a, [14, 16, 22], 0.85),
+      stripes: [a, mix(a, b, 0.5), b, mix(b, c, 0.5), c, mix(c, a, 0.5)], hazard: [mix(a, [255, 255, 255], 0.3), mix(c, deep, 0.7)] };
+  }
+  const winCss = (L) => L.css || (L.css = Object.fromEntries(["frame", "ink", "screen", "dim", "lit", "glow", "box", "field", "cursor"].map((key) => [key, rgba(L[key], 1)]).concat([["edge", rgba(L.edge, 0.85)], ["shade", rgba(L.ink, 0.45)], ["stripes", L.stripes.map((tone) => rgba(tone, 1))], ["hazard", L.hazard.map((tone) => rgba(tone, 1))]]))); // a look's colors as the canvas wants them, worked out once
+  const winPixels = (L) => L.pix || (L.pix = [L.lit, L.glow, mix(L.lit, L.glow, 0.5)].map((c) => NIGHT_PIX.map((rows) => pixelSprite(rows, { a: c, b: mix(c, [255, 255, 255], 0.55), w: [255, 255, 255] })))); // nightcore's pixel sparkle in four steps, in the look's own colors
+  const winSong = { part: 0, told: false }; // how far through the playing song it is, when the page says (Effects.place): the loading bar follows it. Until the page says, the bar fills on the kicks instead
+  function winPlace(part) { if (Number.isFinite(part)) { winSong.part = clamp(part); winSong.told = true; } }
+  const WIN_INSIDES = ["stars", "count", "build", "bands", "scope", "warp", "load", "type"]; // the screens a window can have
+  let winJoined = false;
+
+  /* ---- each window, painted once as it comes ---- */
+  function winTitleThings(x, L, css, W, bar) { // the sign at the left end of the title bar and the three buttons at the right
+    const hx = 5 + bar * 0.7, hy = 5 + bar * 0.52, hs = bar * 0.3;
+    x.lineJoin = x.lineCap = "round";
+    if (L.sign === "smiley") smileyFace(x, hx, hy, hs * 1.1);
+    else if (L.sign === "star") { x.fillStyle = "#ffffff"; x.beginPath(); x.moveTo(hx, hy - hs * 1.2); x.quadraticCurveTo(hx, hy, hx + hs * 1.2, hy); x.quadraticCurveTo(hx, hy, hx, hy + hs * 1.2); x.quadraticCurveTo(hx, hy, hx - hs * 1.2, hy); x.quadraticCurveTo(hx, hy, hx, hy - hs * 1.2); x.fill(); } // four points, curving in
+    else if (L.sign === "bolt") { x.fillStyle = css.ink; x.beginPath(); x.moveTo(hx + hs * 0.3, hy - hs * 1.2); x.lineTo(hx - hs * 0.7, hy + hs * 0.15); x.lineTo(hx, hy + hs * 0.15); x.lineTo(hx - hs * 0.3, hy + hs * 1.2); x.lineTo(hx + hs * 0.7, hy - hs * 0.15); x.lineTo(hx, hy - hs * 0.15); x.closePath(); x.fill(); } // a bolt, all sharp corners
+    else if (L.sign === "spiral") { x.strokeStyle = "#ffffff"; x.lineWidth = Math.max(1, bar * 0.09); x.beginPath(); for (let i = 0; i <= 24; i++) { const a = i * 0.55, r = hs * 1.15 * (i / 24); x.lineTo(hx + Math.cos(a) * r, hy + Math.sin(a) * r); } x.stroke(); }
+    else { x.fillStyle = css.ink; x.beginPath(); x.arc(hx, hy, hs * 1.1, 0, TAU); x.fill(); x.strokeStyle = rgba(L.frame, 0.5); x.lineWidth = Math.max(0.8, bar * 0.04); x.beginPath(); x.arc(hx, hy, hs * 0.75, 0, TAU); x.stroke(); x.fillStyle = rgba(L.title[0], 1); x.beginPath(); x.arc(hx, hy, hs * 0.38, 0, TAU); x.fill(); } // a record: grooves, its label and the hole
+    L.buttons.forEach((tone, k) => {
+      const bx = W - 5 - bar * (0.62 + k * 0.82), by = 5 + bar / 2, r = bar * 0.29;
+      x.fillStyle = rgba(tone, 1);
+      x.strokeStyle = css.ink;
+      x.lineWidth = 1.5;
+      x.beginPath();
+      if (L.round) x.arc(bx, by, r, 0, TAU); else x.rect(bx - r, by - r, r * 2, r * 2); // round buttons, or square ones
+      x.fill(); x.stroke();
+      x.fillStyle = "rgba(255,255,255,.7)";
+      if (L.round) { x.beginPath(); x.arc(bx - bar * 0.09, by - bar * 0.09, bar * 0.09, 0, TAU); x.fill(); } else x.fillRect(bx - r + 1.5, by - r + 1.5, r * 0.7, r * 0.35);
+    });
+  }
+  function winRainbow(x, css, left, y, wide, thick) { css.stripes.forEach((tone, k) => { x.fillStyle = tone; x.fillRect(left, y + k * thick, wide, thick); }); } // a rainbow line across a screen, six thin stripes of the look's colors
+  function winArt(L, ww, wh, inside, k) { // the window, ww by wh, painted k times as sharp: its frame lit along the top and shaded below, the title bar with its sign and buttons, and its screen with whatever on it stays still
+    const W = Math.max(40, Math.round(ww)), H = Math.max(30, Math.round(wh)), bar = Math.max(12, Math.round(H * 0.15)), [c, x] = paper(Math.round(W * k), Math.round(H * k)), { left, y0, bw, bh } = nightPopupBody(W, H), css = winCss(L), r = L.round ? bar * 0.45 : 0, e = L.round ? bar * 0.5 : 4;
+    x.scale(k, k); // drawn in the window's page size from here on
+    x.lineJoin = x.lineCap = L.round ? "round" : "miter";
+    x.fillStyle = css.frame;
+    x.strokeStyle = css.ink;
+    x.lineWidth = L.round ? 2 : 3; // a hard window has a heavier edge
+    x.beginPath(); x.roundRect(1, 1, W - 2, H - 2, r); x.fill(); x.stroke();
+    x.lineWidth = 2;
+    x.strokeStyle = css.edge; // light along the top and left, shade along the bottom and right
+    x.beginPath(); x.moveTo(4, H - e); x.lineTo(4, e); x.lineTo(e, 4); x.lineTo(W - e, 4); x.stroke();
+    x.strokeStyle = css.shade;
+    x.beginPath(); x.moveTo(W - 4, e); x.lineTo(W - 4, H - e); x.lineTo(W - e, H - 4); x.lineTo(e, H - 4); x.stroke();
+    winTitle(x, L, css, W, bar);
+    winTitleThings(x, L, css, W, bar);
+    x.save(); x.beginPath(); x.rect(left, y0, bw, bh); x.clip();
+    x.fillStyle = css.screen;
+    x.fillRect(left, y0, bw, bh);
+    if (L.smiley) { x.globalAlpha = 0.26; smileyFace(x, left + bw * 0.5, y0 + bh * 0.5, bh * 0.38); x.globalAlpha = 1; } // acid: a smiley on every screen, faint behind what it shows
+    x.strokeStyle = css.dim;
+    x.fillStyle = css.dim;
+    x.lineWidth = 1;
+    if (inside === "stars") { // a dark sky tiled with the same few stars, the way a page's background was a small picture repeated, a rainbow line, and a box to type in
+      const tile = Math.max(16, Math.round(bh / 3.2));
+      for (let ty = y0; ty < y0 + bh; ty += tile) for (let tx = left; tx < left + bw; tx += tile) for (const [u, v, s] of [[0.2, 0.3, 1.2], [0.7, 0.15, 0.8], [0.55, 0.7, 1.5], [0.1, 0.85, 0.7], [0.88, 0.6, 1]]) {
+        x.fillStyle = s > 1.1 ? "#ffffff" : css.lit;
+        x.fillRect(Math.round(tx + u * tile), Math.round(ty + v * tile), Math.max(1, Math.round((s * tile) / 16)), Math.max(1, Math.round((s * tile) / 16)));
+      }
+      winRainbow(x, css, left, y0 + bh * 0.62, bw, Math.max(1, bh * 0.025));
+      x.fillStyle = css.field; x.strokeStyle = css.ink; x.lineWidth = 1.5;
+      x.beginPath(); x.roundRect(left + bw * 0.12, y0 + bh * 0.72, bw * 0.76, bh * 0.18, L.round ? 3 : 0); x.fill(); x.stroke();
+    } else if (inside === "count" || inside === "build" || inside === "load") { // a page: a rainbow line along its top and bottom, and for a building page or a loading one the trough its bar fills
+      winRainbow(x, css, left, y0 + bh * 0.08, bw, Math.max(1, bh * 0.025));
+      winRainbow(x, css, left, y0 + bh * 0.88, bw, Math.max(1, bh * 0.025));
+      if (inside !== "count") { x.fillStyle = css.box; x.strokeStyle = css.lit; x.lineWidth = 1.5; x.beginPath(); x.roundRect(left + bw * 0.1, y0 + bh * (inside === "load" ? 0.66 : 0.6), bw * 0.8, bh * 0.16, L.round ? 3 : 0); x.fill(); x.stroke(); }
+    } else if (inside === "bands" || inside === "scope") { // faint lines across, and for the oscilloscope up and down too, the way its glass was marked
+      for (let i = 1; i < 4; i++) { const y = Math.round(y0 + (bh * i) / 4) + 0.5; x.beginPath(); x.moveTo(left, y); x.lineTo(left + bw, y); x.stroke(); }
+      if (inside === "scope") for (let i = 1; i < 6; i++) { const xx = Math.round(left + (bw * i) / 6) + 0.5; x.beginPath(); x.moveTo(xx, y0); x.lineTo(xx, y0 + bh); x.stroke(); }
+    }
+    x.restore();
+    return c;
+  }
+  function winTitle(x, L, css, W, bar) { // the title bar's colors, going from one end to the other (a psychedelic one's rainbow goes on past its end, for when it slides)
+    const paint = x.createLinearGradient(5, 0, 5 + (L.title === "rainbow" ? 2 * (W - 10) : W - 10), 0);
+    if (L.title === "rainbow") for (let i = 0; i <= 12; i++) paint.addColorStop(i / 12, css.stripes[i % 6]);
+    else L.title.forEach((tone, i) => paint.addColorStop(i / (L.title.length - 1), rgba(tone, 1)));
+    x.fillStyle = paint;
+    x.beginPath(); x.roundRect(5, 5, W - 10, bar, L.round ? bar * 0.35 : 0); x.fill();
+    if (!L.round) { x.fillStyle = css.ink; for (let i = 0; i < 4; i++) { const sx = W * 0.5 + i * bar * 0.55; x.beginPath(); x.moveTo(sx, 5 + bar); x.lineTo(sx + bar * 0.22, 5 + bar); x.lineTo(sx + bar * 0.52, 5); x.lineTo(sx + bar * 0.3, 5); x.closePath(); x.fill(); } } // a hard one has four black slashes across it
+  }
+  function winSet(o, ww, wh, L, k) { // a window that isn't nightcore's, as it comes: its screen, its picture, and what its screen keeps
+    const inside = WIN_INSIDES[Math.floor(Math.random() * WIN_INSIDES.length)], W = Math.max(40, Math.round(ww)), H = Math.max(30, Math.round(wh)), bar = Math.max(12, Math.round(H * 0.15)), count = 1000 + Math.floor(Math.random() * 90000);
+    Object.assign(o, { L, ww, wh, W, H, bar, inside, art: winArt(L, ww, wh, inside, k), body: nightPopupBody(W, H), tick: 0, beats: 0, spin: rnd(0, 4), lit: 0, glow: 0 });
+    if (L.title === "rainbow") { // its rainbow goes round: a strip of it painted once, slid along under the sign and the buttons, which have a little picture of their own
+      const [strip, sx] = paper(Math.round(2 * (W - 10) * k), Math.round(bar * k)), [ride, rx] = paper(Math.round(W * k), Math.round((bar + 10) * k)), css = winCss(L), paint = sx.createLinearGradient(0, 0, strip.width, 0);
+      for (let i = 0; i <= 12; i++) paint.addColorStop(i / 12, css.stripes[i % 6]); // twice round, so it can slide a whole round
+      sx.fillStyle = paint;
+      sx.fillRect(0, 0, strip.width, strip.height);
+      rx.scale(k, k);
+      winTitleThings(rx, L, css, W, bar);
+      Object.assign(o, { strip, ride });
+    }
+    if (inside === "count") Object.assign(o, { count, digits: String(count).padStart(6, "0") });
+    else if (inside === "build" || inside === "load") o.fill = Math.floor(Math.random() * 6);
+    else if (inside === "bands") o.peaks = new Float32Array(16);
+    else if (inside === "scope") o.trace = new Float32Array(64);
+    else if (inside === "warp") { o.stars = new Float32Array(48 * 3); for (let i = 0; i < o.stars.length; i += 3) { o.stars[i] = rnd(-1, 1); o.stars[i + 1] = rnd(-1, 1); o.stars[i + 2] = rnd(0.05, 1); } }
+    else if (inside === "type") { o.cells = new Uint8Array(40); o.at = 0; for (let i = 0, n = 10 + Math.floor(rnd(0, 12)); i < n; i++) winType(o); } // a line or two already typed
+  }
+  function winType(o) { // one more block typed on the screen (a gap, a short block or a long one, like words), and when it's full the lines go up one
+    if (o.at >= 40) { o.cells.copyWithin(0, 10); o.cells.fill(0, 30); o.at = 30; }
+    const r = Math.random(), i = o.at;
+    o.cells[i] = i % 10 === 0 || r > 0.22 ? (r < 0.6 ? 1 : 2) : 3; // (3 is a gap: never at the start of a line)
+    o.at = i + 1;
+  }
+
+  /* ---- where they come ---- */
+  function winMeet(kind) { // a little window in the pictures. Says whether it was one
+    if (kind !== "window") return false;
+    if (mood === "nightcore") return nightMeet("popup"); // nightcore's own: two or three piled up, as they always were
+    const { t } = sound, s = Math.min(w, h), ww = Math.min(w * 0.62, s * 0.44), wh = ww * 0.66, L = winLook(mood), two = Math.random() < 0.25, step = Math.max(12, wh * 0.15) * 1.7, low = TRIPS[name] && TRIPS[name].cockpit && T.pit ? 0.42 : 0.6; // now and then two, the second a step down and along; in the cockpit they stay above the dashboard
+    const x0 = rnd(0.3, 0.7) * w - (two ? step / 2 : 0), y0 = rnd(0.28, low) * h - (two ? step / 2 : 0);
+    for (let i = 0; i < (two ? 2 : 1); i++) { const o = { kind, born: t + i * 1.1, life: rnd(7, 9) - i * 0.6, madeW: w, x: Math.max(ww / 2, Math.min(w - ww / 2, x0 + i * step)), y: Math.max(wh / 2, Math.min(h - wh / 2, y0 + i * step)), seed: rnd(0, TAU) }; winSet(o, ww, wh, L, 1); crowd.folk.push(o); }
+    return true;
+  }
+  function winJoin() { // once, when the first picture is drawn (so every list is there by then): a window joins the visitors of every mood but nightcore (which has its own, and more of them), and of every place with visitors of its own, about one visit in ten
+    winJoined = true;
+    for (const list of Object.values(FOLK)) if (!list.includes("popup") && !list.includes("window")) list.splice(Math.ceil(list.length / 2), 0, "window");
+    for (const [style, list] of Object.entries(FOLK_OF)) if (list.length && !list.includes("window")) { // a short list is said over until it is eight long, so the window comes no more often there than anywhere
+      let long = list;
+      while (long.length < 8) long = long.concat(list);
+      FOLK_OF[style] = [...long.slice(0, 4), "window", ...long.slice(4)];
+    }
+  }
+  const WIN_BUSY = "a, button, input, select, textarea, label, summary, img, svg, video, canvas:not(#fx), h1, h2, h3, h4, p, li, td, th, dt, dd, .cover, [role=button], [role=slider], [role=tab], [role=option], [role=row]";
+  const winBusy = (el) => !!el && el !== document.body && el !== document.documentElement && el.id !== "fx" && (!!el.closest(WIN_BUSY) || [...el.childNodes].some((n) => n.nodeType === 3 && n.nodeValue.trim())); // whether a spot on the page has something on it to read or to click
+  function winSpot(place, ww, wh, W, H) { // where on the page a window covers the least: each corner and the middle of the top and bottom edges is tried, and the one over the fewest words, buttons and pictures wins (one by the play bar, when it's close)
+    const left = place.left ?? 0, right = place.right ?? W, top = place.top ?? 0, floor = place.floor ?? H, m = 14, fit = (v, half, most) => Math.max(half + 4, Math.min(most - half - 4, v));
+    let best = [W / 2, H / 2], least = Infinity;
+    for (const [u, v, lean] of [[0, 1, 0], [0.5, 1, 0.2], [1, 1, 0], [0, 0, 0.4], [0.5, 0, 0.6], [1, 0, 0.4]]) {
+      const x = fit(left + m + ww / 2 + (right - left - 2 * m - ww) * u, ww / 2, W), y = fit(v ? floor - m - wh / 2 : top + m + wh / 2, wh / 2, H);
+      let busy = lean + Math.random() * 0.3; // (a tie goes either way)
+      for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) if (winBusy(document.elementFromPoint(x + (i / 3 - 0.5) * ww * 0.9, y + (j / 2 - 0.5) * wh * 0.9))) busy++;
+      if (busy < least) { least = busy; best = [x, y]; }
+    }
+    return best;
+  }
+  function winGuest(o, place, W, H) { // a little window on the app itself: small, where it covers the least, and gone in about four seconds, since what is under it can't be read or clicked meanwhile
+    const k = document.body.classList.contains("gentle") ? 1 : Math.min(2, devicePixelRatio || 1), ww = Math.max(150, Math.min(190, W * 0.12)), wh = ww * 0.66, [x, y] = winSpot(place, ww, wh, W, H);
+    if (mood === "nightcore") NIGHT_SET.popup(o, ww, wh, k); else winSet(o, ww, wh, winLook(mood), k); // nightcore's in its own look, as it always was
+    Object.assign(o, { life: rnd(3.6, 4.2), x, y, onApp: true });
+  }
+
+  /* ---- and how they are drawn ---- */
+  function drawWindow(o, part) { // any little window, nightcore's or another mood's, in the pictures or on the app: the window itself, and over it its title bar lit by the mouse or by a drop
+    const { dt } = sound, age = part * o.life, shut = clamp(1 - (o.life - age) / 0.35);
+    if (flow.dropHit) o.lit = 1; // (set, not added: the drop can be seen twice in a frame)
+    o.lit = Math.max(0, (o.lit || 0) - dt / 0.9);
+    if (!o.onApp) { // in the pictures: if the picture has changed size since it came (a slow machine is given fewer dots), it is drawn to match, the same part of the picture as before
+      const k = w / (o.madeW || (o.madeW = w));
+      if (k !== 1) g.scale(k, k);
+      o.hx = o.x * k + (o.pushX || 0); // and where it is, for the mouse: its middle as drawn this frame (with the push the music gives it) and half its size
+      o.hy = o.y * k + (o.pushY || 0);
+      o.hw = (o.ww / 2) * k;
+      o.hh = (o.wh / 2) * k;
+      const over = pointer.on && realNow - pointer.at < 4000 && age > 0.3 && shut === 0 && Math.abs(pointer.x - o.hx) < o.hw && Math.abs(pointer.y - o.hy) < o.hh; // (a mouse left lying still, or a finger that tapped and lifted, is let go of after four seconds)
+      o.glow = (o.glow || 0) + ((over ? 1 : 0) - (o.glow || 0)) * Math.min(1, dt / 0.12);
+    }
+    if (o.L) drawWin(o, part); else drawNightPopup(o, part);
+    const hover = o.glow || 0, light = 0.3 * hover + 0.45 * eased(o.lit), fade = 1 - eased(clamp((shut - 0.6) / 0.4));
+    if (light < 0.01) return;
+    const k = o.L ? 1 : o.art.width / Math.max(40, Math.round(o.ww)), W = o.L ? o.W : o.art.width, bar = Math.max(12, Math.round(Math.max(30, Math.round(o.wh)) * 0.15)) * k; // (nightcore's window leaves the canvas in its own picture's dots)
+    g.globalCompositeOperation = "source-over";
+    g.globalAlpha = light * fade; // the bar goes paler, toward white
+    g.fillStyle = "#ffffff";
+    g.strokeStyle = "#ffffff";
+    g.beginPath(); g.roundRect(5 * k, 5 * k, W - 10 * k, bar, o.L && !o.L.round ? 0 : bar * 0.35); g.fill();
+    if (hover > 0.01) { g.globalAlpha = 0.9 * hover * fade; g.lineWidth = 1.5 * k; g.stroke(); } // and under the mouse a bright edge goes round it
+  }
+  function winKick(o) { // a kick, on a window that's open: a counter ticks, a bar fills a block, a block is typed
+    o.tick = 1;
+    o.beats++;
+    if (o.inside === "count") { o.count = (o.count + 1) % 1000000; o.digits = String(o.count).padStart(6, "0"); }
+    else if (o.inside === "build" || o.inside === "load") o.fill = (o.fill + 1) % 13;
+    else if (o.inside === "type") winType(o);
+  }
+  function drawWin(o, part) { // a window that isn't nightcore's pops up with a bounce, its screen does its one thing, and it folds shut, the way nightcore's do
+    const { t, dt, kickHit } = sound, age = part * o.life, open = clamp(age / 0.3), pop = open < 1 ? 1 + 2.4 * (open - 1) ** 3 + 1.4 * (open - 1) ** 2 : 1, shut = clamp(1 - (o.life - age) / 0.35), fold = 1 - 0.82 * eased(shut); // it overshoots a little as it opens
+    const { L, W, H, bar } = o, { left, y0, bw, bh } = o.body, css = winCss(L);
+    if (kickHit && age > 0.3) winKick(o);
+    o.tick *= Math.exp(-dt / 0.12);
+    g.globalCompositeOperation = "source-over";
+    g.globalAlpha = 1 - eased(clamp((shut - 0.6) / 0.4));
+    g.translate(o.x, o.y);
+    if (L.turns) g.rotate(Math.sin(t * 0.45 + o.seed) * 0.035); // a psychedelic one sways a little as its rainbow goes round
+    g.scale(pop * (o.ww / W), pop * fold * (o.wh / H)); // drawn in the window's own page size from here on
+    g.translate(-W / 2, -H / 2);
+    g.drawImage(o.art, 0, 0, W, H);
+    if (o.strip) { // the rainbow going round its title bar, about once in eight seconds, under the sign and the buttons
+      g.save();
+      g.beginPath(); g.roundRect(5, 5, W - 10, bar, bar * 0.35); g.clip();
+      g.drawImage(o.strip, 5 - ((t * 0.12 + o.seed) % 1) * (W - 10), 5, 2 * (W - 10), bar);
+      g.restore();
+      g.drawImage(o.ride, 0, 0, W, bar + 10);
+    }
+    if (fold < 0.95) return; // folding shut: only the frame
+    const ink = L.turns ? rgba(rainbowTone(t * 0.06 + o.seed, 0), 1) : css.lit; // on a psychedelic screen what is drawn turns slowly through the colors
+    g.save();
+    g.beginPath(); g.rect(left, y0, bw, bh); g.clip();
+    WIN_SCREENS[o.inside](o, left, y0, bw, bh, ink, css, t, dt);
+    g.restore();
+  }
+  function winPixel(o, x, y, size, tone, step) { // one of the window's pixel sparkles, its dots square
+    const all = winPixels(o.L), was = g.imageSmoothingEnabled;
+    g.imageSmoothingEnabled = false;
+    g.drawImage(all[tone % 3][((step % 4) + 4) % 4], Math.round(x - size / 2), Math.round(y - size / 2), Math.round(size), Math.round(size));
+    g.imageSmoothingEnabled = was;
+  }
+  const winBeat = () => clamp(flow.bpm ? ((flow.clock - flow.kickAt) * flow.bpm) / 60 : 1); // how far through the beat it is since the last kick, 0 to 1 (and 1 while there's no kick)
+  const WIN_SCREENS = { // what each screen draws on each frame, inside its edges
+    stars(o, left, y0, bw, bh, ink, css, t) { // pixel sparkles turning, each its own step behind the last, and the cursor blinking in the box
+      for (let i = 0; i < 3; i++) winPixel(o, left + bw * (0.2 + 0.3 * i), y0 + bh * (0.22 + 0.18 * ((i * 7) % 3)), Math.max(7, bh * 0.2), i, Math.floor(t * 7 + o.spin + i * 1.3));
+      if (Math.floor(t * 2.4) % 2 === 0) { g.fillStyle = css.cursor; g.fillRect(left + bw * 0.16, y0 + bh * 0.75, Math.max(1.5, bw * 0.012), bh * 0.12); }
+    },
+    count(o, left, y0, bw, bh, ink, css) { // six boxes, the last one's digit ticking up on every kick (and the others carried along when it rolls over)
+      const n = 6, cell = Math.min((bw * 0.84) / n, bh * 0.5 / 1.5), dot = cell / 4.4, x0 = left + (bw - cell * n) / 2, yy = y0 + (bh - cell * 1.5) / 2;
+      g.fillStyle = css.box;
+      for (let k = 0; k < n; k++) g.fillRect(x0 + k * cell + dot * 0.3, yy, cell - dot * 0.6, cell * 1.5);
+      g.fillStyle = ink;
+      for (let k = 0; k < n; k++) { const bx = x0 + k * cell, lift = k === n - 1 ? o.tick * dot * 1.5 : 0, map = PIXEL_DIGITS[o.digits[k]]; for (let i = 0; i < 15; i++) if (map[i] === "1") g.fillRect(bx + dot * (0.7 + (i % 3)), yy + dot * (0.9 + Math.floor(i / 3)) - lift, dot * 0.9, dot * 0.9); }
+    },
+    build(o, left, y0, bw, bh, ink, css, t) { // stripes sliding along, the way a page that wasn't finished said so, and the bar filling a block on each kick
+      const sy = y0 + bh * 0.2, sh = bh * 0.3, stripe = Math.max(4, sh * 0.6), slide = (t * stripe * 1.6) % (stripe * 2);
+      g.save();
+      g.beginPath(); g.rect(left, sy, bw, sh); g.clip();
+      g.fillStyle = css.hazard[0];
+      g.fillRect(left, sy, bw, sh);
+      g.fillStyle = css.hazard[1];
+      g.beginPath();
+      for (let sx = left - sh - stripe * 2 + slide; sx < left + bw + stripe; sx += stripe * 2) { g.moveTo(sx, sy + sh); g.lineTo(sx + stripe, sy + sh); g.lineTo(sx + stripe + sh, sy); g.lineTo(sx + sh, sy); g.closePath(); }
+      g.fill();
+      g.restore();
+      const tx = left + bw * 0.1 + 2, ty = y0 + bh * 0.6 + 2, tw = bw * 0.8 - 4, th = bh * 0.16 - 4, block = tw / 12;
+      for (let k = 0; k < o.fill; k++) { g.fillStyle = css.stripes[k % 6]; g.fillRect(tx + k * block + 1, ty, block - 2, th); }
+      winPixel(o, tx + tw + bw * 0.05, ty + th / 2, Math.max(7, bh * 0.16), 0, Math.floor(t * 7 + o.spin));
+    },
+    bands(o, left, y0, bw, bh, ink, css, t, dt) { // a tiny spectrum: sixteen columns of blocks, from the deep notes at the left to the high ones at the right, each with a cap that falls back slowly
+      const n = 16, rows = 8, gap = bw / n, cell = (bh * 0.86) / rows, base = y0 + bh * 0.93, P = o.peaks, B = sound.bands;
+      for (let i = 0; i < n; i++) {
+        const v = ((B[i * 4] || 0) + (B[i * 4 + 1] || 0) + (B[i * 4 + 2] || 0) + (B[i * 4 + 3] || 0)) / 4, up = Math.round(Math.min(1, v) * rows), x = left + i * gap + gap * 0.14;
+        P[i] = Math.max(P[i] - dt * 1.1, up / rows); // the caps fall a screen in about a second
+        g.fillStyle = o.L.turns ? rgba(rainbowTone(t * 0.06 + o.seed + i * 0.06, 0), 1) : ink;
+        for (let r = 0; r < Math.min(up, rows - 2); r++) g.fillRect(x, base - (r + 1) * cell + cell * 0.14, gap * 0.72, cell * 0.72);
+        g.fillStyle = css.glow; // the top two blocks of each column in the second color, like a meter going into the red
+        for (let r = rows - 2; r < up; r++) g.fillRect(x, base - (r + 1) * cell + cell * 0.14, gap * 0.72, cell * 0.72);
+        if (P[i] > 0.02) g.fillRect(x, base - P[i] * rows * cell - cell * 0.1, gap * 0.72, Math.max(1, cell * 0.22));
+      }
+    },
+    scope(o, left, y0, bw, bh, ink, css) { // a little oscilloscope: the sound's own wave, held still where it crosses the middle going up, and faintly the one before it, the way the glass kept a glow
+      const V = sound.wave, n = 64, mid = y0 + bh / 2, amp = bh * 0.38, P = o.trace;
+      let from = 0;
+      for (let i = 1; i < 120; i++) if (V[i - 1] < 0 && V[i] >= 0) { from = i; break; }
+      g.lineJoin = g.lineCap = "round";
+      g.strokeStyle = css.dim;
+      g.lineWidth = Math.max(1.5, bh * 0.05);
+      g.beginPath();
+      for (let i = 0; i < n; i++) g.lineTo(left + (bw * i) / (n - 1), mid - P[i] * amp);
+      g.stroke();
+      g.strokeStyle = ink;
+      g.lineWidth = Math.max(1.2, bh * 0.025);
+      g.beginPath();
+      for (let i = 0; i < n; i++) { P[i] = Math.max(-1.2, Math.min(1.2, V[from + i * 2] || 0)); g.lineTo(left + (bw * i) / (n - 1), mid - P[i] * amp); }
+      g.stroke();
+    },
+    warp(o, left, y0, bw, bh, ink, css, t, dt) { // a starfield coming at it, the stars drawn as streaks: long ones for a moment on each kick
+      const S = o.stars, cx = left + bw / 2, cy = y0 + bh / 2, f = Math.max(bw, bh) * 0.13, speed = 0.25 + 2.6 * sound.kick, tail = 1.06 + 0.45 * sound.kick, alpha = g.globalAlpha;
+      g.lineCap = "round";
+      g.strokeStyle = ink;
+      for (const near of [false, true]) { // the far ones fainter and thinner, then the near ones
+        g.globalAlpha = alpha * (near ? 1 : 0.55);
+        g.lineWidth = Math.max(1.2, bh * (near ? 0.04 : 0.025));
+        g.beginPath();
+        for (let i = 0; i < S.length; i += 3) {
+          if (near !== S[i + 2] < 0.45) continue;
+          const z = S[i + 2], back = Math.min(1.2, z * tail + 0.01);
+          g.moveTo(cx + (S[i] / back) * f, cy + (S[i + 1] / back) * f);
+          g.lineTo(cx + (S[i] / z) * f, cy + (S[i + 1] / z) * f);
+        }
+        g.stroke();
+      }
+      g.globalAlpha = alpha;
+      for (let i = 0; i < S.length; i += 3) { S[i + 2] -= dt * speed; if (S[i + 2] < 0.05) { S[i] = rnd(-1, 1); S[i + 1] = rnd(-1, 1); S[i + 2] = 1; } } // one that has gone past starts again far away
+    },
+    load(o, left, y0, bw, bh, ink, css, t) { // a loading bar that follows how far through the song it is (or, until the page says, fills a block on each kick), how far written over it in pixel figures (0 to 100), and a sparkle at its end that hops on each beat
+      const tx = left + bw * 0.1 + 2, ty = y0 + bh * 0.66 + 2, tw = bw * 0.8 - 4, th = bh * 0.16 - 4, p = winSong.told ? winSong.part : o.fill / 12, full = Math.floor(p * 12 + 1e-6), block = tw / 12;
+      g.fillStyle = ink;
+      for (let k = 0; k < full; k++) g.fillRect(tx + k * block + 1, ty, block - 2, th);
+      if (full < 12) g.fillRect(tx + full * block + 1, ty, Math.max(0, (block - 2) * (p * 12 - full)), th); // the block being filled
+      const shown = String(Math.min(100, Math.floor(p * 100 + 1e-6))).padStart(3, "0"), dot = bh * 0.05, fx = left + bw / 2 - dot * 5.5, fy = y0 + bh * 0.18; // three figures, each 3 dots by 5 with a dot between
+      for (let k = 0; k < 3; k++) { const map = PIXEL_DIGITS[shown[k]]; for (let i = 0; i < 15; i++) if (map[i] === "1") g.fillRect(fx + dot * (k * 4 + (i % 3)), fy + dot * Math.floor(i / 3), dot * 0.9, dot * 0.9); }
+      const size = Math.max(7, bh * 0.14), hop = Math.sin(winBeat() * Math.PI) * bh * 0.08; // it lands as each beat ends, and rests on the bar while there is no kick
+      winPixel(o, tx + clamp(p) * tw, ty - size * 0.45 - hop, size, 1, Math.floor(t * 7 + o.spin));
+    },
+    type(o, left, y0, bw, bh, ink, css, t) { // a screen being typed on: four lines, each with a small mark at its start, a block more on every kick, and the cursor blinking on the beat
+      const cols = 10, rows = 4, cw = (bw * 0.82) / cols, rh = bh / (rows + 0.6), x0 = left + bw * 0.12, C = o.cells;
+      g.fillStyle = css.glow;
+      for (let r = 0; r < rows; r++) { const y = y0 + rh * (r + 0.55); g.beginPath(); g.moveTo(left + bw * 0.04, y - rh * 0.2); g.lineTo(left + bw * 0.08, y); g.lineTo(left + bw * 0.04, y + rh * 0.2); g.closePath(); g.fill(); } // a small mark at the start of each line
+      g.fillStyle = ink;
+      for (let i = 0; i < o.at; i++) { const kind = C[i]; if (kind === 3) continue; const r = Math.floor(i / cols), c = i % cols; g.fillRect(x0 + c * cw, y0 + rh * (r + 0.55) - rh * 0.17, cw * (kind === 2 ? 1 : 0.62), rh * 0.34); }
+      const since = winBeat(), on = flow.bpm && since < 1 ? since < 0.5 : Math.floor(t * 2) % 2 === 0; // lit for the first half of each beat; with no beat, by the clock
+      if (on) { const i = Math.min(39, o.at), r = Math.floor(i / cols), c = i % cols; g.fillStyle = ink; g.fillRect(x0 + c * cw, y0 + rh * (r + 0.55) - rh * 0.3, cw * 0.6, rh * 0.6); }
+    },
+  };
+  function windowsFrame() { // the windows' part of every frame, before the effect draws: the lists are joined the first time, and a click on a window in the picture (where it was drawn last frame)
+    // shuts it early, with its fold, and is taken away from the effect under it and from the ring, so only the window answers it
+    if (!winJoined) winJoin();
+    const p = pointer.tapped;
+    if (!p || pointer.taken) return;
+    const { t } = sound;
+    for (let i = crowd.folk.length - 1; i >= 0; i--) { // the one on top first
+      const o = crowd.folk[i], age = t - o.born;
+      if ((o.kind !== "window" && o.kind !== "popup") || o.hw === undefined || age < 0.3 || o.life - age < 0.4) continue; // not a window, not drawn yet, still popping up or already shutting
+      if (Math.abs(p.x - o.hx) < o.hw && Math.abs(p.y - o.hy) < o.hh) { o.life = age + 0.36; pointer.taken = true; pointer.tapped = null; return; }
+    }
+  }
+  DRAWN_BY.window = DRAWN_BY.popup = drawWindow;
+  /* ==== windows: end ==== */
   const DRAW = { zen: agTechnozen, darkaero: agDarkAero, eco: asEcoFx, dorfic: asDorficFx, aqua: awAquaFx, aero: awAeroFx, beings: beingsFx, life: livingGrid, places: placesFx, arcade: arcadeFx, runner: runnerFx, forms: formsFx, faces, ribbon, silk, helix, strings, bars, mirror, leds, terrain, scope, trails, tunnel, vortex, prism, ripple, comets, stars: starfield, whirl, dust, links, fireworks, halo, sun, rings, mandala, rays, space, warp: space, drift: space, orbit: space, visitors: space, well,
     kaleido, plasma, fractal, julia, mandel, newton, ocean, neonroad, aurora, tube: tubeFx, heads: headsFx, sphere: sphereFx, solids: solidsFx, city: cityFx };
 
@@ -12637,6 +12987,7 @@ window.Effects = (() => {
     pointer.tapped = pointer.tap && realNow - pointer.tap.at < 300 ? pointer.tap : null; // a click is news for the one frame after it, for the picture and the visitors alike
     pointer.tap = null;
     pointer.taken = false;
+    windowsFrame(); // before the effect draws: a click on a little window shuts it, and neither the effect under it nor a ring answers it (see the windows block)
     const inScene = folkInScene();
     drawScene();
     drawTwinkles();
@@ -12759,7 +13110,7 @@ window.Effects = (() => {
     g.rotate(o.neck * 0.5);
     g.drawImage(artOf(o.look).pilot, -S * 0.5, -S * 0.86, S, S);
   }
-  const GUESTS = { ...NIGHT_GUESTS, borrow: drawBorrow, abduct: drawAbduct, dangle: drawDangle, peek: drawPeek, astronaut: drawAstronaut, eye: drawEye, jelly: (o, part) => { drawJelly(o, part); if (o.y < -o.size * 1.4) o.done = true; } };
+  const GUESTS = { ...NIGHT_GUESTS, popup: drawWindow, borrow: drawBorrow, abduct: drawAbduct, dangle: drawDangle, peek: drawPeek, astronaut: drawAstronaut, eye: drawEye, jelly: (o, part) => { drawJelly(o, part); if (o.y < -o.size * 1.4) o.done = true; } };
   function guests(real) {
     if (!guest.list.length) return;
     const W = innerWidth, H = innerHeight, k = document.body.classList.contains("gentle") ? 1 : Math.min(2, devicePixelRatio || 1), was = [g, w, h, sound.t, sound.dt];
@@ -12843,11 +13194,13 @@ window.Effects = (() => {
       else if (kind === "peek") { const size = Math.max(130, Math.min(220, Math.min(W, H) * 0.22)); Object.assign(o, { life: rnd(7, 10), floor: place.floor ?? H, size, x: left + size * 0.6 + Math.max(0, right - left - size * 1.2) * Math.random(), lean: side, blink: t + rnd(1, 3), shut: 0 }, look === "acid" ? smileyTrick(0.6, true) : {}); }
       else if (kind === "eye") { const size = Math.max(60, Math.min(120, Math.min(W, H) * 0.1)), floor = place.floor ?? H; Object.assign(o, { life: rnd(8, 11), size, x: left + size * 1.5 + Math.max(0, right - left - size * 3) * Math.random(), y: floor - size * 1.15, blink: t + rnd(1.2, 2.5), shut: 0 }); } // it opens just over the play bar
       else if (kind === "astronaut") Object.assign(o, { life: rnd(14, 18), y: rnd(0.15, 0.5) * H, size: Math.max(56, Math.min(96, Math.min(W, H) * 0.085)), beat: 0, arm: 0 });
+      else if (kind === "popup") winGuest(o, place, W, H); // a little window, in any mood: see the windows block
       else if (NIGHT_GUESTS[kind]) nightGuest(o, place, W, H); // nightcore's: the lucky cat, a little window, a paper crane
       else { const tone = look === "psy" ? mix(rainbowTone(rnd(0, 3), 0), [255, 255, 255], 0.15) : mix(around(rnd(0, 1)), look === "euphoric" ? [230, 215, 255] : [120, 210, 255], 0.35); Object.assign(o, { life: rnd(12, 16), x: rnd(0.15, 0.85) * W, y: H * 1.12, drift: side * rnd(0.004, 0.012) * W, rise: H * rnd(0.05, 0.065), size: Math.max(90, Math.min(160, Math.max(W, H) * 0.075)), art: paintJelly(tone), tone, pulse: 0 }); }
       guest.list.push(o);
       return true;
     },
+    place(part) { winPlace(part); }, // how far through the playing song it is, 0 to 1: a little window's loading bar follows it
     visiting: () => guest.list.length > 0,
     knobs: (style) => { const trip = TRIPS[style]; return ["light", "react", "speed", "spark", ...(LEAVES_TRAILS.has(style) ? ["drag"] : []), ...(style === "ripple" ? ["tilt"] : []), ...(trip ? ["nod", ...(trip.steer ? ["turns"] : []), ...(trip.moves ? ["moves"] : []), "shots"] : []), ...(VERSIONS[style] ? ["vary"] : []), ...(FRACTALS.has(style) ? ["color", "echo", "breathe", "sounds"] : []), "dream", "folk", "acid", "band", ...(trip && trip.falls ? ["falls"] : []), ...(trip && trip.cockpit ? ["pit"] : [])].map((key) => [key, ...KNOBS[key]]); },
     tuning(values) { // adjustments for the effect showing. Anything left out is back to how it was designed
