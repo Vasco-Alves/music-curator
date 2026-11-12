@@ -332,9 +332,21 @@ body.drawer-open .drawer { box-shadow: var(--deck-edge), var(--glass-shadow); }
 .vibe { position: absolute; inset: 0; opacity: 0; transition: opacity 1.8s ease; }
 body[data-vibe="euphoric"] .vibe-euphoric, body[data-vibe="acid"] .vibe-acid, body[data-vibe="hard"] .vibe-hard, body[data-vibe="psy"] .vibe-psy, body[data-vibe="nightcore"] .vibe-nightcore { opacity: var(--mood, .6); } /* Settings, under Mood: the colours below are as strong as it can go */
 .vibe-euphoric { background: radial-gradient(90% 60% at 50% -6%, rgba(255, 255, 255, .45), transparent 70%), radial-gradient(60% 50% at 14% 100%, rgba(140, 200, 255, .23), transparent 70%), radial-gradient(50% 45% at 90% 92%, rgba(255, 170, 230, .18), transparent 70%); }
-.vibe-acid { background: radial-gradient(75% 62% at 50% 102%, rgba(228, 238, 40, .47), transparent 72%), radial-gradient(45% 40% at 92% 8%, rgba(190, 240, 40, .23), transparent 70%); }
+.vibe-acid { inset: -10% 0; transform: translateY(calc((.5 - var(--open, .5)) * 12%)); transition: opacity 1.8s ease, transform 1.5s ease; /* a tenth taller at each end, so it can rise and sink with the 303's filter (--open) and no edge shows; the glow is where it always was */
+  background: radial-gradient(75% 51.67% at 50% 93.33%, rgba(228, 238, 40, .47), transparent 72%), radial-gradient(45% 33.33% at 92% 15%, rgba(190, 240, 40, .23), transparent 70%); }
 .vibe-hard { background: radial-gradient(62% 44% at 50% 106%, rgba(232, 40, 30, .6), transparent 72%), radial-gradient(120% 90% at 50% 50%, transparent 38%, rgba(0, 0, 0, .92) 100%), rgba(0, 0, 0, .33); }
 :root[data-theme="light"] .vibe-euphoric { background: radial-gradient(90% 60% at 50% -6%, rgba(255, 255, 255, 1), transparent 70%), radial-gradient(60% 50% at 14% 100%, rgba(140, 200, 255, .33), transparent 70%); }
+/* The song's moment over the mood (songLook in app.js): --lift is how euphoric this part of the song is and --heat how intense, each next to what is usual for the song (0 to 1).
+   A warm light from above comes up in a euphoric part and the edges deepen in an intense one; in the hard mood its own vignette deepens instead (at rest it is as strong as ever).
+   All of it fades over a second and a half: nothing here flashes, and the words on top stay as easy to read. */
+.vibe-moment { transition: opacity 1.5s ease; }
+.vibe-lift { opacity: calc(var(--mood, .6) * var(--lift, 0) * .7); background: radial-gradient(80% 55% at 50% -8%, rgba(255, 240, 215, .4), transparent 72%); }
+.vibe-heat { opacity: calc(var(--mood, .6) * var(--heat, 0) * .8); background: radial-gradient(120% 90% at 50% 50%, transparent 45%, rgba(0, 0, 0, .55) 100%); }
+body[data-vibe="hard"] .vibe-heat { opacity: 0; }
+body[data-vibe="hard"] .vibe-hard { opacity: calc(var(--mood, .6) * (1 + .3 * var(--heat, 0))); transition: opacity 1.5s ease; }
+:root[data-theme="light"] .vibe-lift { background: radial-gradient(80% 55% at 50% -8%, rgba(255, 205, 140, .28), transparent 72%); }
+:root[data-theme="light"] .vibe-heat { background: radial-gradient(120% 90% at 50% 50%, transparent 45%, rgba(60, 20, 30, .22) 100%); }
+body.gentle .vibe-acid { transform: none; } /* a slow machine can't afford the whole window moving */
 :root[data-theme="light"] .vibe-hard { background: radial-gradient(120% 90% at 50% 50%, transparent 40%, rgba(50, 20, 30, .37) 100%), radial-gradient(62% 40% at 50% 106%, rgba(222, 40, 30, .27), transparent 72%); }
 body[data-vibe="acid"].is-playing:not(.gentle) .play-btn { animation: acid-wobble 2.3s ease-in-out infinite; }
 @keyframes acid-wobble { 0%, 100% { filter: hue-rotate(0deg) brightness(1); } 30% { filter: hue-rotate(-9deg) brightness(1.08); } 65% { filter: hue-rotate(11deg) brightness(.96); } }

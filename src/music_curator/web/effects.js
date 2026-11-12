@@ -121,11 +121,14 @@ window.Effects = (() => {
     s.mid = mean(10, 36);
     s.treble = mean(50, 64);
     s.level = mean(0, BANDS);
-    s.kickHit = hit >= 0 ? (0.55 + 0.45 * hit) * T.react : 0; // these two only on the frame it lands
+    const kicked = hit >= 0 && !bassNote(low); // a hit half-way between the beats of a sure clock is a bass note, not the kick (see the clock)
+    s.kickHit = kicked ? (0.55 + 0.45 * hit) * T.react : 0; // these two only on the frame it lands
     s.hatHit = tick >= 0 ? 0.5 + 0.5 * tick : 0;
-    s.kick = hit >= 0 ? Math.max(s.kick, s.kickHit) : s.kick * Math.exp(-dt / 0.14);
+    s.kick = kicked ? Math.max(s.kick, s.kickHit) : s.kick * Math.exp(-dt / 0.14);
     s.hat = tick >= 0 ? Math.max(s.hat, s.hatHit) : s.hat * Math.exp(-dt / 0.06);
-    follow(!!analyser, hit, dt, low);
+    follow(analyser, hit, dt, low); // (the analyser itself, or nothing while paused: the notes ear wants to know how it smooths)
+    s.beatHit = flow.beatHit && flow.beatSure > 0.6 && flow.gone > 1.4 ? 0.35 * T.react : 0; // the clock's beat through a break (no kick that counts for 1.4 s), soft, and only for small things (see the clock block)
+    s.beat = s.beatHit ? Math.max(s.beat, s.beatHit) : s.beat * Math.exp(-dt / 0.2);
   }
 
   /* How the song is going, from the sound: in its groove, calm (no kick for a while), building (holding back while the highs climb) or dropping (the kick back after a break),
@@ -165,17 +168,398 @@ window.Effects = (() => {
     if (back) flow.asked = 0;
     return back;
   }
+  /* ==== notes: begin ==== */
+  /* The notes held together, and the song's moment. Both are worked out on every frame the music is heard, from the song follower (hearMore, at the end of follow()), once everything else it hears has had its say.
+     The notes. How many notes sound together just now, from the middle of the spectrum (170 Hz to 4.6 kHz). Every note is a row of evenly spaced peaks (its harmonics), so the peaks that stand
+     clear of their neighbours are shared out among as few such rows as will explain them; a row must have its first or second harmonic there and three of its first twelve, so a chord is not
+     taken for one low note whose harmonics happen to fall on its notes. Only the peaks that have held their pitch, within a third of a semitone, for 0.3 s are shared out: the ring of a snare,
+     a crackle, a click or a quick run of notes never does that, held notes do (an arpeggio counts as its chord only when its notes ring on into each other, short stabs only now and then).
+     A low note under 170 Hz (a bass line, a pad's lowest note) shows as a long run of peaks the same distance apart: they are put aside as one note, none of the rows. The moments just after a kick or a clap are left out, as their thump spills peaks
+     everywhere (a hat is left in: it lives above the notes, and leaving out the moment after every hat would leave out most of the song). Chords need two rows starting under 1.2 kHz
+     at least, and no one row explaining most of what is there. A 303 changes its harmonics with every note and can fool all this, so while the 303 ear hears one, and for a few seconds
+     after it last did (it can lose a screaming line for a while), there are no chords: in any music, as it is asked before the genre decides who may answer the 303.
+     What the analyser hands over is already smoothed by it, look by look (0.6 of the last look kept, in app.js), so a sound that stops fades out of it slowly when the frames come slowly
+     and fast when they come fast. That is undone here first, so the notes are heard alike at 30 frames a second and at 144: each look's own sound, worked back from the smoothed one.
+     The price of that: the analyser's steps are coarse, so the look just after a loud hit comes out rough, and a quiet pad under a busy beat (a kick on every beat and sixteenth hats) is heard
+     only part of the time. Holding the spectrum longer would hear such a pad better, but an arpeggio's notes would then ring on into each other and be taken for chords.
+       flow.notes   how many rows, eased over half a second (0 to 5). When the chord changes its new notes take a moment to count, so the count of the last 0.4 s bridges that;
+                    and it only moves on looks with notes in them, going after 0.7 s with none
+       flow.single  how much of what is tonal the strongest row alone explains (0 to 1): near 1 for one line, under a half for chords
+       flow.chords  0 to 1: chords are playing (a pad, held chords, a piano)
+     It looks forty times a second at most, and twenty while the picture's quality is turned down or the frames come slowly: it is the dearest of the ears.
+     The moment. How euphoric and how intense this part of the song is, each next to what is usual for this song over about the last minute, so they rise in its euphoric parts and in its
+     intense ones and fall again after them, whatever kind of music it is (a song that is euphoric all the way through has nothing over its usual):
+       flow.lift  0 to 1, euphoric: chords or a lead, with the energy up or rising (a breakdown full of chords counts too, kick or no kick)
+       flow.heat  0 to 1, intense: the kick going hard and the energy high, with little melody over it
+     Both come up over about two seconds and go over four, so they can move the look of everything gently, never flash it. Each is 0 until this part is a tenth over the usual,
+     and 1 from six tenths over. A new song starts them afresh, and has no moment at all until it has been heard for eight seconds (hearMoreNewSong, in the clock block): whatever it starts with is simply its usual,
+     so the start of a song (a skip, a mix, a song with no intro) never lights up as if it were a drop. */
+  Object.assign(flow, { notes: 0, single: 0, chords: 0, lift: 0, heat: 0 });
+  const NOTE_PEAKS = 48, NOTE_ROWS = 5, NOTE_CANDS = 108, NOTE = {
+    room: 75, stand: 12, pitch: 0.019, hold: 0.3, // a peak: at most this many bytes under the loudest of the middle, and this many above the lower dip beside it; and how far its pitch may move, and for how long it must hold
+    comb: 5, // a low note's run of peaks is at least five long
+    got: 3, near: 0.02, stop: 0.25, low: 1200, // a row: this many of its harmonics there, each within 2% of where it should be; worth at least a quarter of the first row; two rows starting under 1.2 kHz for chords
+    many: 1.5, manyW: 0.5, one: 0.62, oneW: 0.12, bridge: 0.4, // where the count and the share make it chords, and how long the count is kept through a change of chord
+    after: 0.06, blur: 0.17, slow: 0.02, acidKeep: 16, // left out after a kick or a clap; the spectrum held over 0.17 s; frames slower than this are slow; the 303 ear's belief kept, fading over 16 s
+    usual: 60, fresh: 8, over: 0.1, span: 0.5 }; // the moment: the song's usual over about a minute (and for the first 8 s just what the song is doing), and where over it the moment begins and is all there
+  const notesEar = { held: new Float32Array(256), near: new Int8Array(256), pf: new Float32Array(NOTE_PEAKS), ps: new Float32Array(NOTE_PEAKS), taken: new Uint8Array(NOTE_PEAKS), rowAt: new Int16Array(NOTE_ROWS), rowSal: new Float32Array(NOTE_ROWS),
+    cand: Float32Array.from({ length: NOTE_CANDS }, (_, i) => 180 * 2 ** (i / 36)), start: new Float64Array(256).fill(-9), seen: new Float64Array(256).fill(-9), from: new Float32Array(256), runStart: new Float64Array(NOTE_PEAKS), runFrom: new Float32Array(NOTE_PEAKS), runAt: new Int16Array(NOTE_PEAKS),
+    harmAt: new Uint8Array(NOTE_CANDS * 12), harmHz: new Float64Array(NOTE_CANDS * 12), harmNear: new Float64Array(NOTE_CANDS * 12), harmN: new Uint8Array(NOTE_CANDS), harmFor: -1,
+    prev: new Uint8Array(256), undo: new Float32Array(511), undoNew: 0, undoKeep: -1, t: 0, wait: 0, most: 0, mostAt: 0, mostLow: 0, lowAt: 0, quiet: 9, still: 9, pace: 0.016, acid: 0, acidKept: 0, heard: 0, lift: 0, heat: 0, liftUsual: 0, heatUsual: 0 }; // cand: the notes a row may start on, 180 Hz to 1.4 kHz, a third of a semitone apart; for each place along the spectrum, since when its peak has held, from what pitch, and when it was last seen
+  const NOTE_WEIGHT = Float64Array.from({ length: 12 }, (_, n) => 1 + 0.1 * n); // a row's higher harmonics count a little less: its n-th by 1 + n tenths
+  function notesHarmonics() { // where each harmonic of each note a row may start on falls (which place, what pitch, how near a peak must be), worked out again only when the places change
+    const E = notesEar; // (they move with the sound card's rate)
+    E.harmFor = binHz;
+    for (let i = 0; i < NOTE_CANDS; i++) {
+      const f0 = E.cand[i]; let n = 1;
+      for (; n <= 12 && n * f0 < 4600; n++) { const j = i * 12 + n - 1; E.harmAt[j] = Math.min(255, Math.round((n * f0) / binHz)); E.harmHz[j] = n * f0; E.harmNear[j] = Math.max(binHz, NOTE.near * n * f0); }
+      E.harmN[i] = n - 1;
+    }
+  }
+  const notesPart = (dt, secs) => 1 - Math.exp(-dt / secs); // how much of the way something eased over "secs" gets in dt
+  function notesUndo(keep) { // the analyser's own smoothing, worked out once for how much of its last look it keeps: how many of its steps (it spreads 75 dB over 256 of them) this look's own sound is
+    const E = notesEar; // above what it shows, for each difference between what it showed last time and now (undo), and when last time was silence (undoNew)
+    E.undoKeep = keep;
+    for (let d = -255; d <= 255; d++) { const x = 1 - keep * 10 ** ((d * 75) / 255 / 20); E.undo[d + 255] = x > 0 ? (255 / 75) * 20 * Math.log10(x / (1 - keep)) : -999; } // -999: nothing new at all
+    E.undoNew = (255 / 75) * 20 * Math.log10(1 / (1 - keep));
+  }
+  function hearNotes(dt, hit, analyser) {
+    const E = notesEar;
+    if (!freq) return;
+    E.pace += (dt - E.pace) * notesPart(dt, 1.5); // how long the frames have been taking, over a second and a half
+    const lo = Math.max(6, Math.round(170 / binHz)), hi = Math.min(247, Math.round(4600 / binHz), freq.length - 9);
+    E.still = hit >= 0 || flow.clap ? 0 : E.still + dt;
+    const keep = Math.min(0.8, Math.max(0, analyser.smoothingTimeConstant ?? 0.6)), part = E.still >= NOTE.after ? notesPart(dt, NOTE.blur) : 0; // how much of its last look the analyser keeps; the moments just after a kick or a clap are not held
+    if (keep !== E.undoKeep) notesUndo(keep);
+    for (let k = Math.max(0, lo - 8); k <= hi + 8; k++) { // the analyser's own smoothing undone (this look's sound is what is new in it), and that held over 0.17 s
+      const was = E.prev[k], now = freq[k], own = !now ? 0 : !was ? Math.min(255, now + E.undoNew) : Math.max(0, Math.min(255, now + E.undo[was - now + 255]));
+      E.prev[k] = now;
+      E.held[k] += (own - E.held[k]) * part;
+    }
+    E.wait += dt;
+    if (E.wait >= (quality < 1 || E.pace > NOTE.slow ? 0.05 : 0.025)) { notesLook(Math.min(E.wait, 0.1)); E.wait = 0; }
+    hearMoment(dt);
+  }
+  function notesLook(dt) { // dt: the time since the last look
+    const E = notesEar, lo = Math.max(6, Math.round(170 / binHz)), hi = Math.min(247, Math.round(4600 / binHz), freq.length - 9);
+    E.t += dt;
+    let peak = 0;
+    for (let k = lo; k <= hi; k++) if (E.held[k] > peak) peak = E.held[k];
+    let np = 0, nq = 0, all = 0; // the peaks found, and those of them that have held
+    E.near.fill(-1);
+    for (let k = lo + 1; k < hi && np < NOTE_PEAKS; k++) { // the peaks, and how far each stands above the lower of the two dips beside it (a peak among other peaks still counts)
+      const v = E.held[k]; if (!(v > E.held[k - 1] && v >= E.held[k + 1]) || v < peak - NOTE.room) continue;
+      let l = v, r = v; for (let j = 1; j <= 5; j++) { if (E.held[k - j] < l) l = E.held[k - j]; if (E.held[k + j] < r) r = E.held[k + j]; }
+      const stands = v - Math.max(l, r); if (stands < NOTE.stand) continue;
+      const a = E.held[k - 1], c = E.held[k + 1], d = a - 2 * v + c, at = k + (d < 0 ? (0.5 * (a - c)) / d : 0), hz = at * binHz; // where between the places the peak really is
+      let start = E.t, from = hz;
+      for (let j = k - 1; j <= k + 1; j++) if (E.t - E.seen[j] <= 0.1 + dt && Math.abs(hz - E.from[j]) < NOTE.pitch * E.from[j] && E.start[j] < start) { start = E.start[j]; from = E.from[j]; } // the same peak a moment ago, at a pitch within a third of a semitone of where it began
+      E.runStart[np] = start; E.runFrom[np] = from; E.runAt[np++] = k;
+      if (E.t - start < NOTE.hold) continue; // not held long enough yet: no part of any row
+      E.pf[nq] = hz; E.ps[nq] = stands; all += stands;
+      const reach = Math.max(1, Math.round(0.025 * at));
+      for (let j = Math.max(0, k - reach); j <= Math.min(255, k + reach); j++) if (E.near[j] < 0 || E.ps[E.near[j]] < stands) E.near[j] = nq;
+      nq++;
+    }
+    for (let p = 0; p < np; p++) { const k = E.runAt[p]; E.start[k] = E.runStart[p]; E.from[k] = E.runFrom[p]; E.seen[k] = E.t; } // what a peak of the next look may go on from
+    E.taken.fill(0);
+    for (let p = 0, from = 0; p < nq; p++) { // a low note (a bass line, the lowest note of a pad) is a long run of peaks the same distance apart, under 170 Hz: one note, and none of the rows, so its peaks are put aside
+      const gap = p + 1 < nq ? E.pf[p + 1] - E.pf[p] : 0, step = E.pf[from + 1] - E.pf[from];
+      if (p > from && !(gap > 0 && Math.abs(gap - step) < 0.08 * step)) {
+        if (p - from + 1 >= NOTE.comb && step > 40 && step < 170) for (let q = from; q <= p; q++) { E.taken[q] = 1; all -= E.ps[q]; }
+        from = p;
+      } else if (p === from && !(gap > 40 && gap < 170)) from = p + 1;
+    }
+    let rows = 0, first = 0;
+    if (E.harmFor !== binHz) notesHarmonics();
+    for (let s = 0; s < NOTE_ROWS && all > 0; s++) { // the row that explains most of what is left, then the next
+      let best = -1, bestSal = 0;
+      for (let i = 0; i < NOTE_CANDS; i++) {
+        const j0 = i * 12, p0 = E.near[E.harmAt[j0]], p1 = E.near[E.harmAt[j0 + 1]];
+        if (!(p0 >= 0 && !E.taken[p0] && Math.abs(E.pf[p0] - E.harmHz[j0]) < E.harmNear[j0]) && !(p1 >= 0 && !E.taken[p1] && Math.abs(E.pf[p1] - E.harmHz[j0 + 1]) < E.harmNear[j0 + 1])) continue; // neither its first harmonic nor its second is there: no row starts on this note, so its others need not be looked at (most of them, and the dearest part of the ear)
+        let sal = 0, got = 0, base = false;
+        for (let n = 0, j = i * 12; n < E.harmN[i]; n++, j++) { const p = E.near[E.harmAt[j]]; if (p >= 0 && !E.taken[p] && Math.abs(E.pf[p] - E.harmHz[j]) < E.harmNear[j]) { sal += E.ps[p] / NOTE_WEIGHT[n]; got++; if (n < 2) base = true; } } // its first twelve harmonics, under 4.6 kHz
+        if (base && got >= NOTE.got && sal > bestSal) { bestSal = sal; best = i; }
+      }
+      if (best < 0 || bestSal < Math.max(20, NOTE.stop * first)) break;
+      for (let n = 0, j = best * 12; n < E.harmN[best]; n++, j++) { const p = E.near[E.harmAt[j]]; if (p >= 0 && Math.abs(E.pf[p] - E.harmHz[j]) < E.harmNear[j]) E.taken[p] = 1; }
+      if (!s) first = bestSal;
+      E.rowAt[rows] = best; E.rowSal[rows++] = bestSal;
+    }
+    let low = 0;
+    for (let r = 0; r < rows; r++) if (E.cand[E.rowAt[r]] < NOTE.low) low++;
+    if (rows >= E.most || E.t - E.mostAt > NOTE.bridge) { E.most = rows; E.mostAt = E.t; } // when the chord changes its new notes take a moment to count: the count of the last 0.4 s bridges that
+    if (low >= E.mostLow || E.t - E.lowAt > NOTE.bridge) { E.mostLow = low; E.lowAt = E.t; }
+    const single = all > 0 ? Math.min(1, first / all) : 0, notes = notesPart(dt, 0.5);
+    E.quiet = E.most ? 0 : E.quiet + dt;
+    flow.notes += ((E.most ? E.most : E.quiet > 0.7 ? 0 : flow.notes) - flow.notes) * notes;
+    flow.single += ((E.most ? single : E.quiet > 0.7 ? 0 : flow.single) - flow.single) * notes; // the share is kept through the gaps too
+    E.acidKept = Math.max(E.acid, E.acidKept - dt / NOTE.acidKeep); // the 303 ear's belief, kept a while: after it was last sure of one, none of the chords for about six seconds, and the veto gone by eleven
+    const want = E.mostLow >= 2 ? clamp((flow.notes - NOTE.many) / NOTE.manyW) * clamp((NOTE.one - flow.single) / NOTE.oneW) * (1 - clamp((E.acidKept - 0.3) / 0.3)) : 0;
+    flow.chords += (want - flow.chords) * notesPart(dt, flow.chords > 0.5 ? 1.2 : 0.6);
+  }
+  function hearMoment(dt) { // the moment itself, as it is and next to what is usual (that is all of this song heard so far at its start, then about the last minute)
+    const E = notesEar, tonal = Math.max(flow.chords, flow.lead, 0.5 * flow.tune), energy = clamp((flow.intensity - 0.4) / 0.35), rising = clamp((flow.fast - flow.slow) * 12), kicking = flow.since < 1.4 ? 1 : 0;
+    const lift = tonal * clamp(0.35 + 0.65 * Math.max(energy, rising, flow.drop)), heat = kicking * clamp((flow.intensity - 0.5) / 0.3) * (1 - 0.6 * tonal);
+    E.lift += (lift - E.lift) * notesPart(dt, lift > E.lift ? 2 : 4);
+    E.heat += (heat - E.heat) * notesPart(dt, heat > E.heat ? 2 : 4);
+    E.heard = Math.min(NOTE.usual, E.heard + dt); // how long this song has been heard, up to a minute (no further is needed)
+    const usual = E.heard < NOTE.fresh ? 1 : notesPart(dt, Math.min(NOTE.usual, E.heard)); // for its first seconds a song's usual is simply what it is doing: the start of a song is never a moment
+    E.liftUsual += (E.lift - E.liftUsual) * usual;
+    E.heatUsual += (E.heat - E.heatUsual) * usual;
+    flow.lift = clamp((E.lift - E.liftUsual - NOTE.over) / NOTE.span);
+    flow.heat = clamp((E.heat - E.heatUsual - NOTE.over) / NOTE.span);
+  }
+  /* The song's moment in the colors, over the mood's: in a euphoric part (flow.lift) everything goes a little lighter and warmer, in an intense one (flow.heat) a little deeper,
+     and while a 303 plays the hand on its filter's knob turns the hue a few degrees, darker for a shut filter and brighter for an open one (that is flow.acidOn and flow.acidKnob,
+     worked out where everything else that answers the 303 gets them: nothing turns until they are there). All of it is eased again here over a second and a half, and never more
+     than a quarter of the way, so the mood's own colors (yellow for acid, red for hard) always stay what they are. It is put on the record's colors once a frame in tint(), and on
+     the moods' own colors in moodColors(). The colors it gives are kept and filled in again, not made anew. */
+  const MOMENT = { euphoric: [1, 1], psy: [0.6, 0.6], acid: [0.5, 0.5], hard: [0.2, 0.6], other: [0.8, 0.8] }; // how far each mood lets a euphoric part and an intense one move its colors (hard's red barely pales)
+  const songMoment = { lift: 0, heat: 0, turn: 0, light: 0, kept: [[0, 0, 0], [0, 0, 0], [0, 0, 0]], mood: [[0, 0, 0], [0, 0, 0], [0, 0, 0]] }; // kept: the record's colors as the moment has them; mood: the mood's
+  function songMomentNow(dt) { // once a frame, from frame(), before the colors are worked out
+    const M = songMoment, part = notesPart(dt, 1.5), on = hearing ? flow.acidOn ?? 0 : 0, knob = hearing ? flow.acidKnob ?? 0 : 0; // (both are already "times how much of a line plays")
+    M.lift += ((hearing ? flow.lift : 0) - M.lift) * part;
+    M.heat += ((hearing ? flow.heat : 0) - M.heat) * part;
+    M.turn += ((knob - 0.5 * on) * 24 - M.turn) * part; // degrees round the wheel: -12 with the filter shut, +12 wide open
+    M.light += ((knob - 0.5 * on) * 0.16 - M.light) * part; // and up to 8% darker or lighter
+  }
+  function songTint(list, kept, from = 0) { // the three colors of list as the moment has them, written into kept; from: the first it may change (the ones before it are copied as they are)
+    const M = songMoment, share = MOMENT[mood] || MOMENT.other;
+    if (list.length !== 3 || (M.lift < 0.004 && M.heat < 0.004 && Math.abs(M.turn) < 0.2 && Math.abs(M.light) < 0.004)) return list;
+    const pale = 0.25 * share[0] * M.lift, deep = 1 + 0.25 * share[1] * M.heat, bright = 1 + M.light, k = (M.turn * Math.PI) / 180, c = Math.cos(k), m = (1 - c) / 3, q = Math.sin(k) / Math.sqrt(3), same = c + m, back = m - q, on = m + q; // the turn round the wheel as turnHue does it
+    for (let i = 0; i < 3; i++) {
+      const src = list[i], r0 = src[0], g0 = src[1], b0 = src[2], out = kept[i];
+      if (i < from) { out[0] = r0; out[1] = g0; out[2] = b0; continue; }
+      let r = r0 * same + g0 * back + b0 * on, gr = r0 * on + g0 * same + b0 * back, b = r0 * back + g0 * on + b0 * same;
+      const grey = (r + gr + b) / 3;
+      r = grey + (r - grey) * deep; gr = grey + (gr - grey) * deep; b = grey + (b - grey) * deep; // deeper: further from the grey in the middle
+      r += (255 - r) * pale; gr += (238 - gr) * pale; b += (214 - b) * pale; // lighter and warmer
+      out[0] = Math.max(0, Math.min(255, r * bright)); out[1] = Math.max(0, Math.min(255, gr * bright)); out[2] = Math.max(0, Math.min(255, b * bright));
+    }
+    return kept;
+  }
+  /* ==== notes: end ==== */
   let acidGenre = null, acidKind = false;
   function acidMusic() { // whether the song is one a 303 is listened for in: acid of every kind (acid house, acid techno, acid trance...), hard trance, goa and psytrance, by its genres, or anything set to the acid or psy mood. Elsewhere the ear can mistake another sound for a 303
     if (genre !== acidGenre) { acidGenre = genre; const words = " " + genre.toLowerCase().replace(/[^a-z0-9]+/g, " ") + " "; acidKind = [" acid", " hard trance ", " goa ", " psy trance ", " psytrance ", " psychedelic trance ", " full on "].some((w) => words.includes(w)); }
     return acidKind || mood === "acid" || mood === "psy";
   }
+  /* ==== clock: begin ==== */
+  /* The song's clock: where the beat is, which beat of the bar, and how far through an eight-bar phrase. The kick that counts (kickBack's, so a bass note or a tom in a break is not taken for it) sets it.
+     From the last two dozen kicks it finds the tempo they fit best, and then runs by itself: on time with every kick that lands near a beat, nudged a little toward it, and on through a break
+     with no kick at all, so the kick coming back after the break lands on its beat. A straight line through the kicks that were on time gives the beat's length to a fraction of a millisecond.
+     Which beat of the four is the "one" it learns from what changes there: the kick coming in or stopping, the chords and the bass line moving on (the sound of one beat against the beat before),
+     and the claps, which are never on it. The phrase (eight bars) is learned the same way, from where the kick comes back and where the song changes most.
+     It keeps the song's own time (where the song is, as the app says), so a pause holds it and a seek moves it with the song, and the beat and the bar are still right afterwards.
+     Where nobody says where the song is, it goes by the clock on the wall.
+     How sure it is comes from how well the kicks really fit it: how near the last sixteen land to its beats, how many of them land right on one, and how much better its tempo fits them than the
+     tempos a beat is often mistaken for (three quarters of it, four thirds, two thirds, half as fast again, half and double). A broken beat, or a tempo it is not sure of, leaves it unsure.
+       flow.inBeat   0 to 1 through the beat (not "beat": kickBack keeps a count by that name); beatHit 1 on the frame a beat lands, also in a break; beatN counts them; period, the seconds a beat lasts (0 while not known)
+       flow.bar      the beat of the bar, 0 to 3 (0 is the one); barHit 1 on the frame a bar starts; barN counts them
+       flow.phrase   0 to 1 through eight bars; phraseHit 1 on the frame a phrase starts (on real songs it is right only now and then: good for when to change something, never for a flash)
+       flow.beatSure how sure the beat is, 0 to 1 (whatever keeps time by it goes its own way below 0.6), and barSure how sure the one is. Inside a 303's riff barSure can be high on the
+                     wrong beat: the riff says nothing of where a bar starts, so the clock keeps what it believed before, right or wrong (on the made-up acid song at 30 frames a second,
+                     after a seek back into its riff, it is sure of the second beat). A version change then lands on that beat each time, as it could on any kick before.
+                     So nothing goes by the phrase, and nothing that must be on the one may trust barSure alone
+     Two things already go by it. A page kick that lands between the beats of a sure clock, just after the beat's own kick, and is smaller than the kick, is a bass note (an off-beat or rolling bass line), and the pictures
+     do not take it for a kick (bassNote, in listen()). And a drop must be a real one: the kick back after the low end has really gone quiet, in a song whose kick has run before (dropTrue, in follow()).
+     And three things answer it:
+       the versions: a change that waits for a kick in the groove waits for the start of a bar instead while the clock is sure of the beat (over 0.6) and of the one (over 0.3), so the
+         picture changes where the music does (evolve). In a break it waits for the kick, as it always has. Never on the phrase yet: on real songs it is right too seldom;
+       sound.beat, a soft beat through a break: while the clock is sure and no hit has counted as the kick for 1.4 s (a tom or a bass note in the break does not stop it), each beat it keeps gives sound.beatHit (0.35, where a kick gives 0.55 to 1, times the
+         "Reacts to the music" knob) on its frame and sound.beat, which fades in a fifth of a second, as kickHit and kick do for the kick. It is only for small things, so a break keeps
+         its pulse without the whole picture blinking: the visitors' nod (never in Space, where the nod moves the whole view, nor in Neon heads, whose heads fill it) and the points of
+         light of Constellations. Nothing that sets how bright or how big the whole picture is may read it;
+       the dreamy lights (dreamNow), which chords now bring as a lead does (see the notes block). */
+  Object.assign(flow, { inBeat: 0, beatHit: 0, beatN: 0, period: 0, bar: 0, barHit: 0, barN: 0, phrase: 0, phraseHit: 0, beatSure: 0, barSure: 0 });
+  Object.assign(sound, { beat: 0, beatHit: 0 });
+  const CLOCK_KICKS = 24, SURE_KICKS = 16, NOVEL = 46, RIVALS = [3 / 4, 4 / 3, 2 / 3, 3 / 2, 1 / 2, 2]; // the kicks the tempo is read from, and how many of the latest say how sure it is; the bands (37 Hz to 2.4 kHz) whose change from beat to beat is weighed; the tempos a beat is often mistaken for, next to it
+  let songAt = -1; // where the song is, in seconds, as the app says each frame (audio.currentTime), or -1 when nobody says
+  const beatClock = { kicks: new Float64Array(CLOCK_KICKS), n: 0, at: 0, pos: 0, period: 0, last: 0, hitAt: 0, hitNew: false, hitBass: false, bass: false, lastKick: -9, lastOn: -9, lastKickPos: 0, run: 0, off: 0, errs: new Float32Array(3), stopped: true,
+    votes: new Float32Array(4), down: 0, votes8: new Float32Array(8), first: 0, sum: new Float32Array(NOVEL), had: new Float32Array(NOVEL), heard: 0, hadAny: false, mean: 0, spread: 0.02, meanMid: 0, spreadMid: 0.02, beatIndex: 0, runFrom: -9,
+    fitB: new Float64Array(CLOCK_KICKS), fitT: new Float64Array(CLOCK_KICKS), fitN: 0, fitAt: 0, seen: -1, time: 0, song: -1, wall: 0, lowTop: 0, quiet: 0, lowSeen: 0, ran: false };
+  function clockTime() { // the time the clock keeps, in seconds, worked out once a frame: the song's own, eased along by the wall clock, so a song time that moves in small steps still runs smoothly
+    const c = beatClock, wall = realNow / 1000;
+    if (c.seen === realNow) return c.time;
+    const step = wall - c.wall;
+    c.seen = realNow;
+    c.wall = wall;
+    if (songAt < 0) { c.song = -1; return (c.time = wall); }
+    const ahead = c.song + Math.min(0.1, Math.max(0, step));
+    if (c.song >= 0 && Math.abs(songAt - ahead) <= 0.25) c.song = ahead + (songAt - ahead) * Math.min(1, Math.max(0, step) / 0.3);
+    else { // the song is somewhere else: a seek, or the first frame of a song. The beat goes on where the song now is (its tempo is the same), but waits for a kick to say so
+      if (c.song >= 0 && Math.abs(songAt - c.song) > 0.25 && Math.abs(songAt - c.song - step) > 0.25) { flow.beatSure *= 0.5; c.hitNew = false; c.lastKick = c.lastOn = songAt; c.run = 0; c.stopped = true; c.runFrom = -9; } // (and the kick heard just before it is not this place's)
+      c.song = songAt;
+    }
+    return (c.time = c.song);
+  }
+  function grip(P) { // how well the kept kicks line up on beats P seconds apart: how near they all come to the same part of the beat, times how many of its beats have a kick
+    const c = beatClock, m = Math.min(c.n, CLOCK_KICKS), newest = c.kicks[(c.at + CLOCK_KICKS - 1) % CLOCK_KICKS];
+    let re = 0, im = 0, early = newest, late = newest;
+    for (let i = 0; i < m; i++) { const t = c.kicks[(c.at + CLOCK_KICKS - 1 - i) % CLOCK_KICKS], a = (TAU * (newest - t)) / P; re += Math.cos(a); im += Math.sin(a); early = Math.min(early, t); late = Math.max(late, t); }
+    return m ? ((re * re + im * im) / (m * m)) * Math.sqrt(Math.min(1, m / (Math.round((late - early) / P) + 1))) : 0;
+  }
+  function tempoOf() { // the tempo the last kicks fit best, from 70 to 190 a minute, with a little preference for the usual 120 to 150. Only on a kick: before the clock has a tempo, and on every eighth after
+    if (Math.min(beatClock.n, CLOCK_KICKS) < 6) return 0;
+    let best = 0, bestScore = 0;
+    for (let bpm = 70; bpm <= 190; bpm += 0.5) {
+      const away = Math.log2(bpm / 135), score = grip(60 / bpm) * Math.exp(-2 * away * away);
+      if (score > bestScore) { bestScore = score; best = bpm; }
+    }
+    return bestScore > 0.45 ? best : 0;
+  }
+  function sureness() { // how sure the clock is of its beat, from the last sixteen kicks: how near they land to its beats (as a spread in seconds), how many land right on one, and how much better its tempo fits them than the ones it is often mistaken for
+    const c = beatClock, m = Math.min(c.n, SURE_KICKS);
+    if (m < 6 || !c.period) return 0;
+    let on = 0, sq = 0;
+    for (let i = 0; i < m; i++) {
+      const t = c.kicks[(c.at + CLOCK_KICKS - 1 - i) % CLOCK_KICKS], kp = c.pos - (c.last - t) / c.period, err = Math.abs(kp - Math.round(kp));
+      if (err <= 0.08) { on++; sq += (err * c.period) ** 2; } // the spread is of the kicks right on a beat: one seen late, on a slow frame, only counts as one fewer on time
+    }
+    const spread = on ? Math.sqrt(sq / on) : 1, best = grip(c.period);
+    let rival = 0;
+    for (const r of RIVALS) rival = Math.max(rival, grip(c.period / r));
+    return clamp((0.025 - spread) / 0.015) * (on / m) * clamp((best - rival) / Math.max(0.01, best) / 0.25);
+  }
+  function fitGrid(beat, at) { // the straight line through the last kicks that were on time (beat number against time): its slope is the beat's length to a fraction of a millisecond, however ragged the frames that saw them
+    // (Where the line is started afresh, after the clock moves or in a new song, the count and the place the next kick is written both go back to the start, so only the new kicks are in it)
+    const c = beatClock;
+    c.fitB[c.fitAt] = beat; c.fitT[c.fitAt] = at; c.fitAt = (c.fitAt + 1) % CLOCK_KICKS; c.fitN = Math.min(CLOCK_KICKS, c.fitN + 1);
+    if (c.fitN < 8) return;
+    let sb = 0, st = 0;
+    for (let i = 0; i < c.fitN; i++) { sb += c.fitB[i]; st += c.fitT[i]; }
+    sb /= c.fitN; st /= c.fitN;
+    let sbb = 0, sbt = 0;
+    for (let i = 0; i < c.fitN; i++) { const d = c.fitB[i] - sb; sbb += d * d; sbt += d * (c.fitT[i] - st); }
+    if (!(sbb > 0)) return;
+    const P = sbt / sbb;
+    if (!(Math.abs(P / c.period - 1) <= 0.03)) return;
+    const fitPos = sb + (c.last - st) / P; // where the line puts the clock now
+    if (Math.abs(fitPos - c.pos) < 0.12) { c.period = P; c.pos += 0.5 * (fitPos - c.pos); }
+  }
+  function vote(slot, much) { beatClock.votes[((slot % 4) + 4) % 4] += much; }
+  function vote8(bar, much) { beatClock.votes8[((bar % 8) + 8) % 8] += much; }
+  function kickLanded(at) { // a kick that counts, at "at" seconds on the clock's time
+    const c = beatClock, gapBefore = at - c.lastKick;
+    c.kicks[c.at] = at; c.at = (c.at + 1) % CLOCK_KICKS; c.n++;
+    if (!c.period) {
+      const bpm = tempoOf();
+      if (bpm) {
+        c.period = 60 / bpm; c.pos = Math.round(c.pos); c.last = at;
+        if (c.runFrom > -9) { const first = c.pos + Math.round((c.runFrom - at) / c.period); vote(first, 3); vote8(Math.floor((first - c.down) / 4), 3); } // the first kick of a run that came out of silence is taken for a one, and a phrase start
+      }
+    } else {
+      const kp = c.pos - (c.last - at) / c.period, err = kp - Math.round(kp);
+      if (Math.abs(err) < 0.18) { c.pos -= 0.3 * err; c.period *= 1 + 0.05 * err; c.off = 0; c.lastOn = at; fitGrid(Math.round(kp), at); }
+      else { // off the beat: once may be a stray, three times alike means the clock has slipped
+        c.errs[c.off % 3] = err; c.off++;
+        if (c.off >= 3 && Math.abs(c.errs[0] - c.errs[1]) < 0.12 && Math.abs(c.errs[1] - c.errs[2]) < 0.12) { c.pos -= err; c.off = 0; c.fitN = c.fitAt = 0; }
+      }
+      if (c.n % 8 === 0) { const bpm = tempoOf(); if (bpm && Math.abs(60 / bpm / c.period - 1) > 0.04) { c.period = 60 / bpm; c.pos = Math.round(c.pos - (c.last - at) / c.period) + (c.last - at) / c.period; c.fitN = c.fitAt = 0; } } // the tempo itself moved on
+      const beatOf = Math.round(c.pos - (c.last - at) / c.period);
+      if (gapBefore > 3 * c.period) { vote(beatOf, 3); vote8(Math.floor((beatOf - c.down) / 4), 3); } // the kick coming in (after an intro or a break) comes in on the one, and on a phrase
+      c.lastKickPos = beatOf;
+    }
+    flow.beatSure = sureness();
+    c.run = gapBefore > 0 && gapBefore < 2 * (c.period || 0.5) ? c.run + 1 : 1;
+    if (c.run === 1 && gapBefore > 1.5) c.runFrom = at;
+    c.lastKick = at;
+    c.stopped = false;
+  }
+  function beatLanded() { // on the frame a beat lands: how much the beat that has just gone differed from the one before it, low end (the bass line) and middle (the chords) apart, as votes for its place in the bar
+    const c = beatClock, done = c.beatIndex - 1, riff = clamp((notesEar.acid - 0.3) / 0.4); // a 303 changes on every sixteenth, low and middle, and goes round each bar: what it does says nothing about where the bar starts. (What the 303 ear believes in any music, before the genre decides who may answer it: see follow())
+    if (c.heard > 0) {
+      let low = 0, mid = 0;
+      for (let b = 0; b < NOVEL; b++) { const v = c.sum[b] / c.heard, d = Math.abs(v - c.had[b]); if (b < 18) low += d; else mid += d; c.had[b] = v; c.sum[b] = 0; }
+      low /= 18; mid /= NOVEL - 18;
+      if (c.hadAny) {
+        const zl = (low - c.mean) / Math.max(0.004, c.spread), zm = (mid - c.meanMid) / Math.max(0.004, c.spreadMid), z = Math.max(zl, zm) * (1 - riff);
+        if (z > 0) vote(done, Math.min(2, z) * 0.3);
+        if (z > 2.5 && ((done - c.down) & 3) === 0) vote8(Math.floor((done - c.down) / 4), 1);
+        c.mean += (low - c.mean) * 0.06; c.spread += (Math.abs(low - c.mean) - c.spread) * 0.06; c.meanMid += (mid - c.meanMid) * 0.06; c.spreadMid += (Math.abs(mid - c.meanMid) - c.spreadMid) * 0.06;
+      }
+      c.hadAny = true;
+    }
+    c.heard = 0;
+    for (let i = 0; i < 4; i++) c.votes[i] *= 0.985; // what was heard long ago counts for less
+    for (let i = 0; i < 8; i++) c.votes8[i] *= 0.995;
+  }
+  function keepTime(dt, hit, low) { // once a frame, from follow(), after kickBack has had this frame's hit
+    const c = beatClock, now = clockTime();
+    c.lowTop = Math.max(low, c.lowTop * Math.exp(-dt / 0.3)); // the low end, held for a moment (for dropTrue: how long it has been quiet since the kick was last counted, and how long that could be told)
+    if (flow.gone === 0 && flow.run >= 2) c.quiet = c.lowSeen = 0; // (not on a lone kick: a pick-up or an impact in the break does not end it)
+    else if (low > 0) { c.lowSeen += dt; if (c.lowTop < 0.5 * flow.thump) c.quiet += dt; }
+    if (flow.steady > 2) c.ran = true; // this song's kick has run for two seconds or more
+    if (hit >= 0) { c.hitAt = now; c.hitNew = true; c.hitBass = c.bass; }
+    if (flow.gone === 0 && c.hitNew && now - c.hitAt < 0.15) { c.hitNew = false; if (!c.hitBass) kickLanded(c.hitAt); } // kickBack has just counted that hit as the kick (a bass note between the beats is left out: see bassNote)
+    if (!c.period) { c.last = now; return; }
+    const gap = now - c.last;
+    if (songAt < 0 && gap > 1.5) flow.beatSure *= 0.3; // on the wall clock a long gap (a tab put away) leaves it unsure until the kick says so. The song's own time has no such gaps
+    c.pos += gap / c.period; c.last = now;
+    if (now - c.lastKick > 8 * c.period) flow.beatSure *= Math.exp(-dt / 30); // through a long break it slowly grows less sure
+    if (!c.stopped && c.run >= 8 && now - c.lastKick > 2.5 * c.period) { c.stopped = true; vote(c.lastKickPos + 1, 1.5); vote8(Math.floor((c.lastKickPos + 1 - c.down) / 4), 1.5); } // and the beat after the last kick of a run is a one too
+    if (flow.clap) vote(Math.round(c.pos), -0.6); // the claps are on two and four
+    for (let b = 0; b < NOVEL; b++) c.sum[b] += raw[b + 2] * dt;
+    c.heard += dt;
+    const index = Math.floor(c.pos);
+    if (index > c.beatIndex) { c.beatIndex = index; flow.beatHit = 1; flow.beatN++; beatLanded(); }
+    else if (index < c.beatIndex - 1) c.beatIndex = index; // a seek back: the count goes back with the song, with no beat for it (a nudge back of less than a beat waits for the beat it had, so no beat lands twice)
+    let best = 0, second = -1e9;
+    for (let i = 1; i < 4; i++) if (c.votes[i] > c.votes[best]) best = i;
+    for (let i = 0; i < 4; i++) if (i !== best && c.votes[i] > second) second = c.votes[i];
+    if (best !== c.down && c.votes[best] > c.votes[c.down] + 1 + 0.2 * Math.abs(c.votes[c.down])) { c.down = best; for (let i = 0; i < 8; i++) c.votes8[i] *= 0.5; }
+    flow.barSure = clamp((c.votes[c.down] - second) / 3);
+    const inBar = (((index - c.down) % 4) + 4) % 4, barN = Math.floor((index - c.down) / 4);
+    if (flow.beatHit && inBar === 0) flow.barHit = 1;
+    let p8 = 0;
+    for (let i = 1; i < 8; i++) if (c.votes8[i] > c.votes8[p8]) p8 = i;
+    if (c.votes8[p8] > c.votes8[c.first] + 1) c.first = p8;
+    const inPhrase = (((barN - c.first) % 8) + 8) % 8;
+    if (flow.barHit && inPhrase === 0) flow.phraseHit = 1;
+    flow.inBeat = clamp(c.pos - index); flow.bar = inBar; flow.barN = barN; flow.period = c.period;
+    flow.phrase = (inPhrase + (inBar + flow.inBeat) / 4) / 8;
+  }
+  function bassNote(low) { // from listen(), on a frame with a page kick: whether it is a bass note and not the kick. While the clock is sure of its beat and this beat began with its kick, on time,
+    // a hit half-way to the next beat is one, and so is a hit anywhere well off the beat that is smaller than this song's kick (a rolling bass line's notes come on every sixteenth). low: how big the low end is just now, or 0.
+    // A hit as big as the kick is the kick, wherever it lands: a kick that skips ahead of the beat (a broken house beat), or every other kick of music twice as quick as the clock's tempo
+    const c = beatClock;
+    if (!c.period) return (c.bass = false);
+    const now = clockTime(); // (first: on the frame of a seek it leaves the clock less sure and the place it had is no longer the song's, so a kick landing just then is never taken for a bass note)
+    if (flow.beatSure <= 0.7 || c.lastOn === now) return (c.bass = false);
+    const at = c.pos + (now - c.last) / c.period, inBeat = at - Math.floor(at), small = low > 0 && low < 0.6 * flow.thump, big = low >= 0.8 * flow.thump;
+    return (c.bass = now - c.lastOn < c.period && !big && ((inBeat > 0.35 && inBeat < 0.65) || (small && inBeat > 0.2 && inBeat < 0.85))); // (so the first kick after a break is never one, nor a kick that has moved off the clock's beat: the clock moves onto it)
+  }
+  function dropTrue() { // from follow(), when kickBack has heard the kick come back: whether that is a drop. Two things it must have had first, as a drop in a song does:
+    // a real break, where the low end went quiet (under half this song's kick for more than a second of the gap, or for three tenths of it: a reese in a break still dips now and then;
+    // a gap whose low end could not be told is let be. A sub held steady through the whole break, as loud as half the kick or more, is not told from a bass line that goes on: that drop is missed),
+    // and this song's kick running before it, if only for two seconds (a song whose intro climbs into its first kick has not dropped yet: it has started).
+    // So where the hearing joins a song part-way, during a build (the Now page opened then, with nothing else listening before), the drop that ends it is missed: the price of a song's start never being one
+    const c = beatClock;
+    if (c.lowSeen > 1 && c.quiet < 1.2 && c.quiet < 0.3 * c.lowSeen) return false;
+    return flow.grooved || c.ran;
+  }
+  function hearMore(dt, hit, low, analyser) { // once a frame the music is heard, from follow(), once the pace of the song, the lead and the tune are known and kickBack has had this frame's hit
+    keepTime(dt, hit, low); // the clock
+    hearNotes(dt, hit, analyser); // the notes held together and the song's moment (the notes block)
+  }
+  function hearMoreNewSong() { // a new song, from song(): its clock is learned afresh, and nothing of the last one's notes is kept, nor of its usual
+    const c = beatClock, E = notesEar;
+    c.period = 0; c.n = 0; c.fitN = c.fitAt = 0; c.off = 0; c.run = 0; c.votes.fill(0); c.votes8.fill(0); c.lastKick = c.lastOn = -9; c.runFrom = -9; c.stopped = true; c.hitNew = false; c.song = -1; c.hadAny = false; c.ran = false; c.quiet = c.lowSeen = 0;
+    c.down = c.first = 0;
+    flow.beatSure = flow.barSure = flow.period = flow.inBeat = flow.bar = flow.barN = flow.phrase = 0;
+    E.start.fill(-9); E.seen.fill(-9); E.held.fill(0); E.quiet = 9; E.most = E.mostLow = 0; E.acidKept = 0; E.heard = 0; E.lift = E.heat = E.liftUsual = E.heatUsual = 0;
+    flow.notes = flow.single = flow.chords = flow.lift = flow.heat = 0;
+  }
+  /* ==== clock: end ==== */
   function follow(heard, hit, dt, low) {
     flow.dropHit = 0;
     flow.clap = flow.rollHit = flow.riserGone = 0; // the band's three answers that are only there on the frame they land, beside the lead's and the tune's
     flow.leadHit = flow.tuneHit = flow.acidHit = 0;
+    flow.beatHit = flow.barHit = flow.phraseHit = 0; // the clock's (see the clock block), also while paused
     if (!heard) return; // paused: it stays as it was
     acidHear(dt); // whether a 303 line is squelching just now: flow.acid, acidAt and acidHit
+    notesEar.acid = flow.acid; // what the 303 ear believes, whatever the music: the notes ear must never take a 303 for chords, nor the clock a 303's riff for the start of a bar (see both blocks)
     if (!acidMusic()) flow.acid = flow.acidHit = 0; // only in acid, hard trance, goa and psytrance: the singer, and everything else that answers the 303, keep away from other music
     bandHear(dt, hit); // the ears for claps and rolls and for risers: flow.clap, clapOn, clapEvery, roll, rollRate, rollHit, riser, riserAt, riserGone and riserFor
     let all = 0, high = 0;
@@ -200,7 +584,7 @@ window.Effects = (() => {
     const kicking = flow.since < 1.4, rising = flow.hiFast - flow.hiSlow;
     flow.steady = flow.gone < 1.4 ? flow.steady + dt : 0;
     if (flow.steady > 8) flow.grooved = true; // this song has been in its groove: from now on the kick coming back after a break is a drop // how long the song's own kick has been running. Past eight seconds it's in its groove, and highs that climb there (a hat coming in, a filter opening) aren't a build: nothing is being held back
-    if (back) { flow.drop = 1; flow.dropHit = 1; flow.build = 0; }
+    if (back) { if (dropTrue()) { flow.drop = 1; flow.dropHit = 1; } flow.build = 0; } // the kick back ends a build either way, but it is a drop only after a real break (see dropTrue in the clock block)
     flow.drop = Math.max(0, flow.drop - dt / (flow.gone > 1.4 ? 2 : 12)); // a drop is felt for about twelve seconds, or two once the kick has stopped again: a lone boom isn't one
     flow.build = kicking && flow.drop > 0.2 ? Math.max(0, flow.build - dt) : clamp(flow.build + dt * (rising > 0.015 && flow.steady < 8 ? 0.14 + rising * 4 : flow.since > 2 ? (flow.build < 0.25 ? 0.01 : -0.03) : -0.2)); // with no kick it creeps up, but only to just under where a "build" starts: music without a kick isn't one long build. And a build that has stopped climbing ebbs away slowly, so a held top before the drop still counts
     flow.calm = ease(!kicking && rising <= 0.015 ? 1 : 0, flow.calm, 1.5);
@@ -227,6 +611,7 @@ window.Effects = (() => {
     const some = clamp((flow.tone - flow.bare - 0.03) / 0.09);
     flow.tune = ease(some, flow.tune, some > flow.tune ? 1 : 2.5);
     if (flow.tune > 0.55 && flow.tuneArmed) { flow.tuneHit = 1; flow.tuneArmed = false; } else if (flow.tune < 0.3) flow.tuneArmed = true;
+    hearMore(dt, hit, low, heard); // the clock (the beat, the bar and the phrase), the notes held together and the song's moment: see the clock block and the notes block
     const tempo = flow.bpm ? Math.min(1.25, Math.max(0.8, (flow.bpm / 130) ** 0.6)) : 1; // a fast track runs a little quicker, a slow one a little slower
     flow.pace = ease(tempo * (flow.part === "drop" ? 1.2 + 0.3 * flow.drop : flow.part === "build" ? 1 + 0.3 * flow.build : flow.part === "calm" ? 0.75 : 1), flow.pace, 0.6); // how fast the picture runs
   }
@@ -241,7 +626,7 @@ window.Effects = (() => {
   const mote = (x, y, fast = 1) => ({ x, y, vy: -rnd(0.02, 0.07) * fast, sway: rnd(0, TAU), life: rnd(2.5, 5), age: 0, size: rnd(0.012, 0.03) }); // all as parts of the picture, so a change of its size doesn't move them
   function dreamNow(dt) { // how much of it there is this frame, before anything is drawn: the colors and the pictures that fade in place need to know
     const share = dreamShare(), part = Math.min(1, dt / 0.6), flight = (n) => { for (let i = Math.round(n * Math.min(1.5, share)); i > 0; i--) dream.motes.push(mote(rnd(0.2, 0.8), rnd(0.6, 1), 2.2)); };
-    dream.on += ((hearing ? Math.max(flow.lead, flow.tune * (TUNES[mood] ?? 0.6)) * share : 0) - dream.on) * part;
+    dream.on += ((hearing ? Math.max(flow.lead, 0.8 * flow.chords, flow.tune * (TUNES[mood] ?? 0.6)) * share : 0) - dream.on) * part; // chords (see the notes block) bring most of them too
     dream.held += ((hearing ? flow.lead * share : 0) - dream.held) * part; // the big lead by itself: the paler colors are for that alone
     dream.dt = dt;
     dream.t += dt;
@@ -966,7 +1351,7 @@ window.Effects = (() => {
     g.lineWidth = Math.max(1, h / 620);
     g.strokeStyle = rgba(colors[0], 0.36 + 0.5 * kick + 0.3 * acidLook.knob);
     g.stroke(bright);
-    for (let i = 0; i < LINKS; i++) glint(linkX[i], linkY[i], h * (0.018 + 0.018 * kick), 0.9);
+    for (let i = 0; i < LINKS; i++) glint(linkX[i], linkY[i], h * (0.018 + 0.018 * Math.max(kick, sound.beat)), 0.9); // (the points keep the beat through a break too)
     if (hatHit) for (let k = 0; k < 4; k++) { const i = Math.floor(rnd(0, LINKS)); twinkle(linkX[i], linkY[i], h * 0.07); }
   }
 
@@ -1461,6 +1846,7 @@ window.Effects = (() => {
   function nodAlong() { // a nod: down with the kick, and back up with a little overshoot. The ship and everything in Space does it, and the visitors anywhere
     const { dt, kickHit } = sound;
     if (kickHit) sky.bobSpeed += 3.8 * kickHit * T.nod;
+    else if (sound.beatHit && !TRIPS[name] && name !== "heads") sky.bobSpeed += 3.8 * sound.beatHit * T.nod; // and softly on the beat through a break (not in Space, where the nod moves the whole view, nor in Neon heads, where it nods the heads that fill it)
     spring(sky, "bob", "bobSpeed", 135, 11, dt);
   }
   function spring(o, at, speed, stiff, damp, dt, lean = 0) { // a weight on a spring, moved on in steps no longer than a sixtieth of a second: taken in one go, a long frame (a slow machine, a drop at full speed) throws it further each time instead of letting it settle
@@ -3068,7 +3454,8 @@ window.Effects = (() => {
     const hue = V.hue || 0;
     if (mood === "psy") return Array.from({ length: n }, (_, i) => rainbowTone(sound.t * 0.08, (i / n) * TAU + (hue * Math.PI) / 180)); // spread evenly round the wheel, all turning together
     const set = mood === "acid" ? [[246, 230, 50], [150, 240, 60], [255, 140, 30]] : mood === "hard" ? [[255, 50, 40], [170, 20, 30], [255, 140, 60]] : mood === "euphoric" ? [mix(colors[0], [255, 255, 255], 0.35), [170, 210, 255], [255, 190, 235]] : mood === "nightcore" ? NIGHT_PASTEL : colors, turn = set === colors ? 0 : hue * (mood === "euphoric" ? 0.5 : mood === "nightcore" ? 0.25 : 0.12); // nightcore: sakura pink, cyan and lavender
-    return Array.from({ length: n }, (_, i) => turnHue(set[i % set.length], turn));
+    const lit = mood === "acid" || mood === "hard" || mood === "euphoric" ? songTint(set, songMoment.mood, mood === "euphoric" ? 1 : 0) : set; // the song's moment on the mood's own colors: euphoric's first is the record's, which has it already
+    return Array.from({ length: n }, (_, i) => turnHue(lit[i % lit.length], turn));
   }
   function skyStars(n, bottom, seed = 1) { // a fixed scatter of stars, twinkling a little
     const { t } = sound;
@@ -5109,7 +5496,7 @@ window.Effects = (() => {
       const step = trip.steps[0];
       if (step && trip.at >= step.at && (sound.kickHit || trip.at >= step.at + 0.06)) { trip.steps.shift(); setVersion(step.pick, "fade", trip); }
       else if (!step && trip.at >= 1) { vary.trip = null; vary.on = 0; vary.due = phrase(); }
-    } else if ((vary.on += real) > vary.due && sound.kickHit) {
+    } else if ((vary.on += real) > vary.due && (flow.beatSure > 0.6 && flow.barSure > 0.3 ? flow.barHit && flow.gone < 1.4 : sound.kickHit)) { // on the start of a bar while the song's clock is sure of it, or else on a kick (and in a break, never)
       vary.on = 0;
       vary.due = phrase();
       if (Math.random() < 0.45 && drift(dials)) return;
@@ -5124,6 +5511,7 @@ window.Effects = (() => {
     const pale = Math.min(0.4, dream.held * 0.25); // and paler while a big lead plays
     if (pale > 0.004) colors = colors.map((c) => mix(c, [255, 255, 255], pale));
     colors = nightTint(acidTint(colors)); // and a little toward acid's yellow while the 303's singer sings; three quarters of the way to the pastels in the nightcore mood
+    colors = songTint(colors, songMoment.kept); // and the song's own moment: lighter and warmer in a euphoric part, deeper in an intense one (see the notes block)
   }
   function fold(kind, amount = 1) { // the picture folded on itself: mirrored down the middle, top to bottom, both ways, or round and round like a kaleidoscope, slowly turning. Less than all of it shows while one fold goes over to another
     if (amount < 0.004) return;
@@ -13865,7 +14253,7 @@ window.Effects = (() => {
       if (how === "down") pointer.tap = { x: pointer.x, y: pointer.y, at: realNow };
     },
     mood(next) { mood = next || ""; }, // what's playing decides who comes by
-    song(text, kind) { if ((text || "") !== nowSong) { flow.floor = 0.19; flow.bare = 0.13; flow.since = Math.max(flow.since, 1.4); flow.thump = 0; flow.spare = 0; flow.grooved = false; bandNewSong(); acidNewSong(); } nowSong = text || ""; genre = typeof kind === "string" ? kind : ""; }, // kind: the song's genres in words ("Acid, Techno"), for the effects that go by the kind of music. The name is for the cockpit's news, and a new song's usual is learned afresh: the last song's kick isn't this one's
+    song(text, kind) { if ((text || "") !== nowSong) { flow.floor = 0.19; flow.bare = 0.13; flow.since = Math.max(flow.since, 1.4); flow.thump = 0; flow.spare = 0; flow.grooved = false; bandNewSong(); acidNewSong(); hearMoreNewSong(); } nowSong = text || ""; genre = typeof kind === "string" ? kind : ""; }, // kind: the song's genres in words ("Acid, Techno"), for the effects that go by the kind of music. The name is for the cockpit's news, and a new song's usual is learned afresh: the last song's kick isn't this one's
     words: ["warp", "stop", "moo", "aliens"],
     word(what) { // typed on the keyboard, while a picture is showing
       if (!name) return;
@@ -13944,10 +14332,11 @@ window.Effects = (() => {
       } catch { base = PLAIN; return null; } finally { tint(); }
     },
     vivid(img) { try { return vividColors(img)[0] || null; } catch { return null; } }, // the strongest color on any picture, without touching what's on screen
-    frame(now, analyser, hit, tick, drawing = true, low = 0) { // drawing: whether the picture moves on this frame. The visitors on the app move either way. low: how big the low end is just now, for telling the kick from smaller thumps, or 0 if that isn't known
+    frame(now, analyser, hit, tick, drawing = true, low = 0, at = -1) { // at: where the song is, in seconds (the clock keeps the beat by it; see the clock block). drawing: whether the picture moves on this frame. The visitors on the app move either way. low: how big the low end is just now, for telling the kick from smaller thumps, or 0 if that isn't known
       const real = Math.min(0.1, last ? (now - last) / 1000 : 0.016), dt = real * T.speed * flow.pace, showing = !!name && drawing; // slower in a calm part, quicker through a build and a drop
       last = now;
       realNow = now;
+      songAt = Number.isFinite(at) && at >= 0 ? at : -1;
       hearing = !!analyser;
       if (showing) sound.t += dt;
       sound.dt = dt;
@@ -13961,6 +14350,7 @@ window.Effects = (() => {
         dreamNow(real);
         acidNow(real);
         acidAll(real); // what every picture hears of the 303 (the acidall block)
+        songMomentNow(real); // the song's moment, eased for the colors
         tint();
         drawFrame();
         drawFlow(real);
@@ -13968,7 +14358,7 @@ window.Effects = (() => {
       }
       guests(real);
     },
-    flow: () => flow, // how the song is going, for the rest of the app: part (groove, calm, build or drop), intensity, bpm, and dropHit on the frame a drop lands
+    flow: () => flow, // how the song is going, for the rest of the app: part (groove, calm, build or drop), intensity, bpm, dropHit on the frame a drop lands, the clock (inBeat, beatHit, bar, barHit, phrase, period, beatSure, barSure: see the clock block), and the notes and the moment (notes, single, chords, lift, heat: see the notes block)
     when(next) { when = { ...when, ...next }; }, // the time of day, the season, the record's era and the party, from the app
   };
 })();

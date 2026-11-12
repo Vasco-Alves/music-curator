@@ -2554,7 +2554,7 @@ window.addEventListener("pointercancel", fingerUp, { passive: true });
 const ambient = (() => { // a tiny picture stretched over the window: it looks blurred, and moving it costs next to nothing, unlike a real blur
   const SIZE = 64, THUMB = 9, CAP = 112, FLOOR = 190; // how bright (dark theme) or how dark (light theme) it may get: the words on top have to stay readable
   const box = el("div", { class: "ambient", "aria-hidden": "true" }), layers = [0, 1].map(() => el("canvas", { width: SIZE, height: SIZE }));
-  box.append(...layers, el("div", { class: "ambient-scrim" }), el("div", { class: "ambient-flash" }), ...Packs.MOODS.map((mood) => el("div", { class: `vibe vibe-${mood}` })), el("div", { class: "timeglow" }), el("div", { class: "era" }));
+  box.append(...layers, el("div", { class: "ambient-scrim" }), el("div", { class: "ambient-flash" }), ...Packs.MOODS.map((mood) => el("div", { class: `vibe vibe-${mood}` })), el("div", { class: "vibe vibe-moment vibe-lift" }), el("div", { class: "vibe vibe-moment vibe-heat" }), el("div", { class: "timeglow" }), el("div", { class: "era" }));
   document.body.prepend(box);
   const thumb = el("canvas", { width: THUMB, height: THUMB });
   let front = 0, turn = 0;
@@ -3363,14 +3363,36 @@ function sparkle(now, strength) { // far too many of these for anything bigger: 
   }
 }
 const glowing = () => (kickOn || flashOn || sparkleOn || surprises.dance.often !== "off" || surprises.bob.often !== "off" || surprises.logo.often !== "off" || surprises.visitors.often !== "off" || danceUntil > performance.now() || bobUntil > performance.now()) && !calm.matches; // any of them needs to hear the music
+/* The song's moment on the background: how euphoric (flow.lift) and how intense (flow.heat) this part of the song is, next to what is usual for it, and how open a 303's filter is
+   (flow.acidKnob out of flow.acidOn, while a line plays), from the effects' ears. They are written onto the background box as --lift, --heat and --open, for hifi.css: a warm light from above
+   in a euphoric part, deeper edges in an intense one (the hard mood's own vignette deepens instead), and the acid glow rising as the filter opens. At most four times a second (once in the
+   gentle look), and only when one has moved by more than 0.02: the CSS eases them over a second and a half. With the music stopped, the look not following the music, or less motion asked for,
+   they rest (0, 0 and 0.5). */
+const songLook = (() => {
+  const shown = { "--lift": 0, "--heat": 0, "--open": 0.5 };
+  let box = null, last = -1e9;
+  const put = (name, v, rest) => { if (Math.abs(v - shown[name]) > 0.02 || (v === rest && v !== shown[name])) { shown[name] = v; box.style.setProperty(name, v.toFixed(2)); } };
+  return (flow, now) => {
+    if (flow && now - last < (document.body.classList.contains("gentle") ? 1000 : 250)) return; // the rest is let through at once: it may be the last call before the music stops asking
+    last = now;
+    box = box || $(".ambient");
+    if (!box) return;
+    const on = !!flow && vibesOn && !calm.matches, acid = on ? flow.acidOn ?? 0 : 0; // (acidOn and acidKnob come with the 303 for every picture: until then the glow stays where it is)
+    put("--lift", on ? flow.lift || 0 : 0, 0);
+    put("--heat", on ? flow.heat || 0 : 0, 0);
+    put("--open", acid > 0.5 ? Math.min(1, (flow.acidKnob ?? 0) / acid) : 0.5, 0.5);
+  };
+})();
 const visiting = () => !!FX && FX.visiting(); // somebody on the app itself, who keeps moving even with the music stopped
 function soundFrame(now) {
   kickFrame = 0;
   const hearing = !!kickLevel && !audio.paused, picture = fxShowing() && (hearing || onNowPage()), guests = visiting(); // on the other pages it only moves while there's music
-  if (document.hidden || !((glowing() && hearing) || picture || guests)) return;
+  const going = !document.hidden && ((glowing() && hearing) || picture || guests); // whether this goes on to the next frame
+  songLook(FX && hearing && going ? FX.flow() : null, now); // the song's moment on the background, at rest once the music stops or once nothing asks for the sound (it would not move again till then)
+  if (!going) return;
   kickFrame = requestAnimationFrame(soundFrame);
   const hit = hearing ? findKick(now) : -1, tick = hearing ? findHat(now) : -1, low = hearing ? lowNow(now) : 0;
-  if (FX && hearing && !(picture || guests)) FX.frame(now, kickWide, hit, tick, false, low); // no picture to draw, but it still follows how the song is going
+  if (FX && hearing && !(picture || guests)) FX.frame(now, kickWide, hit, tick, false, low, audio.currentTime); // no picture to draw, but it still follows how the song is going
   const flow = FX && hearing ? FX.flow() : null, lift = flow ? 0.6 + 0.8 * flow.intensity : 1; // softer in a calm part, harder in a drop
   if (hit >= 0 && glowing()) {
     if (kickOn) glow(Math.min(1.5, hit * lift));
@@ -3383,7 +3405,7 @@ function soundFrame(now) {
   if (hit >= 0) bobbing(now, hit);
   if (hit >= 0) logoNow(now, hit);
   if (hit >= 0) visitNow(now, hit);
-  if (picture || guests) FX.frame(now, hearing ? kickWide : null, hit, tick, picture, low);
+  if (picture || guests) FX.frame(now, hearing ? kickWide : null, hit, tick, picture, low, audio.currentTime); // where the song is, last: the effects keep the beat by the song's own time, so a pause or a seek does not throw it off
 }
 async function startSound() {
   if (!glowing() && !fxShowing() && !visiting()) return;
