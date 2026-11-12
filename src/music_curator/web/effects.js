@@ -4270,9 +4270,10 @@ window.Effects = (() => {
     g.globalCompositeOperation = "lighter";
     for (let band = 0, N = V.curtains; band < N; band++) {
       const tone = tones[band % 3], base = h * (0.34 + band * (0.24 / N) - (V.lake ? 0.05 : 0)), top = (u) => base + Math.sin(u * 4 + t * (0.3 + band * 0.1)) * h * 0.06 + Math.sin(u * 11 - t * 0.5 + band) * h * 0.02 - h * (0.12 + 0.12 * bass + 0.05 * Math.sin(u * 7 + t));
+      const red = clamp((tone[0] / (tone[0] + tone[1] + tone[2] + 1) - 0.5) / 0.3); // how much this curtain is a saturated red (the hard mood's): such a curtain hardly brightens on the kick, as a big red area flashing on every kick is a red flash, the kind that can hurt
       const curtain = g.createLinearGradient(0, base - h * 0.3, 0, base + h * 0.2);
       curtain.addColorStop(0, rgba(tone, 0));
-      curtain.addColorStop(0.5, rgba(tone, 0.26 + 0.2 * kick));
+      curtain.addColorStop(0.5, rgba(tone, 0.26 + 0.2 * kick * (1 - 0.75 * red)));
       curtain.addColorStop(1, rgba(tone, 0));
       g.fillStyle = curtain;
       g.beginPath();
