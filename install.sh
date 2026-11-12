@@ -11,7 +11,7 @@
 #      command for your system, as that needs sudo, which this script never runs.
 #   4. Your Discogs token, if there isn't one yet: it opens the page where you make one and a .env file in your text editor
 #      to paste it into. The token never passes through this script.
-#   5. curator doctor, to show what is ready, and then Pressling opens in your browser.
+#   5. pressling doctor, to show what is ready, and then Pressling opens in your browser.
 #
 #   --no-open    does everything but open Pressling at the end
 #   --dry-run    only says what it would do: nothing is installed, changed or opened
@@ -115,10 +115,10 @@ fi
 
 step "Discogs token"
 doctor=""
-if has curator; then doctor=$(curator doctor 2>&1) || true; fi
+if has pressling; then doctor=$(pressling doctor 2>&1) || true; fi
 envfile=$(printf '%s\n' "$doctor" | sed -n 's/^DISCOGS_TOKEN: MISSING .* in \(.*\))$/\1/p' | head -n 1)
 if [ -z "$doctor" ]; then
-  say "(dry run) would check the token with curator doctor."
+  say "(dry run) would check the token with pressling doctor."
 elif [ -z "$envfile" ]; then
   say "There is a token."
 else
@@ -134,7 +134,7 @@ else
 fi
 
 step "Check"
-run "curator doctor" curator doctor || true
+run "pressling doctor" pressling doctor || true
 
 if [ "$OPEN" = 0 ]; then say ""; say "All set. Start it any time with: pressling"; exit 0; fi
 step "Opening Pressling"

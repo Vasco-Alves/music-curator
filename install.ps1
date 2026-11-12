@@ -10,7 +10,7 @@
     3. ffmpeg, only if you want it (the Curator needs it, plain playing doesn't): with winget.
     4. Your Discogs token, if there isn't one yet: it opens the page where you make one and a .env file in Notepad to paste it into.
        The token never passes through this script.
-    5. curator doctor, to show what is ready, and then Pressling opens in your browser.
+    5. pressling doctor, to show what is ready, and then Pressling opens in your browser.
 
   -NoOpen     does everything but open Pressling at the end
   -DryRun     only says what it would do: nothing is installed, changed or opened
@@ -88,13 +88,13 @@ else {
 
 Step "Discogs token"
 $doctor = @()
-if (-not ($DryRun -and -not (Has "curator"))) { # (with its warnings on stderr too, which Windows PowerShell would otherwise stop on)
+if (-not ($DryRun -and -not (Has "pressling"))) { # (with its warnings on stderr too, which Windows PowerShell would otherwise stop on)
   $was = $ErrorActionPreference; $ErrorActionPreference = "Continue"
-  $doctor = @(curator doctor 2>&1 | ForEach-Object { "$_" })
+  $doctor = @(pressling doctor 2>&1 | ForEach-Object { "$_" })
   $ErrorActionPreference = $was
 }
 $missing = $doctor | Where-Object { $_ -match '^DISCOGS_TOKEN: MISSING .* in (.+)\)$' } | Select-Object -First 1
-if (-not $missing) { Say $(if ($doctor.Count) { "There is a token." } else { "(dry run) would check the token with curator doctor." }) }
+if (-not $missing) { Say $(if ($doctor.Count) { "There is a token." } else { "(dry run) would check the token with pressling doctor." }) }
 else {
   $envFile = [regex]::Match($missing, ' in (.+)\)$').Groups[1].Value
   Say "The Curator looks songs up on Discogs, which needs a free token (plain playing doesn't)."
@@ -111,7 +111,7 @@ else {
 }
 
 Step "Check"
-Run "curator doctor" { curator doctor }
+Run "pressling doctor" { pressling doctor }
 
 if ($NoOpen) { Say ""; Say "All set. Start it any time with: pressling"; return }
 Step "Opening Pressling"

@@ -39,7 +39,7 @@ From a copy of this repository it is `install.ps1` or `sh install.sh` (with `-Dr
 It installs uv if it's missing (with uv's own installer, once you say yes), then Pressling (from PyPI once it is there, else the
 newest code on GitHub), ffmpeg only if you want it (winget on Windows, Homebrew on macOS; on Linux it tells you the command),
 opens the Discogs page and an empty `.env` file for you to paste your token into (the token never goes through the script),
-runs `curator doctor` and opens Pressling.
+runs `pressling doctor` and opens Pressling.
 
 Or by hand, with no programming needed: three commands, about ten minutes.
 
@@ -99,7 +99,7 @@ give it two more things:
 
   On macOS and Linux, see [Your Discogs token](#your-discogs-token).
 
-`curator doctor` says what's still missing.
+`pressling doctor` says what's still missing.
 
 ## Two ways to use it
 
@@ -185,7 +185,7 @@ python3 -m venv .venv
 .venv/bin/curator serve
 ```
 
-`curator serve` opens your browser, where you pick your library and downloads folders. `curator doctor`, run the same way,
+`curator serve` opens your browser, where you pick your library and downloads folders. `pressling doctor`, run the same way,
 checks that everything is in place. From then on, that full path is how you start the app. If you'd rather type just `curator`,
 activate the environment first in each new terminal: `.venv\Scripts\activate` on Windows, `source .venv/bin/activate` on macOS and Linux.
 
@@ -198,7 +198,7 @@ go. Songs that can't be settled stay put and show up in To check.
 ### Your Discogs token
 
 Lookups need a free token from <https://www.discogs.com/settings/developers>. The easiest place for it is a text file called
-`.env` next to your settings, with one line (`curator doctor` says which folder, and so does the page):
+`.env` next to your settings, with one line (`pressling doctor` says which folder, and so does the page):
 
 ```
 DISCOGS_TOKEN=your token here
