@@ -10,7 +10,7 @@ window.Effects = (() => {
   let g = stage; // what's being drawn on: the picture, or for a moment the visitors' own layer over the app
   const sound = { bands: new Float32Array(BANDS), wave: new Float32Array(POINTS), bass: 0, mid: 0, treble: 0, level: 0, kick: 0, hat: 0, kickHit: 0, hatHit: 0, t: 0, dt: 0.016 };
   const pointer = { on: false, x: 0, y: 0, at: -1e9, tap: null, tapped: null, taken: false, rings: [] }; // the mouse over the picture, in the picture's own dots: on while it is over the picture itself (not the page's buttons or words), at when it last moved (the clock, in ms), and tapped, a click, there for the one frame after it lands, as kickHit is for a kick. An effect that answers a click in its own way sets taken in that frame, and then no ring goes out. rings: the soft rings that clicks send out
-  const T = { light: 1, react: 1, speed: 1, drag: 1, spark: 1, nod: 1, turns: 1, moves: 1, shots: 1, folk: 1, acid: 1, band: 1, pit: 1, tilt: 1, vary: 1, dream: 1, falls: 1, color: 1, echo: 1, breathe: 1, sounds: 1, tricks: 1 }; // what's been adjusted for the effect showing: 1 is how it was designed
+  const T = { light: 1, react: 1, speed: 1, drag: 1, spark: 1, nod: 1, turns: 1, moves: 1, shots: 1, folk: 1, acid: 1, band: 1, pit: 1, tilt: 1, vary: 1, dream: 1, falls: 1, color: 1, echo: 1, breathe: 1, sounds: 1, tricks: 1, punch: 1 }; // what's been adjusted for the effect showing: 1 is how it was designed
   const STYLES = { // each effect and its styles, by the name a style goes by
     ribbon: [["ribbon", "Classic"], ["silk", "Silk"], ["helix", "Helix"], ["strings", "Strings"]],
     bars: [["bars", "Classic"], ["mirror", "Mirror"], ["leds", "LEDs"], ["terrain", "Landscape"], ["scope", "Scope"]],
@@ -28,7 +28,7 @@ window.Effects = (() => {
   const FOLK_OF = { arcade: ["astronaut", "shapes", "neon", "jelly"], ocean: ["jelly", "whale", "jelly", "shapes"], neonroad: ["neon", "shapes", "saucer", "neon"], aurora: ["saucer", "astronaut", "neon", "saucer"], // some places have their own visitors
     tube: ["shapes", "neon", "eye", "saucer"], heads: ["saucer", "eye", "shapes", "neon"], sphere: ["astronaut", "saucer", "shapes", "jelly"], solids: ["shapes", "saucer", "neon", "astronaut"], city: ["saucer", "neon", "saucer", "shapes"] };
   const FAMILY = Object.fromEntries(Object.entries(STYLES).flatMap(([family, list]) => list.map(([style]) => [style, family])));
-  const KNOBS = { light: ["Brightness", 0.3, 1.7], react: ["Reacts to the music", 0.2, 1.8], speed: ["Speed", 0.3, 2], spark: ["Glints on the hi-hats", 0, 2], drag: ["Length of the trails", 0.4, 2.5], nod: ["Nodding to the beat", 0, 2], turns: ["Changes of course", 0, 3], moves: ["Jumps and stops", 0, 3], band: ["Crowd and dancers", 0, 2], pit: ["Cockpit", 0, 1], shots: ["Shooting stars", 0, 3], folk: ["Visitors", 0, 3], acid: ["Singing to the 303", 0, 2], tilt: ["Turning now and then", 0, 3], vary: ["Changes by itself", 0, 3], dream: ["Dreamy lights", 0, 2], falls: ["Falling into planets", 0, 3], color: ["Colors that travel", 0, 1.5], echo: ["After-images", 0, 2], breathe: ["Breathing", 0, 2], sounds: ["Answers to sounds", 0, 2], tricks: ["Color tricks", 0, 2] };
+  const KNOBS = { light: ["Brightness", 0.3, 1.7], react: ["Reacts to the music", 0.2, 1.8], speed: ["Speed", 0.3, 2], spark: ["Glints on the hi-hats", 0, 2], drag: ["Length of the trails", 0.4, 2.5], nod: ["Nodding to the beat", 0, 2], turns: ["Changes of course", 0, 3], moves: ["Jumps and stops", 0, 3], band: ["Crowd and dancers", 0, 2], pit: ["Cockpit", 0, 1], shots: ["Shooting stars", 0, 3], folk: ["Visitors", 0, 3], acid: ["Singing to the 303", 0, 2], tilt: ["Turning now and then", 0, 3], vary: ["Changes by itself", 0, 3], dream: ["Dreamy lights", 0, 2], falls: ["Falling into planets", 0, 3], color: ["Colors that travel", 0, 1.5], echo: ["After-images", 0, 2], breathe: ["Breathing", 0, 2], sounds: ["Answers to sounds", 0, 2], tricks: ["Color tricks", 0, 2], punch: ["Hard kicks", 0, 2] };
   const LEAVES_TRAILS = new Set(["trails", "tunnel", "vortex", "prism", "ripple", "comets", "stars", "whirl", "fireworks", "scope"]);
   const raw = new Float32Array(BANDS), leadHold = new Float32Array(BANDS), leadMid = new Float32Array(512), leadSum = new Float32Array(513), peaks = new Float32Array(160), stars = new Float32Array(STARS * 3), HEADS = 9, past = new Float32Array(HEADS * 2).fill(NaN), orbits = new Float32Array(HEADS);
   let nowSong = "", genre = "", mood = "", name = "", alone = false, w = 0, h = 0, quality = 1, colors = PLAIN, picture = null, last = 0, slowTime = 0, slowFrames = 0, top = 0.3, waveTop = 0.1, freq = null, time = null, binHz = 23.4;
@@ -13084,6 +13084,164 @@ window.Effects = (() => {
     g.setTransform(1, 0, 0, 1, 0, 0);
   }
   /* ==== moments: end ==== */
+  /* ==== punch: begin ==== */
+  /* Hard kicks. In hard music every effect gets a punch on each kick, laid over the finished picture: hardstyle and its kin get it fullest, the hardcore family, whose kicks come quicker, a little less.
+     On the kick the whole picture jumps a few percent nearer, tips a little to one side (the other side on the next kick) and shakes, and is back where it was a tenth of a second later.
+     Its colors tear apart sideways, the warm from the blue, as the kick's own sound is torn; its lines, edges and small bright shapes flash to white and glow; and the edges of the picture flash in a pale tone of the mood's color.
+     Kept safe for eyes that flashing can hurt. The movement may come on every kick, but what could light up much of the picture comes at most twice a second whatever the tempo, which leaves room for the effect's own flashes
+     (so at hardstyle's pace it comes on every other kick, and in quicker music still the effect itself answers the kicks in between at half strength), and what comes in between is too faint to count as a flash. Red is never flashed: the colors only move, what flashes is white or pale, and nothing flashes where the picture is a deep red, as a red going white is a red flash too.
+     It goes over the picture after the effect and is taken off again before the next frame (the clean copy, as for the visitors), so an effect that keeps its last frame never keeps the punch. */
+  const punch = { age: 9, size: 0, big: false, lit: false, bigAt: -1e9, hitAt: -1e9, toneAt: NaN, was: 0, side: 1, turn: 0, way: 0, key: null, kind: 0, art: null, soft: null, glow: null, edge: null, edgeTone: "" }; // age: seconds since the kick (9 when none is going on); size: how hard this one hits; big: whether it may flash much of the picture, lit whether it flashes at all, and bigAt when the last one that did came, hitAt when the last kick came (the real clock, in ms), toneAt the kick the edges' color was last looked at for; kind: how hard the music asks for it, 0 when it isn't hard music; art, soft, glow and edge: the canvases it works on, kept and made again only when the picture's size changes
+  function punchKind() { // 1 for hardstyle and its kin, in whatever mood (euphoric hardstyle is hardstyle too), 0.85 for other hard music, 0.7 for the hardcore family (its kicks come too often for the biggest punch), 0 for music that isn't hard. Worked out again only when the genres or the mood change
+    const key = mood + "|" + genre;
+    if (key === punch.key) return punch.kind;
+    punch.key = key;
+    const words = " " + genre.toLowerCase().replace(/[^a-z0-9]+/g, " ") + " ", has = (...list) => list.some((word) => words.includes(word));
+    punch.kind = has("hardstyle", "rawstyle", "jumpstyle", "hard dance", "hardjump", "hard jump") ? 1 : musicWorld() !== "hard" ? 0 : /[^s]core /.test(words) || has("gabber", "terror", "uptempo") ? 0.7 : 0.85; // ("core" but not "score", as musicWorld has it)
+    return punch.kind;
+  }
+  function punchPapers() { // the canvases, kept at the picture's size: a copy of the picture to work on; two a quarter the size, for the picture made soft and then how red it is, and for its lines made soft and the glow along the edges; and a small one holding the glow along the edges
+    if (!punch.art || punch.art[0].width !== w || punch.art[0].height !== h) punch.art = paper(w, h);
+    const gw = Math.ceil(w / 4), gh = Math.ceil(h / 4);
+    if (!punch.soft || punch.soft[0].width !== gw || punch.soft[0].height !== gh) { punch.soft = paper(gw, gh); punch.glow = paper(gw, gh); }
+    const ew = 160, eh = Math.max(40, Math.round((160 * h) / w));
+    if (!punch.edge || punch.edge[0].height !== eh) {
+      punch.edge = paper(ew, eh);
+      const dots = punch.edge[1].createImageData(ew, eh), deep = Math.min(ew, eh) * 0.06; // in from each side six hundredths of the picture's narrower way, strongest at the very edge: thin, so that even all round it is a small part of the picture
+      for (let y = 0; y < eh; y++) for (let x = 0; x < ew; x++) {
+        const near = Math.max(0, 1 - Math.min(x + 0.5, ew - x - 0.5, y + 0.5, eh - y - 0.5) / deep), p = (y * ew + x) * 4;
+        dots.data[p] = dots.data[p + 1] = dots.data[p + 2] = 255;
+        dots.data[p + 3] = Math.round(255 * near * near);
+      }
+      punch.edge[1].putImageData(dots, 0, 0);
+      punch.edgeTone = "";
+      punch.toneAt = NaN; // (so its color is put on it again before it is drawn)
+    }
+  }
+  function punchHear() { // from drawFrame(), before the effect is drawn: is there a kick, how hard, and may it flash much of the picture
+    const step = Math.min(0.1, Math.max(0, (realNow - punch.was) / 1000)), kind = T.punch > 0 ? punchKind() : 0; // by the real clock, as the kick's sound goes: the Speed slider doesn't stretch a kick
+    punch.was = realNow;
+    if (!kind) { punch.age = 9; return; }
+    punch.age += step;
+    if (!(sound.kickHit > 0 || flow.dropHit)) return;
+    const drop = !!flow.dropHit, quick = realNow - punch.hitAt < 340;
+    punch.hitAt = realNow;
+    punch.age = 0;
+    punch.size = kind * Math.min(1, Math.max(0.55, sound.kickHit)) * (drop ? 1.5 : 1); // the drop moves the picture half as far again
+    punch.side = -punch.side;
+    punch.turn = (punch.turn + 0.618) % 1;
+    punch.way = (punch.turn - 0.5) * 1.2 + (punch.side * Math.PI) / 2; // the shake goes mostly up and down, as a thump does: one way and then the other, and never twice quite the same
+    punch.big = !drop && realNow - punch.bigAt >= 500; // the big flash at most twice a second, so at hardstyle's pace and quicker on every other kick: the effect's own flashes in between still keep the whole picture under three a second
+    punch.lit = !drop; // a drop has its own white flash: its kick only moves the picture, and no big flash comes until that one has nearly gone
+    if (punch.big) punch.bigAt = realNow;
+    if (drop) punch.bigAt = realNow + 400; // and none for nine tenths of a second after a drop, while the drop's own flash fades
+    if (quick && !punch.big && !drop) { sound.kickHit *= 0.5; sound.kick *= 0.5; } // in music this quick the effect itself answers the kicks in between at half strength, so an effect that lights up on every kick doesn't flash more than three times a second either
+  }
+  function punchFrame() { // from drawFrame(), over the picture and under the visitors
+    const a = punch.age;
+    if (a >= 0.12 || !w) return; // most of the time there is nothing to do
+    if (dirty && morph) return; // an effect that fades in place, while another one goes away over it: its clean copy has none of the old picture in it, so the punch waits for the change to end
+    const P = Math.min(2, T.punch), s = punch.size * P, near = (1 - a / 0.12) ** 2, flash = punch.lit && a < 0.09 ? (1 - a / 0.09) ** 1.5 : 0, tear = a < 0.1 ? 1 - a / 0.1 : 0;
+    punchPapers();
+    if (!dirty) { clean = copyOf(clean); dirty = true; } // taken off again before the next frame: the effect's next frame starts from the picture as it was
+    const from = clean, [art, ax] = punch.art, [sc, sx] = punch.soft, [gc, gx] = punch.glow, gw = gc.width, gh = gc.height;
+    if (punch.toneAt !== punch.hitAt) { // the edges' glow in a pale tone of the mood's color, looked at once a kick: warm in hard music but never a saturated red, and only along the edges, never over the middle
+      punch.toneAt = punch.hitAt;
+      const [ec, ecx] = punch.edge, tone = rgba(mix(moodColors(1)[0], [255, 255, 255], 0.6), 1);
+      if (tone !== punch.edgeTone) { ecx.globalCompositeOperation = "source-in"; ecx.fillStyle = tone; ecx.fillRect(0, 0, ec.width, ec.height); punch.edgeTone = tone; }
+    }
+    const z = 1 + Math.min(0.12, 0.05 * s * near), room = z - 1, ratio = Math.max(w / h, h / w); // how much nearer; and the room that leaves at the edges, which the tip, the shake and the tear stay inside so no edge ever shows
+    const tip = punch.side * Math.min(0.014 * s * near, (0.35 * room) / ratio), shake = Math.exp(-a / 0.045) * Math.cos((a * TAU) / 0.085) * 0.02 * Math.min(w, h) * s;
+    const keepX = 0.3 * room * w, keepY = 0.3 * room * h, dx = Math.max(-keepX, Math.min(keepX, shake * Math.cos(punch.way))), dy = Math.max(-keepY, Math.min(keepY, shake * Math.sin(punch.way)));
+    const torn = Math.min(0.2 * room * w, 0.008 * w * Math.min(1, s) * tear), c = z * Math.cos(tip), sn = z * Math.sin(tip), ex = w / 2 + dx - (c * w) / 2 + (sn * h) / 2, ey = h / 2 + dy - (sn * w) / 2 - (c * h) / 2; // the tear is never wider than at slider 1: a wider one paints colored fringes over much of a finely drawn picture
+    g.save();
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = "source-over";
+    g.imageSmoothingEnabled = FAMILY[name] !== "pixel"; // a pixel world keeps its square dots
+    g.setTransform(c, sn, -sn, c, ex - torn / 2, ey);
+    g.drawImage(from, 0, 0);
+    ax.globalAlpha = 1;
+    if (torn >= 0.75) { // the colors torn apart: the picture's blue where it was, and its red and green together a little further over. Nothing gets brighter for it, the colors only move.
+      // Red and green go together so that an orange or white line, torn, never leaves a fringe of pure red beside it: over a picture of fine lines that would be a red flash over much of it
+      ax.globalCompositeOperation = "copy";
+      ax.drawImage(from, 0, 0);
+      ax.globalCompositeOperation = "multiply";
+      ax.fillStyle = "#ffff00";
+      ax.fillRect(0, 0, w, h);
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.globalCompositeOperation = "multiply";
+      g.fillStyle = "#0000ff";
+      g.fillRect(0, 0, w, h);
+      g.setTransform(c, sn, -sn, c, ex + torn / 2, ey);
+      g.globalCompositeOperation = "lighter";
+      g.drawImage(art, 0, 0);
+    }
+    g.imageSmoothingEnabled = true;
+    if (flash > 0) {
+      sx.globalCompositeOperation = "copy"; // the lines, edges and small bright shapes of the picture: how far it is from itself made soft, in grey and doubled. Wide even parts have none of it, so they don't flash
+      sx.drawImage(from, 0, 0, sc.width, sc.height);
+      ax.globalCompositeOperation = "copy";
+      ax.drawImage(from, 0, 0);
+      ax.globalCompositeOperation = "difference";
+      ax.drawImage(sc, 0, 0, sc.width, sc.height, 0, 0, w, h);
+      ax.globalCompositeOperation = "color";
+      ax.fillStyle = "#808080";
+      ax.fillRect(0, 0, w, h);
+      ax.globalCompositeOperation = "lighter";
+      ax.drawImage(art, 0, 0);
+      gx.globalAlpha = 1; // and none of it where the picture is a deep red, as a red going white is a red flash too. How red each part is: its red's share of the light less its green's and blue's, made sixteen times as strong, so a deep red or orange counts fully and a pink, a white or any other color not at all
+      gx.globalCompositeOperation = "copy";
+      gx.drawImage(sc, 0, 0);
+      gx.globalCompositeOperation = "multiply";
+      gx.fillStyle = "#00ffff";
+      gx.fillRect(0, 0, gw, gh);
+      gx.globalCompositeOperation = "color";
+      gx.fillStyle = "#808080";
+      gx.fillRect(0, 0, gw, gh);
+      sx.globalCompositeOperation = "multiply";
+      sx.fillStyle = "#ff0000";
+      sx.fillRect(0, 0, gw, gh);
+      sx.globalCompositeOperation = "color";
+      sx.fillStyle = "#808080";
+      sx.fillRect(0, 0, gw, gh);
+      sx.globalCompositeOperation = "lighten";
+      sx.drawImage(gc, 0, 0);
+      sx.globalCompositeOperation = "difference";
+      sx.drawImage(gc, 0, 0);
+      sx.globalCompositeOperation = "lighter";
+      for (let i = 0; i < 4; i++) sx.drawImage(sc, 0, 0);
+      sx.globalCompositeOperation = "difference"; // and turned round: white where it may flash, black where it is red
+      sx.fillStyle = "#ffffff";
+      sx.fillRect(0, 0, gw, gh);
+      ax.globalCompositeOperation = "multiply";
+      ax.drawImage(sc, 0, 0, gw, gh, 0, 0, w, h);
+      g.setTransform(c, sn, -sn, c, ex, ey);
+      g.globalCompositeOperation = "lighter";
+      g.globalAlpha = flash * (punch.big ? Math.min(1, 0.8 * s) : Math.min(0.1, 0.55 * s)); // they flash to white on a big kick; between big kicks only by a tenth, so that even a picture made all of fine lines doesn't flash as a whole
+      g.drawImage(art, 0, 0);
+      if (punch.big) { // and on a big kick they glow: the same lines made soft, so they bloom where they are, and wide bright parts of the picture don't
+        gx.globalAlpha = 1;
+        gx.globalCompositeOperation = "copy";
+        gx.drawImage(art, 0, 0, gw, gh);
+        g.globalAlpha = flash * Math.min(0.6, 0.5 * s);
+        g.drawImage(gc, 0, 0, gw, gh, 0, 0, w, h);
+      }
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.globalAlpha = flash * Math.min(punch.big ? 0.5 : 0.2, (punch.big ? 0.5 : 0.3) * s); // the edges on every kick: they are only a small part of the picture, and never more than half lit whatever the slider says, as a pale band all round lifts the whole picture's light
+      gx.globalCompositeOperation = "copy"; // the glow along the edges, again only where the picture under it isn't a deep red, added to the picture
+      gx.fillStyle = "#000000";
+      gx.fillRect(0, 0, gw, gh);
+      gx.globalCompositeOperation = "source-over";
+      gx.drawImage(punch.edge[0], 0, 0, gw, gh);
+      gx.globalCompositeOperation = "multiply";
+      gx.drawImage(sc, 0, 0);
+      g.drawImage(gc, 0, 0, gw, gh, 0, 0, w, h);
+    }
+    g.restore();
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = "source-over";
+  }
+  /* ==== punch: end ==== */
   const DRAW = { zen: agTechnozen, darkaero: agDarkAero, eco: asEcoFx, dorfic: asDorficFx, aqua: awAquaFx, aero: awAeroFx, beings: beingsFx, life: livingGrid, places: placesFx, arcade: arcadeFx, runner: runnerFx, forms: formsFx, faces, ribbon, silk, helix, strings, bars, mirror, leds, terrain, scope, trails, tunnel, vortex, prism, ripple, comets, stars: starfield, whirl, dust, links, fireworks, halo, sun, rings, mandala, rays, space, warp: space, drift: space, orbit: space, visitors: space, well,
     kaleido, plasma, fractal, julia, mandel, newton, ocean, neonroad, aurora, tube: tubeFx, heads: headsFx, sphere: sphereFx, solids: solidsFx, city: cityFx };
 
@@ -13196,6 +13354,7 @@ window.Effects = (() => {
     awReset(next); // Frutiger Aero starts with a fresh sky, and Aqua with a fresh tank
     if (next === "dorfic") asDorf.w = 0; if (next === "eco") asEco.w = 0; // DORFic and Frutiger Eco lay out a fresh page and a fresh world each time they are shown (each only its own, so one still showing on its way out is left as it is)
     if (next === "darkaero") agDark.W = 0; if (next === "zen") agZen.W = 0; // Dark Aero and Technozen set out afresh each time they are shown (each only its own, so one still showing on its way out is left as it is)
+    punch.age = 9; // a kick's punch ends with the effect it landed on
     afterImages.ghosts.length = 0; // the last effect's after-images go with it, and a fold starts open
     afterImages.rate = afterImages.span = 0;
     trippy.fold = 0;
@@ -13267,11 +13426,13 @@ window.Effects = (() => {
     pointer.taken = false;
     windowsFrame(); // before the effect draws: a click on a little window shuts it, and neither the effect under it nor a ring answers it (see the windows block)
     const inScene = folkInScene();
+    punchHear(); // in hard music: whether a kick lands, before the effect hears it (see punchHear)
     drawScene();
     drawTwinkles();
     if (!inScene) invite(TRIPS[name] || ROAM);
     if (acidShows() || bandShows() || (fadesInPlace() && (morph || (!inScene && crowd.folk.length) || dreaming() || pointer.rings.length))) { clean = copyOf(clean); dirty = true; }
     if (morph) blend();
+    punchFrame(); // in hard music, the punch on each kick, over the picture and under the visitors
     const inPixels = pixelOver(); // over a pixel world, the visitors and the singer are drawn in its own big square dots
     pointerRings();
     if (!inScene) drawFolk();
@@ -13481,7 +13642,7 @@ window.Effects = (() => {
     },
     place(part) { winPlace(part); }, // how far through the playing song it is, 0 to 1: a little window's loading bar follows it
     visiting: () => guest.list.length > 0,
-    knobs: (style) => { const trip = TRIPS[style]; return ["light", "react", "speed", "spark", ...(LEAVES_TRAILS.has(style) ? ["drag"] : []), ...(style === "ripple" ? ["tilt"] : []), ...(trip ? ["nod", ...(trip.steer ? ["turns"] : []), ...(trip.moves ? ["moves"] : []), "shots"] : []), ...(VERSIONS[style] ? ["vary"] : []), ...(FRACTALS.has(style) ? ["color", "echo", "breathe", "sounds"] : []), "tricks", "dream", "folk", "acid", "band", ...(trip && trip.falls ? ["falls"] : []), ...(trip && trip.cockpit ? ["pit"] : [])].map((key) => [key, ...KNOBS[key]]); },
+    knobs: (style) => { const trip = TRIPS[style]; return ["light", "react", "punch", "speed", "spark", ...(LEAVES_TRAILS.has(style) ? ["drag"] : []), ...(style === "ripple" ? ["tilt"] : []), ...(trip ? ["nod", ...(trip.steer ? ["turns"] : []), ...(trip.moves ? ["moves"] : []), "shots"] : []), ...(VERSIONS[style] ? ["vary"] : []), ...(FRACTALS.has(style) ? ["color", "echo", "breathe", "sounds"] : []), "tricks", "dream", "folk", "acid", "band", ...(trip && trip.falls ? ["falls"] : []), ...(trip && trip.cockpit ? ["pit"] : [])].map((key) => [key, ...KNOBS[key]]); },
     tuning(values) { // adjustments for the effect showing. Anything left out is back to how it was designed
       const was = T.vary;
       for (const key of Object.keys(T)) { const [, low, high] = KNOBS[key], v = Number(values[key]); T[key] = Number.isFinite(v) ? Math.min(high, Math.max(low, v)) : 1; }
