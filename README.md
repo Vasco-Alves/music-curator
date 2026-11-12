@@ -20,7 +20,28 @@ Spotify (local files), Plex, Navidrome, foobar2000, a phone, …
 
 ## Try it
 
-No programming needed: three commands, about ten minutes.
+The quickest way is one line. It installs what Pressling needs (asking before each thing), offers to set up your Discogs token,
+checks everything and opens Pressling; run it again any time to update it and open it.
+
+Windows (in PowerShell):
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://raw.githubusercontent.com/Vasco-Alves/pressling/main/install.ps1 | iex"
+```
+
+macOS and Linux:
+
+```bash
+curl -LsSf https://raw.githubusercontent.com/Vasco-Alves/pressling/main/install.sh | sh
+```
+
+From a copy of this repository it is `install.ps1` or `sh install.sh` (with `-DryRun` / `--dry-run` it only says what it would do).
+It installs uv if it's missing (with uv's own installer, once you say yes), then Pressling (from PyPI once it is there, else the
+newest code on GitHub), ffmpeg only if you want it (winget on Windows, Homebrew on macOS; on Linux it tells you the command),
+opens the Discogs page and an empty `.env` file for you to paste your token into (the token never goes through the script),
+runs `curator doctor` and opens Pressling.
+
+Or by hand, with no programming needed: three commands, about ten minutes.
 
 1. **Install uv**, a small free tool that installs Python apps, and Python itself if you don't have it. Open a terminal
    (on Windows, PowerShell from the Start menu) and paste the line for your computer:

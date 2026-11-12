@@ -1,0 +1,2 @@
+# the shell installer must keep Unix line endings even in a Windows checkout, or sh can't run it
+*.sh text eol=lf
