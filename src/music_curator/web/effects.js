@@ -10,7 +10,7 @@ window.Effects = (() => {
   let g = stage; // what's being drawn on: the picture, or for a moment the visitors' own layer over the app
   const sound = { bands: new Float32Array(BANDS), wave: new Float32Array(POINTS), bass: 0, mid: 0, treble: 0, level: 0, kick: 0, hat: 0, kickHit: 0, hatHit: 0, t: 0, dt: 0.016 };
   const pointer = { on: false, x: 0, y: 0, at: -1e9, tap: null, tapped: null, taken: false, rings: [] }; // the mouse over the picture, in the picture's own dots: on while it is over the picture itself (not the page's buttons or words), at when it last moved (the clock, in ms), and tapped, a click, there for the one frame after it lands, as kickHit is for a kick. An effect that answers a click in its own way sets taken in that frame, and then no ring goes out. rings: the soft rings that clicks send out
-  const T = { light: 1, react: 1, speed: 1, drag: 1, spark: 1, nod: 1, turns: 1, moves: 1, shots: 1, folk: 1, acid: 1, band: 1, pit: 1, tilt: 1, vary: 1, dream: 1, falls: 1, color: 1, echo: 1, breathe: 1, sounds: 1 }; // what's been adjusted for the effect showing: 1 is how it was designed
+  const T = { light: 1, react: 1, speed: 1, drag: 1, spark: 1, nod: 1, turns: 1, moves: 1, shots: 1, folk: 1, acid: 1, band: 1, pit: 1, tilt: 1, vary: 1, dream: 1, falls: 1, color: 1, echo: 1, breathe: 1, sounds: 1, tricks: 1 }; // what's been adjusted for the effect showing: 1 is how it was designed
   const STYLES = { // each effect and its styles, by the name a style goes by
     ribbon: [["ribbon", "Classic"], ["silk", "Silk"], ["helix", "Helix"], ["strings", "Strings"]],
     bars: [["bars", "Classic"], ["mirror", "Mirror"], ["leds", "LEDs"], ["terrain", "Landscape"], ["scope", "Scope"]],
@@ -28,7 +28,7 @@ window.Effects = (() => {
   const FOLK_OF = { arcade: ["astronaut", "shapes", "neon", "jelly"], ocean: ["jelly", "whale", "jelly", "shapes"], neonroad: ["neon", "shapes", "saucer", "neon"], aurora: ["saucer", "astronaut", "neon", "saucer"], // some places have their own visitors
     tube: ["shapes", "neon", "eye", "saucer"], heads: ["saucer", "eye", "shapes", "neon"], sphere: ["astronaut", "saucer", "shapes", "jelly"], solids: ["shapes", "saucer", "neon", "astronaut"], city: ["saucer", "neon", "saucer", "shapes"] };
   const FAMILY = Object.fromEntries(Object.entries(STYLES).flatMap(([family, list]) => list.map(([style]) => [style, family])));
-  const KNOBS = { light: ["Brightness", 0.3, 1.7], react: ["Reacts to the music", 0.2, 1.8], speed: ["Speed", 0.3, 2], spark: ["Glints on the hi-hats", 0, 2], drag: ["Length of the trails", 0.4, 2.5], nod: ["Nodding to the beat", 0, 2], turns: ["Changes of course", 0, 3], moves: ["Jumps and stops", 0, 3], band: ["Crowd and dancers", 0, 2], pit: ["Cockpit", 0, 1], shots: ["Shooting stars", 0, 3], folk: ["Visitors", 0, 3], acid: ["Singing to the 303", 0, 2], tilt: ["Turning now and then", 0, 3], vary: ["Changes by itself", 0, 3], dream: ["Dreamy lights", 0, 2], falls: ["Falling into planets", 0, 3], color: ["Colors that travel", 0, 1.5], echo: ["After-images", 0, 2], breathe: ["Breathing", 0, 2], sounds: ["Answers to sounds", 0, 2] };
+  const KNOBS = { light: ["Brightness", 0.3, 1.7], react: ["Reacts to the music", 0.2, 1.8], speed: ["Speed", 0.3, 2], spark: ["Glints on the hi-hats", 0, 2], drag: ["Length of the trails", 0.4, 2.5], nod: ["Nodding to the beat", 0, 2], turns: ["Changes of course", 0, 3], moves: ["Jumps and stops", 0, 3], band: ["Crowd and dancers", 0, 2], pit: ["Cockpit", 0, 1], shots: ["Shooting stars", 0, 3], folk: ["Visitors", 0, 3], acid: ["Singing to the 303", 0, 2], tilt: ["Turning now and then", 0, 3], vary: ["Changes by itself", 0, 3], dream: ["Dreamy lights", 0, 2], falls: ["Falling into planets", 0, 3], color: ["Colors that travel", 0, 1.5], echo: ["After-images", 0, 2], breathe: ["Breathing", 0, 2], sounds: ["Answers to sounds", 0, 2], tricks: ["Color tricks", 0, 2] };
   const LEAVES_TRAILS = new Set(["trails", "tunnel", "vortex", "prism", "ripple", "comets", "stars", "whirl", "fireworks", "scope"]);
   const raw = new Float32Array(BANDS), leadHold = new Float32Array(BANDS), leadMid = new Float32Array(512), leadSum = new Float32Array(513), peaks = new Float32Array(160), stars = new Float32Array(STARS * 3), HEADS = 9, past = new Float32Array(HEADS * 2).fill(NaN), orbits = new Float32Array(HEADS);
   let nowSong = "", genre = "", mood = "", name = "", alone = false, w = 0, h = 0, quality = 1, colors = PLAIN, picture = null, last = 0, slowTime = 0, slowFrames = 0, top = 0.3, waveTop = 0.1, freq = null, time = null, binHz = 23.4;
@@ -12806,6 +12806,283 @@ window.Effects = (() => {
   }
   DRAWN_BY.window = DRAWN_BY.popup = drawWindow;
   /* ==== windows: end ==== */
+  /* ==== moments: begin ==== */
+  /* Moments: now and then, when the music says so, the whole picture takes on another look for a bar or two, then goes back to how it was. Every effect gets them.
+     The looks: a negative (every color turned over, in the record's own light, and kept well short of white, so a dark picture never turns into a bright flash), an x-ray
+     (grey and turned over, in a cold light), the record's two strongest colors (the lights in one, the shadows in the other), night vision (green, with lines across and
+     a little grain), a glitch (small pieces of the picture knocked sideways and its colors pulled apart, cut again on the hi-hats and claps), a mirror (one half folded over
+     onto the other), and every color turned halfway round the wheel (the same light, the opposite colors).
+     When: mostly after a drop lands (a bar after it, once the drop's own flash has come and gone); sometimes at the start of a phrase deep in a long groove; now and then a soft one in a breakdown.
+     Never often: about one in half a minute at most, as designed. The "Color tricks" slider makes them rarer or more frequent, or stops them (at 0 nothing here does anything at all).
+     How one comes and goes is chosen to suit it, and in time with the beat: a wipe across the picture (down it, on a phone), a circle opening out from the middle,
+     slices swept open round the middle like a clock's hands, a fold out from the middle line, a fade, or in a breakdown the picture tilting slowly while it lasts.
+     It is never spun round, nor turned over like a card: both were tried, and on a busy picture that pulses with the kick (a fractal, the kaleidoscope) they flicker.
+     Spun round, even once in eight seconds, its light and dark sweep past every place; turned over, half of it is the look and half is not for a second or more, and
+     on every kick one half goes lighter while the other goes darker.
+     Safe for the eyes: what changes the light of the picture a lot (a negative, an x-ray) does it once as the moment comes and once as it goes, a bar or more apart,
+     and never up to white, whatever the Brightness slider says; each place in the picture changes once as a moment comes and once as it goes; the glitch only ever moves small pieces of the picture, never the
+     whole of it; no strong red is made. The busiest pictures (the fractals, the kaleidoscope, the plasma, the forms and the faces) already pulse with the kick about as much as is
+     safe, so there only the mirror may come (it moves what is there, and changes nothing's light): even the colors turned round, which keep their lightness to the eye, make the
+     greens and yellows lighter and the blues darker by enough to count, and on those pictures that was one flash a second too many.
+     It goes over everything in the picture, visitors and all, for that one frame: the picture as it was is put back before the next frame is drawn (by the same clean
+     copy the effects that fade in place use), so an effect that keeps its last frame never gets the look baked into it. */
+  const momentKinds = { // how likely each look is: on a drop, at the start of a phrase in a long groove, and in a breakdown
+    negative: { drop: 3, groove: 2, calm: 0 },
+    xray: { drop: 1, groove: 1, calm: 2 },
+    duo: { drop: 3, groove: 2, calm: 3 },
+    night: { drop: 0, groove: 1, calm: 1 },
+    glitch: { drop: 0, groove: 3, calm: 0 },
+    mirror: { drop: 0, groove: 2, calm: 1 },
+    hue: { drop: 3, groove: 1, calm: 2 },
+  };
+  const momentWays = { // and how it may come and go there: [the way in, the way out]. (No way spins the picture, or turns it over like a card: see the top)
+    drop: { negative: [["circle", "fade"]], xray: [["circle", "fade"]], duo: [["slices", "fade"]], hue: [["circle", "circle"]] }, // (a drop has a flash of its own, so what comes after it only opens out and eases back)
+    groove: { negative: [["wipe", "wipe"], ["slices", "fade"]], xray: [["wipe", "wipe"], ["circle", "fade"]], duo: [["slices", "slices"], ["wipe", "fade"]], night: [["wipe", "wipe"]], glitch: [["strips", "strips"]], mirror: [["fold", "fold"]], hue: [["circle", "circle"], ["slices", "fade"]] },
+    calm: { xray: [["slow", "slow"]], duo: [["slow", "slow"]], night: [["fade", "fade"]], mirror: [["fold", "fold"]], hue: [["slow", "slow"]] },
+  };
+  const momentPixel = { circle: "wipe", slices: "wipe", slow: "fade" }; // a pixel world is never tilted or cut on a slant, so its dots stay square
+  const momentLeast = { fold: 1.3 }; // the seconds a fold takes at the least, so the picture never moves fast enough to flicker
+  const momentBusy = new Set(["kaleido", "plasma", "forms", "faces"]); // with the fractals: pictures that pulse with the kick about as much as is safe already. Any look that changes their light would take them over
+  const momentGentle = new Set(["mirror"]); // the only look the busy pictures get: it moves what is there, and leaves the light as it was
+  const momentWhole = new Set(["kaleido", "tunnel", "mirror", "mandala"]); // mirrored by design already: folding one over would show nothing
+  const momentGlow = [[6, 0.05], [2.5, 0.12], [1, 0.45]]; // the line of light at the edge of a wipe or a circle: three strokes, wide and faint to thin and bright
+  const momentNow = { kind: "", why: "", come: "", go: "", age: 0, inFor: 1, holdFor: 1, outFor: 1, goAt: -1, peak: 1, x: 0.5, y: 0.5, turn: 1, cutAt: -9, grain: 1, grainAt: -9, // the moment showing (kind is "" while none is): how it comes and goes, how long each part lasts, when it began to go and how far in it was then; and night vision's grain
+    rest: 0, wait: 20, last: "", was: 0, kicks: 0, calmFor: 0, calmTried: false, bar: -1, seed: 0 }; // and for choosing the next: seconds since the last began, how long to wait before another, kicks since the groove began, how long the breakdown has lasted; and the dice
+  const momentCuts = new Float32Array(5 * 5); // the glitch's pieces: for each, how far down the picture it is, how tall, where across it starts, how long it is and how far it is knocked sideways, all as parts of the picture
+  let momentArt = null, momentArtLines = 0; // the one spare canvas, kept while the size stays the same: a copy of the picture without the look (only when the clean copy already holds something else), or night vision's lines and darker edges (then the spacing of its lines, 0 otherwise)
+  const momentRed = ([r, gr, b]) => r / (r + gr + b + 1); // how much of a color is red: from about 0.8 it is a strong red
+  const momentCalm = (rgb, from = 0.45, most = 0.7) => { const red = momentRed(rgb), grey = 0.3 * rgb[0] + 0.59 * rgb[1] + 0.11 * rgb[2]; return red > from ? mix(rgb, [grey, grey, grey], Math.min(most, (red - from) * 2)) : rgb; }; // a red taken part of the way to grey, so no big patch of strong red is ever made
+  const momentTop = (rgb, top) => { const most = Math.max(1, rgb[0], rgb[1], rgb[2]); return rgb.map((c) => (c * top) / most); }; // the same color, with its brightest part at top
+  const momentDot = () => (FAMILY[name] === "pixel" && pixelLast ? w / pixelLast.across : 1); // the size of a pixel world's dots, so that what moves moves by whole dots
+  const momentSnap = (x, dot) => Math.round(x / dot) * dot;
+  function momentDice(a, b) { // a number between a and b, from the moments' own dice: taking them from Math.random would change what every effect itself does from the first moment on
+    const M = momentNow;
+    if (!M.seed) M.seed = (Math.floor(realNow * 1000) ^ 0x9e3779b9) >>> 0 || 1; // thrown first from the clock of the first frame that asks
+    M.seed = (Math.imul(M.seed, 1664525) + 1013904223) >>> 0;
+    return a + (M.seed / 4294967296) * (b - a);
+  }
+
+  function momentWhen(step) { // whether one begins now: on a drop, at the start of a phrase deep in a long groove, or on a bar in a breakdown, and never before the wait since the last one is over
+    const M = momentNow, often = T.tricks;
+    if (flow.part === "groove" || flow.part === "drop") { if (sound.kickHit) M.kicks = M.kicks > 1000 ? M.kicks - 960 + 1 : M.kicks + 1; } else M.kicks = 0; // kicks counted from the drop, or from wherever the groove began: 32 of them are a phrase of eight bars
+    M.calmFor = flow.part === "calm" ? Math.min(60, M.calmFor + step) : 0;
+    if (flow.part !== "calm") M.calmTried = false;
+    const bar = flow.bpm ? Math.floor(((flow.clock - flow.kickAt) * flow.bpm) / 240) : 0, onBar = bar !== M.bar; // with no kick, the beat goes on by the clock from the last one
+    M.bar = bar;
+    if (hearing) M.rest = Math.min(600, M.rest + step);
+    if (M.kind && M.why === "calm" && M.goAt < 0 && M.age > 0 && (flow.part === "build" || flow.dropHit)) { // a soft one from a breakdown goes as the build begins, in its usual time, so it is gone before the drop and its flash
+      M.peak = M.age < M.inFor ? eased(M.age / M.inFor) : 1; // (and if the drop comes with no build before it, it goes then, still in its usual time, never all at once on top of the drop's flash)
+      M.goAt = M.age;
+    }
+    if (M.kind || !often || !hearing || M.rest < M.wait) return;
+    let why = "";
+    if (flow.dropHit) why = momentDice(0, 1) < Math.min(0.95, 0.6 * often) ? "drop" : "";
+    else if (sound.kickHit && flow.part === "groove" && M.kicks > 64 && M.kicks % 32 === 1) why = momentDice(0, 1) < Math.min(0.9, 0.3 * often) ? "groove" : "";
+    else if (flow.part === "calm" && !M.calmTried && M.calmFor > 8 && (onBar || !flow.bpm)) { M.calmTried = true; why = momentDice(0, 1) < Math.min(0.9, 0.5 * often) ? "calm" : ""; } // one try in each breakdown, once it has gone on for a while: a short break before a drop is left alone, so the drop can have one
+    const kind = why ? momentPick(why) : "";
+    if (kind) momentBegin(kind, why);
+  }
+  function momentPick(why) { // which look, by its odds for this part of the song: seldom the same twice running, never a fold over a picture already folded, never the colors turned to a strong red
+    const M = momentNow;
+    let all = 0;
+    for (const kind in momentKinds) all += momentOdds(kind, why, M.last);
+    let r = momentDice(0, 1) * all;
+    for (const kind in momentKinds) if ((r -= momentOdds(kind, why, M.last)) < 0) return kind;
+    return "";
+  }
+  function momentOdds(kind, why, last) {
+    if ((FRACTALS.has(name) || momentBusy.has(name)) && !momentGentle.has(kind)) return 0; // a busy picture only gets the mirror
+    if (kind === "mirror" && (V.fold || trippy.fold > 0.02 || momentWhole.has(name))) return 0;
+    if (kind === "hue" && colors.some((c) => momentRed(turnHue(c, 180)) > 0.5)) return 0; // turned halfway, one of the record's colors would come out a strong red
+    return (momentKinds[kind][why] || 0) * (kind === last ? 0.25 : 1);
+  }
+  function momentBegin(kind, why, come = "", go = "") { // one begins, on the beat it was called on: in beats while the tempo is known, else in seconds
+    const M = momentNow, list = momentWays[why][kind], beat = flow.bpm ? 60 / flow.bpm : 0, beats = (n, seconds) => (beat ? n * beat : seconds), least = (s, at) => (s >= at ? s : beat ? Math.ceil(at / beat) * beat : at); // (least: never quicker than at, still in whole beats)
+    if (!come) [come, go] = list[Math.floor(momentDice(0, 1) * list.length)];
+    if (FAMILY[name] === "pixel") { come = momentPixel[come] || come; go = momentPixel[go] || go; }
+    if (quality < 1) { if (come === "slow") come = "fade"; if (go === "slow") go = "fade"; } // on a machine the app has already found slow (it has turned the picture's quality down), no tilt: turning the whole picture is the costliest way, and a slower frame still would make the app turn it down again, which starts the picture afresh
+    Object.assign(M, { kind, why, come, go, age: 0, goAt: -1, peak: 1, cutAt: -9, grainAt: -9, turn: momentDice(0, 1) < 0.5 ? 1 : -1, x: why === "drop" ? 0.5 : momentDice(0.35, 0.65), y: why === "drop" ? 0.5 : momentDice(0.35, 0.65) });
+    M.inFor = least(why === "drop" ? beats(1, 0.45) : why === "calm" ? beats(4, 2) : beats(2, 0.9), momentLeast[come] || 0); // a drop's opens out in a beat; a breakdown's comes in over a bar
+    M.holdFor = why === "calm" ? beats(8, 4) : why === "drop" ? beats(4, 1.8) : beats(momentDice(0, 1) < 0.5 ? 4 : 8, 2.5);
+    M.outFor = least(why === "groove" ? beats(2, 0.9) : beats(4, 1.8), momentLeast[go] || 0); // a drop's eases back over a bar
+    if (why === "drop") M.age = -Math.max(1.05, beats(4, 1.8)); // a drop's waits a bar, and at least a second: the drop's own flash goes up and comes down again in its first second, and the look coming in that same second would be one flash too many
+    M.rest = 0;
+    M.wait = momentDice(30, 42) / Math.max(0.1, T.tricks);
+  }
+
+  function momentShow() { // from drawFrame(), after everything else in the picture: whether one begins, and while one is on, the look over the whole picture
+    const M = momentNow, step = Math.min(0.1, Math.max(0, (realNow - M.was) / 1000)); // its own clock, in real seconds, so beats stay beats whatever the Speed slider says
+    M.was = realNow;
+    if (g !== stage) return;
+    momentWhen(step);
+    if (!M.kind) return;
+    if (!T.tricks) { if (M.age < 0) { M.kind = ""; return; } M.holdFor = 0; } // turned off: one still waiting for its beat never comes, and one showing goes as soon as it is all in, in its usual way, so the picture never jumps back
+    M.age += step;
+    if (M.age < 0) return; // (a drop's, waiting for its bar)
+    const held = M.inFor + M.holdFor, beat = flow.bpm ? 60 / flow.bpm : 0.5;
+    if (M.goAt < 0 && M.age >= held && (sound.kickHit || M.why === "calm" || !hearing || M.age >= held + beat)) M.goAt = M.age; // it goes on a kick: it was timed from one, so the kick is about due
+    const coming = M.goAt < 0, q = coming ? Math.min(1, M.age / M.inFor) : (M.age - M.goAt) / M.outFor;
+    if (!coming && q >= 1) { M.last = M.kind; M.kind = ""; return; }
+    const way = coming ? M.come : M.go, e = eased(q), on = coming ? e : M.peak * (1 - e), soft = (alone ? 1 : 0.75) * (M.why === "calm" ? 0.7 : 1); // softer behind the page, where words sit over it, and in a breakdown
+    const moving = way === "fade" || way === "slow", much = moving ? on * soft : soft, clip = way === "wipe" || way === "circle" || way === "slices", dot = momentDot(), src = momentKeep(M.kind !== "night");
+    const angle = way === "slow" && src ? M.turn * on * Math.min(0.2, 0.05 + 0.025 * M.age) : 0; // (the tilt: by about a degree and a half a second while it lasts, and back as it goes)
+    g.save();
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = "source-over";
+    g.shadowColor = "transparent";
+    if ("filter" in g) g.filter = "none";
+    if (dot > 1) g.imageSmoothingEnabled = false;
+    if (angle) momentLay(src, "source-over", 1, angle); // the picture tilted first, then the look over it
+    if (clip) { g.save(); momentClip(way, coming, on, e, dot); g.clip(); }
+    if (much > 0 && (!clip || on > 0)) momentPaint(M.kind, src, much, clip ? 1 : on, soft, moving, dot, angle);
+    if (clip) { g.restore(); momentEdge(way, coming, on, e, dot, soft); }
+    g.restore();
+  }
+  function momentKeep(need) { // the picture as it is now, before the look: drawScene() puts it back before the next frame (unless a clean copy without the visitors is already waiting there), and the looks that need it read it
+    if (!dirty) { clean = copyOf(clean); dirty = true; return clean; }
+    if (!need) return null; // (night vision never reads it, so the spare canvas can hold its lines)
+    momentArtLines = 0;
+    return (momentArt = copyOf(momentArt));
+  }
+  function momentLay(src, how, alpha, angle) { // the picture as it was, laid over the canvas the way how says, and tilted with the rest when the picture is tilting (made just big enough to fill it all the way round, so no corner is ever left empty)
+    g.globalCompositeOperation = how;
+    g.globalAlpha = alpha;
+    if (angle) {
+      const c = Math.cos(angle), s = Math.sin(angle), big = Math.max((Math.abs(c) * w + Math.abs(s) * h) / w, (Math.abs(s) * w + Math.abs(c) * h) / h);
+      g.setTransform(c * big, s * big, -s * big, c * big, w / 2, h / 2);
+      g.drawImage(src, -w / 2, -h / 2);
+      g.setTransform(1, 0, 0, 1, 0, 0);
+    } else g.drawImage(src, 0, 0);
+    g.globalAlpha = 1;
+  }
+  function momentClip(way, coming, on, e, dot) { // the part of the picture the look has reached, as a path for g.clip()
+    const M = momentNow, tall = h > w, L = tall ? h : w, cx = w * M.x, cy = h * M.y, far = Math.hypot(Math.max(cx, w - cx), Math.max(cy, h - cy)) * 1.02;
+    g.beginPath();
+    if (way === "wipe") { // across the picture, or down it when it is taller than wide (a phone). Coming, the look is behind the edge; going, it is ahead of it, and the picture as it was follows on behind
+      const edge = momentSnap(e * L, dot), from = coming ? 0 : edge, to = coming ? edge : L, a = M.turn > 0 ? from : L - to, b = M.turn > 0 ? to : L - from;
+      if (tall) g.rect(0, a, w, b - a); else g.rect(a, 0, b - a, h);
+    } else if (way === "circle") g.arc(cx, cy, Math.max(0.5, on * far), 0, TAU); // opening out from the middle, and closing back into it
+    else { // six slices of a round cake, swept open by six hands going round like a clock's, and swept shut again by them going on round, so each place changes once coming and once going
+      const slice = TAU / 6, start = coming ? 0 : e * slice, stop = coming ? e * slice : slice;
+      for (let i = 0; i < 6; i++) {
+        const a = M.x * TAU + i * slice, from = M.turn > 0 ? a + start : a - stop, to = M.turn > 0 ? a + stop : a - start;
+        if (to - from < 1e-3) continue;
+        g.moveTo(cx, cy);
+        g.arc(cx, cy, far, from, to);
+        g.closePath();
+      }
+    }
+  }
+  function momentEdge(way, coming, on, e, dot, soft) { // a line of light where the look has got to
+    if (way === "slices" || e < 0.002 || e > 0.998) return;
+    const M = momentNow, tall = h > w, L = tall ? h : w, cx = w * M.x, cy = h * M.y, far = Math.hypot(Math.max(cx, w - cx), Math.max(cy, h - cy)) * 1.02, thin = Math.max(dot, Math.min(w, h) / 300);
+    g.beginPath();
+    if (way === "wipe") { const edge = momentSnap(e * L, dot), at = M.turn > 0 ? edge : L - edge; if (tall) { g.moveTo(0, at); g.lineTo(w, at); } else { g.moveTo(at, 0); g.lineTo(at, h); } }
+    else g.arc(cx, cy, Math.max(0.5, on * far), 0, TAU);
+    g.globalCompositeOperation = "lighter";
+    g.strokeStyle = rgba(mix(momentCalm(colors[0]), [255, 255, 255], 0.5), 1);
+    for (const [wide, light] of momentGlow) { g.globalAlpha = light * soft * Math.sin(Math.PI * e); g.lineWidth = thin * wide; g.stroke(); }
+    g.globalAlpha = 1;
+  }
+  function momentFill(how, paint) { g.globalCompositeOperation = how; g.fillStyle = paint; g.fillRect(0, 0, w, h); } // one color over the whole picture, laid on the way how says (inside the clip, if there is one)
+  function momentPaint(kind, src, much, on, soft, moving, dot, angle) { // the look itself. much: how much of it (the picture as it was is laid back over the rest); on: how far it has come (and how far a fold or a glitch has got); moving: a fade or the tilt, on its way in or out
+    g.globalAlpha = 1;
+    if (kind === "negative" || kind === "xray") { // light turns dark and dark turns light: the picture times the light's color, then that taken away from the light, so black becomes the light itself (never brighter than top) and white becomes black
+      const top = (96 * soft) / Math.max(1, T.light), light = rgba(momentTop(kind === "xray" ? [170, 205, 240] : mix(momentCalm(colors[0]), [255, 255, 255], 0.75), top), 1); // softer by a dimmer light, not by laying the picture back over it: a negative mixed with its own picture is a flat grey. (Brightness above 1 lifts the whole canvas, so the light is lowered to match.) The negative's light is nearly white, only touched by the record's color: any more and every negative comes out in that one color
+      // (96 of 255 at most: most pictures are dark, and a dark picture turned over is a light sheet, so the sheet is kept a mid grey: a change, not a glare)
+      g.globalCompositeOperation = "screen"; // the picture laid over itself first, by screen: its dim parts come up about twice as bright, and nothing goes past white, so once it is turned over its lines show clearly dark on the sheet instead of as a ghost
+      if (angle) g.drawImage(g.canvas, 0, 0); else g.drawImage(src, 0, 0); // (tilting, the canvas already holds the picture tilted, so it is laid over itself as it is)
+      if (kind === "xray") momentFill("saturation", "#808080"); // grey first
+      momentFill("multiply", light);
+      momentFill("difference", light);
+      if (kind === "negative") { g.globalAlpha = 0.35; momentFill("saturation", "#808080"); g.globalAlpha = 1; } // and a third of the way to grey: turned over, a bright cyan would be a strong red
+      if (moving && on < 1) momentLay(src, "source-over", 1 - on, angle); // (only while a fade is on its way: then it does go through grey, briefly)
+      return;
+    }
+    if (kind === "duo") { // every color in the record's second color at the same lightness (its first is used more by most effects), and the shadows no darker than a dark first color
+      let tone = colors[1] || colors[0];
+      if (momentRed(tone) > 0.45) for (const c of colors) if (momentRed(c) < momentRed(tone)) tone = c; // a reddish second color gives way to the record's least red one: the whole picture in red would be a large red patch
+      momentFill("color", rgba(momentCalm(tone, 0.4, 0.85), 1));
+      momentFill("lighten", rgba(momentTop(momentCalm(colors[0]), 26), 1)); // (only just: a black picture stays nearly black)
+    } else if (kind === "night") { momentNight(much, dot); return; }
+    else if (kind === "hue") { // every color halfway round the wheel at the same lightness: turned over (which turns both the color and the light), then the light as it was laid back on
+      momentFill("difference", "#fff");
+      momentLay(src, "luminosity", 1, angle);
+    } else if (kind === "glitch") { momentGlitch(src, on * much, on, dot); return; }
+    else if (kind === "mirror") { momentMirror(src, on, dot); return; }
+    if (much < 1) momentLay(src, "source-over", 1 - much, angle);
+  }
+  function momentNight(much, dot) { // night vision: every color in green at the same lightness, the shadows lifted a little, lines across, darker edges and a little grain. Softer by laying each on more lightly, so the picture as it was is never needed
+    const step = Math.max(3, dot * 2), grain = Math.max(1.5, dot), M = momentNow;
+    g.globalAlpha = much;
+    momentFill("color", "rgb(80,255,110)");
+    momentFill("lighten", "rgb(0,26,8)");
+    if (momentArtLines !== step || !momentArt || momentArt.width !== w || momentArt.height !== h) { // the lines and the darker edges, drawn once onto the spare canvas for this size, and laid on with one multiply each frame
+      if (!momentArt || momentArt.width !== w || momentArt.height !== h) momentArt = paper(w, h)[0];
+      const a = momentArt.getContext("2d"), fade = a.createRadialGradient(w / 2, h / 2, Math.min(w, h) * 0.35, w / 2, h / 2, Math.hypot(w, h) * 0.55);
+      a.setTransform(1, 0, 0, 1, 0, 0);
+      a.globalAlpha = 1;
+      a.globalCompositeOperation = "source-over";
+      a.fillStyle = "#fff";
+      a.fillRect(0, 0, w, h);
+      a.fillStyle = "rgb(150,170,150)";
+      a.beginPath();
+      for (let y = 0; y < h; y += step) a.rect(0, y, w, Math.max(1, step / 3));
+      a.fill();
+      fade.addColorStop(0, "#fff");
+      fade.addColorStop(1, "#808080");
+      a.globalCompositeOperation = "multiply";
+      a.fillStyle = fade;
+      a.fillRect(0, 0, w, h);
+      a.globalCompositeOperation = "source-over";
+      momentArtLines = step;
+    }
+    g.globalCompositeOperation = "multiply";
+    g.drawImage(momentArt, 0, 0);
+    if (M.age - M.grainAt >= 1 / 12 || M.age < M.grainAt) { M.grainAt = M.age; M.grain = Math.floor(momentDice(1, 4e9)); } // the grain is thrown again twelve times a second, by the clock
+    let s = M.grain >>> 0;
+    g.globalCompositeOperation = "lighter";
+    g.globalAlpha = much * 0.1;
+    g.fillStyle = "rgb(120,255,140)";
+    g.beginPath();
+    for (let i = 0; i < 160; i++) {
+      s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+      const x = momentSnap((s / 4294967296) * w, dot);
+      s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
+      g.rect(x, momentSnap((s / 4294967296) * h, dot), grain, grain);
+    }
+    g.fill();
+    g.globalAlpha = 1;
+  }
+  function momentCut() { // new pieces for the glitch: five at most, each a thin piece of a strip across part of the picture, so that together they never cover more than about a twentieth of it
+    const C = momentCuts;
+    momentNow.cutAt = momentNow.age;
+    for (let i = 0; i < 5; i++) { C[i * 5] = momentDice(0, 0.95); C[i * 5 + 1] = momentDice(0.01, 0.035); C[i * 5 + 2] = momentDice(0, 0.7); C[i * 5 + 3] = momentDice(0.12, 0.3); C[i * 5 + 4] = (momentDice(0, 1) < 0.5 ? -1 : 1) * momentDice(0.03, 0.12); } // how far down, how tall, where across it starts, how long, how far knocked sideways
+  }
+  function momentGlitch(src, much, on, dot) { // the green and blue a little to one side of the red, and a few pieces of the picture knocked sideways, cut again on a hi-hat or a clap, never more than four times a second
+    const M = momentNow, dx = Math.max(dot, momentSnap(w * 0.01 * much, dot)), C = momentCuts;
+    if (M.cutAt < 0 || (M.age - M.cutAt > 0.25 && (sound.hatHit || flow.clap || (sound.kickHit && M.age - M.cutAt > 0.5)))) momentCut();
+    momentFill("multiply", "#f00"); // the red stays where it is
+    g.globalCompositeOperation = "lighten"; // and the green and blue come back a little to the side
+    g.drawImage(src, 0, 0, w - dx, h, dx, 0, w - dx, h);
+    g.drawImage(src, 0, 0, dx, h, 0, 0, dx, h);
+    g.globalCompositeOperation = "source-over";
+    for (let i = 0, n = Math.ceil(5 * on - 0.001); i < n; i++) {
+      const top = Math.min(h - dot, momentSnap(C[i * 5] * h, dot)), tall = Math.min(h - top, Math.max(dot, momentSnap(C[i * 5 + 1] * h, dot))), from = momentSnap(C[i * 5 + 2] * w, dot), long = Math.min(w - from, momentSnap(C[i * 5 + 3] * w, dot)), shift = momentSnap(C[i * 5 + 4] * w * much, dot);
+      if (!shift || tall <= 0 || long <= 0) continue;
+      g.drawImage(src, from, top, long, tall, from + shift, top, long, tall);
+    }
+  }
+  function momentMirror(src, on, dot) { // one half folded over onto the other, opening out from the middle line as it comes: the left onto the right, or on a phone the top onto the bottom
+    const tall = h > w, half = momentSnap((tall ? h : w) / 2, dot), k = momentSnap(half * on, dot);
+    if (k < 1) return;
+    g.globalCompositeOperation = "source-over";
+    if (tall) { g.setTransform(1, 0, 0, -1, 0, 2 * half); g.drawImage(src, 0, half - k, w, k, 0, half - k, w, k); }
+    else { g.setTransform(-1, 0, 0, 1, 2 * half, 0); g.drawImage(src, half - k, 0, k, h, half - k, 0, k, h); }
+    g.setTransform(1, 0, 0, 1, 0, 0);
+  }
+  /* ==== moments: end ==== */
   const DRAW = { zen: agTechnozen, darkaero: agDarkAero, eco: asEcoFx, dorfic: asDorficFx, aqua: awAquaFx, aero: awAeroFx, beings: beingsFx, life: livingGrid, places: placesFx, arcade: arcadeFx, runner: runnerFx, forms: formsFx, faces, ribbon, silk, helix, strings, bars, mirror, leds, terrain, scope, trails, tunnel, vortex, prism, ripple, comets, stars: starfield, whirl, dust, links, fireworks, halo, sun, rings, mandala, rays, space, warp: space, drift: space, orbit: space, visitors: space, well,
     kaleido, plasma, fractal, julia, mandel, newton, ocean, neonroad, aurora, tube: tubeFx, heads: headsFx, sphere: sphereFx, solids: solidsFx, city: cityFx };
 
@@ -13000,6 +13277,7 @@ window.Effects = (() => {
     acidSing(); // the 303's singer, over whoever else is visiting
     bandPlay(); // the crowd, the dancer and the rocket, after the singer so they stand in front of the tail of its line
     pixelDone(inPixels);
+    momentShow(); // now and then the whole picture takes on another look for a bar or two: see the moments
   }
 
   /* Morph: the effect changes into another by itself now and then. Never just after a drop, which is the song's big moment and stays with the effect it landed on; best of all in a breakdown,
@@ -13202,7 +13480,7 @@ window.Effects = (() => {
     },
     place(part) { winPlace(part); }, // how far through the playing song it is, 0 to 1: a little window's loading bar follows it
     visiting: () => guest.list.length > 0,
-    knobs: (style) => { const trip = TRIPS[style]; return ["light", "react", "speed", "spark", ...(LEAVES_TRAILS.has(style) ? ["drag"] : []), ...(style === "ripple" ? ["tilt"] : []), ...(trip ? ["nod", ...(trip.steer ? ["turns"] : []), ...(trip.moves ? ["moves"] : []), "shots"] : []), ...(VERSIONS[style] ? ["vary"] : []), ...(FRACTALS.has(style) ? ["color", "echo", "breathe", "sounds"] : []), "dream", "folk", "acid", "band", ...(trip && trip.falls ? ["falls"] : []), ...(trip && trip.cockpit ? ["pit"] : [])].map((key) => [key, ...KNOBS[key]]); },
+    knobs: (style) => { const trip = TRIPS[style]; return ["light", "react", "speed", "spark", ...(LEAVES_TRAILS.has(style) ? ["drag"] : []), ...(style === "ripple" ? ["tilt"] : []), ...(trip ? ["nod", ...(trip.steer ? ["turns"] : []), ...(trip.moves ? ["moves"] : []), "shots"] : []), ...(VERSIONS[style] ? ["vary"] : []), ...(FRACTALS.has(style) ? ["color", "echo", "breathe", "sounds"] : []), "tricks", "dream", "folk", "acid", "band", ...(trip && trip.falls ? ["falls"] : []), ...(trip && trip.cockpit ? ["pit"] : [])].map((key) => [key, ...KNOBS[key]]); },
     tuning(values) { // adjustments for the effect showing. Anything left out is back to how it was designed
       const was = T.vary;
       for (const key of Object.keys(T)) { const [, low, high] = KNOBS[key], v = Number(values[key]); T[key] = Number.isFinite(v) ? Math.min(high, Math.max(low, v)) : 1; }
