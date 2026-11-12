@@ -12,8 +12,8 @@ window.Effects = (() => {
   let pageSoft = 0; // how soft the picture is made behind the page, in dots, as the page asks (0, sharp, in Full view and on a slow machine)
   const paintFilter = () => { canvas.style.filter = [aside.lit === 1 ? "" : `brightness(${aside.lit})`, pageSoft ? `blur(${pageSoft}px)` : ""].filter(Boolean).join(" "); }; // the picture's Brightness and its softness behind the page, both on the picture itself (a blur laid over the window from outside would cost far more)
   const sound = { bands: new Float32Array(BANDS), wave: new Float32Array(POINTS), bass: 0, mid: 0, treble: 0, level: 0, kick: 0, hat: 0, kickHit: 0, hatHit: 0, t: 0, dt: 0.016 };
-  const pointer = { on: false, x: 0, y: 0, at: -1e9, tap: null, tapped: null, taken: false, rings: [] }; // the mouse over the picture, in the picture's own dots: on while it is over the picture itself (not the page's buttons or words), at when it last moved (the clock, in ms), and tapped, a click, there for the one frame after it lands, as kickHit is for a kick. An effect that answers a click in its own way sets taken in that frame, and then no ring goes out. rings: the soft rings that clicks send out
-  const T = { light: 1, react: 1, speed: 1, drag: 1, spark: 1, nod: 1, turns: 1, moves: 1, shots: 1, folk: 1, acid: 1, band: 1, pit: 1, tilt: 1, vary: 1, dream: 1, falls: 1, color: 1, echo: 1, breathe: 1, sounds: 1, tricks: 1, punch: 1 }; // what's been adjusted for the effect showing: 1 is how it was designed
+  const pointer = { on: false, x: 0, y: 0, at: -1e9, tap: null, tapped: null, taken: false, rings: [], touch: false, near: 0, much: 1, over: 0, sx: 0, sy: 0, vx: 0, vy: 0, lx: 0, ly: 0, cx: 0, cy: 0, aimX: 0, aimY: 0, aimTill: -1, fresh: null, pokes: [], since: 99, dt: 0, frames: 0 }; // the mouse over the picture, in the picture's own dots (what comes after rings belongs to the mouse block, which says what each is): on while it is over the picture itself (not the page's buttons or words), at when it last moved (the clock, in ms), and tapped, a click, there for the one frame after it lands, as kickHit is for a kick. An effect that answers a click in its own way sets taken in that frame, and then no ring goes out. rings: the soft rings that clicks send out
+  const T = { light: 1, react: 1, speed: 1, drag: 1, spark: 1, nod: 1, turns: 1, moves: 1, shots: 1, folk: 1, acid: 1, band: 1, pit: 1, tilt: 1, vary: 1, dream: 1, falls: 1, color: 1, echo: 1, breathe: 1, sounds: 1, tricks: 1, punch: 1, hand: 1 }; // what's been adjusted for the effect showing: 1 is how it was designed
   const STYLES = { // each effect and its styles, by the name a style goes by
     ribbon: [["ribbon", "Classic"], ["silk", "Silk"], ["helix", "Helix"], ["strings", "Strings"]],
     bars: [["bars", "Classic"], ["mirror", "Mirror"], ["leds", "LEDs"], ["terrain", "Landscape"], ["scope", "Scope"]],
@@ -31,7 +31,7 @@ window.Effects = (() => {
   const FOLK_OF = { arcade: ["astronaut", "shapes", "neon", "jelly"], ocean: ["jelly", "whale", "jelly", "shapes"], neonroad: ["neon", "shapes", "saucer", "neon"], aurora: ["saucer", "astronaut", "neon", "saucer"], // some places have their own visitors
     tube: ["shapes", "neon", "eye", "saucer"], heads: ["saucer", "eye", "shapes", "neon"], sphere: ["astronaut", "saucer", "shapes", "jelly"], solids: ["shapes", "saucer", "neon", "astronaut"], city: ["saucer", "neon", "saucer", "shapes"] };
   const FAMILY = Object.fromEntries(Object.entries(STYLES).flatMap(([family, list]) => list.map(([style]) => [style, family])));
-  const KNOBS = { light: ["Brightness", 0.3, 1.7], react: ["Reacts to the music", 0.2, 1.8], speed: ["Speed", 0.3, 2], spark: ["Glints on the hi-hats", 0, 2], drag: ["Length of the trails", 0.4, 2.5], nod: ["Nodding to the beat", 0, 2], turns: ["Changes of course", 0, 3], moves: ["Jumps and stops", 0, 3], band: ["Crowd and dancers", 0, 2], pit: ["Cockpit", 0, 1], shots: ["Shooting stars", 0, 3], folk: ["Visitors", 0, 3], acid: ["Singing to the 303", 0, 2], tilt: ["Turning now and then", 0, 3], vary: ["Changes by itself", 0, 3], dream: ["Dreamy lights", 0, 2], falls: ["Falling into planets", 0, 3], color: ["Colors that travel", 0, 1.5], echo: ["After-images", 0, 2], breathe: ["Breathing", 0, 2], sounds: ["Answers to sounds", 0, 2], tricks: ["Color tricks", 0, 2], punch: ["Hard kicks", 0, 2] };
+  const KNOBS = { light: ["Brightness", 0.3, 1.7], react: ["Reacts to the music", 0.2, 1.8], speed: ["Speed", 0.3, 2], spark: ["Glints on the hi-hats", 0, 2], drag: ["Length of the trails", 0.4, 2.5], nod: ["Nodding to the beat", 0, 2], turns: ["Changes of course", 0, 3], moves: ["Jumps and stops", 0, 3], band: ["Crowd and dancers", 0, 2], pit: ["Cockpit", 0, 1], shots: ["Shooting stars", 0, 3], folk: ["Visitors", 0, 3], acid: ["Singing to the 303", 0, 2], tilt: ["Turning now and then", 0, 3], vary: ["Changes by itself", 0, 3], dream: ["Dreamy lights", 0, 2], falls: ["Falling into planets", 0, 3], color: ["Colors that travel", 0, 1.5], echo: ["After-images", 0, 2], breathe: ["Breathing", 0, 2], sounds: ["Answers to sounds", 0, 2], tricks: ["Color tricks", 0, 2], punch: ["Hard kicks", 0, 2], hand: ["Answers to the mouse", 0, 2] };
   const LEAVES_TRAILS = new Set(["trails", "tunnel", "vortex", "prism", "ripple", "comets", "stars", "whirl", "fireworks", "scope"]);
   const raw = new Float32Array(BANDS), leadHold = new Float32Array(BANDS), leadMid = new Float32Array(512), leadSum = new Float32Array(513), HEADS = 9;
   let peaks = new Float32Array(160), stars = new Float32Array(STARS * 3), past = new Float32Array(HEADS * 2).fill(NaN), orbits = new Float32Array(HEADS); // (let: while one effect changes into another, each can have its own)
@@ -73,6 +73,7 @@ window.Effects = (() => {
   function fit() { // the picture is soft, so it needs far fewer pixels than the window has
     const across = Math.round(Math.min(innerWidth, 1600) * quality), down = Math.round((across * innerHeight) / innerWidth);
     if (across === w && down === h) return;
+    handFit(across, down); // (the mouse's places move with it: see the mouse block)
     w = canvas.width = spare.width = across;
     h = canvas.height = spare.height = down;
     wipe();
@@ -2211,9 +2212,15 @@ window.Effects = (() => {
     else { x = fromX + (toX - fromX) * part; y = o.y + Math.sin(part * 7 + o.seed) * h * 0.06; }
     x += Math.sin(t * 1.1 + o.seed) * w * 0.016;
     y += Math.sin(t * 1.7 + o.seed) * h * 0.012 + sky.bob * o.size * 0.42;
+    saucerPull(o, x, y, part, arrive); // called over by a click on the sky, it glides there and back (see the mouse block)
+    x += o.pullX || 0;
+    y += o.pullY || 0;
     const tilt = (o.hover ? -(1 - arrive) * o.side * 0.32 - leave * o.side * 0.4 : -o.side * 0.14) + Math.sin(t * 1.3 + o.seed) * 0.05 + sky.bob * 0.18, size = o.size * (o.hover ? (0.5 + 0.5 * arrive) * (1 - 0.82 * leave) : 1), u = size / 360;
+    seenAt(o, x, y, size * 0.55, 0.6);
+    const turn = tilt + saucerTurn(o, x); // it leans toward the mouse, and a click on it gives it a wobble
     g.translate(x, y);
-    g.rotate(tilt);
+    g.rotate(turn);
+    saucerShine(o, size, turn, hat); // and its light, down onto a place clicked
     if (o.hover && o.beam && arrive >= 1 && !leave) { // and it's taking your record
       const on = clamp((part - 0.3) / 0.08) * clamp((0.8 - part) / 0.05), long = size * 1.9, paint = g.createLinearGradient(0, 0, 0, long), up = 1 - clamp((part - 0.34) / 0.44), at = long * 0.95 * up + size * 0.1, disk = size * 0.17 * (0.6 + 0.4 * up);
       paint.addColorStop(0, rgba(o.tone, 0.5));
@@ -2287,6 +2294,7 @@ window.Effects = (() => {
     if (kickHit) o.pulse = Math.max(o.pulse, kickHit);
     if (acidLook.hit) o.pulse = Math.max(o.pulse, 0.6 * Math.min(1.5, acidLook.hit)); // and a smaller one on each note of a 303
     o.pulse *= Math.exp(-dt / 0.24);
+    jellyHand(o, dt); // it drifts away from the mouse, and a click is a stroke of its bell (see the mouse block)
     o.y -= o.rise * dt * (1 + 5 * o.pulse);
     o.x += o.drift * dt;
     const size = o.size, thin = 1 - 0.16 * o.pulse, long = 1 + 0.13 * o.pulse, fall = g.createLinearGradient(0, 0, 0, size * 1.25);
@@ -2312,12 +2320,15 @@ window.Effects = (() => {
     const { t } = sound, size = o.size, flap = Math.sin(t * 1.3 + o.seed) * 0.22 + sky.bob * 1.2, fromX = o.side > 0 ? w * 1.25 : -w * 0.25;
     g.globalCompositeOperation = "lighter";
     g.globalAlpha = clamp(part / 0.1) * clamp((1 - part) / 0.12);
-    g.translate(fromX + (w - 2 * fromX) * part, o.y + Math.sin(t * 0.45 + o.seed) * h * 0.02 + sky.bob * size * 0.12);
+    const wx = fromX + (w - 2 * fromX) * part, wy = o.y + Math.sin(t * 0.45 + o.seed) * h * 0.02 + sky.bob * size * 0.12;
+    seenAt(o, wx, wy, size * 0.45, 0.4);
+    g.translate(wx, wy);
     g.scale(o.side, 1);
-    g.rotate(Math.sin(t * 0.45 + o.seed + 1) * 0.05);
+    g.rotate(Math.sin(t * 0.45 + o.seed + 1) * 0.05 + whaleRoll(o, wx, wy, size)); // (it rolls a little toward the mouse: see the mouse block)
     g.drawImage(o.art, -size / 2, -size / 4, size, size / 2);
+    whaleHand(o, size, wx, wy); // its eye's glint turns to the mouse, and a click sends a puff of bubbles up from its blowhole
     g.translate(size * 0.418, -size * 0.0195);
-    g.rotate(flap);
+    g.rotate(flap + whaleFlap(o)); // (and a slow flap of the tail)
     g.scale(size, size);
     g.fillStyle = rgba(o.tone, 0.45);
     g.beginPath();
@@ -2335,17 +2346,21 @@ window.Effects = (() => {
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = clamp(part / 0.08) * clamp((1 - part) / 0.12);
     g.translate(o.x, o.y + sky.bob * o.size * 0.5 * o.nod * (1 - melt));
-    const turn = o.turn + t * o.spin + sky.bob * 0.3 * o.nod;
+    const turn = o.turn + t * o.spin + sky.bob * 0.3 * o.nod + smileyTurn(o, o.x, o.y, o.turn + t * o.spin, at); // (it turns its face to the mouse: see the mouse block)
+    seenAt(o, o.x, o.y, size * 0.5);
     if (melt && o.upright === undefined) { o.tilt = turn; o.upright = Math.round(turn / TAU) * TAU; }
     g.rotate(melt ? o.tilt + (o.upright - o.tilt) * clamp(melt * 4) : turn); // it rights itself first, so the drops run down
-    if (at) smileyNow(size, o, at); else g.drawImage(artOf("acid").head, -size / 2, -size / 2, size, size);
+    const trick = at || smileyPoke(o, at); // (clicked with no trick of its own on: it sticks its tongue out)
+    if (trick) smileyNow(size, o, trick); else g.drawImage(artOf("acid").head, -size / 2, -size / 2, size, size);
   }
   function drawPeek(o, part) { // a big face comes up from below, looks around, nods along, winks once and goes. The hardcore one only stares, and shakes
-    const { t, kick } = sound, look = LOOKS[o.look], up = part < 0.14 ? 1 - (1 - part / 0.14) ** 3 : part > 0.86 ? 1 - ((part - 0.86) / 0.14) ** 2 : 1, size = o.size, r = size * 0.4, skin = rgba(mix(look.skin, [0, 50, 40], 0.12), 1), lookX = Math.sin(t * 0.9 + o.seed) * 0.1, wink = part > 0.58 && part < 0.65, shake = look.angry ? Math.sin(t * 41) * kick * size * 0.018 : 0;
+    const { t, kick } = sound, look = LOOKS[o.look], up = part < 0.14 ? 1 - (1 - part / 0.14) ** 3 : part > 0.86 ? 1 - ((part - 0.86) / 0.14) ** 2 : 1, size = o.size, r = size * 0.4, skin = rgba(mix(look.skin, [0, 50, 40], 0.12), 1), lookX = Math.sin(t * 0.9 + o.seed) * 0.1, poke = pokedAgo(o), wink = (part > 0.58 && part < 0.65) || poke < 0.4, shake = look.angry ? Math.sin(t * 41) * (kick + (poke < 0.8 ? 1 - poke / 0.8 : 0)) * size * 0.018 : 0; // (a click: it winks, or the hardcore one shakes)
     if (t > o.blink) { o.blink = t + rnd(1.4, 3.6); o.shut = t + 0.14; }
     const floor = o.floor !== undefined ? o.floor : TRIPS[name] && TRIPS[name].cockpit && T.pit ? dashAt(o.x) : h; // in the cockpit it peers over the dashboard, and on the app over the play bar
     if (o.floor !== undefined) { g.beginPath(); g.rect(0, 0, w, o.floor); g.clip(); }
-    g.translate(o.x + shake + Math.sin(t * 0.7 + o.seed) * w * 0.006, floor + size * 0.6 - up * size * 1.02 + sky.bob * size * 0.09);
+    const px = o.x + shake + Math.sin(t * 0.7 + o.seed) * w * 0.006, py = floor + size * 0.6 - up * size * 1.02 + sky.bob * size * 0.09, eyes = peekEyes(o, px, py, r); // (its eyes follow the mouse: see the mouse block)
+    seenAt(o, px, py, r * 1.15);
+    g.translate(px, py);
     g.rotate(Math.sin(t * 0.8 + o.seed) * 0.05 + sky.bob * 0.1 * o.lean);
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = 1;
@@ -2386,7 +2401,7 @@ window.Effects = (() => {
       } else {
         g.fillStyle = "rgba(255,255,255,.9)";
         g.beginPath();
-        g.ellipse(side * r * 0.44 + lookX * r - r * 0.1, -r * 0.13, r * 0.09, r * 0.06, 0, 0, TAU);
+        g.ellipse(side * r * 0.44 + (lookX + eyes[0]) * r - r * 0.1, -r * 0.13 + eyes[1] * r, r * 0.09, r * 0.06, 0, 0, TAU);
         g.fill();
       }
     }
@@ -2482,13 +2497,15 @@ window.Effects = (() => {
     o.arm += ((o.beat % 2 ? 1 : -1) - o.arm) * (1 - Math.exp(-dt / 0.06));
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = clamp(part / 0.06) * clamp((1 - part) / 0.06);
-    g.translate(fromX + (w - 2 * fromX) * part, o.y + sky.bob * S * 0.3 + Math.sin(t * 0.6 + o.seed) * h * 0.02);
-    g.rotate(Math.sin(t * 0.35 + o.seed) * 0.5 + t * 0.06 * o.side);
+    const ax = fromX + (w - 2 * fromX) * part, ay = o.y + sky.bob * S * 0.3 + Math.sin(t * 0.6 + o.seed) * h * 0.02, roll = Math.sin(t * 0.35 + o.seed) * 0.5 + t * 0.06 * o.side, arms = astronautArms(o), face = astronautLook(o, ax, ay - S * 0.42, S, roll); // (it looks at the mouse, and waves when clicked: see the mouse block)
+    seenAt(o, ax, ay - S * 0.1, S * 0.62);
+    g.translate(ax, ay);
+    g.rotate(roll);
     g.lineCap = "round";
     g.strokeStyle = "#e6eaf0";
     g.lineWidth = S * 0.16;
-    limb(-0.2, -0.05, -0.52, -0.05 - 0.38 * o.arm);
-    limb(0.2, -0.05, 0.52, -0.05 + 0.38 * o.arm);
+    limb(-0.2, -0.05, -0.52, -0.05 - 0.38 * arms[0]);
+    limb(0.2, -0.05, 0.52, -0.05 + 0.38 * arms[1]);
     limb(-0.12, 0.38, -0.2 - 0.07 * o.arm, 0.74);
     limb(0.12, 0.38, 0.2 - 0.07 * o.arm, 0.74);
     g.fillStyle = "#f3f5f8";
@@ -2505,19 +2522,22 @@ window.Effects = (() => {
     g.fill();
     g.fillStyle = "#11141c";
     g.beginPath();
-    g.ellipse(0, -0.41 * S, 0.21 * S, 0.17 * S, 0, 0, TAU);
+    g.ellipse(face[0] * S, -0.41 * S + face[1] * S, 0.21 * S, 0.17 * S, 0, 0, TAU);
     g.fill();
     g.fillStyle = "rgba(255,255,255,.8)";
     g.beginPath();
-    g.ellipse(-0.08 * S, -0.47 * S, 0.06 * S, 0.035 * S, -0.5, 0, TAU);
+    g.ellipse((-0.08 + face[0]) * S, (-0.47 + face[1]) * S, 0.06 * S, 0.035 * S, -0.5, 0, TAU);
     g.fill();
   }
   function drawCow(o, part) { // outside Space a cow can't come from far ahead, so it floats across, turning slowly
     const { t } = sound, S = o.size, art = cowPicture(), tall = (S * art.height) / art.width, fromX = o.side > 0 ? w * 1.15 : -w * 0.15;
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = clamp(part / 0.06) * clamp((1 - part) / 0.06);
-    g.translate(fromX + (w - 2 * fromX) * part, o.y + sky.bob * S * 0.3 + Math.sin(t * 0.6 + o.seed) * h * 0.02);
-    g.rotate(o.turn + t * o.spin);
+    const x = fromX + (w - 2 * fromX) * part, y = o.y + sky.bob * S * 0.3 + Math.sin(t * 0.6 + o.seed) * h * 0.02, out = shove(x + folkHand.dx, y + folkHand.dy, S * 1.1, 0.8), cx = x + out[0], cy = y + out[1]; // (it drifts out of the mouse's way: see the mouse block)
+    seenAt(o, cx, cy, S * 0.55, 0.75);
+    g.translate(cx, cy);
+    const happy = cowHand(o, S); // a click: "Moo!" in a little cloud over it, and a happy turn
+    g.rotate(o.turn + t * o.spin + happy);
     g.drawImage(art, -S / 2, -tall / 2, S, tall);
   }
   /* The psychedelic visitors, for goa and psytrance. */
@@ -2525,8 +2545,11 @@ window.Effects = (() => {
     const { t, kick } = sound, open = 1 - (1 - clamp(Math.min(part / 0.14, (1 - part) / 0.12))) ** 3;
     if (t > o.blink) { o.blink = t + rnd(1.8, 4.5); o.shut = t + 0.14; }
     if (o.drift) o.x += o.drift * sound.dt;
-    const W = o.size, lid = t < o.shut ? 0.05 : open, H = Math.max(W * 0.02, W * 0.5 * lid), R = W * 0.4, hue = rainbowTone(t * 0.4, o.seed);
+    const squint = eyeWince(o); // a click: one blink, then it opens slowly, squinting (see the mouse block)
+    const W = o.size, lid = t < o.shut ? 0.05 : open * squint, H = Math.max(W * 0.02, W * 0.5 * lid), R = W * 0.4, hue = rainbowTone(t * 0.4, o.seed);
     const look = [Math.sin(t * 0.6 + o.seed) * W * 0.32, Math.sin(t * 0.43 + o.seed * 2) * W * 0.06];
+    eyeLook(o, look, W, o.x + folkHand.dx, o.y + sky.bob * W * 0.05 + folkHand.dy); // and it looks at the mouse
+    seenAt(o, o.x, o.y + sky.bob * W * 0.05, W, 0.6);
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = clamp(part / 0.05) * clamp((1 - part) / 0.05);
     g.translate(o.x, o.y + sky.bob * W * 0.05);
@@ -2572,13 +2595,15 @@ window.Effects = (() => {
     g.stroke();
   }
   function drawMandala(o, part) { // a kaleidoscope flower: it opens, its rings turn against each other, it breathes with the kick and folds away again
-    const { t, kick } = sound, R = o.size * Math.sin(Math.PI * clamp(part)) ** 0.7 * (1 + 0.1 * kick);
+    const { t, kick } = sound, R = o.size * Math.sin(Math.PI * clamp(part)) ** 0.7 * (1 + 0.1 * kick) * mandalaOpen(o); // (a click opens it wider for a moment: see the mouse block)
     if (R < 1) return;
     g.globalCompositeOperation = "lighter";
     g.globalAlpha = 0.8;
     g.translate(o.x, o.y + sky.bob * o.size * 0.05);
+    const lean = mandalaLean(o, R); // its rings turn a little toward the mouse
+    seenAt(o, o.x, o.y + sky.bob * o.size * 0.05, R * 0.9);
     for (let ring = 0; ring < 4; ring++) {
-      const n = o.petals + ring * 4, r = R * (1 - ring * 0.21), turn = t * o.spin * (ring % 2 ? -1.3 : 1) + ring * 0.4;
+      const n = o.petals + ring * 4, r = R * (1 - ring * 0.21), turn = t * o.spin * (ring % 2 ? -1.3 : 1) + ring * 0.4 + lean;
       g.fillStyle = rgba(rainbowTone(t * 0.2 + ring * 0.22, o.seed), 0.5 - ring * 0.07);
       for (let i = 0; i < n; i++) {
         g.save();
@@ -2597,6 +2622,7 @@ window.Effects = (() => {
     const { t, dt, kickHit } = sound, s = o.size;
     o.x += o.side * o.walk * dt;
     if (kickHit && o.up <= 0.001) o.vy = s * rnd(5, 7);
+    const lean = toadHand(o, s); // a click: it hops, if it is on the ground; and it leans away from the mouse (see the mouse block)
     o.vy -= s * 26 * dt;
     o.up = Math.max(0, o.up + o.vy * dt);
     if (o.up === 0 && o.vy < 0) { o.vy = 0; o.land = t; }
@@ -2604,6 +2630,7 @@ window.Effects = (() => {
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = clamp(part / 0.04) * clamp((1 - part) / 0.06);
     g.translate(o.x, o.ground - o.up);
+    if (lean) g.rotate(lean);
     g.scale(sx * (o.side < 0 ? -1 : 1), sy);
     g.lineWidth = s * 0.06;
     g.strokeStyle = "#1c1424";
@@ -2653,10 +2680,12 @@ window.Effects = (() => {
     const { t, kick } = sound, age = part * o.life, left = (1 - part) * o.life, lit = age < 1.1 || left < 0.6 ? (Math.random() < 0.5 ? 1 : 0.12) : 1;
     g.globalCompositeOperation = "lighter";
     g.lineJoin = g.lineCap = "round";
-    g.translate(o.x, o.y + Math.sin(t * 0.7 + o.seed) * o.size * 0.06);
-    g.rotate(Math.sin(t * 0.3 + o.seed) * 0.12);
+    const ny = o.y + Math.sin(t * 0.7 + o.seed) * o.size * 0.06, poke = pokedAgo(o);
+    seenAt(o, o.x, ny, o.size * 1.1);
+    g.translate(o.x, ny);
+    g.rotate(Math.sin(t * 0.3 + o.seed) * 0.12 + (poke < 0.8 ? eased(poke / 0.8) * TAU : 0)); // (a click spins it round once: see the mouse block)
     neonPath(o.shape, o.size);
-    glowLine(o.tone, o.size * 0.05 * (1 + 0.6 * kick), lit);
+    glowLine(o.tone, o.size * 0.05 * (1 + 0.6 * kick) * (1 + 0.2 * handClose(o.x + folkHand.dx, ny + folkHand.dy, o.size * 2)), lit); // and it glows a little wider with the mouse near
   }
   function drawLasers(o, part) { // beams from the floor, sweeping across, brightest on the kick
     const { t, kick } = sound, fade = clamp(part / 0.08) * clamp((1 - part) / 0.15), most = Math.max(w, h);
@@ -2664,7 +2693,7 @@ window.Effects = (() => {
     g.lineCap = "round";
     for (const [ox, dir] of [[w * 0.12, 1], [w * 0.88, -1]]) {
       for (let i = 0; i < o.beams; i++) {
-        const a = -Math.PI / 2 + dir * (0.25 + 0.5 * (i / o.beams)) + Math.sin(t * o.speed + i * 0.9 + o.seed) * 0.45 * dir;
+        const a = laserAim(o, ox, (dir > 0 ? 0 : o.beams) + i, -Math.PI / 2 + dir * (0.25 + 0.5 * (i / o.beams)) + Math.sin(t * o.speed + i * 0.9 + o.seed) * 0.45 * dir); // (swept toward the mouse, and held on a place clicked: see the mouse block)
         g.beginPath();
         g.moveTo(ox, h * 1.02);
         g.lineTo(ox + Math.cos(a) * most * 1.4, h * 1.02 + Math.sin(a) * most * 1.4);
@@ -2674,6 +2703,7 @@ window.Effects = (() => {
   }
   function drawSea(o, part) { // a sea of light rises along the bottom, swells with the bass and sinks again
     const { t, bass, hatHit } = sound, rise = Math.sin(Math.PI * clamp(part)) ** 0.5, base = h * (1.02 - 0.2 * rise);
+    seaSetup(o, base, rise); // the swell under the mouse, and a click's ripple along the crests (see the mouse block)
     g.globalCompositeOperation = "lighter";
     for (let layer = 0; layer < 4; layer++) {
       const amp = h * (0.018 + 0.03 * bass) * (1 + layer * 0.35), speed = 0.6 + layer * 0.25, tone = mix(o.tone, [255, 255, 255], layer * 0.12), y0 = base + layer * h * 0.035;
@@ -2683,7 +2713,7 @@ window.Effects = (() => {
       g.fillStyle = fill;
       g.beginPath();
       g.moveTo(0, h);
-      for (let x = 0; x <= w + 8; x += 8) g.lineTo(x, y0 + Math.sin(x / w * TAU * (1.3 + layer * 0.4) + t * speed * (layer % 2 ? -1 : 1) + o.seed) * amp);
+      for (let x = 0; x <= w + 8; x += 8) g.lineTo(x, y0 + Math.sin(x / w * TAU * (1.3 + layer * 0.4) + t * speed * (layer % 2 ? -1 : 1) + o.seed) * amp - seaLift(o, x));
       g.lineTo(w, h);
       g.closePath();
       g.fill();
@@ -2700,7 +2730,8 @@ window.Effects = (() => {
     o.ax += dt * o.spin[0] * (1 + kick);
     o.ay += dt * o.spin[1] * (1 + kick);
     o.x += o.drift * dt;
-    const [ca, sa, cb, sb] = [Math.cos(o.ax), Math.sin(o.ax), Math.cos(o.ay), Math.sin(o.ay)];
+    shapeHand(o, s, dt); // it turns toward the mouse, and a click sets it spinning (see the mouse block)
+    const [ca, sa, cb, sb] = [Math.cos(o.ax + o.lookA), Math.sin(o.ax + o.lookA), Math.cos(o.ay + o.lookB), Math.sin(o.ay + o.lookB)];
     const flat = form.at.map(([x, y, z]) => { const y1 = y * ca - z * sa, z1 = y * sa + z * ca, x2 = x * cb + z1 * sb, z2 = -x * sb + z1 * cb, d = 3 / (3 + z2); return [o.x + x2 * s * d, o.y + y1 * s * d]; });
     g.globalCompositeOperation = "lighter";
     g.lineCap = "round";
@@ -2709,7 +2740,7 @@ window.Effects = (() => {
     glowLine(mood === "psy" ? rainbowTone(t * 0.3, o.seed) : o.tone, Math.max(1, s * 0.03), 0.8 * clamp(part / 0.05) * clamp((1 - part) / 0.08));
   }
   function drawDisco(o, part) { // a mirror ball comes down at the drop, turns, and throws spots of light all round
-    const { t, kick } = sound, down = part < 0.12 ? 1 - (1 - part / 0.12) ** 3 : part > 0.88 ? 1 - ((part - 0.88) / 0.12) ** 2 : 1, R = o.size, y = -R * 1.4 + down * (h * 0.22 + R * 1.4), turn = t * 0.8;
+    const { t, kick } = sound, down = part < 0.12 ? 1 - (1 - part / 0.12) ** 3 : part > 0.88 ? 1 - ((part - 0.88) / 0.12) ** 2 : 1, R = o.size, y = -R * 1.4 + down * (h * 0.22 + R * 1.4), turn = t * 0.8 + discoSpin(o, R, y); // (a click spins it faster for a moment: see the mouse block)
     g.globalCompositeOperation = "source-over";
     g.strokeStyle = "rgba(200,200,210,.6)";
     g.lineWidth = Math.max(1, R * 0.03);
@@ -2734,16 +2765,17 @@ window.Effects = (() => {
     g.globalCompositeOperation = "lighter";
     for (let i = 0; i < 18; i++) { // the spots it throws, sweeping round the room
       const a = (i / 18) * TAU + turn * 0.6, reach = Math.max(w, h) * (0.3 + 0.5 * ((i * 0.37) % 1));
-      softBlob(g, o.x + Math.cos(a) * reach, y + Math.sin(a) * reach * 0.6, Math.max(w, h) * 0.022, mood === "psy" ? rainbowTone(i / 18 + t * 0.2, 0) : [255, 255, 255], (0.4 + 0.45 * kick) * down);
+      softBlob(g, o.x + Math.cos(a) * reach + discoPull(o, o.x + Math.cos(a) * reach, 0), y + Math.sin(a) * reach * 0.6 + discoPull(o, y + Math.sin(a) * reach * 0.6, 1), Math.max(w, h) * 0.022, mood === "psy" ? rainbowTone(i / 18 + t * 0.2, 0) : [255, 255, 255], (0.4 + 0.45 * kick) * down);
     }
   }
   function drawConfetti(o, part) { // a burst of paper at the drop, fluttering down
-    const { dt } = sound, fade = clamp((1 - part) / 0.25);
+    const { dt } = sound, fade = clamp((1 - part) / 0.25), blow = pointer.near > 0.01 && !guest.drawing, reach = Math.min(w, h) * 0.12;
     g.globalCompositeOperation = "source-over";
     for (const p of o.bits) {
       p.vy += h * 0.32 * dt; // paper: it floats down rather than falling
       p.vx *= 0.975;
       p.vy *= 0.975;
+      if (blow) { const v = shove(p.x, p.y, reach, 0.8); p.vx += v[0] * 6 * dt; p.vy += v[1] * 6 * dt; } // blown away from the mouse (see the mouse block)
       p.x += (p.vx + Math.sin(p.turn * 2) * w * 0.02) * dt;
       p.y += p.vy * dt;
       p.turn += p.spin * dt;
@@ -2757,17 +2789,19 @@ window.Effects = (() => {
     }
   }
   function drawFall(o, part) { // the season: snow, petals or leaves drifting down, or fireflies wandering on a summer night
-    const { t, dt, kick } = sound, fade = clamp(part / 0.1) * clamp((1 - part) / 0.15), s = Math.min(w, h);
+    const { t, dt, kick } = sound, fade = clamp(part / 0.1) * clamp((1 - part) / 0.15), s = Math.min(w, h), hand = fallSetup(o, s); // (the mouse: see the mouse block)
     g.globalCompositeOperation = o.style === "fireflies" ? "lighter" : "source-over";
     for (const p of o.bits) {
       if (o.style === "fireflies") {
         p.x += Math.cos(t * p.v + p.phase) * s * 0.03 * dt;
         p.y += Math.sin(t * p.v * 1.3 + p.phase) * s * 0.025 * dt;
-        softBlob(g, p.x, p.y, s * 0.012 * (1 + kick * 0.5), [220, 255, 120], 0.6 * ((Math.sin(t * 2.2 + p.phase * 5) + 1) / 2) * fade);
+        if (hand) fallHand(o, p, s, dt); // they come to the mouse, and scatter from a click
+        softBlob(g, p.x + (p.hx || 0), p.y + (p.hy || 0), s * 0.012 * (1 + kick * 0.5), [220, 255, 120], 0.6 * ((Math.sin(t * 2.2 + p.phase * 5) + 1) / 2) * fade);
         continue;
       }
       p.y += p.v * dt;
       p.x += Math.sin(t * 0.8 + p.phase) * s * 0.03 * dt;
+      if (hand) fallHand(o, p, s, dt); // they swirl away from the mouse
       p.rot += p.spin * dt;
       if (p.y > h + 20) { p.y = -20; p.x = rnd(0, w); }
       g.save();
@@ -2816,7 +2850,8 @@ window.Effects = (() => {
       if (part >= 1) return false;
       if (part < 0) return true; // one of a group, not quite here yet
       g.save();
-      if (!STILL.has(o.kind)) { const [dx, dy] = moved(o, sound.dt); g.translate(dx, dy); }
+      folkHand.dx = folkHand.dy = 0;
+      if (!STILL.has(o.kind)) { const [dx, dy] = moved(o, sound.dt); g.translate(dx, dy); folkHand.dx = dx; folkHand.dy = dy; } // (and the mouse block is told how far, so a click finds it where it is drawn)
       DRAWN_BY[o.kind](o, part);
       g.restore();
       return true;
@@ -14320,7 +14355,378 @@ window.Effects = (() => {
     A.sort();
   }
   /* ==== live change: end ==== */
+  /* ==== mouse: begin ==== */
+  /* The mouse on the picture, for every effect and every visitor to answer in its own way. The page says where the mouse is and when it clicks (Effects.pointer). This block turns that
+     into a few gentle numbers, kept in the one pointer object, and the effects and the visitors read only these:
+       near     how much the mouse is there, 0 to 1. It comes up in about a tenth of a second when the mouse moves over the picture, and goes down over about half a second once the mouse
+                has been still for three seconds (about a second once it has left), so a mouse left lying on the picture is gone from it within about five and a half seconds. A finger on a phone never raises it: a tap
+                is a click and nothing more. Every answer to a hovering mouse is multiplied by it, so with no mouse nothing changes at all.
+                The slider "Answers to the mouse" (T.hand) turns it down; at 0 the mouse does only what it always did (the click's ring, and the Aero styles' own answers).
+       much     above 1 only when that slider is past the middle: how much bigger the effects' pushes and waves may be
+       over     how long the mouse has been moving about over the picture, in seconds
+       sx, sy   where it is, a moment behind the real one so nothing jerks; vx, vy: how fast it goes, in dots a second
+       lx, ly   where it is from the middle, -1 to 1 across and down, times near, and slower still, for the pictures that lean toward it. They take hold only once the mouse has
+                been over the picture for about half a second, so a mouse on its way to the buttons does not swing the whole picture
+       cx, cy   the same for the last place clicked (aimX, aimY), held three and a half seconds (until aimTill, by the clock in ms) and then let go
+       fresh    a click that is the picture's: not on a visitor, and about half a second or more after the last one, so nothing answers more than twice a second (the clicks in
+                between still send their ring). It is there for one frame. pokes: the last four of them, each with its age in seconds and its strength (k), for the answers that
+                take a while, such as a wave running out from where it landed
+       since    seconds since the last fresh click; dt: the last frame's time by the clock; frames: the frames counted, so a visitor's place is known to be the last frame's
+     A click on a visitor is the visitor's (folkTap): the one in front that it lands on, inside its own shape, answers in its own way, at most once in its answer's length and never
+     more than twice a second, and no ring goes out. A click on the sky that the picture left unanswered, near a calm saucer, calls the saucer over to shine its light there, after the click's ring (handAfter).
+     The visitors on the app itself (guests) use the same drawing, in the page's own units. While they are drawn every reading here is nothing, and nothing is recorded or answered.
+     The mouse's own numbers move by the clock, never by the song's pace. A visitor answers in its own time, as it moves (in seconds of the song, so slower at a low Speed), but a
+     new answer also waits at least half a second of the clock, so none comes more than twice a second. Nothing in it grows: four clicks are kept at most, and each visitor keeps a few numbers of its own. */
+  const folkHand = { dx: 0, dy: 0 }; // how far drawFolk() has pushed aside the visitor being drawn just now (moved()), so that where it is seen is where it is drawn
+  const POKE_LONG = { eye: 1.1, cow: 1.6, saucer: 1.2, jelly: 0.8, whale: 1.6, smiley: 1, peek: 0.8, astronaut: 1, mandala: 0.8, toadstool: 0.7, neon: 0.9, shape: 1, lasers: 0.9, sea: 1.6, disco: 1, fall: 1.2 }; // how long each visitor's answer to a click lasts, in seconds of the song (so longer at a low Speed): a click on it while it is still answering is taken, and does nothing more
+  const handing = () => T.hand > 0 && !guest.drawing; // whether the mouse is answered at all just now
+  const pokedAgo = (o) => (o.poked === undefined || guest.drawing ? 1e9 : sound.t - o.poked); // how long ago a visitor was last clicked, in seconds of the song (a great many if never)
+  function handNow(real) { // once a frame, from frame(), showing or not, by the clock (real: at most a tenth of a second, and it can be 0)
+    const P = pointer, k = Math.max(0, Math.min(2, T.hand || 0)), moving = P.on && !P.touch && k > 0 && realNow - P.at < 3000, was = P.near;
+    P.fresh = null; // a click is the picture's news for one drawFrame() only: a change of effect draws the scene once more before the next one, and must not answer it twice
+    P.dt = real;
+    P.frames = (P.frames + 1) % 1e9;
+    P.much = Math.max(1, k);
+    P.near += ((moving ? Math.min(1, k) : 0) - P.near) * (1 - Math.exp(-real / (moving ? 0.12 : P.on ? 0.6 : 0.9))); // (left lying still it goes in about half a second; gone off the picture, in about a second)
+    if (!moving && P.near < 0.02) P.near = 0; // (gone is gone: the last fiftieth is let go at once, so a still mouse is gone from the picture within about five and a half seconds)
+    P.over = moving ? Math.min(99, P.over + real) : 0;
+    if (was < 0.01) { P.sx = P.x; P.sy = P.y; P.vx = P.vy = 0; } // it comes in where it is, not from where it went out
+    const ox = P.sx, oy = P.sy, follow = 1 - Math.exp(-real / 0.06), slow = 1 - Math.exp(-real / 0.6), settled = clamp((P.over - 0.35) / 0.3); // (the leans wait until it has been there about half a second)
+    P.sx += (P.x - P.sx) * follow;
+    P.sy += (P.y - P.sy) * follow;
+    if (real > 0) { const j = 1 - Math.exp(-real / 0.12); P.vx += ((P.sx - ox) / real - P.vx) * j; P.vy += ((P.sy - oy) / real - P.vy) * j; }
+    P.lx += ((w ? (P.sx / w) * 2 - 1 : 0) * P.near * settled - P.lx) * slow;
+    P.ly += ((h ? (P.sy / h) * 2 - 1 : 0) * P.near * settled - P.ly) * slow;
+    const held = realNow < P.aimTill, turn = 1 - Math.exp(-real / (held ? 0.9 : 1.6)); // the place clicked: eased in, held, eased out again
+    P.cx += ((held ? P.aimX : 0) - P.cx) * turn;
+    P.cy += ((held ? P.aimY : 0) - P.cy) * turn;
+    for (let i = P.pokes.length - 1; i >= 0; i--) if ((P.pokes[i].age += real) > 3) P.pokes.splice(i, 1);
+    P.since = Math.min(99, P.since + real);
+  }
+  function handTap() { // from the top of drawFrame(), once the little windows have had their say (a click on one of them is already gone): who a click is for
+    const P = pointer, p = P.tapped;
+    if (!p || P.taken || !handing()) return;
+    if (folkTap(p)) { P.taken = true; P.tapped = null; return; } // a visitor's: it answers, and nothing else sees the click (no ring, and no answer from the picture under it)
+    if (P.since < 0.45) return; // too soon after the last one: only its ring (a little under half a second, so clicking along to a beat at two a second is answered every time)
+    if (P.pokes.length >= 4) P.pokes.shift();
+    P.fresh = { x: p.x, y: p.y, age: 0, k: Math.min(2, T.hand) }; // (one small thing for each click the picture answers, never one a frame)
+    P.pokes.push(P.fresh);
+    P.since = 0;
+    const lean = Math.min(1, T.hand);
+    P.aimX = w ? ((p.x / w) * 2 - 1) * lean : 0;
+    P.aimY = h ? ((p.y / h) * 2 - 1) * lean : 0;
+    P.aimTill = realNow + 3500;
+  }
+  function handAfter() { // from pointerRings(), once the effect has drawn and before the ring goes out: what is left of a click
+    const P = pointer, f = P.fresh;
+    if (!P.tapped || !handing()) return;
+    if (f && !P.taken) { // nothing answered it where it landed: a calm saucer close by comes over and shines its light on the place
+      let best = null, most = 2.5; // (within two and a half of its own size, so it never takes a click from the far side of the picture)
+      for (const o of crowd.folk) if (o.kind === "saucer" && o.calm && o.seenN !== undefined && P.frames - o.seenN <= 1) { const q = Math.hypot(f.x - o.seenX, f.y - o.seenY) / o.seenR; if (q < most) { most = q; best = o; } }
+      if (best) { best.callX = f.x; best.callY = f.y; best.callAt = sound.t; } // (and the ring still goes out: it says at once that the click was heard, and the saucer comes after it)
+    }
+    if (morph) P.taken = false; // while one effect changes into another the ring always goes out: the old picture going over the new one would hide any other answer
+  }
+  function folkTap(p) { // a click on a visitor, as they were drawn last frame: the one in front that it lands on, inside its own shape. Says whether one took it
+    for (let i = crowd.folk.length - 1; i >= 0; i--) { // (the last drawn is in front)
+      const o = crowd.folk[i];
+      if (o.seenN === undefined || pointer.frames - o.seenN > 1 || !folkHit(o, p)) continue;
+      if (o.poked === undefined || (sound.t - o.poked >= (POKE_LONG[o.kind] || 0.5) && realNow - o.pokedAt >= 490)) { o.poked = sound.t; o.pokedAt = realNow; o.pokes = (o.pokes || 0) + 1; o.pokeX = p.x; o.pokeY = p.y; o.pokeWhich = o.hitAt; } // (clicked again while it is still answering: the click is still its own, and does nothing more)
+      return true;
+    }
+    return false;
+  }
+  function folkHit(o, p) { // whether a click lands on a visitor. Most are an oval round where they were drawn; the ones that fill the picture are hit only on themselves
+    if (o.kind === "lasers") { // on a beam, within a little of its width
+      const reach = Math.max(w, h) * 0.014, n = o.aims ? o.aims.length : 0;
+      for (let j = 0; j < n; j++) { const ox = j < n / 2 ? w * 0.12 : w * 0.88, dx = p.x - ox, dy = p.y - h * 1.02, c = Math.cos(o.aims[j]), s = Math.sin(o.aims[j]); if (dx * c + dy * s > 0 && Math.abs(dx * s - dy * c) < reach) { o.hitAt = j; return true; } }
+      return false;
+    }
+    if (o.kind === "sea") return o.seaRise > 0.3 && p.y > o.seenY; // in the sea, under its crests
+    if (o.kind === "fall") { // only fireflies, and only on one of them
+      if (o.style !== "fireflies") return false;
+      for (const b of o.bits) if (Math.abs(b.x + (b.hx || 0) - p.x) < o.seenR && Math.abs(b.y + (b.hy || 0) - p.y) < o.seenR) return true; // (where it is drawn)
+      return false;
+    }
+    const dx = (p.x - o.seenX) / o.seenR, dy = (p.y - o.seenY) / (o.seenR * o.seenTall);
+    return dx * dx + dy * dy < 1;
+  }
+  function seenAt(o, x, y, r, tall = 1) { // where a visitor was drawn this frame, in the picture's dots, and how far round it a click is its own (tall: how much less up and down than across)
+    if (guest.drawing) return;
+    o.seenX = x + folkHand.dx;
+    o.seenY = y + folkHand.dy;
+    o.seenR = r;
+    o.seenTall = tall;
+    o.seenN = pointer.frames;
+  }
+  function lookShare(o) { // how much a visitor turns to look at the mouse, 0 to 1: it follows near, eased by the clock. Only the mouse's share is eased, so with no mouse it looks exactly its own way
+    const to = guest.drawing ? 0 : pointer.near;
+    if (guest.drawing || (!o.lookK && !to)) return 0;
+    o.lookK = (o.lookK || 0) + (to - (o.lookK || 0)) * (1 - Math.exp(-pointer.dt / 0.2));
+    if (!to && o.lookK < 0.002) o.lookK = 0;
+    return o.lookK;
+  }
+  const handClose = (x, y, reach) => { const P = pointer; if (P.near < 0.01 || guest.drawing) return 0; const dx = x - P.sx, dy = y - P.sy; return P.near * Math.exp(-(dx * dx + dy * dy) / (reach * reach)); }; // 0 to 1: how close the mouse is to x, y (all in dots), and only as much as it is there
+  const shoved = [0, 0];
+  function shove(x, y, reach, much = 0.45) { // how far the mouse pushes aside a thing at x, y: straight away from it, nothing right under it and most at about two thirds of reach, so it works like a
+    // lens over the picture; next to nothing beyond twice reach. At its steepest the push takes back less than half of the way, so two things never swap places. Gives back shoved, kept, so nothing is made for each thing
+    const P = pointer;
+    shoved[0] = shoved[1] = 0;
+    if (P.near < 0.01 || guest.drawing) return shoved;
+    const dx = x - P.sx, dy = y - P.sy, q = (dx * dx + dy * dy) / (reach * reach);
+    if (q > 6) return shoved;
+    const f = P.near * Math.min(0.9, much * P.much) * Math.exp(-q);
+    shoved[0] = dx * f;
+    shoved[1] = dy * f;
+    return shoved;
+  }
+  function pokeWave(x, y, speed, width, across) { // the clicks' waves at x, y: each runs out from where it landed at speed dots a second, a ripple width dots wide that dies away in about two seconds.
+    // across: only how far along the picture counts (for a line that runs across it). Summed, about -1 to 1, and never past 1.2 however often it is clicked
+    if (guest.drawing) return 0;
+    let sum = 0;
+    for (const p of pointer.pokes) { const d = (across ? Math.abs(x - p.x) : Math.hypot(x - p.x, y - p.y)) - speed * p.age, q = d / width; if (q > -3 && q < 3) sum += p.k * Math.exp(-q * q) * Math.cos(q * 2.4) * Math.exp(-p.age * 1.6) * clamp(p.age / 0.05); }
+    return Math.max(-1.2, Math.min(1.2, sum));
+  }
+  const leaned = [0, 0], leanedSum = [0, 0];
+  function leanAt(hover, click = hover) { // how far a picture that leans toward the mouse moves its middle, in parts of the picture's width and height from the middle: hover is how much of the way
+    // toward the mouse (1 is all the way), click how much of the way toward the place clicked. Never more than 0.3 of the picture either way, so a vanishing point stays well inside it.
+    // Keep hover small (0.3 or less, which is 0.15 of the picture with the mouse at an edge): the click carries the bigger move
+    const P = pointer, on = !guest.drawing;
+    leaned[0] = on ? Math.max(-0.3, Math.min(0.3, (hover * P.lx + click * P.cx) * 0.5)) : 0;
+    leaned[1] = on ? Math.max(-0.3, Math.min(0.3, (hover * P.ly + click * P.cy) * 0.5)) : 0;
+    return leaned;
+  }
+  function leanOf() { // the same for the fractals' journeys, in their sums' own measure (across and up from the middle, in parts of half the picture's height): a little toward where the mouse is, and half way to a place clicked
+    const at = leanAt(0.14, 0.5), wide = h ? w / h : 1;
+    leanedSum[0] = at[0] * 2 * wide;
+    leanedSum[1] = -at[1] * 2;
+    return leanedSum;
+  }
+  function handHide() { // from hide(): the mouse is forgotten with the picture
+    const P = pointer;
+    P.pokes.length = 0;
+    P.fresh = null;
+    P.near = P.over = P.lx = P.ly = P.cx = P.cy = P.vx = P.vy = 0;
+    P.aimTill = -1;
+    P.since = 99;
+    P.touch = false;
+  }
+  function handFit(across, down) { // from fit(), before the picture changes size: the mouse's places are moved to the same spots in the new dots
+    const P = pointer;
+    if (!w || !h) return;
+    const kx = across / w, ky = down / h;
+    P.x *= kx; P.y *= ky; P.sx *= kx; P.sy *= ky; P.vx *= kx; P.vy *= ky;
+    for (const p of P.pokes) { p.x *= kx; p.y *= ky; }
+    if (P.tap) { P.tap.x *= kx; P.tap.y *= ky; }
+  }
+
+  /* ---- the visitors' answers (each visitor's own drawing calls these) ---- */
+  function eyeWince(o) { // the great eye, clicked: it shuts at once, then opens again slowly, squinting, and its own blink waits, so it never blinks twice running. Gives back how wide it may open
+    const { t } = sound;
+    if (o.pokes !== o.winced) { o.winced = o.pokes; o.shut = t + 0.12; o.blink = t + rnd(2.5, 4.5); }
+    return o.winced === undefined ? 1 : 0.4 + 0.6 * clamp((t - o.poked - 0.12) / 0.9);
+  }
+  function eyeLook(o, look, W, x, y) { // and it looks at the mouse: its iris, from its own look about (look, changed in place), toward the mouse by the mouse's share only
+    const k = lookShare(o);
+    if (!k) return;
+    const P = pointer, ax = P.sx - x, ay = P.sy - y, far = Math.hypot(ax, ay) || 1, r = clamp(far / (W * 1.5)); // (less far when the mouse is right over it)
+    look[0] += ((ax / far) * W * 0.34 * r - look[0]) * k;
+    look[1] += ((ay / far) * W * 0.12 * r - look[1]) * k;
+  }
+  function cowHand(o, S) { // the cow, clicked: "Moo!" in a little cloud over it, rising and fading in a second and a half (there is never a sound), and a happy turn right round. Gives back the turn
+    const p = pokedAgo(o);
+    if (p >= 1.6) return 0;
+    const k = clamp(p / 1.6), alpha = g.globalAlpha * clamp(k / 0.08) * (1 - k) ** 1.5;
+    if (alpha > 0.01) {
+      g.save();
+      g.globalAlpha = alpha;
+      g.translate(S * 0.35, -S * (0.55 + 0.25 * k));
+      g.fillStyle = "rgba(255,255,255,0.92)";
+      g.beginPath(); g.ellipse(0, 0, S * 0.36, S * 0.2, 0, 0, TAU); g.fill();
+      g.beginPath(); g.moveTo(-S * 0.12, S * 0.15); g.lineTo(-S * 0.24, S * 0.32); g.lineTo(-S * 0.02, S * 0.18); g.fill(); // its little tail, toward the cow
+      g.fillStyle = "#1a1a1a";
+      const px = Math.max(8, Math.round(S * 0.2));
+      if (o.mooPx !== px) { o.mooPx = px; o.mooFont = "bold " + px + "px sans-serif"; } // (made again only when its size changes)
+      g.font = o.mooFont;
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      g.fillText("Moo!", 0, S * 0.01);
+      g.restore();
+    }
+    return eased(clamp(p / 1.2)) * TAU;
+  }
+  function saucerPull(o, x, y, part, arrive) { // a saucer, called over by a click on the sky (handAfter): drawn off its own way by an offset on a spring, so it glides there and back and never jumps,
+    // not when it is called again (only where it heads changes) and not at the end of its visit (it lets go before it leaves). And whether it is calm enough to be called: arrived, not the
+    // hardcore kind, not busy with its own beam, and not about to leave
+    const { t } = sound;
+    o.calm = !o.zap && part < 0.7 && (o.hover ? arrive >= 1 && !(o.beam && part > 0.26 && part < 0.82) : part > 0.08);
+    if (o.callAt === undefined) return;
+    if (o.pullX === undefined) Object.assign(o, { pullX: 0, pullY: 0, pullVX: 0, pullVY: 0, shine: 0 });
+    const age = t - o.callAt, on = age < 3.2 && part < 0.8, tx = on ? o.callX - folkHand.dx - x : 0, ty = on ? o.callY - folkHand.dy - o.size * 0.9 - y : 0, dt = Math.min(0.1, Math.max(0, sound.dt));
+    spring(o, "pullX", "pullVX", 12, 7, dt, -tx);
+    spring(o, "pullY", "pullVY", 12, 7, dt, -ty);
+    o.shine += ((on && age > 0.6 && age < 2.8 ? 1 : 0) - o.shine) * (1 - Math.exp(-dt / 0.25)); // its light on the place, once it is about there
+  }
+  function saucerTurn(o, x) { // how far a saucer turns besides its own tilt: toward the mouse a little (at most a quarter of a radian), and a wobble when it is clicked
+    const P = pointer, p = pokedAgo(o), k = lookShare(o), wobble = p < 1.2 ? Math.sin(clamp(p / 1.2) * Math.PI) * 0.5 : 0;
+    return wobble + (k ? Math.max(-0.25, Math.min(0.25, (P.sx - x - folkHand.dx) / (w * 0.8))) * k : 0);
+  }
+  function saucerShine(o, size, turn, hat) { // under a called saucer (in its own turned frame), its light straight down onto the place clicked
+    if (!(o.shine > 0.02)) return;
+    const long = size * 1.05, paint = g.createLinearGradient(0, 0, 0, long);
+    paint.addColorStop(0, rgba(o.tone, 0.55));
+    paint.addColorStop(1, rgba(o.tone, 0));
+    g.save();
+    g.rotate(-turn); // (straight down, however it tilts)
+    g.globalCompositeOperation = "lighter";
+    g.globalAlpha = o.shine * (0.7 + 0.3 * hat);
+    g.fillStyle = paint;
+    g.beginPath(); g.moveTo(-size * 0.08, 0); g.lineTo(size * 0.08, 0); g.lineTo(size * 0.3, long); g.lineTo(-size * 0.3, long); g.closePath(); g.fill();
+    g.restore();
+  }
+  function jellyHand(o, dt) { // the jellyfish drifts away from the mouse, and a click is a stroke of its bell, so it rises
+    if (o.pokes !== o.stroked) { o.stroked = o.pokes; o.pulse = Math.max(o.pulse, 1); }
+    const s = shove(o.x + folkHand.dx, o.y + folkHand.dy, o.size * 1.2, 0.8), k = Math.min(1, dt * 1.5);
+    o.x += s[0] * k;
+    o.y += s[1] * k;
+    seenAt(o, o.x, o.y + sky.bob * o.size * 0.22 - o.size * 0.1, o.size * 0.5);
+  }
+  function whaleRoll(o, x, y, size) { // it rolls a little toward the mouse, up or down
+    const k = lookShare(o);
+    return k ? -0.1 * k * Math.max(-1, Math.min(1, (pointer.sy - y - folkHand.dy) / size)) : 0;
+  }
+  function whaleHand(o, size, x, y) { // in the whale's own turned frame, over its body: its eye's glint turns to the mouse, and after a click a puff of bubbles goes up from its blowhole
+    const k = o.lookK || 0, p = pokedAgo(o), fade = g.globalAlpha;
+    if (k > 0.01) { const ex = x - size * 0.281 * o.side + folkHand.dx, dx = (pointer.sx - ex) * o.side, dy = pointer.sy - y - folkHand.dy, far = Math.hypot(dx, dy) || 1; softBlob(g, -size * 0.281 + (dx / far) * size * 0.012 * k, -size * 0.004 + (dy / far) * size * 0.01 * k, size * 0.014, WHITE, 0.8 * k); }
+    if (p >= 1.6) return;
+    g.strokeStyle = rgba(mix(o.tone, [255, 255, 255], 0.6), 1);
+    g.lineWidth = Math.max(1, size * 0.005);
+    for (let i = 0; i < 6; i++) { // six bubbles, each a little later and further up than the last
+      const q = clamp((p - i * 0.08) / 1.2);
+      if (q <= 0 || q >= 1) continue;
+      g.globalAlpha = fade * 0.8 * Math.sin(Math.PI * q);
+      g.beginPath();
+      g.arc(-size * 0.207 + Math.sin(i * 2.1 + q * 5) * size * 0.03, -size * 0.12 - q * size * (0.16 + 0.03 * i), size * (0.012 + 0.005 * (i % 3)), 0, TAU);
+      g.stroke();
+    }
+    g.globalAlpha = fade;
+  }
+  const WHITE = [255, 255, 255];
+  const whaleFlap = (o) => { const p = pokedAgo(o); return p < 1.6 ? Math.sin(p * 5) * 0.5 * (1 - p / 1.6) : 0; }; // a slow flap of its tail, after a click
+  function smileyTurn(o, x, y, turn, own) { // a smiley turns its face to the mouse; and a click while its own trick is on (own) gives it a happy turn right round
+    const k = lookShare(o), p = pokedAgo(o);
+    let extra = own && p < 1 ? eased(clamp(p)) * TAU : 0;
+    if (k) { const P = pointer, to = Math.atan2(P.sy - y - folkHand.dy, P.sx - x - folkHand.dx) + Math.PI / 2, d = to - turn; extra += Math.sin(d) * 0.5 * k; } // (the sine: no jump where the angle comes round)
+    return extra;
+  }
+  function smileyPoke(o, own) { // a click on a smiley with no trick on just now: it sticks its tongue out at you. Gives back the trick to draw, or nothing
+    const p = pokedAgo(o);
+    if (own || p >= 1) return null;
+    if (!o.poking) o.poking = { tongue: 0, tone: SMILEY }; // (made once for each smiley)
+    o.poking.tongue = Math.sin(Math.PI * clamp(p)) ** 0.5;
+    return o.poking.tongue > 0.001 ? o.poking : null;
+  }
+  const eyed = [0, 0];
+  function peekEyes(o, x, y, r) { // the big face's eyes, how far toward the mouse (in parts of its face), on top of their own look about
+    eyed[0] = eyed[1] = 0;
+    const k = lookShare(o);
+    if (!k) return eyed;
+    const P = pointer, ax = P.sx - x - folkHand.dx, ay = P.sy - y - folkHand.dy, far = Math.hypot(ax, ay) || 1, near = clamp(far / (r * 3));
+    eyed[0] = (ax / far) * 0.12 * near * k;
+    eyed[1] = (ay / far) * 0.05 * near * k;
+    return eyed;
+  }
+  const visor = [0, 0];
+  function astronautLook(o, x, y, S, roll) { // the astronaut's helmet turns to the mouse: its visor moves toward it, in its own turned frame
+    visor[0] = visor[1] = 0;
+    const k = lookShare(o);
+    if (!k) return visor;
+    const P = pointer, ax = P.sx - x - folkHand.dx, ay = P.sy - y - folkHand.dy, far = Math.hypot(ax, ay) || 1, c = Math.cos(roll), s = Math.sin(roll), r = clamp(far / (S * 2)) * k * 0.05;
+    visor[0] = ((ax * c + ay * s) / far) * r;
+    visor[1] = ((-ax * s + ay * c) / far) * r;
+    return visor;
+  }
+  const waved = [0, 0];
+  function astronautArms(o) { // its two arms: as the beat has them, or after a click both waving over its head for a second
+    const p = pokedAgo(o);
+    waved[0] = waved[1] = o.arm;
+    if (p >= 1) return waved;
+    const k = clamp(Math.min(p / 0.15, (1 - p) / 0.2)), wave = Math.sin(p * 16);
+    waved[0] = o.arm + (1 + 0.35 * wave - o.arm) * k;
+    waved[1] = o.arm + (-1 - 0.35 * wave - o.arm) * k;
+    return waved;
+  }
+  const mandalaOpen = (o) => { const p = pokedAgo(o); return p < 0.6 ? 1 + 0.15 * Math.sin(Math.PI * (p / 0.6)) : 1; }; // a click opens it wider for a moment
+  function mandalaLean(o, R) { // its rings turn a little toward the mouse's side
+    const k = lookShare(o);
+    return k ? 0.35 * k * Math.max(-1, Math.min(1, (pointer.sx - o.x - folkHand.dx) / (R * 3 + 1))) : 0;
+  }
+  function toadHand(o, s) { // a toadstool hops when clicked (only from the ground) and leans away from the mouse. Gives back the lean
+    if (o.pokes !== o.hopped) { o.hopped = o.pokes; if (o.up <= 0.001) o.vy = s * 6; }
+    seenAt(o, o.x, o.ground - o.up - s * 0.7, s * 0.75);
+    const near = handClose(o.x + folkHand.dx, o.ground - o.up - s * 0.6 + folkHand.dy, s * 3);
+    return near ? -0.3 * near * Math.max(-1, Math.min(1, (pointer.sx - o.x - folkHand.dx) / s)) : 0;
+  }
+  function shapeHand(o, s, dt) { // a wireframe turns toward the mouse, and a click sets it spinning fast, dying away in a second
+    const p = pokedAgo(o), k = lookShare(o), P = pointer;
+    if (p < 1) { const fast = 9 * (1 - p) * dt; o.ax += fast * 0.6; o.ay += fast; }
+    o.lookA = k ? 0.5 * k * Math.max(-1, Math.min(1, (P.sy - o.y - folkHand.dy) / (s * 3 + 1))) : 0;
+    o.lookB = k ? 0.5 * k * Math.max(-1, Math.min(1, (P.sx - o.x - folkHand.dx) / (s * 3 + 1))) : 0;
+    seenAt(o, o.x, o.y, s * 1.3);
+  }
+  function laserAim(o, ox, j, a) { // one beam's angle: its own, swept part of the way toward the mouse, and held on a place clicked for a moment if the click landed on this beam
+    if (!o.aims) o.aims = new Float32Array(o.beams * 2); // (made once for each set of lasers)
+    if (j === 0) { seenAt(o, w / 2, h, 1); const k = lookShare(o); o.sweep = (o.sweep || 0) + (k - (o.sweep || 0)) * (1 - Math.exp(-pointer.dt / 0.6)); if (!k && o.sweep < 0.002) o.sweep = 0; } // (they fill the picture, so they come round more slowly than the small visitors)
+    let out = a;
+    const P = pointer, k = o.sweep, p = pokedAgo(o), y0 = h * 1.02;
+    if (k) out += (Math.atan2(Math.min(P.sy, h * 0.9) - y0, P.sx - ox) - a) * 0.3 * k; // (never pulled down flat, even by a mouse right at the bottom)
+    if (p < 0.9 && o.pokeWhich === j) out += (Math.atan2(o.pokeY - y0, o.pokeX - ox) - out) * clamp(p / 0.12) * clamp((0.9 - p) / 0.3);
+    o.aims[j] = out;
+    return out;
+  }
+  function seaSetup(o, base, rise) { // the sea, before its crests are drawn: how much the swell rises under the mouse, and where a click's ripple has got to
+    const P = pointer;
+    seenAt(o, w / 2, base - h * 0.05, w);
+    o.seaRise = rise;
+    o.swell = P.near > 0.01 && !guest.drawing ? h * 0.035 * P.near * rise : 0;
+    o.ripple = pokedAgo(o);
+  }
+  function seaLift(o, x) { // how far the crest at x is lifted by the mouse: the swell under it, and a ripple running both ways along the crest from a click
+    let v = 0;
+    if (o.swell) { const q = (x - pointer.sx) / (w * 0.07); v += o.swell * Math.exp(-q * q); }
+    if (o.ripple < 1.6) { const q = (Math.abs(x - o.pokeX) - w * 0.45 * o.ripple) / (w * 0.04); if (q > -3 && q < 3) v += h * 0.03 * o.seaRise * Math.exp(-q * q) * Math.cos(q * 2.4) * Math.exp(-o.ripple * 1.6); }
+    return v;
+  }
+  function discoSpin(o, R, y) { // the mirror ball turns twice as fast for a second after a click; and how much its spots drift toward the mouse
+    const p = pokedAgo(o);
+    seenAt(o, o.x, y, R * 1.2);
+    if (p < 1) o.spun = (o.spun || 0) + Math.min(0.1, Math.max(0, sound.dt)) * 0.8;
+    o.lookNow = lookShare(o);
+    return o.spun || 0;
+  }
+  const discoPull = (o, at, down) => (o.lookNow ? ((down ? pointer.sy : pointer.sx) - at) * 0.25 * o.lookNow : 0); // how far one of its spots drifts toward the mouse, across (down: up and down)
+  function fallSetup(o, s) { // the falling season, before its bits move: whether the mouse touches it now (near, or fireflies scattering from a click)
+    if (o.style === "fireflies") seenAt(o, w / 2, h / 2, s * 0.015); // (one of them is hit within about its own glow)
+    o.ripple = pokedAgo(o);
+    const touched = pointer.near > 0.01 && !guest.drawing;
+    if (touched) o.handLeft = 3; else if (o.handLeft) o.handLeft = Math.max(0, o.handLeft - Math.min(0.1, Math.max(0, sound.dt))); // (and for three seconds after, so the fireflies drawn toward the mouse ease all the way back)
+    return touched || o.ripple < 1.2 || o.handLeft > 0;
+  }
+  function fallHand(o, b, s, dt) { // one bit of it: fireflies come to the mouse and scatter from a click; snow, petals and leaves swirl away from the mouse
+    if (o.style === "fireflies") {
+      const k = handClose(b.x, b.y, s * 0.35), P = pointer, e = Math.min(1, dt * 1.5); // (drawn this far toward it, eased; their own places are left alone, so when the mouse goes they drift back)
+      b.hx = (b.hx || 0) + ((P.sx - b.x) * 0.7 * k - (b.hx || 0)) * e;
+      b.hy = (b.hy || 0) + ((P.sy - b.y) * 0.7 * k - (b.hy || 0)) * e;
+      if (o.ripple < 1.2) { const dx = b.x - o.pokeX, dy = b.y - o.pokeY, d = Math.hypot(dx, dy) || 1; if (d < s * 0.3) { const f = s * 0.6 * dt * Math.exp(-o.ripple * 2.5); b.x += (dx / d) * f; b.y += (dy / d) * f; } }
+      return;
+    }
+    const v = shove(b.x, b.y, s * 0.1, 0.7), k = dt * 3;
+    b.x += (v[0] - v[1] * 0.7) * k; // (away, and round: a swirl)
+    b.y += (v[1] + v[0] * 0.7) * k;
+  }
+  /* ==== mouse: end ==== */
   function pointerRings() { // a click on the picture sends a soft ring out from where it landed, in the record's colors, and the kick pushes it on
+    handAfter(); // what is left of a click once the effect has drawn: a saucer close by may come for it, and during a change of effect the ring always goes out (see the mouse block)
     const L = pointer.rings;
     if (pointer.tapped && !pointer.taken) { if (L.length >= 6) L.shift(); L.push({ x: pointer.tapped.x, y: pointer.tapped.y, age: 0, tone: around(Math.random()) }); }
     if (!L.length) return;
@@ -14349,6 +14755,7 @@ window.Effects = (() => {
     pointer.tap = null;
     pointer.taken = false;
     windowsFrame(); // before the effect draws: a click on a little window shuts it, and neither the effect under it nor a ring answers it (see the windows block)
+    handTap(); // then who any other click is for: a visitor under it, or the picture (see the mouse block)
     const inScene = folkInScene();
     punchHear(); // in hard music: whether a kick lands, before the effect hears it (see punchHear)
     drawScene();
@@ -14483,6 +14890,7 @@ window.Effects = (() => {
     guestCanvas.hidden = false;
     guest.t += real;
     [g, w, h, sound.t, sound.dt] = [guestPaint, W, H, guest.t, real]; // the same drawing as in the pictures, on this layer and by the clock
+    guest.drawing = true; // (the mouse over the picture is nothing to them: see the mouse block)
     try {
       g.setTransform(1, 0, 0, 1, 0, 0);
       g.globalCompositeOperation = "source-over";
@@ -14497,7 +14905,7 @@ window.Effects = (() => {
         g.restore();
         return true;
       });
-    } finally { [g, w, h, sound.t, sound.dt] = was; }
+    } finally { [g, w, h, sound.t, sound.dt] = was; guest.drawing = false; }
     if (!guest.list.length) { guestCanvas.hidden = true; guestCanvas.width = guestCanvas.height = 1; } // and its memory goes until somebody else comes
   }
   addEventListener("resize", () => { if (name) fit(); });
@@ -14519,6 +14927,7 @@ window.Effects = (() => {
       crowd.folk = [];
       pointer.rings.length = 0;
       pointer.on = false;
+      handHide();
       dream.on = dream.held = dream.bloom = 0;
       dream.motes.length = 0;
       canvas.hidden = true;
@@ -14526,8 +14935,9 @@ window.Effects = (() => {
     slow() { slowNext = true; }, // the next change takes its time, for when it changes by itself
     wander(pick) { wanders = pick || null; roam.on = 0; roam.due = rnd(40, 80); }, // Morph: what to call for the next effect now and then, or nothing to stay on this one
     full(on) { alone = on; },
-    pointer(x, y, how) { // the mouse, from the page: where it is on the screen and what it did ("move" or "down"), or "off" when it has left the picture or is over the page's own things
+    pointer(x, y, how, by) { // the mouse, from the page: where it is on the screen and what it did ("move" or "down"), or "off" when it has left the picture or is over the page's own things. by: what it is ("mouse", "pen" or "touch"): a finger only ever taps
       if (how === "off") { pointer.on = false; return; }
+      pointer.touch = by === "touch";
       const r = canvas.getBoundingClientRect();
       if (!r.width || !r.height) return;
       pointer.x = ((x - r.left) * w) / r.width;
@@ -14568,7 +14978,7 @@ window.Effects = (() => {
     },
     place(part) { winPlace(part); }, // how far through the playing song it is, 0 to 1: a little window's loading bar follows it
     visiting: () => guest.list.length > 0,
-    knobs: (style) => { const trip = TRIPS[style]; return ["light", "react", "punch", "speed", "spark", ...(LEAVES_TRAILS.has(style) ? ["drag"] : []), ...(style === "ripple" ? ["tilt"] : []), ...(trip ? ["nod", ...(trip.steer ? ["turns"] : []), ...(trip.moves ? ["moves"] : []), "shots"] : []), ...(VERSIONS[style] ? ["vary"] : []), ...(FRACTALS.has(style) ? ["color", "echo", "breathe"] : []), ...(style === "dorfic" || style === "eco" ? [] : ["sounds"]), "tricks", "dream", "folk", "acid", "band", ...(trip && trip.falls ? ["falls"] : []), ...(trip && trip.cockpit ? ["pit"] : [])].map((key) => [key, ...KNOBS[key]]); },
+    knobs: (style) => { const trip = TRIPS[style]; return ["light", "react", "punch", "speed", "spark", ...(LEAVES_TRAILS.has(style) ? ["drag"] : []), ...(style === "ripple" ? ["tilt"] : []), ...(trip ? ["nod", ...(trip.steer ? ["turns"] : []), ...(trip.moves ? ["moves"] : []), "shots"] : []), ...(VERSIONS[style] ? ["vary"] : []), ...(FRACTALS.has(style) ? ["color", "echo", "breathe"] : []), ...(style === "dorfic" || style === "eco" ? [] : ["sounds"]), "tricks", "dream", "folk", "hand", "acid", "band", ...(trip && trip.falls ? ["falls"] : []), ...(trip && trip.cockpit ? ["pit"] : [])].map((key) => [key, ...KNOBS[key]]); },
     tuning(values) { // adjustments for the effect showing. Anything left out is back to how it was designed
       const was = T.vary;
       changeKnobs(); // the sliders the picture was drawn with, kept for an effect that goes on beside the next one (see the live change)
@@ -14626,6 +15036,7 @@ window.Effects = (() => {
       sound.dt = dt;
       listen(analyser, hit, tick, real, low);
       if (!(showing && TRIPS[name])) nodAlong(); // the visitors nod to the kick anywhere. In Space the ship's own nod does it
+      handNow(real); // the mouse, eased, for the effects and the visitors (see the mouse block)
       if (showing) {
         keepUp(real);
         changeStep(real); // a change from one effect to another starts, moves on with the music, or ends (see the live change)

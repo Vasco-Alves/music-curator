@@ -2567,8 +2567,8 @@ window.addEventListener("mousemove", wakeFx);
 /* The mouse on the picture: on Now Playing and in full view the effects hear where it is and when it clicks, but only over the picture itself, never over the page's own buttons, words or the record. */
 const PAGE_THINGS = "button, a, input, select, textarea, label, summary, [role=button], nav, aside, .player, .fx-bar, .fx-title, .now-stage, .now-queue, .now-close, .card, .toast, .modal, #drawer";
 const overPicture = (e) => fxShowing() && (fxFull || onNowPage()) && !(e.target && e.target.closest && e.target.closest(PAGE_THINGS));
-window.addEventListener("pointermove", (e) => { if (FX && fxName) FX.pointer(e.clientX, e.clientY, overPicture(e) ? "move" : "off"); }, { passive: true });
-window.addEventListener("pointerdown", (e) => { if (FX && fxName && e.button === 0 && overPicture(e)) FX.pointer(e.clientX, e.clientY, "down"); }, { passive: true });
+window.addEventListener("pointermove", (e) => { if (FX && fxName) FX.pointer(e.clientX, e.clientY, overPicture(e) ? "move" : "off", e.pointerType); }, { passive: true }); // (and what it is: a finger is never a hovering mouse)
+window.addEventListener("pointerdown", (e) => { if (FX && fxName && e.button === 0 && overPicture(e)) FX.pointer(e.clientX, e.clientY, "down", e.pointerType); }, { passive: true });
 document.addEventListener("mouseout", (e) => { if (!e.relatedTarget && FX) FX.pointer(0, 0, "off"); }); // out of the window
 const fingerUp = (e) => { if (FX && e.pointerType !== "mouse") FX.pointer(0, 0, "off"); }; // a finger or a pen lifted: a tap is a click, and no hover is left behind where it was
 window.addEventListener("pointerup", fingerUp, { passive: true });
